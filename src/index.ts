@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore } from './journal.js';
 import { runZTurn } from './loop.js';
+import { runGroupTurn } from './groupLoop.js';
 import { personaByKey } from './personas.js';
 import { supabase } from './db.js';
 
@@ -211,6 +212,24 @@ app.get('/threads', async (req, res) => {
 });
 
 // one turn — SSE stream
+// create a group chat thread with chosen member personas
+app.post('/groups', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { name, members } = req.body ?? {};
+    const keys: string[] = Array.isArray(members) ? members.filter((m: any) => typeof m === 'string') : [];
+    if (keys.length < 2) return res.status(400).json({ error: 'a group needs at least 2 members' });
+    const { data, error } = await supabase.from('threads').insert({
+      user_id: user.id, is_group: true, member_keys: keys,
+      companion_name: (name && String(name).trim()) || 'the group',
+    }).select('id, is_group, member_keys, companion_name').single();
+    if (error) return res.status(500).json({ error: 'group create: ' + error.message });
+    res.json(data);
+  } catch (e: any) { res.status(500).json({ error: 'group failed: ' + (e?.message || String(e)) }); }
+});
+
 app.post('/chat', async (req, res) => {
   let user;
   try {
@@ -231,12 +250,26 @@ app.post('/chat', async (req, res) => {
   res.flushHeaders?.();
 
   try {
-    const result = await runZTurn({
-      userId: user.id, threadId, message,
-      onToken: (t) => res.write(`data: ${JSON.stringify({ token: t })}\n\n`),
-    });
-    res.write(`data: ${JSON.stringify({ done: true, usage: result.usage })}\n\n`);
-    res.end();
+    // is this a group thread?
+    const { data: th } = await supabase.from('threads')
+      .select('is_group').eq('id', threadId).eq('user_id', user.id).maybeSingle();
+    if (th?.is_group) {
+      await runGroupTurn({
+        userId: user.id, threadId, message,
+        onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
+        onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),
+        onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),
+      });
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } else {
+      const result = await runZTurn({
+        userId: user.id, threadId, message,
+        onToken: (t) => res.write(`data: ${JSON.stringify({ token: t })}\n\n`),
+      });
+      res.write(`data: ${JSON.stringify({ done: true, usage: result.usage })}\n\n`);
+      res.end();
+    }
   } catch (e: any) {
     res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
     res.end();

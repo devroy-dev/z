@@ -170,6 +170,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .jr-entry .jr-text{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:16px;line-height:1.5;color:var(--ink)}
 .jr-entry .jr-del{position:absolute;top:11px;right:14px;font-size:9px;color:var(--faint);cursor:pointer;letter-spacing:.04em}
 .jr-entry .jr-del:active{color:#e08a8a}
+
+.ngf{background:rgba(201,168,76,.16);color:var(--accent2);font-size:24px;font-weight:300;display:grid;place-items:center}
+.gfaces{display:flex;position:relative}.gfaces.sm{width:42px;height:42px}
+.gstack{width:34px;height:34px;border-radius:50%;overflow:hidden;border:1.5px solid var(--bg);margin-left:-12px;display:inline-block}
+.gstack:first-child{margin-left:0}
+.gstack img,.gstack svg{width:100%;height:100%;object-fit:cover}
+.gfaces.sm .gstack{width:30px;height:30px}
+.gz{display:flex;gap:9px;align-items:flex-start;margin:6px 0;max-width:88%}
+.gz-face{width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;border:.5px solid var(--pline)}
+.gz-face img,.gz-face svg{width:100%;height:100%;object-fit:cover}
+.gz-name{font-size:10px;color:var(--accent2);letter-spacing:.04em;margin-bottom:3px;font-family:var(--ui)}
+.gz-body{background:var(--card);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:9px 14px}
+.gz-text{font-size:15px;line-height:1.5;white-space:pre-wrap}
+.gp-list{max-height:50vh;overflow-y:auto}
+.gp-row{display:flex;align-items:center;gap:12px;padding:9px 4px;cursor:pointer;border-bottom:1px solid var(--line)}
+.gp-face{width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0}
+.gp-face img,.gp-face svg{width:100%;height:100%;object-fit:cover}
+.gp-name{flex:1;font-size:15px}
+.gp-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line-strong)}
+.gp-row.on .gp-check{background:var(--accent2);border-color:var(--accent2)}
 </style>
 </head>
 <body>
@@ -242,6 +262,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   </div>
 </div>
 
+<!-- GROUP PICKER -->
+<div class="sheet" id="groupSheet">
+  <div class="card">
+    <h3>New group</h3>
+    <p style="margin:0 0 10px;color:var(--dim);font-size:13px">pick 2 or more of your people.</p>
+    <div id="gp-list" class="gp-list"></div>
+    <div class="btn" id="gp-go" style="margin-top:12px">Create</div>
+    <div class="btn" onclick="$('groupSheet').classList.remove('on')" style="background:transparent;width:100%;text-align:center;margin-top:4px">Cancel</div>
+  </div>
+</div>
+
 <!-- PROFILE / SETTINGS SHEET -->
 <div class="sheet" id="profSheet">
   <div class="card">
@@ -269,6 +300,7 @@ const CAT={
   the_addict:      {persona:'the_addict',      name:'the addict',      desc:"we hit rock bottom because of where we were. now let's climb out together.",rgb:[80,220,180], face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
   the_self_obsessed:{persona:'the_self_obsessed',name:'the self-obsessed',desc:"a mirror doesn't lie. the world does. believe in yourself, not the flattery or the insult.",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
 };
+const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_ex'];
 const ORDER=['the_stranger','the_brother','the_ex','the_colleague','the_mentor','the_wingman','the_hottie','the_brainiac','the_addict','the_self_obsessed'];
 
 /* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
@@ -330,6 +362,17 @@ function nameFor(key){return (threads[key]&&threads[key].name)||CAT[key].name;}
 function renderContacts(){
   const c=$('contacts'); c.innerHTML='';
   $('lh-sub').textContent='Your people';
+  // new-group tile
+  const ng=document.createElement('div'); ng.className='contact ng';
+  ng.innerHTML='<div class="cface ngf">+</div><div class="cbody"><div class="cn">New group</div><div class="cd">put a few of your people in one room.</div></div>';
+  ng.onclick=openGroupPicker; c.appendChild(ng);
+  // existing groups
+  (groups||[]).forEach(g=>{
+    const el=document.createElement('div'); el.className='contact';
+    const faces=g.members.slice(0,3).map(k=>`<span class="gstack">${dpFor(k)}</span>`).join('');
+    el.innerHTML=`<div class="cface gfaces">${faces}</div><div class="cbody"><div class="cn">${g.name}</div><div class="cd">${g.members.map(k=>CAT[k].name).join(' · ')}</div></div>`;
+    el.onclick=()=>openGroup(g); c.appendChild(el);
+  });
   ORDER.forEach(key=>{
     const cat=CAT[key];
     const el=document.createElement('div'); el.className='contact';
@@ -350,7 +393,7 @@ function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style; if(t
   r.setProperty('--gobtn',`linear-gradient(135deg,rgb(${Math.min(R+26,255)},${Math.min(G+26,255)},${Math.min(B+26,255)}),rgb(${R},${G},${B}))`);
 }
 async function openThread(key){
-  active=key; const cat=CAT[key];
+  active=key; activeGroup=null; const cat=CAT[key];
   paintWorld(cat.rgb);
   $('t-face').innerHTML=dpFor(key);
   $('t-name').textContent=nameFor(key);
@@ -372,9 +415,87 @@ function bubble(role,text){const b=document.createElement('div');b.className=rol
 // engine has no per-thread history route yet; threads open fresh each session.
 async function loadHistory(key){ /* no-op until /threads/:id/messages exists */ }
 
+
+/* ===== GROUP CHAT ===== */
+function openGroupPicker(){
+  const picked=new Set();
+  const sheet=$('groupSheet'); const list=$('gp-list');
+  list.innerHTML='';
+  GROUP_OK.forEach(key=>{
+    const row=document.createElement('div'); row.className='gp-row';
+    row.innerHTML=`<div class="gp-face">${dpFor(key)}</div><div class="gp-name">${nameFor(key)}</div><div class="gp-check"></div>`;
+    row.onclick=()=>{
+      if(picked.has(key)){picked.delete(key);row.classList.remove('on');}
+      else{picked.add(key);row.classList.add('on');}
+      $('gp-go').style.opacity=picked.size>=2?'1':'.4';
+    };
+    list.appendChild(row);
+  });
+  $('gp-go').style.opacity='.4';
+  $('gp-go').onclick=async()=>{
+    if(picked.size<2)return;
+    const members=[...picked];
+    const name=members.map(k=>CAT[k].name.replace(/^the /,'')).slice(0,3).join(', ');
+    try{
+      const r=await fetch('/groups',{method:'POST',headers:HDRS(),
+        body:JSON.stringify({name,members})});
+      const j=await r.json();
+      if(j.id){ const g={id:j.id,name:name,members}; groups.push(g); saveGroups(); sheet.classList.remove('on'); renderContacts(); openGroup(g); }
+    }catch(e){}
+  };
+  sheet.classList.add('on');
+}
+function openGroup(g){
+  activeGroup=g; active=null;
+  paintWorld([201,168,76]); // group = warm gold
+  $('t-face').innerHTML=`<div class="gfaces sm">${g.members.slice(0,3).map(k=>`<span class="gstack">${dpFor(k)}</span>`).join('')}</div>`;
+  $('t-name').textContent=g.name;
+  show('thread');
+  const convo=$('convo'); convo.innerHTML='';
+  const d=document.createElement('div'); d.className='t-desc'; d.textContent=g.members.map(k=>CAT[k].name).join(' · '); convo.appendChild(d);
+}
+function gBubble(key){
+  const wrap=document.createElement('div'); wrap.className='gz';
+  wrap.innerHTML=`<div class="gz-face">${dpFor(key)}</div><div class="gz-body"><div class="gz-name">${nameFor(key)}</div><div class="gz-text"></div></div>`;
+  return wrap;
+}
+async function sendGroup(text){
+  $('convo').appendChild(bubble('me',text));
+  $('convo').scrollTop=$('convo').scrollHeight;
+  try{
+    const r=await fetch('/chat',{method:'POST',headers:HDRS(),
+      body:JSON.stringify({threadId:activeGroup.id,message:text})});
+    if(!r.ok){return;}
+    const reader=r.body.getReader();const dec=new TextDecoder();
+    let buf='', cur=null, curKey=null, acc='';
+    const drain=()=>{let i;
+      while((i=buf.indexOf('\n\n'))>=0){
+        const chunk=buf.slice(0,i); buf=buf.slice(i+2);
+        chunk.split('\n').forEach(line=>{
+          line=line.trim(); if(!line.startsWith('data:'))return;
+          const p=line.slice(5).trim(); if(!p)return;
+          let ev; try{ev=JSON.parse(p);}catch(_){return;}
+          if(ev.speaker&&ev.name&&!ev.token&&!ev.end){
+            // new speaker starting
+            curKey=ev.speaker; acc=''; cur=gBubble(curKey); $('convo').appendChild(cur);
+            $('convo').scrollTop=$('convo').scrollHeight;
+          } else if(ev.speaker&&typeof ev.token==='string'){
+            if(cur){acc+=ev.token; cur.querySelector('.gz-text').textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;}
+          } else if(ev.error){const e=gBubble(curKey||GROUP_OK[0]); e.querySelector('.gz-text').textContent='('+ev.error+')'; $('convo').appendChild(e);}
+        });
+      }
+    };
+    while(true){const{done,value}=await reader.read(); if(done)break; buf+=dec.decode(value,{stream:true}); drain();}
+    buf+='\n\n'; drain();
+  }catch(e){}
+  $('convo').scrollTop=$('convo').scrollHeight;
+}
+
 /* send */
 async function sendMsg(){
-  const inp=$('inp'); const text=inp.value.trim(); if(!text||!active)return;
+  const inp=$('inp'); const text=inp.value.trim();
+  if(activeGroup){ if(!text)return; inp.value=''; return sendGroup(text); }
+  if(!text||!active)return;
   inp.value='';
   $('convo').appendChild(bubble('me',text));
   const zb=bubble('z',''); zb.classList.add('typing');
@@ -416,7 +537,7 @@ async function sendMsg(){
 }
 $('send').onclick=sendMsg;
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
-$('t-back').onclick=()=>{renderContacts();show('list');};
+$('t-back').onclick=()=>{activeGroup=null;renderContacts();show('list');};
 
 /* edit sheet: rename + dp */
 var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
