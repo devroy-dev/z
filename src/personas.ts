@@ -19,6 +19,10 @@ export interface Persona {
 export const PERSONAS: Record<string, Persona> = {
   the_wingman:      { key: 'the_wingman',      defaultName: 'the wingman',      codex: 'close',     webEnabled: false },
   the_hottie:       { key: 'the_hottie',       defaultName: 'the hottie',       codex: 'close',     webEnabled: false },
+  the_accomplice:   { key: 'the_accomplice',   defaultName: 'the accomplice',   codex: 'close',     webEnabled: false },
+  the_comic:        { key: 'the_comic',        defaultName: 'the comic',        codex: 'close',     webEnabled: true  },
+  the_crush:        { key: 'the_crush',        defaultName: 'the crush',        codex: 'close',     webEnabled: false },
+  the_screen_junkie:{ key: 'the_screen_junkie',defaultName: 'the screen junkie',codex: 'intellect', webEnabled: true  },
   the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'people',    webEnabled: false },
   the_healer:       { key: 'the_healer',       defaultName: 'the healer',       codex: 'people',    webEnabled: false },
   the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'people',    webEnabled: false },
