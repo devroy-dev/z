@@ -20,6 +20,13 @@ app.use(express.json({ limit: '256kb' }));
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 const __dirname2 = dirname(fileURLToPath(import.meta.url));
+// no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  next();
+});
 app.use(express.static(join(__dirname2, 'public')));
 
 // verify the caller's Supabase JWT → auth_user_id. Uses anon client just to read the token's user.
