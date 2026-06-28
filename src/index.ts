@@ -8,6 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
+import { transcribeAndStore } from './journal.js';
 import { runZTurn } from './loop.js';
 import { personaByKey } from './personas.js';
 import { supabase } from './db.js';
@@ -120,6 +121,55 @@ app.delete('/letters/:id', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     await supabase.from('user_summaries').delete()
+      .eq('id', req.params.id).eq('user_id', user.id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+
+// ── AUDIO JOURNAL ──────────────────────────────────────────────────────────
+// "just record." Raw audio in, Sarvam transcribes, we keep the text, discard audio.
+// The transcript is overseer material under the same care rules as chat (no separate path).
+// Accepts raw body (audio/*) with a small size cap; engine forwards to Sarvam.
+import express2 from 'express';
+app.post('/journal', express2.raw({ type: 'audio/*', limit: '12mb' }), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const audio = req.body as Buffer;
+    if (!audio || !audio.length) return res.status(400).json({ error: 'no audio' });
+    const mime = (req.headers['content-type'] as string) || 'audio/wav';
+    const result = await transcribeAndStore(user.id, audio, 'journal.wav', mime);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: 'journal failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// read the journal (their own entries)
+app.get('/journal', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .select('id, transcript, lang, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) return res.status(500).json({ error: 'journal read: ' + error.message });
+    res.json(data ?? []);
+  } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+
+// delete a journal entry (their file, their call)
+app.delete('/journal/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    await supabase.from('journal_entries').delete()
       .eq('id', req.params.id).eq('user_id', user.id);
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }

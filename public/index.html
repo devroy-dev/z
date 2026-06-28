@@ -154,6 +154,25 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .letter-body{font-family:"Cormorant Garamond",Georgia,serif;font-style:italic;font-weight:400;
   font-size:18px;line-height:1.5;letter-spacing:.005em;color:var(--ink);white-space:pre-wrap;padding-left:14px}
 .letter-weekly .letter-body{font-size:18.5px;line-height:1.62}
+
+.jr-wrap{position:fixed;inset:0;top:0;bottom:62px;z-index:30;display:flex;flex-direction:column;background:var(--bg)}
+.jr-head{padding:calc(20px + env(safe-area-inset-top)) 18px 8px;font-size:22px;font-weight:300}
+.jr-head .lh-i{font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--dim)}
+.jr-stage{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 24px 18px;gap:14px}
+.jr-orb{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;cursor:pointer;
+  background:radial-gradient(circle at 50% 40%, rgba(201,168,76,.18), var(--card));
+  border:1px solid var(--line-strong);font-size:38px;transition:.3s;box-shadow:0 0 0 0 rgba(201,168,76,.4)}
+.jr-orb.rec{animation:pulse 1.4s infinite;border-color:rgba(201,168,76,.6)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(201,168,76,.35)}70%{box-shadow:0 0 0 26px rgba(201,168,76,0)}100%{box-shadow:0 0 0 0 rgba(201,168,76,0)}}
+.jr-orb:active{transform:scale(.96)}
+.jr-hint{font-style:italic;color:var(--dim);font-size:14px;text-align:center;max-width:280px;line-height:1.5;font-family:"Cormorant Garamond",serif}
+.jr-timer{font-size:11px;color:var(--accent2);letter-spacing:.1em;min-height:14px}
+.jr-list{flex:1;overflow-y:auto;padding:8px 14px 20px}
+.jr-entry{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 16px;margin-bottom:10px;position:relative}
+.jr-entry .jr-when{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;font-family:var(--ui)}
+.jr-entry .jr-text{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:16px;line-height:1.5;color:var(--ink)}
+.jr-entry .jr-del{position:absolute;top:11px;right:14px;font-size:9px;color:var(--faint);cursor:pointer;letter-spacing:.04em}
+.jr-entry .jr-del:active{color:#e08a8a}
 </style>
 </head>
 <body>
@@ -178,10 +197,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
     <div class="lh-profile" id="lh-profile" aria-label="settings"><span id="lh-initial">·</span></div>
   </div>
   <div class="contacts" id="contacts"></div>
+  <!-- JOURNAL (audio) -->
+  <div class="jr-wrap" id="jr-wrap" style="display:none">
+    <div class="jr-head">Journal <span class="lh-i">just talk</span></div>
+    <div class="jr-stage">
+      <div class="jr-orb" id="jr-orb"><span id="jr-orb-ic">🎙</span></div>
+      <div class="jr-hint" id="jr-hint">tap to record. say anything. no one's listening but Z.</div>
+      <div class="jr-timer mono" id="jr-timer"></div>
+    </div>
+    <div id="jr-list" class="jr-list"></div>
+  </div>
   <div class="botnav" id="botnav">
     <div class="nav on" data-tab="people"><div class="ic">❒</div>People</div>
     <div class="nav" data-tab="journal"><div class="ic">✎</div>Letters</div>
-    <div class="nav" data-tab="settings"><div class="ic">○</div>You</div>
+    <div class="nav" data-tab="journal-rec"><div class="ic">🎙</div>Journal</div>
   </div>
 </div>
 
@@ -431,7 +460,8 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
     const tab=n.dataset.tab;
     document.querySelectorAll('.botnav .nav').forEach(x=>x.classList.toggle('on',x===n));
     if(tab==='people'){renderContacts();}
-    else if(tab==='settings'){ openProfile(); document.querySelector('.botnav .nav[data-tab=people]').classList.add('on'); n.classList.remove('on'); }
+    else if(tab==='journal-rec'){ hideJournal(); showJournal(); }
+    else if(tab==='journal'){ hideJournal(); renderLetters(); }
     else{ renderLetters(); }
   };
 });
@@ -491,6 +521,77 @@ async function renderLetters(){
         renderLetters();};
     });
   }catch(e){list.innerHTML='<div class="letters-empty">couldn\'t load your letters right now.</div>';}
+}
+
+
+/* ===== AUDIO JOURNAL ===== */
+let jrRec=null, jrChunks=[], jrTimer=null, jrSecs=0, jrStream=null;
+function showJournal(){
+  ['list'].forEach(()=>{});
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  $('jr-wrap').style.display='flex';
+  $('botnav').style.display='flex';
+  renderJournal();
+}
+function hideJournal(){ $('jr-wrap').style.display='none'; }
+function jrFmt(s){const m=Math.floor(s/60),x=s%60;return m+':'+(x<10?'0':'')+x;}
+async function jrStart(){
+  try{
+    jrStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(e){ $('jr-hint').textContent='Z needs mic permission to hear you. enable it in your browser settings.'; return; }
+  jrChunks=[];
+  const mime=MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4';
+  jrRec=new MediaRecorder(jrStream,{mimeType:mime});
+  jrRec.ondataavailable=e=>{if(e.data.size)jrChunks.push(e.data);};
+  jrRec.onstop=jrUpload;
+  jrRec.start();
+  $('jr-orb').classList.add('rec'); $('jr-orb-ic').textContent='■';
+  $('jr-hint').textContent='listening… tap again when you\'re done.';
+  jrSecs=0; $('jr-timer').textContent='0:00';
+  jrTimer=setInterval(()=>{jrSecs++;$('jr-timer').textContent=jrFmt(jrSecs);},1000);
+}
+function jrStop(){
+  if(jrRec&&jrRec.state!=='inactive')jrRec.stop();
+  if(jrStream)jrStream.getTracks().forEach(t=>t.stop());
+  clearInterval(jrTimer);
+  $('jr-orb').classList.remove('rec'); $('jr-orb-ic').textContent='🎙';
+}
+async function jrUpload(){
+  const blob=new Blob(jrChunks,{type:jrRec.mimeType});
+  $('jr-hint').textContent='Z is listening back…'; $('jr-timer').textContent='';
+  try{
+    const r=await fetch('/journal',{method:'POST',
+      headers:{...HDRS(),'Content-Type':blob.type},
+      body:blob});
+    if(!r.ok){$('jr-hint').textContent='couldn\'t catch that — try again.';return;}
+    $('jr-hint').textContent='got it. Z will hold onto this.';
+    renderJournal();
+  }catch(e){$('jr-hint').textContent='couldn\'t catch that — try again.';}
+}
+$('jr-orb').onclick=()=>{
+  if(jrRec&&jrRec.state==='recording')jrStop();
+  else jrStart();
+};
+async function renderJournal(){
+  const list=$('jr-list');
+  try{
+    const r=await fetch('/journal',{headers:HDRS()});
+    if(!r.ok){list.innerHTML='';return;}
+    const items=await r.json();
+    if(!items.length){list.innerHTML='<div style="text-align:center;color:var(--faint);font-style:italic;font-size:13px;padding:30px 20px">your voice notes will live here. just you and Z.</div>';return;}
+    list.innerHTML='';
+    items.forEach(it=>{
+      const when=new Date(it.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+      const d=document.createElement('div'); d.className='jr-entry';
+      d.innerHTML=`<div class="jr-when">${when}</div><span class="jr-del" data-id="${it.id}">delete</span><div class="jr-text">${(it.transcript||'').replace(/</g,'&lt;')}</div>`;
+      list.appendChild(d);
+    });
+    list.querySelectorAll('.jr-del').forEach(x=>x.onclick=async()=>{
+      if(!confirm('delete this voice note?'))return;
+      await fetch('/journal/'+x.dataset.id,{method:'DELETE',headers:HDRS()}).catch(()=>{});
+      renderJournal();
+    });
+  }catch(e){list.innerHTML='';}
 }
 
 /* boot */

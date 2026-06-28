@@ -31,7 +31,20 @@ async function windowMessages(userId: string, sinceISO: string): Promise<DayMsg[
     .eq('user_id', userId)
     .gte('created_at', sinceISO)
     .order('created_at', { ascending: true });
-  return (data ?? []) as DayMsg[];
+  const msgs = (data ?? []) as DayMsg[];
+  // fold in voice-journal transcripts from the same window — overseer material under the
+  // same codex. marked so the overseer knows it was spoken aloud (rawer, more honest).
+  const { data: journals } = await supabase
+    .from('journal_entries')
+    .select('transcript, created_at')
+    .eq('user_id', userId)
+    .gte('created_at', sinceISO)
+    .order('created_at', { ascending: true });
+  for (const j of (journals ?? []) as any[]) {
+    msgs.push({ role: 'user', content: `(voice journal) ${j.transcript}`, created_at: j.created_at });
+  }
+  msgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return msgs;
 }
 
 // render a transcript the overseer can read (only the person's side carries the feeling,
