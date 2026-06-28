@@ -291,7 +291,6 @@ function face(skin,hair,a,b){return `<svg viewBox="0 0 100 100"><defs><linearGra
 const CAT={
   the_wingman:     {persona:'the_wingman',     name:'the wingman',     desc:"aka the dating coach. let's get you some action.",                                              rgb:[74,134,255], face:face('#e4c0a0','#23314f','#16263f','#0a1320')},
   the_hottie:      {persona:'the_hottie',      name:'the hottie',      desc:"you forgot you're a catch. i'm here to remind you.",                       rgb:[255,120,140],face:face('#f0c4a0','#3a1820','#4a1828','#1a0810')},
-  the_accomplice:  {persona:'the_accomplice',  name:'the accomplice',  desc:"the forever partner in crime.",                                          rgb:[220,160,60], face:face('#dcc0a0','#332a18','#2a2210','#140f06')},
   the_comic:       {persona:'the_comic',       name:'the comic',       desc:"knock knock.",                                                          rgb:[240,180,70], face:face('#e8c8a0','#3a2e18','#33280f','#161005')},
   the_crush:       {persona:'the_crush',       name:'the crush',       desc:"summon the courage and try your luck.",                                rgb:[255,140,170],face:face('#f2c8b0','#3a2028','#4a2230','#1c0c12')},
   the_screen_junkie:{persona:'the_screen_junkie',name:'the screen junkie',desc:"endless suggestions, countless screen time.",                       rgb:[120,150,230],face:face('#dcc0a8','#26283a','#1e2236','#0c0e1a')},
@@ -304,8 +303,8 @@ const CAT={
   the_addict:      {persona:'the_addict',      name:'the addict',      desc:"we hit rock bottom because of where we were. now let's climb out together.",rgb:[80,220,180], face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
   the_self_obsessed:{persona:'the_self_obsessed',name:'the self-obsessed',desc:"a mirror doesn't lie. the world does. believe in yourself, not the flattery or the insult.",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
 };
-const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_accomplice','the_comic','the_crush','the_screen_junkie'];
-const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_accomplice','the_comic','the_screen_junkie','the_brainiac','the_addict','the_self_obsessed'];
+const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie'];
+const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_screen_junkie','the_brainiac','the_addict','the_self_obsessed'];
 
 /* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
 const inkCanvas=document.getElementById('ink');
