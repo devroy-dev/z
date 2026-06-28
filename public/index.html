@@ -569,10 +569,10 @@ async function jrUpload(){
     renderJournal();
   }catch(e){$('jr-hint').textContent='couldn\'t catch that — try again.';}
 }
-$('jr-orb').onclick=()=>{
+(function(){var orb=$('jr-orb'); if(orb){orb.onclick=function(){
   if(jrRec&&jrRec.state==='recording')jrStop();
   else jrStart();
-};
+};}})();
 async function renderJournal(){
   const list=$('jr-list');
   try{
