@@ -338,8 +338,8 @@ $('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
 $('t-back').onclick=()=>{renderContacts();show('list');};
 
 /* edit sheet: rename + dp */
-$('t-kebab').onclick=$('t-meta')&&(()=>openEdit());
-$('t-meta').onclick=()=>openEdit();
+var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
+var _m=$('t-meta'); if(_m)_m.addEventListener('click',openEdit);
 function openEdit(){
   if(!active)return;
   $('sheet-title').textContent='edit '+nameFor(active);
