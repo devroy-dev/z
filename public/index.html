@@ -155,8 +155,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   font-size:18px;line-height:1.5;letter-spacing:.005em;color:var(--ink);white-space:pre-wrap;padding-left:14px}
 .letter-weekly .letter-body{font-size:18.5px;line-height:1.62}
 
-.jr-wrap{position:fixed;inset:0;top:0;bottom:62px;z-index:30;display:flex;flex-direction:column;background:radial-gradient(120% 80% at 50% 30%, var(--bg-soft), var(--bg))}
-.jr-head{padding:calc(20px + env(safe-area-inset-top)) 18px 8px;font-size:22px;font-weight:300}
+.jr-wrap{position:fixed;left:0;right:0;top:0;bottom:62px;z-index:30;display:flex;flex-direction:column;overflow:hidden;background:radial-gradient(120% 80% at 50% 30%, var(--bg-soft), var(--bg))}
+.jr-head{padding:calc(20px + env(safe-area-inset-top)) 18px 8px;font-size:22px;font-weight:300;display:flex;align-items:center;gap:10px}.jr-back{font-size:30px;line-height:1;color:var(--dim);cursor:pointer;padding:0 4px}.jr-back:active{color:var(--ink)}
 .jr-head .lh-i{font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--dim)}
 .jr-stage{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 24px 18px;gap:14px}
 .jr-orb-wrap{width:200px;height:200px;cursor:pointer;position:relative}
@@ -224,7 +224,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 <!-- THREAD -->
 <!-- JOURNAL (audio) -->
   <div class="jr-wrap" id="jr-wrap" style="display:none">
-    <div class="jr-head">Journal <span class="lh-i">just talk</span></div>
+    <div class="jr-head"><span class="jr-back" id="jr-back">‹</span>Journal <span class="lh-i">just talk</span></div>
     <div class="jr-stage">
       <div class="jr-orb-wrap" id="jr-orb"><canvas id="jr-canvas"></canvas></div>
       <div class="jr-hint" id="jr-hint">tap the orb. say anything. no one's listening but Z.</div>
@@ -646,6 +646,11 @@ async function renderLetters(){
 
 
 
+var _jb=document.getElementById('jr-back'); if(_jb)_jb.onclick=function(){
+  hideJournal();
+  document.querySelectorAll('.botnav .nav').forEach(x=>x.classList.toggle('on',x.dataset.tab==='people'));
+  show('list'); renderContacts();
+};
 /* ===== JOURNAL PRESENCE ORB (the watching presence) ===== */
 let jrOrbInit=false, jrEnergy=0, jrTargetEnergy=0.12, jrT=0, jrRAF=null;
 function jrInitOrb(){
