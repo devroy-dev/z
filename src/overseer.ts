@@ -73,16 +73,21 @@ function todayRange() {
   return { sinceISO: since.toISOString(), periodStart: start, periodEnd: now };
 }
 
-export async function runOverseer(opts: { weekly?: boolean } = {}): Promise<{ daily: number; weekly: number }> {
+export async function runOverseer(opts: { weekly?: boolean; onlyUser?: string } = {}): Promise<{ daily: number; weekly: number }> {
   const doWeekly = !!opts.weekly;
   let daily = 0, weekly = 0;
 
   // active users = anyone with a message in the last 24h (daily) / 8d (weekly)
   const lookback = doWeekly ? 8 : 2;
   const since = new Date(Date.now() - lookback * 24 * 60 * 60 * 1000).toISOString();
-  const { data: actives } = await supabase
-    .from('messages').select('user_id').gte('created_at', since);
-  const userIds = [...new Set((actives ?? []).map((r: any) => r.user_id))];
+  let userIds: string[];
+  if (opts.onlyUser) {
+    userIds = [opts.onlyUser];
+  } else {
+    const { data: actives } = await supabase
+      .from('messages').select('user_id').gte('created_at', since);
+    userIds = [...new Set((actives ?? []).map((r: any) => r.user_id))];
+  }
 
   for (const userId of userIds) {
     try {
