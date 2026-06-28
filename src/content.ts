@@ -26,6 +26,9 @@ const RAW_SOUL = stripBuildComment(load('Z_SOUL.md'));
 // pull the free information, listen to react, the India/SEA texture. Appended to the
 // soul once so it rides under every persona.
 const SMALL_TALK = (() => { try { return stripBuildComment(load('handbook-small-talk.md')); } catch { return ''; } })();
+// Small-talk-around-the-world: the international texture, also a permanent lens. Powers the
+// "when in Rome" law — Z meets each person the way people talk where they're from.
+const SMALL_TALK_WORLD = (() => { try { return stripBuildComment(load('handbook-small-talk-world.md')); } catch { return ''; } })();
 
 const CODEX_FILES: Record<CodexKey, string> = {
   intellect: 'codex-intellect.md',
@@ -37,6 +40,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   vanity:    'codex-vanity.md',   // Codex #7 — added when Fable writes it
   comic:     'codex-comic.md',
   crush:     'codex-crush.md',
+  guru:      'handbook-spiritual-guru.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};
@@ -51,9 +55,10 @@ export function soulFor(companionName: string, gender: string | null): string {
     .replaceAll('[companion_name]', companionName || 'you')
     .replaceAll('[companion_gender]', gender || 'neither');
   // the small-talk lens rides under the soul, always, for every persona
-  return SMALL_TALK
-    ? soul + '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK
-    : soul;
+  let out = soul;
+  if (SMALL_TALK) out += '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK;
+  if (SMALL_TALK_WORLD) out += '\n\n[TALKING ACROSS CULTURES — a permanent lens. Meet each person the way people talk where they are from; lower your own defaults and read theirs.]\n' + SMALL_TALK_WORLD;
+  return out;
 }
 
 export function codexText(key: CodexKey): string | null {
