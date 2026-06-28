@@ -18,7 +18,7 @@
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   font-family:'Newsreader',serif;-webkit-font-smoothing:antialiased;transition:background .8s}
-#ink{position:fixed;inset:0;z-index:1;filter:blur(60px) saturate(.45) brightness(.4);opacity:.32}
+#ink{position:fixed;inset:0;z-index:1;filter:blur(46px) saturate(.6) brightness(.7);opacity:.6}
 .grain{position:fixed;inset:0;z-index:2;opacity:.06;pointer-events:none;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .mono{font-family:'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;font-weight:400}
@@ -226,6 +226,42 @@ const CAT={
 };
 const ORDER=['the_stranger','the_brother','the_ex','the_mentor','the_wingman','the_hottie','the_brainiac','the_addict','the_self_obsessed'];
 
+/* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
+const inkCanvas=document.getElementById('ink');
+const ictx=inkCanvas.getContext('2d');
+let inkRGB=[124,92,220], blobs=[], inkRAF=null;
+function sizeInk(){inkCanvas.width=Math.floor(innerWidth*0.5);inkCanvas.height=Math.floor(innerHeight*0.5);}
+function seedBlobs(){blobs=[];const n=5;for(let i=0;i<n;i++){blobs.push({
+  x:Math.random(),y:Math.random(),
+  r:0.34+Math.random()*0.4,
+  dx:(Math.random()-0.5)*0.00018,dy:(Math.random()-0.5)*0.00018,
+  ph:Math.random()*6.28});}}
+function setInk(rgb){inkRGB=rgb;}
+function drawInk(t){
+  const W=inkCanvas.width,H=inkCanvas.height;
+  ictx.clearRect(0,0,W,H);
+  ictx.globalCompositeOperation='lighter';
+  const[R,G,B]=inkRGB;
+  for(const b of blobs){
+    b.x+=b.dx;b.y+=b.dy;
+    if(b.x<-0.2||b.x>1.2)b.dx*=-1;
+    if(b.y<-0.2||b.y>1.2)b.dy*=-1;
+    const cx=(b.x+0.06*Math.sin(t*0.0002+b.ph))*W;
+    const cy=(b.y+0.06*Math.cos(t*0.00017+b.ph))*H;
+    const rad=b.r*Math.min(W,H)*(0.9+0.1*Math.sin(t*0.0003+b.ph));
+    const g=ictx.createRadialGradient(cx,cy,0,cx,cy,rad);
+    g.addColorStop(0,`rgba(${R},${G},${B},0.16)`);
+    g.addColorStop(0.5,`rgba(${R},${G},${B},0.05)`);
+    g.addColorStop(1,`rgba(${R},${G},${B},0)`);
+    ictx.fillStyle=g;ictx.beginPath();ictx.arc(cx,cy,rad,0,6.2832);ictx.fill();
+  }
+  ictx.globalCompositeOperation='source-over';
+  inkRAF=requestAnimationFrame(drawInk);
+}
+function startInk(){sizeInk();seedBlobs();if(!inkRAF)inkRAF=requestAnimationFrame(drawInk);}
+addEventListener('resize',()=>{sizeInk();});
+startInk();
+
 const HDRS=()=>{const h={'Content-Type':'application/json'};const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;return h;};
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
 
@@ -259,7 +295,7 @@ function renderContacts(){
 }
 
 /* thread */
-function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style;
+function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style; if(typeof setInk==='function')setInk(rgb);
   r.setProperty('--accent',`${R},${G},${B}`);
   r.setProperty('--glow',`rgba(${R},${G},${B},.32)`);
   r.setProperty('--pline',`rgba(${R},${G},${B},.22)`);
