@@ -84,12 +84,52 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .sheet input{width:100%;background:var(--glass);border:.5px solid var(--pline);border-radius:12px;padding:13px 16px;
   color:var(--ink);font-family:'Newsreader',serif;font-size:16px;outline:none;margin-bottom:14px}
 .sheet .row{display:flex;gap:10px}.sheet .row .btn{flex:1;margin:0;text-align:center}
+
+/* ===== chat-app surface styles (charcoal, blue accent for now) ===== */
+/* contact list */
+#list{z-index:11}
+.list-head{padding:calc(20px + env(safe-area-inset-top)) 22px 14px}
+.lh-title{font-size:26px;font-weight:300;letter-spacing:.01em}
+.lh-title .i{font-family:"Cormorant Garamond",serif;font-style:italic;font-weight:400}
+.lh-sub{font-size:9px;color:var(--faint);margin-top:4px}
+.contacts{flex:1;overflow-y:auto;padding:6px 12px 20px}
+.contacts::-webkit-scrollbar{display:none}
+.contact{display:flex;align-items:center;gap:14px;padding:13px 12px;border-radius:18px;cursor:pointer;transition:.15s}
+.contact:active{background:rgba(255,255,255,.04)}
+.contact .cface{width:52px;height:52px;border-radius:50%;flex-shrink:0;overflow:hidden;
+  border:.5px solid rgba(255,255,255,.12);box-shadow:inset 0 0 16px rgba(0,0,0,.4)}
+.contact .cface svg,.contact .cface img{width:100%;height:100%;object-fit:cover;display:block}
+.contact .cbody{flex:1;min-width:0;border-bottom:.5px solid rgba(255,255,255,.05);padding-bottom:13px;margin-top:13px;margin-bottom:-13px}
+.contact:last-child .cbody{border-bottom:none}
+.contact .cn{font-size:18px;line-height:1.15}
+.contact .cd{font-size:12.5px;color:var(--dim);margin-top:3px;font-style:italic;line-height:1.35;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* thread */
+#thread{z-index:13}
+.t-head{display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 14px 12px;
+  background:linear-gradient(180deg,var(--bg) 40%,transparent);position:relative;z-index:30}
+.t-back{font-size:30px;color:var(--accent2);cursor:pointer;line-height:1;padding:0 2px;margin-top:-3px}
+.t-face{width:42px;height:42px;border-radius:50%;overflow:hidden;flex-shrink:0;border:.5px solid var(--pline)}
+.t-face svg,.t-face img{width:100%;height:100%;object-fit:cover;display:block}
+.t-meta{flex:1;min-width:0;cursor:pointer}
+.t-name{font-size:18px;line-height:1.1}
+.t-status{font-size:8px;color:var(--faint);margin-top:3px}
+.t-kebab{font-size:20px;color:var(--faint);padding:6px 6px;cursor:pointer}
+.t-desc{align-self:center;max-width:80%;text-align:center;font-size:12.5px;font-style:italic;color:var(--dim);
+  background:rgba(255,255,255,.03);border:.5px solid rgba(255,255,255,.06);border-radius:14px;padding:9px 16px;margin:4px auto 10px;line-height:1.4}
+/* dp picker in sheet */
+.dp-row{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.dp-prev{width:54px;height:54px;border-radius:50%;overflow:hidden;flex-shrink:0;border:.5px solid var(--pline);background:var(--glass)}
+.dp-prev svg,.dp-prev img{width:100%;height:100%;object-fit:cover;display:block}
+.dp-pick{font-size:13px;color:var(--accent2);cursor:pointer;font-style:italic;border:.5px solid var(--pline);padding:9px 16px;border-radius:12px}
+
 </style>
 </head>
 <body>
 <canvas id="ink"></canvas><div class="grain"></div>
 
-<div class="screen" id="onboard">
+<!-- ONBOARDING -->
+<div class="screen on" id="onboard">
   <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
   <div class="q">what should I call you?</div>
   <div class="field"><input id="ob-name" placeholder="your name" autocomplete="off"></div>
@@ -97,142 +137,197 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   <div class="btn" id="ob-go">enter</div>
 </div>
 
-<div class="screen" id="chat">
-  <div class="peek" id="peek">
-    <div class="portal" id="portal"></div>
-    <div class="pmeta" id="pmeta">
-      <div class="pname"><span id="cName">—</span><span class="chev">▾</span></div>
-      <div class="prole mono" id="cRole">—</div>
-    </div>
-    <div class="kebab" id="kebab">⋯</div>
+<!-- CONTACT LIST -->
+<div class="screen" id="list">
+  <div class="list-head">
+    <div class="lh-title">Anonymously <span class="i">Yours</span></div>
+    <div class="lh-sub mono" id="lh-sub">your people</div>
   </div>
-  <div class="drawer" id="drawer"></div>
-  <div class="convo" id="convo"></div>
-  <div class="dock"><input id="inp" placeholder="…" autocomplete="off"><button class="go" id="send">↑</button></div>
+  <div class="contacts" id="contacts"></div>
 </div>
 
+<!-- THREAD -->
+<div class="screen" id="thread">
+  <div class="t-head">
+    <div class="t-back" id="t-back">‹</div>
+    <div class="t-face" id="t-face"></div>
+    <div class="t-meta"><div class="t-name" id="t-name">—</div><div class="t-status mono">tap name to rename</div></div>
+    <div class="t-kebab" id="t-kebab">⋯</div>
+  </div>
+  <div class="convo" id="convo"></div>
+  <div class="dock"><input id="inp" placeholder="message…" autocomplete="off"><button class="go" id="send">↑</button></div>
+</div>
+
+<!-- EDIT SHEET (rename + dp) -->
 <div class="sheet" id="sheet">
   <div class="card">
-    <h3>Rename</h3>
-    <p class="mono">give this one a name only you use</p>
+    <h3 id="sheet-title">edit</h3>
+    <p>give them a name and a face that feels right to you.</p>
     <input id="renameInp" placeholder="name" autocomplete="off">
+    <div class="dp-row">
+      <div class="dp-prev" id="dp-prev"></div>
+      <label class="dp-pick" for="dp-file">choose photo</label>
+      <input type="file" id="dp-file" accept="image/*" hidden>
+    </div>
     <div class="row">
-      <div class="btn" id="renameCancel" style="background:transparent">cancel</div>
-      <div class="btn" id="renameSave">save</div>
+      <div class="btn" id="editCancel" style="background:transparent">cancel</div>
+      <div class="btn" id="editSave">save</div>
     </div>
   </div>
 </div>
 
 <script>
-const API=location.origin;
-let UID=localStorage.getItem('z_uid');
-if(!UID){UID='u'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('z_uid',UID);}
-const HDRS=()=>({'Content-Type':'application/json','x-z-user':UID});
-
+/* ===== the nine, with descriptors (charcoal; per-persona accent kept subtle for ink only) ===== */
 function face(skin,hair,a,b){return `<svg viewBox="0 0 100 100"><defs><linearGradient id="bg${a.slice(1)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="100" height="100" fill="url(#bg${a.slice(1)})"/><path d="M27 47 Q25 13 50 11 Q75 13 73 47 Q79 27 64 17 Q56 9 50 9 Q44 9 36 17 Q21 27 27 47Z" fill="${hair}"/><ellipse cx="50" cy="49" rx="21" ry="25" fill="${skin}"/><ellipse cx="42" cy="49" rx="2.6" ry="3.3" fill="#1a1620"/><ellipse cx="58" cy="49" rx="2.6" ry="3.3" fill="#1a1620"/><path d="M44 61 Q50 65 56 61" stroke="#00000044" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M30 73 Q50 83 70 73 L70 100 L30 100Z" fill="${hair}"/></svg>`;}
-const CAT={
-  mr_anxiety:{persona:'mr_anxiety',name:'Mr. Anxiety',role:'the heavy days',rgb:[110,150,160],face:face('#d8c4b0','#2a3438','#1c2a30','#0c1418')},
-  love_sucks:{persona:'love_sucks',name:'Love Sucks',role:'been there',rgb:[124,92,220],face:face('#e8c4a8','#2a1f4a','#241a44','#0e0a22')},
-  close_cousin:{persona:'close_cousin',name:'The Close Cousin',role:'family & marriage',rgb:[200,120,80],face:face('#e0b896','#3a2418','#3a2214','#1a0e08')},
-  workplace_shit:{persona:'workplace_shit',name:'Workplace Shit',role:'the grind',rgb:[190,160,110],face:face('#dcc4a4','#33302a','#2a2620','#14110c')},
-  devils_advocate:{persona:'devils_advocate',name:"Devil's Advocate",role:'debate me',rgb:[90,200,230],face:face('#dcc0a8','#1a3038','#12303a','#08161c')},
-  wingman:{persona:'wingman',name:'The Wingman',role:'dating',rgb:[74,134,255],face:face('#e4c0a0','#23314f','#16263f','#0a1320')},
-  flame:{persona:'flame',name:'The Flame',role:'feel wanted',rgb:[255,120,140],face:face('#f0c4a0','#3a1820','#4a1828','#1a0810')},
-  detox_doc:{persona:'detox_doc',name:'Detox Doc',role:'the climb',rgb:[80,220,180],face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
-  mr_confident:{persona:'mr_confident',name:'Mr. Confident',role:'become',rgb:[230,190,110],face:face('#e8cba8','#3a2c14','#3a2e12','#1a1408')},
-  almost_hot:{persona:'almost_hot',name:'Almost Hot',role:"the skin you're in",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
-};
-const ORDER=['mr_anxiety','love_sucks','close_cousin','workplace_shit','devils_advocate','wingman','flame','detox_doc','mr_confident','almost_hot'];
-let threads=[],active=null,target=[124,92,220];
 
+const CAT={
+  the_wingman:     {persona:'the_wingman',     name:'the wingman',     desc:"let's get you some action.",                                              rgb:[74,134,255], face:face('#e4c0a0','#23314f','#16263f','#0a1320')},
+  the_hottie:      {persona:'the_hottie',      name:'the hottie',      desc:"you forgot you're a catch. i'm here to remind you.",                       rgb:[255,120,140],face:face('#f0c4a0','#3a1820','#4a1828','#1a0810')},
+  the_brother:     {persona:'the_brother',     name:'the brother',     desc:"love them, hate them, can't live without them. let's talk family.",        rgb:[200,120,80], face:face('#e0b896','#3a2418','#3a2214','#1a0e08')},
+  the_ex:          {persona:'the_ex',          name:'the ex',          desc:"love once and you know what love is. love twice and you know what life is.",rgb:[124,92,220], face:face('#e8c4a8','#2a1f4a','#241a44','#0e0a22')},
+  the_mentor:      {persona:'the_mentor',      name:'the mentor',      desc:"i never got the guidance either. turns out you just need someone who believes you.",rgb:[230,190,110],face:face('#e8cba8','#3a2c14','#3a2e12','#1a1408')},
+  the_stranger:    {persona:'the_stranger',    name:'the stranger',    desc:"i don't know your people. i never will. so go ahead — say it.",            rgb:[110,150,160],face:face('#d8c4b0','#2a3438','#1c2a30','#0c1418')},
+  the_brainiac:    {persona:'the_brainiac',    name:'the brainiac',    desc:"i'll take the other side just to watch you get sharper.",                  rgb:[90,200,230], face:face('#dcc0a8','#1a3038','#12303a','#08161c')},
+  the_addict:      {persona:'the_addict',      name:'the addict',      desc:"we hit rock bottom because of where we were. now let's climb out together.",rgb:[80,220,180], face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
+  the_self_obsessed:{persona:'the_self_obsessed',name:'the self-obsessed',desc:"a mirror doesn't lie. the world does. believe in yourself, not the flattery or the insult.",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
+};
+const ORDER=['the_stranger','the_brother','the_ex','the_mentor','the_wingman','the_hottie','the_brainiac','the_addict','the_self_obsessed'];
+
+const HDRS=()=>{const h={'Content-Type':'application/json'};const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;return h;};
+let ME={name:'',region:''}, threads={}, active=null, dpData={};
+
+function $(id){return document.getElementById(id);}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+
+/* onboarding */
+$('ob-go').onclick=async()=>{
+  const n=$('ob-name').value.trim(); if(!n)return;
+  ME.name=n; ME.region=$('ob-region').value.trim();
+  localStorage.setItem('z_me',JSON.stringify(ME));
+  if(!localStorage.getItem('z_uid'))localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
+  localStorage.setItem('z_onboarded','1');
+  renderContacts(); show('list');
+};
+
+/* contact list */
+function dpFor(key){return dpData[key]?`<img src="${dpData[key]}">`:CAT[key].face;}
+function nameFor(key){return (threads[key]&&threads[key].name)||CAT[key].name;}
+function renderContacts(){
+  const c=$('contacts'); c.innerHTML='';
+  $('lh-sub').textContent='your people';
+  ORDER.forEach(key=>{
+    const cat=CAT[key];
+    const el=document.createElement('div'); el.className='contact';
+    el.innerHTML=`<div class="cface">${dpFor(key)}</div><div class="cbody"><div class="cn">${nameFor(key)}</div><div class="cd">${cat.desc}</div></div>`;
+    el.onclick=()=>openThread(key);
+    c.appendChild(el);
+  });
+}
+
+/* thread */
 function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style;
   r.setProperty('--accent',`${R},${G},${B}`);
-  r.setProperty('--accent2',`rgba(${Math.min(R+30,255)},${Math.min(G+30,255)},${Math.min(B+30,255)},.9)`);
-  r.setProperty('--glow',`rgba(${R},${G},${B},.4)`);r.setProperty('--pline',`rgba(${R},${G},${B},.26)`);
-  r.setProperty('--glass',`rgba(${Math.round(R*.16)+12},${Math.round(G*.16)+10},${Math.round(B*.16)+8},.5)`);
-  r.setProperty('--mebg',`linear-gradient(135deg,rgba(${R},${G},${B},.2),rgba(${R},${G},${B},.07))`);
-  r.setProperty('--meln',`rgba(${R},${G},${B},.3)`);
-  r.setProperty('--gobtn',`linear-gradient(135deg,rgba(${Math.min(R+30,255)},${Math.min(G+30,255)},${Math.min(B+30,255)},1),rgba(${R},${G},${B},1))`);
-  document.body.style.background=`rgb(${Math.round(R*.035)+12},${Math.round(G*.035)+10},${Math.round(B*.035)+8})`;target=rgb;}
+  r.setProperty('--glow',`rgba(${R},${G},${B},.32)`);
+  r.setProperty('--pline',`rgba(${R},${G},${B},.22)`);
+  r.setProperty('--mebg',`linear-gradient(135deg,rgba(${R},${G},${B},.18),rgba(${R},${G},${B},.06))`);
+  r.setProperty('--meln',`rgba(${R},${G},${B},.28)`);
+  r.setProperty('--accent2',`rgba(${Math.min(R+40,255)},${Math.min(G+40,255)},${Math.min(B+40,255)},.9)`);
+  r.setProperty('--gobtn',`linear-gradient(135deg,rgb(${Math.min(R+26,255)},${Math.min(G+26,255)},${Math.min(B+26,255)}),rgb(${R},${G},${B}))`);
+}
+async function openThread(key){
+  active=key; const cat=CAT[key];
+  paintWorld(cat.rgb);
+  $('t-face').innerHTML=dpFor(key);
+  $('t-name').textContent=nameFor(key);
+  show('thread');
+  const convo=$('convo'); convo.innerHTML='';
+  // descriptor as a system line at the top
+  const d=document.createElement('div'); d.className='t-desc'; d.textContent=cat.desc; convo.appendChild(d);
+  // ensure a thread exists on the server
+  if(!threads[key]||!threads[key].id){
+    try{
+      const r=await fetch('/threads',{method:'POST',headers:HDRS(),
+        body:JSON.stringify({personaKey:cat.persona,name:nameFor(key),accent:'rgb('+cat.rgb.join(',')+')'})});
+      const j=await r.json(); threads[key]={id:j.id||j.thread_id||null,name:nameFor(key)}; saveThreads();
+    }catch(e){/* offline-ok: thread stays local */}
+  }
+  loadHistory(key);
+}
+function bubble(role,text){const b=document.createElement('div');b.className=role==='me'?'me':'z';b.textContent=text;return b;}
+async function loadHistory(key){
+  const t=threads[key]; if(!t||!t.id)return;
+  try{
+    const r=await fetch('/threads/'+t.id+'/messages',{headers:HDRS()}); if(!r.ok)return;
+    const j=await r.json(); const msgs=j.messages||j||[];
+    msgs.forEach(m=>$('convo').appendChild(bubble(m.role==='user'?'me':'z',m.content||m.text||'')));
+    $('convo').scrollTop=$('convo').scrollHeight;
+  }catch(e){}
+}
 
-const show=id=>{document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));document.getElementById(id).classList.add('on');};
+/* send */
+async function sendMsg(){
+  const inp=$('inp'); const text=inp.value.trim(); if(!text||!active)return;
+  inp.value='';
+  $('convo').appendChild(bubble('me',text));
+  const zb=bubble('z',''); zb.innerHTML='<span class="cursor"></span>'; $('convo').appendChild(zb);
+  $('convo').scrollTop=$('convo').scrollHeight;
+  const t=threads[active];
+  try{
+    const r=await fetch('/chat',{method:'POST',headers:HDRS(),
+      body:JSON.stringify({threadId:t&&t.id,personaKey:CAT[active].persona,message:text,region:ME.region})});
+    if(!r.ok){zb.textContent='(z went quiet — try again)';return;}
+    // stream if chunked, else json
+    const ct=r.headers.get('content-type')||'';
+    if(ct.includes('application/json')){const j=await r.json();zb.textContent=j.reply||j.text||j.content||'…';}
+    else{
+      const reader=r.body.getReader();const dec=new TextDecoder();let acc='';
+      zb.textContent='';
+      while(true){const{done,value}=await reader.read();if(done)break;acc+=dec.decode(value,{stream:true});zb.textContent=acc;$('convo').scrollTop=$('convo').scrollHeight;}
+    }
+  }catch(e){zb.textContent='(no connection)';}
+  $('convo').scrollTop=$('convo').scrollHeight;
+}
+$('send').onclick=sendMsg;
+$('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
+$('t-back').onclick=()=>{renderContacts();show('list');};
 
-document.getElementById('ob-go').onclick=async()=>{
-  const name=document.getElementById('ob-name').value.trim(),region=document.getElementById('ob-region').value.trim();
-  if(name)localStorage.setItem('z_name',name);if(region)localStorage.setItem('z_region',region);
-  localStorage.setItem('z_onboarded','1');await boot();};
+/* edit sheet: rename + dp */
+$('t-kebab').onclick=$('t-meta')&&(()=>openEdit());
+$('t-meta').onclick=()=>openEdit();
+function openEdit(){
+  if(!active)return;
+  $('sheet-title').textContent='edit '+nameFor(active);
+  $('renameInp').value=nameFor(active);
+  $('dp-prev').innerHTML=dpFor(active);
+  $('sheet').classList.add('on');
+}
+$('editCancel').onclick=()=>$('sheet').classList.remove('on');
+$('dp-file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const rd=new FileReader(); rd.onload=()=>{$('dp-prev').innerHTML=`<img src="${rd.result}">`; $('dp-prev').dataset.tmp=rd.result;}; rd.readAsDataURL(f);
+});
+$('editSave').onclick=()=>{
+  const nm=$('renameInp').value.trim();
+  if(!threads[active])threads[active]={id:null};
+  if(nm)threads[active].name=nm;
+  if($('dp-prev').dataset.tmp){dpData[active]=$('dp-prev').dataset.tmp; localStorage.setItem('z_dp',JSON.stringify(dpData));}
+  saveThreads();
+  $('t-name').textContent=nameFor(active);
+  $('t-face').innerHTML=dpFor(active);
+  $('sheet').classList.remove('on');
+};
 
-async function boot(){
-  try{const r=await fetch(API+'/threads',{headers:HDRS()});const list=await r.json();
-    if(Array.isArray(list)&&list.length)threads=list.map(hydrate);}catch(e){}
-  if(threads.length===0){const t=await createThread('mr_anxiety');if(t)threads=[t];}
-  if(threads.length===0){alert('could not reach Z. is the engine up?');return;}
-  active=threads[0];renderDrawer();openThread(active,true);show('chat');}
-function hydrate(row){const c=CAT[row.persona_key]||CAT.mr_anxiety;return {...c,id:row.id,key:row.persona_key,name:row.companion_name||c.name};}
-async function createThread(key){const c=CAT[key];
-  try{const r=await fetch(API+'/threads',{method:'POST',headers:HDRS(),
-    body:JSON.stringify({personaKey:c.persona,name:c.name,accent:'rgb('+c.rgb.join(',')+')'})});
-    const t=await r.json();if(t&&t.id)return {...c,id:t.id,key,name:c.name};}catch(e){console.error(e);}return null;}
+function saveThreads(){localStorage.setItem('z_threads',JSON.stringify(threads));}
+function loadLocal(){
+  try{ME=JSON.parse(localStorage.getItem('z_me'))||ME;}catch(e){}
+  try{threads=JSON.parse(localStorage.getItem('z_threads'))||{};}catch(e){}
+  try{dpData=JSON.parse(localStorage.getItem('z_dp'))||{};}catch(e){}
+}
 
-const peek=document.getElementById('peek'),drawer=document.getElementById('drawer');
-document.getElementById('pmeta').onclick=()=>toggleDrawer();
-document.getElementById('portal').onclick=()=>toggleDrawer();
-function toggleDrawer(){peek.classList.toggle('open');drawer.classList.toggle('open');}
-function renderDrawer(){drawer.innerHTML='';
-  const y=document.createElement('div');y.className='dsect mono';y.textContent='your people';drawer.appendChild(y);
-  threads.forEach(t=>{const row=document.createElement('div');row.className='drow';
-    row.innerHTML=`<div class="dface">${t.face}</div><div><div class="dn">${t.name}</div><div class="dd mono">${t.role}</div></div>`;
-    row.onclick=()=>{active=t;openThread(t,true);toggleDrawer();};drawer.appendChild(row);});
-  const have=new Set(threads.map(t=>t.key)),rest=ORDER.filter(k=>!have.has(k));
-  if(rest.length){const m=document.createElement('div');m.className='dsect mono';m.textContent='add someone';drawer.appendChild(m);
-    rest.forEach(k=>{const c=CAT[k];const row=document.createElement('div');row.className='drow';
-      row.innerHTML=`<div class="dface">${c.face}</div><div><div class="dn">${c.name}</div><div class="dd mono">${c.role}</div></div><div class="dadd">＋</div>`;
-      row.onclick=async()=>{const t=await createThread(k);if(t){threads.push(t);active=t;renderDrawer();openThread(t,true);toggleDrawer();}};drawer.appendChild(row);});}}
-function openThread(t,fresh){document.getElementById('portal').innerHTML=t.face;
-  document.getElementById('cName').textContent=t.name;document.getElementById('cRole').textContent=t.role;
-  document.getElementById('inp').placeholder='tell '+t.name+'…';paintWorld(t.rgb);
-  if(fresh){document.getElementById('convo').innerHTML='';greet(t);}}
-function greet(t){typeZ("Hey. What's on your mind?");}
+/* boot */
+loadLocal();
+if(localStorage.getItem('z_onboarded')){renderContacts();show('list');}else{show('onboard');}
 
-const sheet=document.getElementById('sheet');
-document.getElementById('kebab').onclick=()=>{document.getElementById('renameInp').value=active.name;sheet.classList.add('on');document.getElementById('renameInp').focus();};
-document.getElementById('renameCancel').onclick=()=>sheet.classList.remove('on');
-document.getElementById('renameSave').onclick=()=>{const v=document.getElementById('renameInp').value.trim();
-  if(v){active.name=v;document.getElementById('cName').textContent=v;document.getElementById('inp').placeholder='tell '+v+'…';renderDrawer();}sheet.classList.remove('on');};
-
-const convo=document.getElementById('convo'),inp=document.getElementById('inp');
-function youSay(t){const e=document.createElement('div');e.className='me';e.textContent=t;convo.appendChild(e);convo.scrollTop=convo.scrollHeight;}
-function typeZ(text){const el=document.createElement('div');el.className='z';convo.appendChild(el);let i=0;const cur='<span class="cursor"></span>';
-  (function tick(){el.innerHTML=text.slice(0,i)+cur;i++;convo.scrollTop=convo.scrollHeight;if(i<=text.length)setTimeout(tick,22);else el.innerHTML=text;})();}
-async function send(){const v=inp.value.trim();if(!v||!active)return;inp.value='';youSay(v);turbulence(0.75);
-  const el=document.createElement('div');el.className='z';convo.appendChild(el);let acc='';const cur='<span class="cursor"></span>';el.innerHTML=cur;
-  try{const resp=await fetch(API+'/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:active.id,message:v})});
-    const reader=resp.body.getReader(),dec=new TextDecoder();let buf='';
-    while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const parts=buf.split('\n\n');buf=parts.pop();
-      for(const p of parts){const line=p.replace(/^data: /,'').trim();if(!line)continue;
-        try{const j=JSON.parse(line);if(j.token){acc+=j.token;el.innerHTML=acc+cur;convo.scrollTop=convo.scrollHeight;}
-          if(j.done){el.innerHTML=acc;turbulence(0.18);}if(j.error){el.innerHTML=acc+' …('+j.error+')';turbulence(0.18);}}catch(_){}}}
-    el.innerHTML=acc||'…';}catch(e){el.innerHTML='…(couldn\'t reach Z)';turbulence(0.18);}}
-document.getElementById('send').onclick=send;
-inp.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
-
-const cv=document.getElementById('ink'),x=cv.getContext('2d');let W,H,D;
-function rs(){D=Math.min(devicePixelRatio||1,1.5);W=cv.width=innerWidth*D;H=cv.height=innerHeight*D}rs();addEventListener('resize',rs);
-let turb=0.18,tTurb=0.18;function turbulence(v){tTurb=v;}
-const blobs=[];for(let i=0;i<5;i++)blobs.push({x:Math.random(),y:Math.random(),vx:(Math.random()-.5)*.0004,vy:(Math.random()-.5)*.0004,r:.3+Math.random()*.32,p:Math.random()*6});
-let live=[124,92,220],t=0;
-function draw(){t+=.014;turb+=(tTurb-turb)*.03;live=live.map((v,i)=>v+(target[i]-v)*.05);
-  x.fillStyle=getComputedStyle(document.body).backgroundColor;x.fillRect(0,0,W,H);x.globalCompositeOperation='lighter';
-  blobs.forEach(b=>{const dr=1+turb*2.5;b.x+=b.vx*dr+Math.sin(t*.4+b.p)*.0003*turb*4;b.y+=b.vy*dr+Math.cos(t*.3+b.p)*.0003*turb*4;
-    if(b.x<-.3)b.x=1.3;if(b.x>1.3)b.x=-.3;if(b.y<-.3)b.y=1.3;if(b.y>1.3)b.y=-.3;
-    const R=b.r*Math.min(W,H)*(1+Math.sin(t*.5+b.p)*.18*(1+turb)),px=b.x*W,py=b.y*H,pk=.13+turb*.1;
-    const g=x.createRadialGradient(px,py,0,px,py,R);g.addColorStop(0,`rgba(${live[0]|0},${live[1]|0},${live[2]|0},${pk})`);g.addColorStop(.5,`rgba(${live[0]|0},${live[1]|0},${live[2]|0},${pk*.35})`);g.addColorStop(1,'rgba(0,0,0,0)');
-    x.fillStyle=g;x.beginPath();x.arc(px,py,R,0,6.29);x.fill()});
-  x.globalCompositeOperation='source-over';requestAnimationFrame(draw)}draw();
-
-if(localStorage.getItem('z_name'))document.getElementById('ob-name').value=localStorage.getItem('z_name');
-if(localStorage.getItem('z_region'))document.getElementById('ob-region').value=localStorage.getItem('z_region');
-if(localStorage.getItem('z_onboarded')){boot();}else{show('onboard');}
 </script>
 </body>
 </html>

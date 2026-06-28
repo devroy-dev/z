@@ -2,8 +2,9 @@
 // and which Codex it loads. Adding a persona = one entry here.
 //
 // One soul + the persona's Codex (loaded after the soul, cached) = the companion.
-// Up to 3 Codexes load at once when a user's roster spans clusters; the engine
-// loads only the Codex(es) for the thread(s) in play.
+// The user can rename any of these and set their own display picture — these are
+// just the default labels and the knowledge each speaks from. Named as RELATIONSHIPS,
+// not functions, so a user instantly knows who they're talking to.
 
 export type CodexKey =
   | 'intellect' | 'close' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity';
@@ -12,20 +13,19 @@ export interface Persona {
   key: string;            // stable id stored on the thread
   defaultName: string;    // the default label (user renames freely)
   codex: CodexKey;        // which Codex this persona speaks from
-  webEnabled: boolean;    // only INTELLECT may reach a live fact
+  webEnabled: boolean;    // only the brainiac may reach a live fact
 }
 
 export const PERSONAS: Record<string, Persona> = {
-  devils_advocate: { key: 'devils_advocate', defaultName: "The Devil's Advocate", codex: 'intellect', webEnabled: true },
-  wingman:         { key: 'wingman',         defaultName: 'The Wingman',          codex: 'close',     webEnabled: false },
-  flame:           { key: 'flame',           defaultName: 'The Flame',            codex: 'close',     webEnabled: false },
-  love_sucks:      { key: 'love_sucks',      defaultName: 'Love Sucks',           codex: 'people',    webEnabled: false },
-  close_cousin:    { key: 'close_cousin',    defaultName: 'The Close Cousin',     codex: 'people',    webEnabled: false },
-  workplace_shit:  { key: 'workplace_shit',  defaultName: 'Workplace Shit',       codex: 'people',    webEnabled: false },
-  detox_doc:       { key: 'detox_doc',       defaultName: 'Detox Doc',            codex: 'shadow',    webEnabled: false },
-  mr_anxiety:      { key: 'mr_anxiety',      defaultName: 'Mr. Anxiety',          codex: 'inner',     webEnabled: false },
-  mr_confident:    { key: 'mr_confident',    defaultName: 'Mr. Confident',        codex: 'forward',   webEnabled: false },
-  almost_hot:      { key: 'almost_hot',      defaultName: 'Almost Hot',           codex: 'vanity',    webEnabled: false },
+  the_wingman:      { key: 'the_wingman',      defaultName: 'the wingman',      codex: 'close',     webEnabled: false },
+  the_hottie:       { key: 'the_hottie',       defaultName: 'the hottie',       codex: 'close',     webEnabled: false },
+  the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'people',    webEnabled: false },
+  the_ex:           { key: 'the_ex',           defaultName: 'the ex',           codex: 'people',    webEnabled: false },
+  the_mentor:       { key: 'the_mentor',       defaultName: 'the mentor',       codex: 'forward',   webEnabled: false },
+  the_stranger:     { key: 'the_stranger',     defaultName: 'the stranger',     codex: 'inner',     webEnabled: false },
+  the_brainiac:     { key: 'the_brainiac',     defaultName: 'the brainiac',     codex: 'intellect', webEnabled: true  },
+  the_addict:       { key: 'the_addict',       defaultName: 'the addict',       codex: 'shadow',    webEnabled: false },
+  the_self_obsessed:{ key: 'the_self_obsessed',defaultName: 'the self-obsessed',codex: 'vanity',    webEnabled: false },
 };
 
 export function personaByKey(k: string): Persona | null {
