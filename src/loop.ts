@@ -50,7 +50,22 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // ── DYNAMIC (uncached): date + shared memory ──────────────────────────
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
   const memoryBlock = await readMemoryBlock(userId);
-  const dynamic = `\n\n[${todayLine}]${memoryBlock}`;
+
+  // ── OWNER IDENTITY (dynamic, uncached): who Z is talking to ──────────────
+  // Per-user, not per-persona, so it lives in the dynamic block and never busts
+  // the cached soul. Z greets and reasons knowing the actual person.
+  const { data: owner } = await supabase
+    .from('users')
+    .select('display_name, region')
+    .eq('id', userId).maybeSingle();
+  let ownerLine = '';
+  if (owner && (owner.display_name || owner.region)) {
+    const who = owner.display_name ? owner.display_name : 'this person';
+    const where = owner.region ? `, from ${owner.region}` : '';
+    ownerLine = `\n\n[WHO YOU'RE TALKING TO: ${who}${where}. This is the real person on the other end — speak to them by name when it's natural, mirror how people talk where they're from, and never read this aloud as a label.]`;
+  }
+
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the

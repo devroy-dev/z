@@ -78,6 +78,28 @@ app.post('/threads', async (req, res) => {
   }
 });
 
+// capture / update the owner's identity (name + region) onto their durable user row.
+// called at onboarding and whenever they edit name/region. This is owner binding:
+// the AI and the overseer both speak/write knowing who the person actually is.
+app.post('/me', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { displayName, region } = req.body ?? {};
+    const patch: Record<string, unknown> = {};
+    if (typeof displayName === 'string' && displayName.trim()) patch.display_name = displayName.trim().slice(0, 80);
+    if (typeof region === 'string') patch.region = region.trim().slice(0, 120) || null;
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from('users').update(patch).eq('id', user.id);
+      if (error) return res.status(500).json({ error: 'me update: ' + error.message });
+    }
+    res.json({ id: user.id, displayName: patch.display_name ?? user.display_name, region: patch.region ?? user.region });
+  } catch (e: any) {
+    res.status(500).json({ error: 'me failed: ' + (e?.message || String(e)) });
+  }
+});
+
 // list roster
 app.get('/threads', async (req, res) => {
   try {
