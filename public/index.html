@@ -223,6 +223,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .searchbar:focus{border-color:var(--line-strong)}
 .search-x{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:20px;cursor:pointer;display:none;line-height:1}
 .searchwrap.has .search-x{display:block}
+.room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
 </style>
 </head>
 <body>
@@ -307,6 +308,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
     <h3 id="sheet-title">edit</h3>
     <p>give them a name and a face that feels right to you.</p>
     <input id="renameInp" placeholder="Name" autocomplete="off">
+    <div class="prow" id="prow-invite" style="display:none;color:var(--accent2)" onclick="inviteToRoom()">＋ Invite a friend to chat with this persona</div>
     <div class="dp-row">
       <div class="dp-prev" id="dp-prev"></div>
       <label class="dp-pick" for="dp-file">Choose photo</label>
@@ -417,7 +419,17 @@ const HDRS=()=>{const h={'Content-Type':'application/json'};const tok=localStora
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
+let rooms=[]; let activeRoom=null;
+const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
+async function loadRooms(){
+  try{
+    const r=await fetch('/rooms',{headers:HDRS()});
+    if(!r.ok)return;
+    const j=await r.json();
+    if(Array.isArray(j)){ rooms=j; renderContacts(); }
+  }catch(e){}
+}
 async function loadGroups(){
   try{
     const r=await fetch('/groups',{headers:HDRS()});
@@ -468,7 +480,8 @@ async function verifyOtp(){
     if(j.userId)localStorage.setItem('z_real_uid',j.userId);
     localStorage.removeItem('z_uid');
     // go to the warm name/region step (or straight in if already named)
-    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');loadGroups();}
+    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');loadGroups();loadRooms();
+      const pj=localStorage.getItem('z_pending_join'); if(pj){localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl();}}
     else{show('onboard');}
   }catch(e){$('verify-otp').style.opacity='1';doorNote('otp-note','no connection. try again.');}
 }
@@ -485,7 +498,8 @@ $('ob-go').onclick=async()=>{
   localStorage.setItem('z_me',JSON.stringify(ME));
   if(!localStorage.getItem('z_uid'))localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
   localStorage.setItem('z_onboarded','1');
-  renderContacts(); refreshProfile(); show('list'); loadGroups();
+  renderContacts(); refreshProfile(); show('list'); loadGroups(); loadRooms();
+  { const pj=localStorage.getItem('z_pending_join'); if(pj){localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl();} }
 };
 
 /* contact list */
@@ -502,6 +516,13 @@ function renderContacts(q){
   ng.innerHTML='<div class="cface ngf">+</div><div class="cbody"><div class="cn">New group</div><div class="cd">put a few of your people in one room.</div></div>';
   ng.onclick=openGroupPicker; c.appendChild(ng);
   }
+  // shared rooms (you + friends + a persona)
+  (rooms||[]).filter(r=>!q||r.name.toLowerCase().includes(q)).forEach(r=>{
+    const el=document.createElement('div'); el.className='contact';
+    const pf=r.persona?dpFor(r.persona):'';
+    el.innerHTML=`<div class="cface">${pf}</div><div class="cbody"><div class="cn">${r.name} <span class="room-tag">room</span></div><div class="cd">a shared room with ${r.persona?CAT[r.persona].name:'a persona'}</div></div>`;
+    el.onclick=()=>openRoom(r); c.appendChild(el);
+  });
   // existing groups (filtered by name too)
   (groups||[]).filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
     const el=document.createElement('div'); el.className='contact group-row';
@@ -538,7 +559,7 @@ function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style; if(t
   r.setProperty('--gobtn',`linear-gradient(135deg,rgb(${Math.min(R+26,255)},${Math.min(G+26,255)},${Math.min(B+26,255)}),rgb(${R},${G},${B}))`);
 }
 async function openThread(key){
-  active=key; activeGroup=null; const cat=CAT[key];
+  active=key; activeGroup=null; activeRoom=null; const cat=CAT[key];
   paintWorld(cat.rgb);
   $('t-face').innerHTML=dpFor(key);
   $('t-name').textContent=nameFor(key);
@@ -591,6 +612,70 @@ async function loadGroupHistory(g){
 }
 
 
+
+/* ===== SHARED ROOMS ===== */
+async function inviteToRoom(){
+  if(!active||!SHAREABLE.includes(active))return;
+  $('sheet').classList.remove('on');
+  try{
+    // create a room around this persona, then mint an invite link
+    const cr=await fetch('/rooms',{method:'POST',headers:HDRS(),
+      body:JSON.stringify({name:nameFor(active)+"'s room",persona:CAT[active].persona})});
+    const cj=await cr.json();
+    if(!cj.id){alert(cj.error||'could not create room');return;}
+    const ir=await fetch('/rooms/'+cj.id+'/invite',{method:'POST',headers:HDRS()});
+    const ij=await ir.json();
+    if(!ij.token){alert(ij.error||'could not make a link');return;}
+    const link=location.origin+'/?join='+ij.token;
+    loadRooms();
+    const msg="come chat with "+nameFor(active)+" with me on Anonymously Yours: "+link;
+    if(navigator.share){ try{ await navigator.share({title:'Anonymously Yours',text:msg,url:link}); }catch(e){} }
+    else { try{ await navigator.clipboard.writeText(link); alert('Invite link copied:\n'+link); }catch(e){ prompt('Share this link:',link); } }
+  }catch(e){ alert('something went wrong making the room'); }
+}
+async function openRoom(r){
+  activeRoom=r; activeGroup=null; active=null;
+  paintWorld([201,168,76]);
+  $('t-face').innerHTML=r.persona?dpFor(r.persona):'';
+  $('t-name').textContent=r.name;
+  show('thread');
+  const convo=$('convo'); convo.innerHTML='';
+  const d=document.createElement('div'); d.className='t-desc'; d.textContent='a shared room — you, your friends, and '+(r.persona?CAT[r.persona].name:'a persona'); convo.appendChild(d);
+  loadRoomHistory(r);
+}
+async function loadRoomHistory(r){
+  if(!r||!r.id)return;
+  try{
+    const resp=await fetch('/threads/'+r.id+'/messages',{headers:HDRS()});
+    if(!resp.ok)return;
+    const j=await resp.json(); const msgs=j.messages||[]; if(!msgs.length)return;
+    const convo=$('convo');
+    msgs.forEach(m=>{
+      if(m.role==='user'){ const b=bubble('me',m.content); convo.appendChild(b); }
+      else{ const w=gBubble(m.persona_key||r.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w); }
+    });
+    convo.scrollTop=convo.scrollHeight;
+  }catch(e){}
+}
+// handle an incoming ?join=<token> link
+async function tryJoinFromUrl(){
+  const u=new URL(location.href); const token=u.searchParams.get('join');
+  if(!token)return false;
+  // must be signed in to join; if not, stash token and route to door
+  if(!localStorage.getItem('z_token')){ localStorage.setItem('z_pending_join',token); show('door'); return true; }
+  try{
+    const r=await fetch('/join/'+token,{method:'POST',headers:HDRS()});
+    const j=await r.json();
+    if(j.threadId){
+      history.replaceState({},'',location.origin+'/');
+      await loadRooms();
+      const room=rooms.find(x=>x.id===j.threadId)||{id:j.threadId,name:'the room',persona:null};
+      openRoom(room); return true;
+    } else { alert(j.error||'could not join'); }
+  }catch(e){ alert('could not join the room'); }
+  return false;
+}
+
 /* ===== GROUP CHAT ===== */
 function openGroupPicker(){
   const picked=new Set();
@@ -637,6 +722,26 @@ function gBubble(key){
   const wrap=document.createElement('div'); wrap.className='gz';
   wrap.innerHTML=`<div class="gz-face">${dpFor(key)}</div><div class="gz-body"><div class="gz-name">${nameFor(key)}</div><div class="gz-text"></div></div>`;
   return wrap;
+}
+async function sendRoom(text){
+  $('convo').appendChild(bubble('me',text));
+  $('convo').scrollTop=$('convo').scrollHeight;
+  try{
+    const r=await fetch('/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:activeRoom.id,message:text})});
+    if(!r.ok)return;
+    const reader=r.body.getReader();const dec=new TextDecoder();
+    let buf='',cur=null,curKey=null,acc='';
+    const drain=()=>{let i; while((i=buf.indexOf('\n\n'))>=0){const chunk=buf.slice(0,i);buf=buf.slice(i+2);
+      chunk.split('\n').forEach(line=>{line=line.trim();if(!line.startsWith('data:'))return;const p=line.slice(5).trim();if(!p)return;
+        let ev;try{ev=JSON.parse(p);}catch(_){return;}
+        if(ev.speaker&&ev.name&&!ev.token&&!ev.end){curKey=ev.speaker;acc='';cur=gBubble(curKey);$('convo').appendChild(cur);$('convo').scrollTop=$('convo').scrollHeight;}
+        else if(ev.speaker&&typeof ev.token==='string'){if(cur){acc+=ev.token;cur.querySelector('.gz-text').textContent=acc;$('convo').scrollTop=$('convo').scrollHeight;}}
+        else if(ev.error){const e=gBubble(curKey||(activeRoom.persona||'the_oracle'));e.querySelector('.gz-text').textContent='('+ev.error+')';$('convo').appendChild(e);}
+      });}};
+    while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});drain();}
+    buf+='\n\n';drain();
+  }catch(e){}
+  $('convo').scrollTop=$('convo').scrollHeight;
 }
 async function sendGroup(text){
   $('convo').appendChild(bubble('me',text));
@@ -694,6 +799,7 @@ $('imgfile')&&($('imgfile').onchange=(e)=>{
 /* send */
 async function sendMsg(){
   const inp=$('inp'); const text=inp.value.trim();
+  if(activeRoom){ if(!text)return; inp.value=''; return sendRoom(text); }
   if(activeGroup){ if(!text)return; inp.value=''; return sendGroup(text); }
   if((!text&&!pendingImg)||!active)return;
   inp.value='';
@@ -741,7 +847,7 @@ async function sendMsg(){
 }
 $('send').onclick=sendMsg;
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
-$('t-back').onclick=()=>{activeGroup=null;renderContacts();show('list');};
+$('t-back').onclick=()=>{activeGroup=null;activeRoom=null;renderContacts();show('list');};
 
 /* edit sheet: rename + dp */
 var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
@@ -749,6 +855,9 @@ var _m=$('t-meta'); if(_m)_m.addEventListener('click',openEdit);
 function openEdit(){
   if(!active)return;
   $('sheet-title').textContent='Edit '+nameFor(active);
+  // show invite option only for shareable personas
+  var invRow=$('prow-invite');
+  if(invRow) invRow.style.display = SHAREABLE.includes(active) ? 'block' : 'none';
   $('renameInp').value=nameFor(active);
   $('dp-prev').innerHTML=dpFor(active);
   $('sheet').classList.add('on');
@@ -1026,7 +1135,15 @@ loadLocal();
   var sx=document.getElementById('search-x');
   if(sx)sx.onclick=function(){sb.value='';sb.parentElement.classList.remove('has');renderContacts();sb.focus();};
 })();
-if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){renderContacts();refreshProfile();show('list');loadGroups();}else if(localStorage.getItem('z_token')){show('onboard');}else{show('door');}
+(async()=>{
+  // if arriving via an invite link and already signed in, join straight away
+  const hasJoin=new URL(location.href).searchParams.get('join');
+  if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){
+    renderContacts();refreshProfile();show('list');loadGroups();loadRooms();
+    if(hasJoin) tryJoinFromUrl();
+  } else if(localStorage.getItem('z_token')){ show('onboard'); }
+  else { if(hasJoin) localStorage.setItem('z_pending_join',hasJoin); show('door'); }
+})();
 
 </script>
 </body>

@@ -41,6 +41,13 @@ const otpClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_A
 // x-z-user header; we use it as the auth_user_id directly. Flip OPEN_MODE off
 // (and the header path is ignored) once Twilio Verify / Supabase auth is wired —
 // one env switch, no rebuild.
+// personas allowed in shared multi-human rooms — the safe-social/intellect set only.
+// NEVER the crush, self-loathing/self-obsessed, addict, hottie, wingman, stranger (1:1 only).
+const SHAREABLE_PERSONAS = new Set([
+  'the_guru','the_oracle','the_brainiac','the_brother','the_healer',
+  'the_comic','the_mentor','the_colleague',
+]);
+
 const OPEN_MODE = (process.env.OPEN_MODE ?? 'true') === 'true';
 
 async function authUser(req: express.Request): Promise<string | null> {
@@ -350,6 +357,118 @@ app.get('/threads/:id/messages', async (req, res) => {
 });
 
 // create a group chat thread with chosen member personas
+// is this user a member of this thread/room? (the gate for shared rooms)
+async function isRoomMember(threadId: string, userId: string): Promise<boolean> {
+  const { data } = await supabase.from('room_members')
+    .select('user_id').eq('thread_id', threadId).eq('user_id', userId).maybeSingle();
+  return !!data;
+}
+
+// create a shared room: one persona, owner auto-joined as a member
+app.post('/rooms', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { name, persona } = req.body ?? {};
+    if (!persona || !SHAREABLE_PERSONAS.has(persona)) {
+      return res.status(400).json({ error: 'that persona can\'t be invited into a shared room' });
+    }
+    const { data: thread, error } = await supabase.from('threads').insert({
+      user_id: user.id, is_group: true, is_shared: true, member_keys: [persona],
+      companion_name: (name && String(name).trim()) || 'the room',
+    }).select('id, companion_name, member_keys').single();
+    if (error) return res.status(500).json({ error: 'room create: ' + error.message });
+    await supabase.from('room_members').insert({ thread_id: thread.id, user_id: user.id, role: 'owner' });
+    res.json({ id: thread.id, name: thread.companion_name, persona });
+  } catch (e: any) { res.status(500).json({ error: 'room failed: ' + (e?.message || String(e)) }); }
+});
+
+// owner mints (or returns) the room's invite link
+app.post('/rooms/:id/invite', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!(await isRoomMember(req.params.id, user.id))) return res.status(403).json({ error: 'not a member' });
+    // reuse an existing live invite if present
+    const { data: existing } = await supabase.from('room_invites')
+      .select('token').eq('thread_id', req.params.id).eq('revoked', false).limit(1).maybeSingle();
+    let token = existing?.token;
+    if (!token) {
+      token = (await import('crypto')).randomBytes(9).toString('base64url');
+      const { error } = await supabase.from('room_invites').insert({
+        token, thread_id: req.params.id, created_by: user.id,
+      });
+      if (error) return res.status(500).json({ error: error.message });
+    }
+    res.json({ token });
+  } catch (e: any) { res.status(500).json({ error: 'invite failed: ' + (e?.message || String(e)) }); }
+});
+
+// PUBLIC: preview a room from an invite token (no join yet) — for the join screen
+app.get('/join/:token', async (req, res) => {
+  try {
+    const { data: inv } = await supabase.from('room_invites')
+      .select('thread_id, revoked, expires_at, max_uses, uses').eq('token', req.params.token).maybeSingle();
+    if (!inv || inv.revoked) return res.status(404).json({ error: 'this invite is no longer active' });
+    if (inv.expires_at && new Date(inv.expires_at) < new Date()) return res.status(410).json({ error: 'this invite expired' });
+    if (inv.max_uses != null && inv.uses >= inv.max_uses) return res.status(410).json({ error: 'this invite is used up' });
+    const { data: thread } = await supabase.from('threads')
+      .select('companion_name, member_keys').eq('id', inv.thread_id).is('deleted_at', null).maybeSingle();
+    if (!thread) return res.status(404).json({ error: 'room not found' });
+    res.json({ name: thread.companion_name, persona: (thread.member_keys || [])[0] || null });
+  } catch (e: any) { res.status(500).json({ error: 'preview failed: ' + (e?.message || String(e)) }); }
+});
+
+// authed join: add the verified user to the room
+app.post('/join/:token', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'sign in first' });
+    const user = await resolveUser(authId);
+    const { data: inv } = await supabase.from('room_invites')
+      .select('thread_id, revoked, expires_at, max_uses, uses').eq('token', req.params.token).maybeSingle();
+    if (!inv || inv.revoked) return res.status(404).json({ error: 'this invite is no longer active' });
+    if (inv.expires_at && new Date(inv.expires_at) < new Date()) return res.status(410).json({ error: 'this invite expired' });
+    if (inv.max_uses != null && inv.uses >= inv.max_uses) return res.status(410).json({ error: 'this invite is used up' });
+    // add membership (idempotent) + bump uses
+    await supabase.from('room_members').insert({ thread_id: inv.thread_id, user_id: user.id, role: 'member' })
+      .select().maybeSingle();
+    await supabase.from('room_invites').update({ uses: (inv.uses || 0) + 1 }).eq('token', req.params.token);
+    res.json({ threadId: inv.thread_id });
+  } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
+});
+
+// rooms the user is a member of (server is source of truth)
+app.get('/rooms', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: mem } = await supabase.from('room_members').select('thread_id').eq('user_id', user.id);
+    const ids = (mem ?? []).map((m: any) => m.thread_id);
+    if (!ids.length) return res.json([]);
+    const { data: threads } = await supabase.from('threads')
+      .select('id, companion_name, member_keys, last_active')
+      .in('id', ids).eq('is_shared', true).is('deleted_at', null)
+      .order('last_active', { ascending: false });
+    const rooms = (threads ?? []).map((t: any) => ({ id: t.id, name: t.companion_name, persona: (t.member_keys || [])[0] || null }));
+    res.json(rooms);
+  } catch (e: any) { res.status(500).json({ error: 'rooms list failed: ' + (e?.message || String(e)) }); }
+});
+
+// leave a room (members remove themselves)
+app.post('/rooms/:id/leave', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    await supabase.from('room_members').delete().eq('thread_id', req.params.id).eq('user_id', user.id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'leave failed: ' + (e?.message || String(e)) }); }
+});
+
 // list the user's groups (server is the source of truth, not localStorage)
 app.get('/groups', async (req, res) => {
   try {
@@ -402,10 +521,25 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   res.flushHeaders?.();
 
   try {
-    // is this a group thread?
+    // look up the thread. shared rooms: any MEMBER may chat (not just owner).
     const { data: th } = await supabase.from('threads')
-      .select('is_group').eq('id', threadId).eq('user_id', user.id).maybeSingle();
-    if (th?.is_group) {
+      .select('is_group, is_shared, user_id').eq('id', threadId).is('deleted_at', null).maybeSingle();
+    if (!th) { res.write(`data: ${JSON.stringify({ error: 'thread not found' })}\n\n`); return res.end(); }
+    const isOwner = th.user_id === user.id;
+    if (th.is_shared) {
+      // membership gate: only members of the room may post
+      if (!isOwner && !(await isRoomMember(threadId, user.id))) {
+        res.write(`data: ${JSON.stringify({ error: 'you are not in this room' })}\n\n`); return res.end();
+      }
+      await runGroupTurn({
+        userId: user.id, threadId, message, senderName: user.display_name || 'someone',
+        onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
+        onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),
+        onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),
+      });
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } else if (th.is_group && isOwner) {
       await runGroupTurn({
         userId: user.id, threadId, message,
         onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
@@ -414,7 +548,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       });
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
-    } else {
+    } else if (isOwner) {
       const result = await runZTurn({
         userId: user.id, threadId, message, image: image ?? null,
         onToken: (t) => res.write(`data: ${JSON.stringify({ token: t })}\n\n`),

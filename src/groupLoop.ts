@@ -18,6 +18,7 @@ export interface GroupTurnInput {
   userId: string;
   threadId: string;
   message: string;
+  senderName?: string;   // in a shared room: the human who just spoke
   onPersonaStart?: (personaKey: string, name: string) => void;
   onToken?: (personaKey: string, t: string) => void;
   onPersonaEnd?: (personaKey: string, full: string) => void;
@@ -70,7 +71,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   const priorLines: string[] = (history ?? []).map((m: any) =>
     m.role === 'user' ? `THEM: ${m.content}` : `${nameFor(m.persona_key || '')}: ${m.content}`
   );
-  priorLines.push(`THEM: ${message}`);
+  priorLines.push(`${input.senderName ? input.senderName : 'THEM'}: ${message}`);
 
   // each member responds in order, seeing the running transcript incl. this turn's prior replies
   const saidThisTurn: string[] = [];
@@ -81,7 +82,10 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const staticPrefix = buildStaticPrefix(t.companion_name || persona.defaultName, null, codexKeys, (owner as any)?.region ?? null);
 
     const others = members.filter((k) => k !== key).map(nameFor).join(', ');
-    const groupNote = `\n\n[THIS IS A GROUP CHAT. In the room with you: ${others}. You are "${nameFor(key)}". Speak only as yourself — short, like a real group chat, react to what was just said. Don't speak for the others. Don't narrate. One natural message.]`;
+    const sharedNote = input.senderName
+      ? ` REAL PEOPLE are in this room with you — not personas. Address them by name, react to what they actually said, be a guest in their conversation. Don't dominate, don't speak for them.`
+      : '';
+    const groupNote = `\n\n[THIS IS A GROUP CHAT. In the room with you: ${others}. You are "${nameFor(key)}". Speak only as yourself — short, like a real group chat, react to what was just said. Don't speak for the others. Don't narrate. One natural message.${sharedNote}]`;
     const dynamic = `\n\n[${todayLine}]${ownerLine}${groupNote}${memoryBlock}`;
 
     const system: Anthropic.TextBlockParam[] = [
