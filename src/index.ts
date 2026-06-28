@@ -350,6 +350,21 @@ app.get('/threads/:id/messages', async (req, res) => {
 });
 
 // create a group chat thread with chosen member personas
+// list the user's groups (server is the source of truth, not localStorage)
+app.get('/groups', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('threads')
+      .select('id, companion_name, member_keys, last_active')
+      .eq('user_id', user.id).eq('is_group', true).is('deleted_at', null)
+      .order('last_active', { ascending: false });
+    const groups = (data ?? []).map((g: any) => ({ id: g.id, name: g.companion_name, members: g.member_keys || [] }));
+    res.json(groups);
+  } catch (e: any) { res.status(500).json({ error: 'groups list failed: ' + (e?.message || String(e)) }); }
+});
+
 app.post('/groups', async (req, res) => {
   try {
     const authId = await authUser(req);

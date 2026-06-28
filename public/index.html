@@ -416,8 +416,16 @@ startInk();
 const HDRS=()=>{const h={'Content-Type':'application/json'};const tok=localStorage.getItem('z_token');if(tok){h['Authorization']='Bearer '+tok;}else{const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;}return h;};
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let activeGroup=null;
-let groups=JSON.parse(localStorage.getItem('z_groups')||'[]');
+let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
+async function loadGroups(){
+  try{
+    const r=await fetch('/groups',{headers:HDRS()});
+    if(!r.ok)return;
+    const j=await r.json();
+    if(Array.isArray(j)){ groups=j; saveGroups(); renderContacts(); }
+  }catch(e){/* offline: keep cached groups */}
+}
 
 function $(id){return document.getElementById(id);}
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');
@@ -460,7 +468,7 @@ async function verifyOtp(){
     if(j.userId)localStorage.setItem('z_real_uid',j.userId);
     localStorage.removeItem('z_uid');
     // go to the warm name/region step (or straight in if already named)
-    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');}
+    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');loadGroups();}
     else{show('onboard');}
   }catch(e){$('verify-otp').style.opacity='1';doorNote('otp-note','no connection. try again.');}
 }
@@ -477,7 +485,7 @@ $('ob-go').onclick=async()=>{
   localStorage.setItem('z_me',JSON.stringify(ME));
   if(!localStorage.getItem('z_uid'))localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
   localStorage.setItem('z_onboarded','1');
-  renderContacts(); refreshProfile(); show('list');
+  renderContacts(); refreshProfile(); show('list'); loadGroups();
 };
 
 /* contact list */
@@ -599,8 +607,10 @@ function openGroupPicker(){
     list.appendChild(row);
   });
   $('gp-go').style.opacity='.4';
+  let creating=false;
   $('gp-go').onclick=async()=>{
-    if(picked.size<2)return;
+    if(picked.size<2||creating)return;
+    creating=true; $('gp-go').style.opacity='.5'; $('gp-go').textContent='Creating…';
     const members=[...picked];
     const name=members.map(k=>CAT[k].name.replace(/^the /,'')).slice(0,3).join(', ');
     try{
@@ -608,7 +618,8 @@ function openGroupPicker(){
         body:JSON.stringify({name,members})});
       const j=await r.json();
       if(j.id){ const g={id:j.id,name:name,members}; groups.push(g); saveGroups(); sheet.classList.remove('on'); renderContacts(); openGroup(g); }
-    }catch(e){}
+      else { creating=false; $('gp-go').style.opacity='1'; $('gp-go').textContent='Create'; }
+    }catch(e){ creating=false; $('gp-go').style.opacity='1'; $('gp-go').textContent='Create'; }
   };
   sheet.classList.add('on');
 }
@@ -1015,7 +1026,7 @@ loadLocal();
   var sx=document.getElementById('search-x');
   if(sx)sx.onclick=function(){sb.value='';sb.parentElement.classList.remove('has');renderContacts();sb.focus();};
 })();
-if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){renderContacts();refreshProfile();show('list');}else if(localStorage.getItem('z_token')){show('onboard');}else{show('door');}
+if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){renderContacts();refreshProfile();show('list');loadGroups();}else if(localStorage.getItem('z_token')){show('onboard');}else{show('door');}
 
 </script>
 </body>
