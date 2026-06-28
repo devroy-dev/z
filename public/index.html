@@ -155,16 +155,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   font-size:18px;line-height:1.5;letter-spacing:.005em;color:var(--ink);white-space:pre-wrap;padding-left:14px}
 .letter-weekly .letter-body{font-size:18.5px;line-height:1.62}
 
-.jr-wrap{position:fixed;inset:0;top:0;bottom:62px;z-index:30;display:flex;flex-direction:column;background:var(--bg)}
+.jr-wrap{position:fixed;inset:0;top:0;bottom:62px;z-index:30;display:flex;flex-direction:column;background:radial-gradient(120% 80% at 50% 30%, var(--bg-soft), var(--bg))}
 .jr-head{padding:calc(20px + env(safe-area-inset-top)) 18px 8px;font-size:22px;font-weight:300}
 .jr-head .lh-i{font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--dim)}
 .jr-stage{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 24px 18px;gap:14px}
-.jr-orb{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;cursor:pointer;
-  background:radial-gradient(circle at 50% 40%, rgba(201,168,76,.18), var(--card));
-  border:1px solid var(--line-strong);font-size:38px;transition:.3s;box-shadow:0 0 0 0 rgba(201,168,76,.4)}
-.jr-orb.rec{animation:pulse 1.4s infinite;border-color:rgba(201,168,76,.6)}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(201,168,76,.35)}70%{box-shadow:0 0 0 26px rgba(201,168,76,0)}100%{box-shadow:0 0 0 0 rgba(201,168,76,0)}}
-.jr-orb:active{transform:scale(.96)}
+.jr-orb-wrap{width:200px;height:200px;cursor:pointer;position:relative}
+.jr-orb-wrap canvas{width:100%;height:100%;display:block}
+.jr-orb-wrap:active{transform:scale(.97);transition:transform .15s}
 .jr-hint{font-style:italic;color:var(--dim);font-size:14px;text-align:center;max-width:280px;line-height:1.5;font-family:"Cormorant Garamond",serif}
 .jr-timer{font-size:11px;color:var(--accent2);letter-spacing:.1em;min-height:14px}
 .jr-list{flex:1;overflow-y:auto;padding:8px 14px 20px}
@@ -209,8 +206,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   <div class="jr-wrap" id="jr-wrap" style="display:none">
     <div class="jr-head">Journal <span class="lh-i">just talk</span></div>
     <div class="jr-stage">
-      <div class="jr-orb" id="jr-orb"><span id="jr-orb-ic">🎙</span></div>
-      <div class="jr-hint" id="jr-hint">tap to record. say anything. no one's listening but Z.</div>
+      <div class="jr-orb-wrap" id="jr-orb"><canvas id="jr-canvas"></canvas></div>
+      <div class="jr-hint" id="jr-hint">tap the orb. say anything. no one's listening but Z.</div>
       <div class="jr-timer mono" id="jr-timer"></div>
     </div>
     <div id="jr-list" class="jr-list"></div>
@@ -527,12 +524,60 @@ async function renderLetters(){
 }
 
 
+
+/* ===== JOURNAL PRESENCE ORB (the watching presence) ===== */
+let jrOrbInit=false, jrEnergy=0, jrTargetEnergy=0.12, jrT=0, jrRAF=null;
+function jrInitOrb(){
+  if(jrOrbInit)return; jrOrbInit=true;
+  const cv=$('jr-canvas'); if(!cv)return;
+  const ctx=cv.getContext('2d');
+  let W,H,DPR;
+  function size(){DPR=Math.min(devicePixelRatio||1,2);const r=cv.getBoundingClientRect();W=cv.width=Math.max(1,r.width*DPR);H=cv.height=Math.max(1,r.height*DPR);}
+  size(); addEventListener('resize',size);
+  const cx=()=>W*0.5, cy=()=>H*0.5, base=()=>Math.min(W,H)*0.26;
+  const N=64, parts=[];
+  for(let i=0;i<N;i++)parts.push({a:(i/N)*6.2832, sp:0.2+Math.random()*0.6, off:Math.random()*6.28});
+  const lerp=(a,b,k)=>a+(b-a)*k;
+  // warm gold accent (matches Z), shifts a touch hotter while recording
+  function draw(){
+    jrT+=0.016;
+    jrEnergy=lerp(jrEnergy,jrTargetEnergy,0.05);
+    const A = `201,168,76`;
+    ctx.clearRect(0,0,W,H);
+    const breathe=Math.sin(jrT*(0.8+jrEnergy*1.6))*(0.04+jrEnergy*0.07);
+    const rad=base()*(1+breathe);
+    // core glow
+    const g=ctx.createRadialGradient(cx(),cy(),0,cx(),cy(),rad*2.4);
+    g.addColorStop(0,`rgba(${A},${0.5+jrEnergy*0.4})`);
+    g.addColorStop(0.4,`rgba(${A},${0.12+jrEnergy*0.14})`);
+    g.addColorStop(1,'rgba(22,19,16,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx(),cy(),rad*2.4,0,6.2832);ctx.fill();
+    // inner core (the eye)
+    ctx.beginPath();ctx.arc(cx(),cy(),rad*0.46,0,6.2832);
+    ctx.fillStyle=`rgba(${A},0.92)`;ctx.shadowColor=`rgba(${A},1)`;ctx.shadowBlur=34*DPR;ctx.fill();ctx.shadowBlur=0;
+    // particle ring
+    for(const p of parts){
+      const wob=Math.sin(jrT*p.sp*2+p.off)*(0.10+jrEnergy*0.5);
+      const rr=rad*(1.5+wob);
+      const px=cx()+Math.cos(p.a+jrT*0.12*(0.4+jrEnergy))*rr;
+      const py=cy()+Math.sin(p.a+jrT*0.12*(0.4+jrEnergy))*rr;
+      const sz=(1.0+Math.sin(jrT*2+p.off)*0.6)*DPR*(1+jrEnergy);
+      ctx.beginPath();ctx.arc(px,py,Math.max(0.4,sz),0,6.2832);
+      ctx.fillStyle=`rgba(${A},${0.16+jrEnergy*0.4})`;ctx.fill();
+    }
+    jrRAF=requestAnimationFrame(draw);
+  }
+  if(!jrRAF)jrRAF=requestAnimationFrame(draw);
+}
+function jrOrbEnergy(e){ jrTargetEnergy=e; }
+
 /* ===== AUDIO JOURNAL ===== */
 let jrRec=null, jrChunks=[], jrTimer=null, jrSecs=0, jrStream=null;
 function showJournal(){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
   $('jr-wrap').style.display='flex';
   $('botnav').style.display='flex';
+  requestAnimationFrame(()=>{ jrInitOrb(); });
   renderJournal();
 }
 function hideJournal(){ $('jr-wrap').style.display='none'; }
@@ -547,7 +592,7 @@ async function jrStart(){
   jrRec.ondataavailable=e=>{if(e.data.size)jrChunks.push(e.data);};
   jrRec.onstop=jrUpload;
   jrRec.start();
-  $('jr-orb').classList.add('rec'); $('jr-orb-ic').textContent='■';
+  jrOrbEnergy(0.85);
   $('jr-hint').textContent='listening… tap again when you\'re done.';
   jrSecs=0; $('jr-timer').textContent='0:00';
   jrTimer=setInterval(()=>{jrSecs++;$('jr-timer').textContent=jrFmt(jrSecs);},1000);
@@ -556,7 +601,7 @@ function jrStop(){
   if(jrRec&&jrRec.state!=='inactive')jrRec.stop();
   if(jrStream)jrStream.getTracks().forEach(t=>t.stop());
   clearInterval(jrTimer);
-  $('jr-orb').classList.remove('rec'); $('jr-orb-ic').textContent='🎙';
+  jrOrbEnergy(0.12);
 }
 async function jrUpload(){
   const blob=new Blob(jrChunks,{type:jrRec.mimeType});
