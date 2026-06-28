@@ -21,6 +21,7 @@ export const PERSONAS: Record<string, Persona> = {
   the_hottie:       { key: 'the_hottie',       defaultName: 'the hottie',       codex: 'close',     webEnabled: false },
   the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'people',    webEnabled: false },
   the_ex:           { key: 'the_ex',           defaultName: 'the ex',           codex: 'people',    webEnabled: false },
+  the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'people',    webEnabled: false },
   the_mentor:       { key: 'the_mentor',       defaultName: 'the mentor',       codex: 'forward',   webEnabled: false },
   the_stranger:     { key: 'the_stranger',     defaultName: 'the stranger',     codex: 'inner',     webEnabled: false },
   the_brainiac:     { key: 'the_brainiac',     defaultName: 'the brainiac',     codex: 'intellect', webEnabled: true  },

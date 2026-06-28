@@ -218,13 +218,14 @@ const CAT={
   the_hottie:      {persona:'the_hottie',      name:'the hottie',      desc:"you forgot you're a catch. i'm here to remind you.",                       rgb:[255,120,140],face:face('#f0c4a0','#3a1820','#4a1828','#1a0810')},
   the_brother:     {persona:'the_brother',     name:'the brother',     desc:"love them, hate them, can't live without them. let's talk family.",        rgb:[200,120,80], face:face('#e0b896','#3a2418','#3a2214','#1a0e08')},
   the_ex:          {persona:'the_ex',          name:'the ex',          desc:"love once and you know what love is. love twice and you know what life is.",rgb:[124,92,220], face:face('#e8c4a8','#2a1f4a','#241a44','#0e0a22')},
+  the_colleague:   {persona:'the_colleague',   name:'the colleague',   desc:"every office is a battlefield. let's get you through yours.",                rgb:[190,160,110],face:face('#dcc4a4','#33302a','#2a2620','#14110c')},
   the_mentor:      {persona:'the_mentor',      name:'the mentor',      desc:"i never got the guidance either. turns out you just need someone who believes you.",rgb:[230,190,110],face:face('#e8cba8','#3a2c14','#3a2e12','#1a1408')},
   the_stranger:    {persona:'the_stranger',    name:'the stranger',    desc:"i don't know your people. i never will. so go ahead — say it.",            rgb:[110,150,160],face:face('#d8c4b0','#2a3438','#1c2a30','#0c1418')},
   the_brainiac:    {persona:'the_brainiac',    name:'the brainiac',    desc:"i'll take the other side just to watch you get sharper.",                  rgb:[90,200,230], face:face('#dcc0a8','#1a3038','#12303a','#08161c')},
   the_addict:      {persona:'the_addict',      name:'the addict',      desc:"we hit rock bottom because of where we were. now let's climb out together.",rgb:[80,220,180], face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
   the_self_obsessed:{persona:'the_self_obsessed',name:'the self-obsessed',desc:"a mirror doesn't lie. the world does. believe in yourself, not the flattery or the insult.",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
 };
-const ORDER=['the_stranger','the_brother','the_ex','the_mentor','the_wingman','the_hottie','the_brainiac','the_addict','the_self_obsessed'];
+const ORDER=['the_stranger','the_brother','the_ex','the_colleague','the_mentor','the_wingman','the_hottie','the_brainiac','the_addict','the_self_obsessed'];
 
 /* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
 const inkCanvas=document.getElementById('ink');

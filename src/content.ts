@@ -21,6 +21,12 @@ const stripBuildComment = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '').trim(
 
 const RAW_SOUL = stripBuildComment(load('Z_SOUL.md'));
 
+// The small-talk handbook is a PERMANENT lens — not a per-persona Codex. It governs
+// how Z converses with everyone, in every thread, always: statements over questions,
+// pull the free information, listen to react, the India/SEA texture. Appended to the
+// soul once so it rides under every persona.
+const SMALL_TALK = (() => { try { return stripBuildComment(load('handbook-small-talk.md')); } catch { return ''; } })();
+
 const CODEX_FILES: Record<CodexKey, string> = {
   intellect: 'codex-intellect.md',
   close:     'codex-close.md',
@@ -39,9 +45,13 @@ for (const [k, f] of Object.entries(CODEX_FILES)) {
 
 // The soul with the user's chosen companion name injected.
 export function soulFor(companionName: string, gender: string | null): string {
-  return RAW_SOUL
+  const soul = RAW_SOUL
     .replaceAll('[companion_name]', companionName || 'you')
     .replaceAll('[companion_gender]', gender || 'neither');
+  // the small-talk lens rides under the soul, always, for every persona
+  return SMALL_TALK
+    ? soul + '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK
+    : soul;
 }
 
 export function codexText(key: CodexKey): string | null {
