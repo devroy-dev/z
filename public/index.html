@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0E0C0A">
-<title>Z</title>
+<title>Anonymously Yours</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Inter:wght@300;400;500&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -25,7 +25,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .screen{position:fixed;inset:0;z-index:10;display:none;flex-direction:column}
 .screen.on{display:flex}
 #onboard{justify-content:center;align-items:center;padding:34px;text-align:center;z-index:12}
-#onboard .mark{font-size:30px;letter-spacing:.04em;font-weight:400;margin-bottom:30px}
+#onboard .mark{font-size:30px;letter-spacing:.04em;font-weight:300;line-height:1.15;margin-bottom:30px}
+#onboard .mark-yours{font-family:var(--script,"Cormorant Garamond",serif);font-style:italic;font-weight:400;font-size:38px}
 #onboard .q{font-size:15px;color:var(--dim);margin-bottom:20px;font-style:italic}
 .field{width:100%;max-width:300px;margin:0 auto 12px}
 .field input{width:100%;background:var(--glass);backdrop-filter:blur(20px);border:.5px solid var(--pline);
@@ -89,7 +90,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 <canvas id="ink"></canvas><div class="grain"></div>
 
 <div class="screen" id="onboard">
-  <div class="mark">Z</div>
+  <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
   <div class="q">what should I call you?</div>
   <div class="field"><input id="ob-name" placeholder="your name" autocomplete="off"></div>
   <div class="field"><input id="ob-region" placeholder="where are you (city / country)" autocomplete="off"></div>
