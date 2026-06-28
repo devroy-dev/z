@@ -341,6 +341,9 @@ startInk();
 
 const HDRS=()=>{const h={'Content-Type':'application/json'};const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;return h;};
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
+let activeGroup=null;
+let groups=JSON.parse(localStorage.getItem('z_groups')||'[]');
+function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
 
 function $(id){return document.getElementById(id);}
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');
