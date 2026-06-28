@@ -35,6 +35,8 @@ const CODEX_FILES: Record<CodexKey, string> = {
   inner:     'codex-inner.md',
   forward:   'codex-forward.md',
   vanity:    'codex-vanity.md',   // Codex #7 — added when Fable writes it
+  comic:     'codex-comic.md',
+  crush:     'codex-crush.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};
