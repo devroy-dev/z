@@ -24,9 +24,13 @@ export async function transcribeAndStore(
   if (!SARVAM_KEY) throw new Error('SARVAM_API_KEY not set');
 
   // Sarvam REST expects multipart/form-data: file + model + mode + language_code
+  // Sarvam validates the MIME exactly and rejects 'audio/webm;codecs=opus' even though
+  // 'audio/webm' is allowed — strip the ';codecs=...' suffix to the bare type.
+  const cleanMime = (mime || 'audio/webm').split(';')[0].trim();
+  const ext = cleanMime.includes('webm') ? 'webm' : cleanMime.includes('mp4') ? 'mp4' : cleanMime.includes('wav') ? 'wav' : 'webm';
   const form = new FormData();
-  const blob = new Blob([new Uint8Array(audio)], { type: mime || 'audio/wav' });
-  form.append('file', blob, filename || 'journal.wav');
+  const blob = new Blob([new Uint8Array(audio)], { type: cleanMime });
+  form.append('file', blob, `journal.${ext}`);
   form.append('model', 'saaras:v3');
   form.append('mode', 'codemix');
   form.append('language_code', 'unknown'); // auto-detect
