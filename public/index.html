@@ -459,10 +459,12 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
   n.onclick=()=>{
     const tab=n.dataset.tab;
     document.querySelectorAll('.botnav .nav').forEach(x=>x.classList.toggle('on',x===n));
-    if(tab==='people'){renderContacts();}
-    else if(tab==='journal-rec'){ hideJournal(); showJournal(); }
-    else if(tab==='journal'){ hideJournal(); renderLetters(); }
-    else{ renderLetters(); }
+    if(tab==='journal-rec'){ showJournal(); return; }
+    hideJournal();
+    show('list');
+    if(tab==='people'){ renderContacts(); }
+    else if(tab==='journal'){ renderLetters(); }
+    else { renderLetters(); }
   };
 });
 
@@ -527,7 +529,6 @@ async function renderLetters(){
 /* ===== AUDIO JOURNAL ===== */
 let jrRec=null, jrChunks=[], jrTimer=null, jrSecs=0, jrStream=null;
 function showJournal(){
-  ['list'].forEach(()=>{});
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
   $('jr-wrap').style.display='flex';
   $('botnav').style.display='flex';
