@@ -5,7 +5,7 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
-    "build": "tsc && cp -r content dist/content",
+    "build": "tsc && cp -r content dist/content && cp -r public dist/public",
     "start": "node dist/index.js",
     "dev": "tsc --watch"
   },

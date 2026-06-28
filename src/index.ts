@@ -16,9 +16,27 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
 
+// serve the PWA (single-file B Field surface) from /public
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+const __dirname2 = dirname(fileURLToPath(import.meta.url));
+app.use(express.static(join(__dirname2, 'public')));
+
 // verify the caller's Supabase JWT → auth_user_id. Uses anon client just to read the token's user.
 const authClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+// OPEN_MODE: no auth wall yet. The frontend sends a stable anonymous id in the
+// x-z-user header; we use it as the auth_user_id directly. Flip OPEN_MODE off
+// (and the header path is ignored) once Twilio Verify / Supabase auth is wired —
+// one env switch, no rebuild.
+const OPEN_MODE = (process.env.OPEN_MODE ?? 'true') === 'true';
+
 async function authUser(req: express.Request): Promise<string | null> {
+  if (OPEN_MODE) {
+    const anon = (req.headers['x-z-user'] as string | undefined)?.trim();
+    if (anon && /^[a-zA-Z0-9_-]{8,64}$/.test(anon)) return `open:${anon}`;
+    // fall through to JWT if a real token is present even in open mode
+  }
   const h = req.headers.authorization;
   if (!h?.startsWith('Bearer ')) return null;
   const { data, error } = await authClient.auth.getUser(h.slice(7));
