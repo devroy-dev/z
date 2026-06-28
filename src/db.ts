@@ -14,4 +14,6 @@ if (!url || !key) {
 export const supabase = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
   db: { schema: 'z' },          // Z's own schema — NOT 'engine'
+  realtime: { params: {} },     // engine never subscribes; avoids the WebSocket init path
+  global: { headers: { 'x-z-engine': '1' } },
 });
