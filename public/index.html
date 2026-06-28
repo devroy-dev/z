@@ -105,17 +105,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .contact .cd{font-size:12.5px;color:var(--dim);margin-top:3px;font-style:italic;line-height:1.35;
   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
-/* ===== SEARCH ===== */
-(function(){
-  var sb=$('search'); if(!sb)return;
-  sb.addEventListener('input',function(){
-    var q=sb.value;
-    $('search-x').parentElement.classList.toggle('has',!!q.trim());
-    renderContacts(q);
-  });
-  var sx=$('search-x'); if(sx)sx.onclick=function(){sb.value='';sb.parentElement.classList.remove('has');renderContacts();sb.focus();};
-})();
-
 /* thread */
 #thread{z-index:13}
 .t-head{display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 14px 12px;
@@ -183,7 +172,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .jr-entry .jr-del{position:absolute;top:11px;right:14px;font-size:9px;color:var(--faint);cursor:pointer;letter-spacing:.04em}
 .jr-entry .jr-del:active{color:#e08a8a}
 
-.ngf{background:rgba(201,168,76,.16);color:var(--accent2);font-size:24px;font-weight:300;display:grid;place-items:center}
+.group-row{position:relative}.grp-del{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:14px;padding:8px;cursor:pointer;opacity:.5}.grp-del:active{opacity:1;color:#e08a8a}.ngf{background:rgba(201,168,76,.16);color:var(--accent2);font-size:24px;font-weight:300;display:grid;place-items:center}
 .gfaces{display:flex;position:relative}.gfaces.sm{width:42px;height:42px}
 .gstack{width:34px;height:34px;border-radius:50%;overflow:hidden;border:1.5px solid var(--bg);margin-left:-12px;display:inline-block}
 .gstack:first-child{margin-left:0}
@@ -507,10 +496,18 @@ function renderContacts(q){
   }
   // existing groups (filtered by name too)
   (groups||[]).filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
-    const el=document.createElement('div'); el.className='contact';
+    const el=document.createElement('div'); el.className='contact group-row';
     const faces=g.members.slice(0,3).map(k=>`<span class="gstack">${dpFor(k)}</span>`).join('');
-    el.innerHTML=`<div class="cface gfaces">${faces}</div><div class="cbody"><div class="cn">${g.name}</div><div class="cd">${g.members.map(k=>CAT[k].name).join(' · ')}</div></div>`;
-    el.onclick=()=>openGroup(g); c.appendChild(el);
+    el.innerHTML=`<div class="cface gfaces">${faces}</div><div class="cbody"><div class="cn">${g.name}</div><div class="cd">${g.members.map(k=>CAT[k].name).join(' · ')}</div></div><div class="grp-del" title="delete group">✕</div>`;
+    el.querySelector('.cface').onclick=()=>openGroup(g);
+    el.querySelector('.cbody').onclick=()=>openGroup(g);
+    el.querySelector('.grp-del').onclick=async(ev)=>{
+      ev.stopPropagation();
+      if(!confirm('Delete "'+g.name+'"?'))return;
+      try{ if(g.id) await fetch('/threads/'+g.id,{method:'DELETE',headers:HDRS()}); }catch(e){}
+      groups=groups.filter(x=>x!==g); saveGroups(); renderContacts(q);
+    };
+    c.appendChild(el);
   });
   ORDER.forEach(key=>{
     if(!match(key))return;
@@ -1007,6 +1004,17 @@ async function renderJournal(){
 
 /* boot */
 loadLocal();
+/* ===== SEARCH (wired after DOM + renderContacts exist) ===== */
+(function(){
+  var sb=document.getElementById('search'); if(!sb)return;
+  sb.addEventListener('input',function(){
+    var q=sb.value;
+    var w=sb.parentElement; if(w)w.classList.toggle('has',!!q.trim());
+    renderContacts(q);
+  });
+  var sx=document.getElementById('search-x');
+  if(sx)sx.onclick=function(){sb.value='';sb.parentElement.classList.remove('has');renderContacts();sb.focus();};
+})();
 if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){renderContacts();refreshProfile();show('list');}else if(localStorage.getItem('z_token')){show('onboard');}else{show('door');}
 
 </script>

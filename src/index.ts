@@ -294,6 +294,20 @@ app.delete('/notes/:kind/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) }); }
 });
 
+// delete a thread / group (soft-delete, user-scoped)
+app.delete('/threads/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { error } = await supabase.from('threads')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', req.params.id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) }); }
+});
+
 // rename a thread (and/or set its avatar) — so the persona actually knows its current name.
 app.patch('/threads/:id', async (req, res) => {
   try {
