@@ -36,14 +36,18 @@ export async function transcribeAndStore(
     headers: { 'api-subscription-key': SARVAM_KEY },
     body: form,
   });
+  const raw = await r.text();
   if (!r.ok) {
-    const detail = await r.text().catch(() => '');
-    throw new Error(`sarvam ${r.status}: ${detail.slice(0, 300)}`);
+    console.error('[journal] sarvam', r.status, raw.slice(0, 500));
+    throw new Error(`sarvam ${r.status}: ${raw.slice(0, 300)}`);
   }
-  const data: any = await r.json();
-  const transcript: string = (data.transcript || data.text || '').trim();
-  const lang: string | null = data.language_code || data.lang || null;
-  if (!transcript) throw new Error('empty transcript');
+  let data: any = {};
+  try { data = JSON.parse(raw); } catch { console.error('[journal] non-json sarvam reply:', raw.slice(0,300)); }
+  console.log('[journal] sarvam keys:', Object.keys(data).join(','), '| raw:', raw.slice(0,300));
+  // Sarvam STT response field can be transcript / text / output; cover them.
+  const transcript: string = (data.transcript || data.text || data.output || data.transcript_text || '').trim();
+  const lang: string | null = data.language_code || data.lang || data.detected_language || null;
+  if (!transcript) throw new Error('empty transcript — sarvam keys: ' + Object.keys(data).join(','));
 
   // store TEXT only — audio buffer is never persisted, goes out of scope here.
   const { data: row, error } = await supabase
