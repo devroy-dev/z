@@ -9,7 +9,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Inter:wght@300;400;500&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#141310; --bg-soft:#1C1A16; --card:#211E19; --line:rgba(255,248,238,.09); --line-strong:rgba(255,248,238,.14);
+  --bg:#161310; --bg-soft:#1F1B16; --card:#242019; --line:rgba(255,246,232,.08); --line-strong:rgba(255,246,232,.13); --line:rgba(255,248,238,.09); --line-strong:rgba(255,248,238,.14);
   --ink:#F2F0EC; --dim:rgba(242,240,236,.5); --faint:rgba(242,240,236,.22);
   --accent:124,92,220; --glow:rgba(124,92,220,.4); --pline:rgba(124,92,220,.26);
   --glass:rgba(28,24,40,.5); --mebg:linear-gradient(135deg,rgba(124,92,220,.2),rgba(124,92,220,.07));
@@ -18,8 +18,8 @@
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   font-family:'Newsreader',serif;-webkit-font-smoothing:antialiased;transition:background .8s}
-#ink{position:fixed;inset:0;z-index:1;filter:blur(40px) saturate(.7) brightness(.5);opacity:.5}
-.grain{position:fixed;inset:0;z-index:2;opacity:.035;pointer-events:none;mix-blend-mode:overlay;
+#ink{position:fixed;inset:0;z-index:1;filter:blur(60px) saturate(.45) brightness(.4);opacity:.32}
+.grain{position:fixed;inset:0;z-index:2;opacity:.06;pointer-events:none;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .mono{font-family:'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;font-weight:400}
 .screen{position:fixed;inset:0;z-index:10;display:none;flex-direction:column}
@@ -377,10 +377,10 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
     const tab=n.dataset.tab;
     document.querySelectorAll('.botnav .nav').forEach(x=>x.classList.toggle('on',x===n));
     if(tab==='people'){renderContacts();}
-    else{ // placeholder until letters/settings are built
+    else if(tab==='settings'){ openProfile(); document.querySelector('.botnav .nav[data-tab=people]').classList.add('on'); n.classList.remove('on'); }
+    else{ // letters placeholder
       const c=$('contacts');
-      c.innerHTML='<div style="padding:60px 24px;text-align:center;color:var(--faint);font-style:italic;font-size:14px">'+
-        (tab==='journal'?'your letters from Z will live here soon.':'settings — coming soon.')+'</div>';
+      c.innerHTML='<div style="padding:60px 24px;text-align:center;color:var(--faint);font-style:italic;font-size:14px">your letters from Z will live here soon.</div>';
     }
   };
 });
@@ -391,11 +391,12 @@ function refreshProfile(){
   const i=(ME.name||'·').trim().charAt(0).toUpperCase()||'·';
   const li=$('lh-initial'); if(li)li.textContent=i;
 }
-$('lh-profile').onclick=()=>{
+function openProfile(){
   $('prof-hi').textContent=ME.name?('hi, '+ME.name):'you';
   $('prof-region').textContent=ME.region||'no region set';
   $('profSheet').classList.add('on');
-};
+}
+$('lh-profile').addEventListener('click',openProfile);
 $('profClose').onclick=()=>$('profSheet').classList.remove('on');
 $('prow-edit').onclick=()=>{
   $('profSheet').classList.remove('on');
