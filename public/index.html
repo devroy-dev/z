@@ -104,6 +104,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .contact .cn{font-size:18px;line-height:1.15}
 .contact .cd{font-size:12.5px;color:var(--dim);margin-top:3px;font-style:italic;line-height:1.35;
   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ===== SEARCH ===== */
+(function(){
+  var sb=$('search'); if(!sb)return;
+  sb.addEventListener('input',function(){
+    var q=sb.value;
+    $('search-x').parentElement.classList.toggle('has',!!q.trim());
+    renderContacts(q);
+  });
+  var sx=$('search-x'); if(sx)sx.onclick=function(){sb.value='';sb.parentElement.classList.remove('has');renderContacts();sb.focus();};
+})();
+
 /* thread */
 #thread{z-index:13}
 .t-head{display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 14px 12px;
@@ -215,6 +227,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .nt-del{color:var(--faint);font-size:12px;cursor:pointer;padding:2px 6px;flex-shrink:0}
 .nt-del:active{color:#e08a8a}
 .nt-empty{color:var(--faint);font-style:italic;padding:20px 6px;font-size:14px}
+
+.searchwrap{position:relative;margin:6px 14px 4px}
+.searchbar{width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 34px 10px 14px;color:var(--ink);font-size:15px;font-family:var(--body);outline:none}
+.searchbar::placeholder{color:var(--faint)}
+.searchbar:focus{border-color:var(--line-strong)}
+.search-x{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:20px;cursor:pointer;display:none;line-height:1}
+.searchwrap.has .search-x{display:block}
 </style>
 </head>
 <body>
@@ -262,6 +281,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
     </div>
     <div class="lh-profile" id="lh-profile" aria-label="settings"><span id="lh-initial">·</span></div>
   </div>
+  <div class="searchwrap"><input id="search" class="searchbar" placeholder="search" autocomplete="off"><span class="search-x" id="search-x">×</span></div>
   <div class="contacts" id="contacts"></div>
   <div class="botnav" id="botnav">
     <div class="nav on" data-tab="people"><div class="ic">❒</div>People</div>
@@ -475,21 +495,26 @@ $('ob-go').onclick=async()=>{
 /* contact list */
 function dpFor(key){return dpData[key]?`<img src="${dpData[key]}">`:CAT[key].face;}
 function nameFor(key){return (threads[key]&&threads[key].name)||CAT[key].name;}
-function renderContacts(){
+function renderContacts(q){
+  q=(q||'').trim().toLowerCase();
   const c=$('contacts'); c.innerHTML='';
   $('lh-sub').textContent='Your people';
-  // new-group tile
+  const match=(key)=>{ if(!q)return true; const nm=nameFor(key).toLowerCase(); const d=(CAT[key].desc||'').toLowerCase(); return nm.includes(q)||d.includes(q); };
+  // new-group tile (hidden while searching)
+  if(!q){
   const ng=document.createElement('div'); ng.className='contact ng';
   ng.innerHTML='<div class="cface ngf">+</div><div class="cbody"><div class="cn">New group</div><div class="cd">put a few of your people in one room.</div></div>';
   ng.onclick=openGroupPicker; c.appendChild(ng);
-  // existing groups
-  (groups||[]).forEach(g=>{
+  }
+  // existing groups (filtered by name too)
+  (groups||[]).filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
     const el=document.createElement('div'); el.className='contact';
     const faces=g.members.slice(0,3).map(k=>`<span class="gstack">${dpFor(k)}</span>`).join('');
     el.innerHTML=`<div class="cface gfaces">${faces}</div><div class="cbody"><div class="cn">${g.name}</div><div class="cd">${g.members.map(k=>CAT[k].name).join(' · ')}</div></div>`;
     el.onclick=()=>openGroup(g); c.appendChild(el);
   });
   ORDER.forEach(key=>{
+    if(!match(key))return;
     const cat=CAT[key];
     const el=document.createElement('div'); el.className='contact';
     el.innerHTML=`<div class="cface">${dpFor(key)}</div><div class="cbody"><div class="cn">${nameFor(key)}</div><div class="cd">${cat.desc}</div></div>`;
@@ -726,7 +751,7 @@ $('dp-file').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f)return;
   const rd=new FileReader(); rd.onload=()=>{$('dp-prev').innerHTML=`<img src="${rd.result}">`; $('dp-prev').dataset.tmp=rd.result;}; rd.readAsDataURL(f);
 });
-$('editSave').onclick=()=>{
+$('editSave').onclick=async()=>{
   const nm=$('renameInp').value.trim();
   if(!threads[active])threads[active]={id:null};
   if(nm)threads[active].name=nm;
@@ -735,6 +760,9 @@ $('editSave').onclick=()=>{
   $('t-name').textContent=nameFor(active);
   $('t-face').innerHTML=dpFor(active);
   $('sheet').classList.remove('on');
+  // re-bind on the server so the persona actually knows its (new) name
+  const t=threads[active];
+  if(t&&t.id&&nm){ try{ await fetch('/threads/'+t.id,{method:'PATCH',headers:HDRS(),body:JSON.stringify({name:nm})}); }catch(e){} }
 };
 
 function saveThreads(){localStorage.setItem('z_threads',JSON.stringify(threads));}

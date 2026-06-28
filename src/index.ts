@@ -294,6 +294,26 @@ app.delete('/notes/:kind/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) }); }
 });
 
+// rename a thread (and/or set its avatar) — so the persona actually knows its current name.
+app.patch('/threads/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { name, avatar_url } = req.body ?? {};
+    const patch: any = {};
+    if (typeof name === 'string' && name.trim()) patch.companion_name = name.trim();
+    if (typeof avatar_url === 'string') patch.avatar_url = avatar_url;
+    if (!Object.keys(patch).length) return res.status(400).json({ error: 'nothing to update' });
+    const { data, error } = await supabase.from('threads')
+      .update(patch).eq('id', req.params.id).eq('user_id', user.id).is('deleted_at', null)
+      .select('id, companion_name, avatar_url').maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: 'thread not found' });
+    res.json(data);
+  } catch (e: any) { res.status(500).json({ error: 'rename failed: ' + (e?.message || String(e)) }); }
+});
+
 // a thread's saved conversation — so reopening shows the real history (persistent memory, visible)
 app.get('/threads/:id/messages', async (req, res) => {
   try {
