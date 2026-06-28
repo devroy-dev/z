@@ -48,43 +48,56 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 // create a companion
 app.post('/threads', async (req, res) => {
-  const authId = await authUser(req);
-  if (!authId) return res.status(401).json({ error: 'unauthorized' });
-  const user = await resolveUser(authId);
-  const { personaKey, name, gender, avatarUrl, accent } = req.body ?? {};
-  const persona = personaByKey(personaKey);
-  if (!persona) return res.status(400).json({ error: 'unknown persona' });
-  const { data, error } = await supabase.from('threads').insert({
-    user_id: user.id,
-    persona_key: persona.key,
-    codex_key: persona.codex,
-    companion_name: name || persona.defaultName,
-    companion_gender: gender ?? null,
-    avatar_url: avatarUrl ?? null,
-    accent: accent ?? null,
-  }).select('id, persona_key, companion_name, avatar_url, accent').single();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { personaKey, name, gender, avatarUrl, accent } = req.body ?? {};
+    const persona = personaByKey(personaKey);
+    if (!persona) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
+    const { data, error } = await supabase.from('threads').insert({
+      user_id: user.id,
+      persona_key: persona.key,
+      codex_key: persona.codex,
+      companion_name: name || persona.defaultName,
+      companion_gender: gender ?? null,
+      avatar_url: avatarUrl ?? null,
+      accent: accent ?? null,
+    }).select('id, persona_key, companion_name, avatar_url, accent').single();
+    if (error) return res.status(500).json({ error: 'thread insert: ' + error.message });
+    res.json(data);
+  } catch (e: any) {
+    res.status(500).json({ error: 'threads failed: ' + (e?.message || String(e)) });
+  }
 });
 
 // list roster
 app.get('/threads', async (req, res) => {
-  const authId = await authUser(req);
-  if (!authId) return res.status(401).json({ error: 'unauthorized' });
-  const user = await resolveUser(authId);
-  const { data } = await supabase.from('threads')
-    .select('id, persona_key, companion_name, avatar_url, accent, last_active')
-    .eq('user_id', user.id).is('deleted_at', null)
-    .order('last_active', { ascending: false });
-  res.json(data ?? []);
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('threads')
+      .select('id, persona_key, companion_name, avatar_url, accent, last_active')
+      .eq('user_id', user.id).is('deleted_at', null)
+      .order('last_active', { ascending: false });
+    res.json(data ?? []);
+  } catch (e: any) {
+    res.status(500).json({ error: 'roster failed: ' + (e?.message || String(e)) });
+  }
 });
 
 // one turn — SSE stream
 app.post('/chat', async (req, res) => {
-  const authId = await authUser(req);
-  if (!authId) return res.status(401).json({ error: 'unauthorized' });
-  const user = await resolveUser(authId);
-  if (await isRestricted(user.id)) return res.status(403).json({ error: 'restricted' });
+  let user;
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    user = await resolveUser(authId);
+    if (await isRestricted(user.id)) return res.status(403).json({ error: 'restricted' });
+  } catch (e: any) {
+    return res.status(500).json({ error: 'chat setup failed: ' + (e?.message || String(e)) });
+  }
 
   const { threadId, message } = req.body ?? {};
   if (!threadId || !message) return res.status(400).json({ error: 'threadId and message required' });

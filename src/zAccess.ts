@@ -36,8 +36,8 @@ export async function resolveUser(authUserId: string): Promise<ZUser> {
     .single();
   if (error) throw new Error('user create failed: ' + error.message);
 
-  // seed the access row
-  await supabase.from('access').insert({ user_id: created.id }).select().maybeSingle();
+  // seed the access row — best-effort, never fatal to user creation
+  try { await supabase.from('access').insert({ user_id: created.id }); } catch { /* non-fatal */ }
   return created as ZUser;
 }
 
