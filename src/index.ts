@@ -263,6 +263,27 @@ app.post('/auth/verify', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'verify failed: ' + (e?.message || String(e)) }); }
 });
 
+// a thread's saved conversation — so reopening shows the real history (persistent memory, visible)
+app.get('/threads/:id/messages', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const threadId = req.params.id;
+    // confirm the thread belongs to this user (RLS floor + explicit check)
+    const { data: thread } = await supabase
+      .from('threads').select('id, is_group').eq('id', threadId).eq('user_id', user.id).is('deleted_at', null).maybeSingle();
+    if (!thread) return res.status(404).json({ error: 'thread not found' });
+    const { data: msgs } = await supabase
+      .from('messages')
+      .select('role, content, persona_key, created_at')
+      .eq('thread_id', threadId).eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(200);
+    res.json({ messages: msgs ?? [], is_group: !!thread.is_group });
+  } catch (e: any) { res.status(500).json({ error: 'history failed: ' + (e?.message || String(e)) }); }
+});
+
 // create a group chat thread with chosen member personas
 app.post('/groups', async (req, res) => {
   try {

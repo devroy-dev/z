@@ -506,8 +506,38 @@ async function openThread(key){
   loadHistory(key);
 }
 function bubble(role,text){const b=document.createElement('div');b.className=role==='me'?'me':'z';b.textContent=text;return b;}
-// engine has no per-thread history route yet; threads open fresh each session.
-async function loadHistory(key){ /* no-op until /threads/:id/messages exists */ }
+// rehydrate a thread's real saved conversation, so reopening continues where you left off.
+async function loadHistory(key){
+  const t=threads[key]; if(!t||!t.id)return;
+  try{
+    const r=await fetch('/threads/'+t.id+'/messages',{headers:HDRS()});
+    if(!r.ok)return;
+    const j=await r.json(); const msgs=j.messages||[]; if(!msgs.length)return;
+    const convo=$('convo');
+    msgs.forEach(m=>{
+      if(m.role==='user'){convo.appendChild(bubble('me',m.content));}
+      else if(j.is_group&&m.persona_key){ // group: tagged bubble with face+name
+        const w=gBubble(m.persona_key); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
+      } else {convo.appendChild(bubble('z',m.content));}
+    });
+    convo.scrollTop=convo.scrollHeight;
+  }catch(e){/* offline: thread opens fresh */}
+}
+// rehydrate a GROUP thread's saved history on open
+async function loadGroupHistory(g){
+  if(!g||!g.id)return;
+  try{
+    const r=await fetch('/threads/'+g.id+'/messages',{headers:HDRS()});
+    if(!r.ok)return;
+    const j=await r.json(); const msgs=j.messages||[]; if(!msgs.length)return;
+    const convo=$('convo');
+    msgs.forEach(m=>{
+      if(m.role==='user'){convo.appendChild(bubble('me',m.content));}
+      else{const w=gBubble(m.persona_key||GROUP_OK[0]); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);}
+    });
+    convo.scrollTop=convo.scrollHeight;
+  }catch(e){}
+}
 
 
 /* ===== GROUP CHAT ===== */
@@ -547,6 +577,7 @@ function openGroup(g){
   show('thread');
   const convo=$('convo'); convo.innerHTML='';
   const d=document.createElement('div'); d.className='t-desc'; d.textContent=g.members.map(k=>CAT[k].name).join(' · '); convo.appendChild(d);
+  loadGroupHistory(g);
 }
 function gBubble(key){
   const wrap=document.createElement('div'); wrap.className='gz';
