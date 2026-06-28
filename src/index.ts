@@ -81,6 +81,50 @@ app.post('/threads', async (req, res) => {
 // capture / update the owner's identity (name + region) onto their durable user row.
 // called at onboarding and whenever they edit name/region. This is owner binding:
 // the AI and the overseer both speak/write knowing who the person actually is.
+// the Letters tab: the anecdotes (daily) + letters (weekly) the overseer wrote.
+// the user's own file — they read it, mark it read, and can delete any of it.
+app.get('/letters', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data, error } = await supabase
+      .from('user_summaries')
+      .select('id, kind, body, period_start, period_end, created_at, read_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(120);
+    if (error) return res.status(500).json({ error: 'letters: ' + error.message });
+    res.json(data ?? []);
+  } catch (e: any) {
+    res.status(500).json({ error: 'letters failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// mark a letter read
+app.post('/letters/:id/read', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    await supabase.from('user_summaries').update({ read_at: new Date().toISOString() })
+      .eq('id', req.params.id).eq('user_id', user.id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+
+// delete a letter (their file, their call)
+app.delete('/letters/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    await supabase.from('user_summaries').delete()
+      .eq('id', req.params.id).eq('user_id', user.id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+
 app.post('/me', async (req, res) => {
   try {
     const authId = await authUser(req);

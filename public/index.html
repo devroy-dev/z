@@ -137,7 +137,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .dots i{width:6px;height:6px;border-radius:50%;background:var(--dim);display:inline-block;animation:dotp 1.2s infinite ease-in-out}
 .dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
 @keyframes dotp{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:.9;transform:translateY(-3px)}}
-.prow{padding:14px 4px;border-top:1px solid var(--line);font-size:15px;cursor:pointer;color:var(--ink)}.prow:active{opacity:.6}</style>
+.prow{padding:14px 4px;border-top:1px solid var(--line);font-size:15px;cursor:pointer;color:var(--ink)}.prow:active{opacity:.6}
+.letters-head{padding:18px 16px 12px;font-size:22px;font-weight:300}
+.letters-head .lh-i{font-family:"Cormorant Garamond",serif;font-style:italic;color:var(--dim)}
+.letters-empty{padding:54px 28px;text-align:center;color:var(--faint);font-style:italic;font-size:14px;line-height:1.6}
+.letter{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 18px;margin:0 8px 12px}
+.letter-weekly{border-color:var(--line-strong);background:linear-gradient(180deg,var(--bg-soft),var(--card))}
+.letter-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.letter-tag{font-size:8px;color:var(--dim)}
+.letter .unread{width:7px;height:7px;border-radius:50%;background:var(--accent2);display:inline-block}
+.letter-del{margin-left:auto;font-size:10px;color:var(--faint);cursor:pointer;letter-spacing:.04em}
+.letter-del:active{color:#e08a8a}
+.letter-body{font-size:15.5px;line-height:1.62;font-weight:300;white-space:pre-wrap}
+.letter-weekly .letter-body{font-size:16px;line-height:1.7}
+</style>
 </head>
 <body>
 <canvas id="ink"></canvas><div class="grain"></div>
@@ -415,10 +428,7 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
     document.querySelectorAll('.botnav .nav').forEach(x=>x.classList.toggle('on',x===n));
     if(tab==='people'){renderContacts();}
     else if(tab==='settings'){ openProfile(); document.querySelector('.botnav .nav[data-tab=people]').classList.add('on'); n.classList.remove('on'); }
-    else{ // letters placeholder
-      const c=$('contacts');
-      c.innerHTML='<div style="padding:60px 24px;text-align:center;color:var(--faint);font-style:italic;font-size:14px">Your letters from Z will live here soon.</div>';
-    }
+    else{ renderLetters(); }
   };
 });
 
@@ -446,6 +456,38 @@ $('prow-signout').onclick=()=>{
   show('onboard');
   $('profSheet').classList.remove('on');
 };
+
+
+/* ===== LETTERS tab — the overseer's anecdotes (daily) + letters (weekly) ===== */
+async function renderLetters(){
+  const c=$('contacts');
+  c.innerHTML='<div class="letters-head">Letters <span class="lh-i">from Z</span></div><div id="letters-list" style="padding:0 4px"></div>';
+  const list=$('letters-list');
+  list.innerHTML='<div class="letters-empty">reading your week…</div>';
+  try{
+    const r=await fetch('/letters',{headers:HDRS()});
+    if(!r.ok){list.innerHTML='<div class="letters-empty">couldn\'t load your letters right now.</div>';return;}
+    const items=await r.json();
+    if(!items.length){list.innerHTML='<div class="letters-empty">no letters yet. talk to your people for a few days — Z is listening, and will write back.</div>';return;}
+    list.innerHTML='';
+    items.forEach(it=>{
+      const card=document.createElement('div');
+      card.className='letter '+(it.kind==='weekly'?'letter-weekly':'letter-daily');
+      const date=new Date(it.period_end||it.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      const tag=it.kind==='weekly'?'the week':'today';
+      const unread=it.read_at?'':'<span class="unread"></span>';
+      card.innerHTML=`<div class="letter-top"><span class="letter-tag mono">${tag} · ${date}</span>${unread}<span class="letter-del" data-id="${it.id}">delete</span></div><div class="letter-body">${(it.body||'').replace(/</g,'&lt;')}</div>`;
+      list.appendChild(card);
+      if(!it.read_at){fetch('/letters/'+it.id+'/read',{method:'POST',headers:HDRS()}).catch(()=>{});}
+    });
+    list.querySelectorAll('.letter-del').forEach(d=>{
+      d.onclick=async(e)=>{e.stopPropagation();
+        if(!confirm('delete this letter? it\'s gone for good.'))return;
+        await fetch('/letters/'+d.dataset.id,{method:'DELETE',headers:HDRS()}).catch(()=>{});
+        renderLetters();};
+    });
+  }catch(e){list.innerHTML='<div class="letters-empty">couldn\'t load your letters right now.</div>';}
+}
 
 /* boot */
 loadLocal();
