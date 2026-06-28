@@ -89,9 +89,18 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
 
   const messages: Anthropic.MessageParam[] = [...priorTurns, { role: 'user', content: message }];
 
-  // ── the one Haiku call (streamed) ─────────────────────────────────────
-  // INTELLECT-only web tool wiring goes here later (persona.webEnabled).
-  const stream = anthropic.messages.stream({ model: MODEL, max_tokens: 1024, system, messages });
+  // ── the Haiku call (streamed) ─────────────────────────────────────────
+  // Web-enabled personas (brainiac, comic, screen junkie) get Anthropic's server-side
+  // web_search tool so they can reach live facts (current films, what's streaming, today's
+  // references) instead of bluffing from training data. The model runs the search itself;
+  // no manual tool round-trip needed. Capped to keep turns tight and cheap.
+  const tools: any[] = [];
+  if (persona?.webEnabled) {
+    tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 4 });
+  }
+  const streamArgs: any = { model: MODEL, max_tokens: 1024, system, messages };
+  if (tools.length) streamArgs.tools = tools;
+  const stream = anthropic.messages.stream(streamArgs);
   stream.on('text', (d) => input.onToken?.(d));
   const final = await stream.finalMessage();
 
