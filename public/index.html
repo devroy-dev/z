@@ -68,7 +68,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   padding:12px 16px;font-size:14px;font-style:italic;color:#f4f2ee;transition:.6s}
 .cursor{display:inline-block;width:2px;height:.9em;background:rgb(var(--accent));margin-left:2px;vertical-align:text-bottom;animation:blink 1.1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
-.dock{margin:8px 14px calc(14px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:10px;
+.clip{background:none;border:none;padding:4px;cursor:pointer;display:grid;place-items:center;flex-shrink:0}.clip:active{opacity:.6}.imgprev{margin:0 14px;display:none}.imgprev.on{display:flex;align-items:center;gap:8px;margin-bottom:6px}.imgprev img{height:54px;border-radius:10px;border:1px solid var(--line)}.msg-img{display:block;max-width:200px;border-radius:12px;margin-top:6px}.imgprev .x{font-size:18px;color:var(--faint);cursor:pointer;padding:2px 6px}.dock{margin:8px 14px calc(14px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:10px;
   background:var(--card);backdrop-filter:none;border:1px solid var(--line);border-radius:26px;
   padding:7px 7px 7px 20px;box-shadow:none;z-index:20;transition:.6s}
 .dock input{flex:1;background:none;border:none;outline:none;color:var(--ink);font-family:'Newsreader',serif;font-style:italic;font-size:15px}
@@ -205,6 +205,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .door-note{font-size:12px;color:var(--faint);margin-top:12px;min-height:16px;font-style:italic}
 .door-back{font-size:12px;color:var(--faint);margin-top:16px;cursor:pointer;letter-spacing:.03em}
 .door-back:active{color:var(--ink)}
+
+.nt-intro{padding:16px 20px;font-family:"Cormorant Garamond",serif;font-style:italic;font-size:16px;color:var(--dim);line-height:1.5;border-bottom:1px solid var(--line)}
+.nt-body{flex:1;overflow-y:auto;padding:8px 16px calc(20px + env(safe-area-inset-bottom))}
+.nt-sec{font-family:var(--ui);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin:18px 6px 8px}
+.nt-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start}
+.nt-card .nt-txt{flex:1;font-size:14px;line-height:1.5;color:var(--ink)}
+.nt-card .nt-k{color:var(--accent2);font-size:11px;letter-spacing:.04em;display:block;margin-bottom:3px;font-family:var(--ui)}
+.nt-del{color:var(--faint);font-size:12px;cursor:pointer;padding:2px 6px;flex-shrink:0}
+.nt-del:active{color:#e08a8a}
+.nt-empty{color:var(--faint);font-style:italic;padding:20px 6px;font-size:14px}
 </style>
 </head>
 <body>
@@ -280,7 +290,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
     <div class="t-kebab" id="t-kebab">⋯</div>
   </div>
   <div class="convo" id="convo"></div>
-  <div class="dock"><input id="inp" placeholder="message…" autocomplete="off"><button class="go" id="send" aria-label="send"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 12 L20 12 M13 5 L20 12 L13 19" fill="none" stroke="#141310" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  <div class="imgprev" id="imgprev"></div><div class="dock"><button class="clip" id="clip" aria-label="attach image"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9a8f80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.5 8.5a5 5 0 01-7-7l8.5-8.5a3.5 3.5 0 014.9 5l-8.5 8.5a2 2 0 01-2.8-2.8l7.8-7.8"/></svg></button><input type="file" id="imgfile" accept="image/*" style="display:none"><input id="inp" placeholder="message…" autocomplete="off"><button class="go" id="send" aria-label="send"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 12 L20 12 M13 5 L20 12 L13 19" fill="none" stroke="#141310" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
 </div>
 
 <!-- EDIT SHEET (rename + dp) -->
@@ -312,12 +322,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   </div>
 </div>
 
+<!-- WHAT Z REMEMBERS -->
+<div class="screen" id="notes">
+  <div class="t-bar">
+    <div class="t-back" id="nt-back">‹</div>
+    <div class="t-id"><div class="t-name">What Z remembers</div></div>
+    <div style="width:34px"></div>
+  </div>
+  <div class="nt-intro">everything i've held onto, so we can pick up where we left off. you can't change it — but you can make me forget any of it, anytime.</div>
+  <div id="nt-body" class="nt-body"></div>
+</div>
+
 <!-- PROFILE / SETTINGS SHEET -->
 <div class="sheet" id="profSheet">
   <div class="card">
     <h3 id="prof-hi">you</h3>
     <p id="prof-region"></p>
     <div class="prow" id="prow-edit">Edit your name / region</div>
+    <div class="prow" id="prow-notes">What Z remembers</div>
     <div class="prow" id="prow-signout" style="color:#e08a8a">Sign out</div>
     <div class="btn" id="profClose" style="background:transparent;width:100%;text-align:center;margin-top:6px">Close</div>
   </div>
@@ -616,13 +638,38 @@ async function sendGroup(text){
   $('convo').scrollTop=$('convo').scrollHeight;
 }
 
+
+/* ===== IMAGE ATTACH (Haiku vision; 1:1 threads) ===== */
+let pendingImg=null; // {media_type, data}
+function clearImg(){pendingImg=null;const p=$('imgprev');p.innerHTML='';p.classList.remove('on');$('imgfile').value='';}
+$('clip')&&($('clip').onclick=()=>{ if(activeGroup){return;} $('imgfile').click(); });
+$('imgfile')&&($('imgfile').onchange=(e)=>{
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const img=new Image(); const rd=new FileReader();
+  rd.onload=()=>{ img.onload=()=>{
+    // downscale longest side to 1024 to keep payload small
+    let{width:w,height:h}=img; const m=Math.max(w,h); if(m>1024){const s=1024/m;w=Math.round(w*s);h=Math.round(h*s);}
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);
+    const url=c.toDataURL('image/jpeg',0.85);
+    pendingImg={media_type:'image/jpeg',data:url.split(',')[1]};
+    const p=$('imgprev'); p.innerHTML='<img src="'+url+'"><span class="x" id="imgx">remove</span>'; p.classList.add('on');
+    $('imgx').onclick=clearImg;
+  }; img.src=rd.result; };
+  rd.readAsDataURL(f);
+});
+
 /* send */
 async function sendMsg(){
   const inp=$('inp'); const text=inp.value.trim();
   if(activeGroup){ if(!text)return; inp.value=''; return sendGroup(text); }
-  if(!text||!active)return;
+  if((!text&&!pendingImg)||!active)return;
   inp.value='';
-  $('convo').appendChild(bubble('me',text));
+  const sentImg=pendingImg; // capture before clearing
+  const meb=bubble('me',text||'');
+  if(sentImg){const im=document.createElement('img');im.src='data:'+sentImg.media_type+';base64,'+sentImg.data;im.className='msg-img';meb.appendChild(im);}
+  $('convo').appendChild(meb);
+  clearImg();
   const zb=bubble('z',''); zb.classList.add('typing');
   zb.innerHTML='<span class="dots"><i></i><i></i><i></i></span>'; $('convo').appendChild(zb);
   $('convo').scrollTop=$('convo').scrollHeight;
@@ -630,7 +677,7 @@ async function sendMsg(){
   if(!t||!t.id){zb.classList.remove('typing');zb.textContent='(one sec — reopening this chat)';await openThread(active);return;}
   try{
     const r=await fetch('/chat',{method:'POST',headers:HDRS(),
-      body:JSON.stringify({threadId:t.id,message:text})});
+      body:JSON.stringify({threadId:t.id,message:text,image:sentImg})});
     if(!r.ok){let msg='(z went quiet — try again)';try{const j=await r.json();if(j.error)msg='('+j.error+')';}catch(_){}zb.classList.remove('typing');zb.textContent=msg;return;}
     const reader=r.body.getReader();const dec=new TextDecoder();
     let buf='',acc='',started=false;
@@ -712,6 +759,45 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
   };
 });
 
+
+
+/* ===== WHAT Z REMEMBERS ===== */
+async function openNotes(){
+  $('profSheet').classList.remove('on');
+  show('notes');
+  const body=$('nt-body'); body.innerHTML='<div class="nt-empty">reading…</div>';
+  try{
+    const r=await fetch('/notes',{headers:HDRS()});
+    const j=await r.json();
+    body.innerHTML='';
+    const facts=j.facts||[], notes=j.notes||[];
+    if(!facts.length&&!notes.length){body.innerHTML='<div class="nt-empty">nothing yet. the more we talk, the more i\'ll remember.</div>';return;}
+    if(facts.length){
+      const h=document.createElement('div');h.className='nt-sec';h.textContent='what i know about you';body.appendChild(h);
+      facts.forEach(f=>body.appendChild(noteCard('fact',f.id,f.key,f.value)));
+    }
+    if(notes.length){
+      const h=document.createElement('div');h.className='nt-sec';h.textContent='moments i noticed';body.appendChild(h);
+      notes.forEach(n=>body.appendChild(noteCard('note',n.id,null,n.body)));
+    }
+  }catch(e){body.innerHTML='<div class="nt-empty">couldn\'t load right now.</div>';}
+}
+function noteCard(kind,id,key,text){
+  const c=document.createElement('div');c.className='nt-card';
+  const t=document.createElement('div');t.className='nt-txt';
+  if(key){const k=document.createElement('span');k.className='nt-k';k.textContent=key;t.appendChild(k);}
+  t.appendChild(document.createTextNode(text||''));
+  const del=document.createElement('div');del.className='nt-del';del.textContent='forget';
+  del.onclick=async()=>{
+    del.textContent='…';
+    try{const r=await fetch('/notes/'+kind+'/'+id,{method:'DELETE',headers:HDRS()});
+      if(r.ok){c.style.opacity='0';setTimeout(()=>c.remove(),200);}else{del.textContent='forget';}
+    }catch(e){del.textContent='forget';}
+  };
+  c.appendChild(t);c.appendChild(del);return c;
+}
+$('prow-notes')&&($('prow-notes').onclick=openNotes);
+$('nt-back')&&($('nt-back').onclick=()=>{show('list');renderContacts();});
 
 /* profile / settings */
 function refreshProfile(){

@@ -263,6 +263,37 @@ app.post('/auth/verify', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'verify failed: ' + (e?.message || String(e)) }); }
 });
 
+// ── WHAT Z REMEMBERS — the user's own view of their notes (read-only) + delete ──
+// returns the durable facts (z.memory) and the overseer's anecdotes (z.user_notes).
+// the user can read these and delete any of them — never edit (the record stays honest).
+app.get('/notes', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const [facts, notes] = await Promise.all([
+      supabase.from('memory').select('id, key, value, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200),
+      supabase.from('user_notes').select('id, body, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200),
+    ]);
+    res.json({ facts: facts.data ?? [], notes: notes.data ?? [] });
+  } catch (e: any) { res.status(500).json({ error: 'notes failed: ' + (e?.message || String(e)) }); }
+});
+
+// delete one remembered item — a fact or an overseer note. kind: 'fact' | 'note'.
+app.delete('/notes/:kind/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { kind, id } = req.params;
+    const table = kind === 'fact' ? 'memory' : kind === 'note' ? 'user_notes' : null;
+    if (!table) return res.status(400).json({ error: 'bad kind' });
+    const { error } = await supabase.from(table).delete().eq('id', id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) }); }
+});
+
 // a thread's saved conversation — so reopening shows the real history (persistent memory, visible)
 app.get('/threads/:id/messages', async (req, res) => {
   try {
@@ -302,7 +333,7 @@ app.post('/groups', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'group failed: ' + (e?.message || String(e)) }); }
 });
 
-app.post('/chat', async (req, res) => {
+app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   let user;
   try {
     const authId = await authUser(req);
@@ -313,7 +344,7 @@ app.post('/chat', async (req, res) => {
     return res.status(500).json({ error: 'chat setup failed: ' + (e?.message || String(e)) });
   }
 
-  const { threadId, message } = req.body ?? {};
+  const { threadId, message, image } = req.body ?? {};
   if (!threadId || !message) return res.status(400).json({ error: 'threadId and message required' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -336,7 +367,7 @@ app.post('/chat', async (req, res) => {
       res.end();
     } else {
       const result = await runZTurn({
-        userId: user.id, threadId, message,
+        userId: user.id, threadId, message, image: image ?? null,
         onToken: (t) => res.write(`data: ${JSON.stringify({ token: t })}\n\n`),
       });
       res.write(`data: ${JSON.stringify({ done: true, usage: result.usage })}\n\n`);

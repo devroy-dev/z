@@ -16,6 +16,7 @@ export interface ZTurnInput {
   userId: string;
   threadId: string;
   message: string;
+  image?: { media_type: string; data: string } | null;
   onToken?: (t: string) => void;   // streaming sink (SSE/websocket); inert if absent
 }
 
@@ -84,10 +85,19 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     .limit(40);
   const priorTurns: Anthropic.MessageParam[] = (history ?? []).map((m: any) => ({ role: m.role, content: m.content }));
 
-  // persist the user's message
-  await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: message });
+  // persist the user's message (store a marker if it carried an image, so history shows it)
+  const storedContent = input.image ? (message ? message + '\n[shared an image]' : '[shared an image]') : message;
+  await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: storedContent });
 
-  const messages: Anthropic.MessageParam[] = [...priorTurns, { role: 'user', content: message }];
+  // build this turn's user content — text, plus a vision image block when attached
+  let userContent: any = message;
+  if (input.image && /^image\/(jpeg|png|gif|webp)$/.test(input.image.media_type)) {
+    userContent = [
+      { type: 'image', source: { type: 'base64', media_type: input.image.media_type, data: input.image.data } },
+      { type: 'text', text: message || 'what do you make of this?' },
+    ];
+  }
+  const messages: Anthropic.MessageParam[] = [...priorTurns, { role: 'user', content: userContent }];
 
   // ── the Haiku call (streamed) ─────────────────────────────────────────
   // Web-enabled personas (brainiac, comic, screen junkie) get Anthropic's server-side
