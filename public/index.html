@@ -244,20 +244,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   <div class="door-atmos"></div>
   <div class="door-inner">
     <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
-    <div class="door-tag">a place to say the things you can't say anywhere else.</div>
     <div id="door-phase-phone">
       <div class="door-q">your number stays yours. we just need it to know it's you.</div>
       <div class="phone-row">
         <select id="cc" class="cc"></select>
         <input id="phone" class="phone-in" inputmode="numeric" placeholder="phone number" autocomplete="off">
       </div>
-      <div class="btn" id="send-otp">send code</div>
+      <div class="btn" id="send-otp">Send code</div>
       <div class="door-note" id="door-note"></div>
     </div>
     <div id="door-phase-otp" style="display:none">
       <div class="door-q">we sent you a code. <span id="otp-to" class="mono"></span></div>
       <input id="otp" class="otp-in" inputmode="numeric" maxlength="6" placeholder="• • • • • •" autocomplete="one-time-code">
-      <div class="btn" id="verify-otp">verify</div>
+      <div class="btn" id="verify-otp">Verify</div>
       <div class="door-note" id="otp-note"></div>
       <div class="door-back" id="otp-back">‹ change number</div>
     </div>
