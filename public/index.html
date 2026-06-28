@@ -131,6 +131,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .botnav .nav.on{color:var(--accent2)}
 .botnav .nav .ic{font-size:19px;line-height:1}
 .contacts{padding-bottom:84px}
+
+.z.typing{padding:16px 20px}
+.dots{display:inline-flex;gap:5px;align-items:center}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--dim);display:inline-block;animation:dotp 1.2s infinite ease-in-out}
+.dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
+@keyframes dotp{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:.9;transform:translateY(-3px)}}
 </style>
 </head>
 <body>
@@ -276,31 +282,41 @@ async function sendMsg(){
   const inp=$('inp'); const text=inp.value.trim(); if(!text||!active)return;
   inp.value='';
   $('convo').appendChild(bubble('me',text));
-  const zb=bubble('z',''); zb.innerHTML='<span class="cursor"></span>'; $('convo').appendChild(zb);
+  const zb=bubble('z',''); zb.classList.add('typing');
+  zb.innerHTML='<span class="dots"><i></i><i></i><i></i></span>'; $('convo').appendChild(zb);
   $('convo').scrollTop=$('convo').scrollHeight;
   const t=threads[active];
-  if(!t||!t.id){zb.textContent='(one sec — reopening this chat)';await openThread(active);return;}
+  if(!t||!t.id){zb.classList.remove('typing');zb.textContent='(one sec — reopening this chat)';await openThread(active);return;}
   try{
     const r=await fetch('/chat',{method:'POST',headers:HDRS(),
       body:JSON.stringify({threadId:t.id,message:text})});
-    if(!r.ok){let msg='(z went quiet — try again)';try{const j=await r.json();if(j.error)msg='('+j.error+')';}catch(_){}zb.textContent=msg;return;}
-    // SSE stream: lines of  data: {token|done|error}
-    const reader=r.body.getReader();const dec=new TextDecoder();let buf='',acc='';
-    zb.textContent='';
+    if(!r.ok){let msg='(z went quiet — try again)';try{const j=await r.json();if(j.error)msg='('+j.error+')';}catch(_){}zb.classList.remove('typing');zb.textContent=msg;return;}
+    const reader=r.body.getReader();const dec=new TextDecoder();
+    let buf='',acc='',started=false;
+    // process any number of complete "data: {...}" frames sitting in buf
+    const drain=()=>{
+      let i;
+      while((i=buf.indexOf('\n\n'))>=0){
+        const chunk=buf.slice(0,i); buf=buf.slice(i+2);
+        // a chunk may contain one or more "data:" lines
+        chunk.split('\n').forEach(line=>{
+          line=line.trim(); if(!line.startsWith('data:'))return;
+          const payload=line.slice(5).trim(); if(!payload)return;
+          let ev; try{ev=JSON.parse(payload);}catch(_){return;}
+          if(typeof ev.token==='string'){
+            if(!started){started=true;zb.classList.remove('typing');zb.textContent='';}
+            acc+=ev.token; zb.textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;
+          } else if(ev.error){zb.classList.remove('typing');zb.textContent='('+ev.error+')';}
+        });
+      }
+    };
     while(true){
       const{done,value}=await reader.read(); if(done)break;
-      buf+=dec.decode(value,{stream:true});
-      const parts=buf.split('\n\n'); buf=parts.pop();
-      for(const p of parts){
-        const line=p.trim(); if(!line.startsWith('data:'))continue;
-        let ev; try{ev=JSON.parse(line.slice(5).trim());}catch(_){continue;}
-        if(ev.token){acc+=ev.token; zb.textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;}
-        else if(ev.error){zb.textContent='('+ev.error+')';}
-        // ev.done -> stream ends naturally
-      }
+      buf+=dec.decode(value,{stream:true}); drain();
     }
-    if(!acc&&!zb.textContent)zb.textContent='…';
-  }catch(e){zb.textContent='(no connection)';}
+    buf+='\n\n'; drain(); // flush any trailing frame
+    if(!started){zb.classList.remove('typing'); if(!zb.textContent)zb.textContent='…';}
+  }catch(e){zb.classList.remove('typing');zb.textContent='(no connection)';}
   $('convo').scrollTop=$('convo').scrollHeight;
 }
 $('send').onclick=sendMsg;
