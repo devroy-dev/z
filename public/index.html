@@ -88,7 +88,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 /* ===== chat-app surface styles (charcoal, blue accent for now) ===== */
 /* contact list */
 #list{z-index:11}
-.list-head{padding:calc(20px + env(safe-area-inset-top)) 22px 14px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.list-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:calc(20px + env(safe-area-inset-top)) 20px 14px;border-bottom:1px solid var(--line-strong);margin-bottom:4px;background:linear-gradient(180deg,var(--bg-soft),var(--bg))}.lh-left{min-width:0}.lh-profile{width:40px;height:40px;border-radius:50%;flex-shrink:0;cursor:pointer;display:grid;place-items:center;border:1px solid var(--line-strong);background:var(--card);font-size:16px;color:var(--accent2);box-shadow:inset 0 0 12px rgba(0,0,0,.3);transition:.2s}.lh-profile:active{transform:scale(.94)}
 .lh-title{font-size:26px;font-weight:300;letter-spacing:.01em}
 .lh-title .i{font-family:"Cormorant Garamond",serif;font-style:italic;font-weight:400}
 .lh-sub{font-size:9px;color:var(--faint);margin-top:4px}
@@ -137,7 +137,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .dots i{width:6px;height:6px;border-radius:50%;background:var(--dim);display:inline-block;animation:dotp 1.2s infinite ease-in-out}
 .dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
 @keyframes dotp{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:.9;transform:translateY(-3px)}}
-</style>
+.prow{padding:14px 4px;border-top:1px solid var(--line);font-size:15px;cursor:pointer;color:var(--ink)}.prow:active{opacity:.6}</style>
 </head>
 <body>
 <canvas id="ink"></canvas><div class="grain"></div>
@@ -154,8 +154,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 <!-- CONTACT LIST -->
 <div class="screen" id="list">
   <div class="list-head">
-    <div class="lh-title">Anonymously <span class="i">Yours</span></div>
-    <div class="lh-sub mono" id="lh-sub">your people</div>
+    <div class="lh-left">
+      <div class="lh-title">Anonymously <span class="i">Yours</span></div>
+      <div class="lh-sub mono" id="lh-sub">your people</div>
+    </div>
+    <div class="lh-profile" id="lh-profile" aria-label="settings"><span id="lh-initial">·</span></div>
   </div>
   <div class="contacts" id="contacts"></div>
   <div class="botnav" id="botnav">
@@ -195,6 +198,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   </div>
 </div>
 
+<!-- PROFILE / SETTINGS SHEET -->
+<div class="sheet" id="profSheet">
+  <div class="card">
+    <h3 id="prof-hi">you</h3>
+    <p id="prof-region"></p>
+    <div class="prow" id="prow-edit">edit your name / region</div>
+    <div class="prow" id="prow-signout" style="color:#e08a8a">sign out</div>
+    <div class="btn" id="profClose" style="background:transparent;width:100%;text-align:center;margin-top:6px">close</div>
+  </div>
+</div>
+
 <script>
 /* ===== the nine, with descriptors (charcoal; per-persona accent kept subtle for ink only) ===== */
 function face(skin,hair,a,b){return `<svg viewBox="0 0 100 100"><defs><linearGradient id="bg${a.slice(1)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="100" height="100" fill="url(#bg${a.slice(1)})"/><path d="M27 47 Q25 13 50 11 Q75 13 73 47 Q79 27 64 17 Q56 9 50 9 Q44 9 36 17 Q21 27 27 47Z" fill="${hair}"/><ellipse cx="50" cy="49" rx="21" ry="25" fill="${skin}"/><ellipse cx="42" cy="49" rx="2.6" ry="3.3" fill="#1a1620"/><ellipse cx="58" cy="49" rx="2.6" ry="3.3" fill="#1a1620"/><path d="M44 61 Q50 65 56 61" stroke="#00000044" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M30 73 Q50 83 70 73 L70 100 L30 100Z" fill="${hair}"/></svg>`;}
@@ -226,7 +240,7 @@ $('ob-go').onclick=async()=>{
   localStorage.setItem('z_me',JSON.stringify(ME));
   if(!localStorage.getItem('z_uid'))localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
   localStorage.setItem('z_onboarded','1');
-  renderContacts(); show('list');
+  renderContacts(); refreshProfile(); show('list');
 };
 
 /* contact list */
@@ -371,9 +385,33 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
   };
 });
 
+
+/* profile / settings */
+function refreshProfile(){
+  const i=(ME.name||'·').trim().charAt(0).toUpperCase()||'·';
+  const li=$('lh-initial'); if(li)li.textContent=i;
+}
+$('lh-profile').onclick=()=>{
+  $('prof-hi').textContent=ME.name?('hi, '+ME.name):'you';
+  $('prof-region').textContent=ME.region||'no region set';
+  $('profSheet').classList.add('on');
+};
+$('profClose').onclick=()=>$('profSheet').classList.remove('on');
+$('prow-edit').onclick=()=>{
+  $('profSheet').classList.remove('on');
+  $('ob-name').value=ME.name||''; $('ob-region').value=ME.region||'';
+  show('onboard');
+};
+$('prow-signout').onclick=()=>{
+  if(!confirm('sign out? your local chats and names stay on this device.'))return;
+  localStorage.removeItem('z_onboarded');
+  show('onboard');
+  $('profSheet').classList.remove('on');
+};
+
 /* boot */
 loadLocal();
-if(localStorage.getItem('z_onboarded')){renderContacts();show('list');}else{show('onboard');}
+if(localStorage.getItem('z_onboarded')){renderContacts();refreshProfile();show('list');}else{show('onboard');}
 
 </script>
 </body>
