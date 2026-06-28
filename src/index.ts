@@ -33,6 +33,9 @@ app.use(express.static(join(__dirname2, 'public')));
 
 // verify the caller's Supabase JWT → auth_user_id. Uses anon client just to read the token's user.
 const authClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!);
+// OTP uses the anon-key client (the real Supabase phone-auth path; Twilio Verify is the
+// configured SMS provider in the Supabase dashboard).
+const otpClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
 // OPEN_MODE: no auth wall yet. The frontend sends a stable anonymous id in the
 // x-z-user header; we use it as the auth_user_id directly. Flip OPEN_MODE off
@@ -212,6 +215,54 @@ app.get('/threads', async (req, res) => {
 });
 
 // one turn — SSE stream
+// ── AUTH: phone OTP (Supabase phone auth, Twilio Verify as SMS provider) ──────
+// send a one-time code to the phone number.
+app.post('/auth/otp', async (req, res) => {
+  try {
+    const { phone } = req.body ?? {};
+    if (!phone || !/^\+[1-9][0-9]{6,15}$/.test(phone)) return res.status(400).json({ error: 'enter a valid number with country code' });
+    const { error } = await otpClient.auth.signInWithOtp({ phone });
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'otp failed: ' + (e?.message || String(e)) }); }
+});
+
+// verify the code → returns a Supabase session token. Optionally claims an anon user's
+// existing threads/letters/journal onto the now-verified identity (so nobody loses history).
+app.post('/auth/verify', async (req, res) => {
+  try {
+    const { phone, code, claimAnon } = req.body ?? {};
+    if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
+    const { data, error } = await otpClient.auth.verifyOtp({ phone, token: String(code), type: 'sms' });
+    if (error || !data?.session || !data?.user) return res.status(400).json({ error: error?.message || 'invalid code' });
+
+    const authId = data.user.id;
+    // ensure a z.users row exists for this verified identity
+    const realUser = await resolveUser(authId);
+
+    // claim anon history: if the browser had an anon id with data, move it to this user.
+    if (claimAnon && /^[a-zA-Z0-9_-]{8,64}$/.test(claimAnon)) {
+      const anonAuthId = `open:${claimAnon}`;
+      const { data: anonRow } = await supabase.from('users').select('id').eq('auth_user_id', anonAuthId).is('deleted_at', null).maybeSingle();
+      if (anonRow && anonRow.id !== realUser.id) {
+        // repoint all the anon user's content to the real user, then soft-delete the anon row
+        await supabase.from('threads').update({ user_id: realUser.id }).eq('user_id', anonRow.id);
+        await supabase.from('messages').update({ user_id: realUser.id }).eq('user_id', anonRow.id);
+        await supabase.from('user_summaries').update({ user_id: realUser.id }).eq('user_id', anonRow.id);
+        await supabase.from('user_notes').update({ user_id: realUser.id }).eq('user_id', anonRow.id);
+        await supabase.from('journal_entries').update({ user_id: realUser.id }).eq('user_id', anonRow.id);
+        await supabase.from('users').update({ deleted_at: new Date().toISOString() }).eq('id', anonRow.id);
+      }
+    }
+
+    res.json({
+      token: data.session.access_token,
+      userId: realUser.id,
+      hasName: !!realUser.display_name,
+    });
+  } catch (e: any) { res.status(500).json({ error: 'verify failed: ' + (e?.message || String(e)) }); }
+});
+
 // create a group chat thread with chosen member personas
 app.post('/groups', async (req, res) => {
   try {

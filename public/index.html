@@ -190,13 +190,51 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .gp-name{flex:1;font-size:15px}
 .gp-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line-strong)}
 .gp-row.on .gp-check{background:var(--accent2);border-color:var(--accent2)}
+
+#door{justify-content:center;align-items:center;padding:34px;text-align:center;z-index:13}
+.door-inner{position:relative;z-index:2;width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center}
+.door-atmos{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(60% 40% at 50% 22%, rgba(201,168,76,.10), transparent 60%),
+             radial-gradient(50% 40% at 50% 100%, rgba(201,168,76,.05), transparent 55%)}
+.door-tag{font-family:"Cormorant Garamond",serif;font-style:italic;font-size:16px;color:var(--dim);margin:6px 0 30px;line-height:1.5;max-width:300px}
+.door-q{font-size:14px;color:var(--dim);font-style:italic;margin-bottom:16px;line-height:1.5;max-width:300px}
+.phone-row{display:flex;gap:8px;width:100%;margin-bottom:14px}
+.cc{background:var(--card);border:1px solid var(--line);border-radius:14px;color:var(--ink);padding:0 8px;font-size:15px;font-family:var(--ui);outline:none;max-width:96px}
+.phone-in,.otp-in{flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;color:var(--ink);font-size:16px;outline:none;font-family:"Newsreader",serif;text-align:center;width:100%}
+.otp-in{letter-spacing:.4em;margin-bottom:14px;font-size:20px}
+.door-note{font-size:12px;color:var(--faint);margin-top:12px;min-height:16px;font-style:italic}
+.door-back{font-size:12px;color:var(--faint);margin-top:16px;cursor:pointer;letter-spacing:.03em}
+.door-back:active{color:var(--ink)}
 </style>
 </head>
 <body>
 <canvas id="ink"></canvas><div class="grain"></div>
 
 <!-- ONBOARDING -->
-<div class="screen on" id="onboard">
+<div class="screen on" id="door">
+  <div class="door-atmos"></div>
+  <div class="door-inner">
+    <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
+    <div class="door-tag">a place to say the things you can't say anywhere else.</div>
+    <div id="door-phase-phone">
+      <div class="door-q">your number stays yours. we just need it to know it's you.</div>
+      <div class="phone-row">
+        <select id="cc" class="cc"></select>
+        <input id="phone" class="phone-in" inputmode="numeric" placeholder="phone number" autocomplete="off">
+      </div>
+      <div class="btn" id="send-otp">send code</div>
+      <div class="door-note" id="door-note"></div>
+    </div>
+    <div id="door-phase-otp" style="display:none">
+      <div class="door-q">we sent you a code. <span id="otp-to" class="mono"></span></div>
+      <input id="otp" class="otp-in" inputmode="numeric" maxlength="6" placeholder="• • • • • •" autocomplete="one-time-code">
+      <div class="btn" id="verify-otp">verify</div>
+      <div class="door-note" id="otp-note"></div>
+      <div class="door-back" id="otp-back">‹ change number</div>
+    </div>
+  </div>
+</div>
+<div class="screen" id="onboard">
   <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
   <div class="q">no logins, no judgement, no one watching. just tell me who i'm talking to.</div>
   <div class="field"><input id="ob-name" placeholder="what do i call you?" autocomplete="off"></div>
@@ -343,7 +381,7 @@ function startInk(){sizeInk();seedBlobs();if(!inkRAF)inkRAF=requestAnimationFram
 addEventListener('resize',()=>{sizeInk();});
 startInk();
 
-const HDRS=()=>{const h={'Content-Type':'application/json'};const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;return h;};
+const HDRS=()=>{const h={'Content-Type':'application/json'};const tok=localStorage.getItem('z_token');if(tok){h['Authorization']='Bearer '+tok;}else{const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;}return h;};
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]');
@@ -352,6 +390,53 @@ function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
 function $(id){return document.getElementById(id);}
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');
   const nav=$('botnav'); if(nav)nav.style.display=(id==='list')?'flex':'none';}
+
+
+/* ===== AUTH: phone + OTP door (Supabase phone auth, proxied through engine) ===== */
+const COUNTRIES=[['+91','IN'],['+1','US'],['+44','UK'],['+81','JP'],['+65','SG'],['+971','AE'],['+61','AU'],['+880','BD'],['+92','PK'],['+94','LK'],['+977','NP'],['+60','MY'],['+62','ID'],['+63','PH'],['+66','TH'],['+84','VN']];
+(function fillCC(){const sel=$('cc'); if(!sel)return; COUNTRIES.forEach(([code,iso])=>{const o=document.createElement('option');o.value=code;o.textContent=code+' '+iso;sel.appendChild(o);});})();
+let pendingPhone='';
+function doorNote(id,msg){const n=$(id); if(n)n.textContent=msg||'';}
+async function sendOtp(){
+  const cc=$('cc').value; const num=$('phone').value.replace(/[^0-9]/g,'');
+  if(num.length<6){doorNote('door-note','that number looks too short.');return;}
+  pendingPhone=cc+num;
+  doorNote('door-note','sending…'); $('send-otp').style.opacity='.5';
+  try{
+    const r=await fetch('/auth/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:pendingPhone})});
+    const j=await r.json();
+    $('send-otp').style.opacity='1';
+    if(!r.ok){doorNote('door-note',j.error||'couldn\'t send the code. try again.');return;}
+    $('door-phase-phone').style.display='none';
+    $('door-phase-otp').style.display='block';
+    $('otp-to').textContent=pendingPhone;
+    $('otp').focus();
+  }catch(e){$('send-otp').style.opacity='1';doorNote('door-note','no connection. try again.');}
+}
+async function verifyOtp(){
+  const code=$('otp').value.replace(/[^0-9]/g,'');
+  if(code.length<4){doorNote('otp-note','enter the full code.');return;}
+  doorNote('otp-note','checking…'); $('verify-otp').style.opacity='.5';
+  try{
+    const r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone:pendingPhone,code,claimAnon:localStorage.getItem('z_uid')||null})});
+    const j=await r.json();
+    $('verify-otp').style.opacity='1';
+    if(!r.ok||!j.token){doorNote('otp-note',j.error||'that code didn\'t work.');return;}
+    // store the real Supabase session token; drop anon id
+    localStorage.setItem('z_token',j.token);
+    if(j.userId)localStorage.setItem('z_real_uid',j.userId);
+    localStorage.removeItem('z_uid');
+    // go to the warm name/region step (or straight in if already named)
+    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');}
+    else{show('onboard');}
+  }catch(e){$('verify-otp').style.opacity='1';doorNote('otp-note','no connection. try again.');}
+}
+var _so=$('send-otp'); if(_so)_so.onclick=sendOtp;
+var _vo=$('verify-otp'); if(_vo)_vo.onclick=verifyOtp;
+var _ob=$('otp-back'); if(_ob)_ob.onclick=function(){$('door-phase-otp').style.display='none';$('door-phase-phone').style.display='block';doorNote('otp-note','');};
+$('phone')&&$('phone').addEventListener('keydown',e=>{if(e.key==='Enter')sendOtp();});
+$('otp')&&$('otp').addEventListener('keydown',e=>{if(e.key==='Enter')verifyOtp();});
 
 /* onboarding */
 $('ob-go').onclick=async()=>{
@@ -776,7 +861,7 @@ async function renderJournal(){
 
 /* boot */
 loadLocal();
-if(localStorage.getItem('z_onboarded')){renderContacts();refreshProfile();show('list');}else{show('onboard');}
+if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){renderContacts();refreshProfile();show('list');}else if(localStorage.getItem('z_token')){show('onboard');}else{show('door');}
 
 </script>
 </body>
