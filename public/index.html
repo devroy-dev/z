@@ -18,7 +18,7 @@
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   font-family:'Newsreader',serif;-webkit-font-smoothing:antialiased;transition:background .8s}
-#ink{position:fixed;inset:0;z-index:1;filter:blur(46px) saturate(.6) brightness(.7);opacity:.6}
+#ink{position:fixed;inset:0;z-index:1;filter:blur(44px) saturate(.75) brightness(.85);opacity:.85}
 .grain{position:fixed;inset:0;z-index:2;opacity:.06;pointer-events:none;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .mono{font-family:'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;font-weight:400}
@@ -146,9 +146,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 <div class="screen on" id="onboard">
   <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
   <div class="q">what should I call you?</div>
-  <div class="field"><input id="ob-name" placeholder="your name" autocomplete="off"></div>
-  <div class="field"><input id="ob-region" placeholder="where are you (city / country)" autocomplete="off"></div>
-  <div class="btn" id="ob-go">enter</div>
+  <div class="field"><input id="ob-name" placeholder="Your name" autocomplete="off"></div>
+  <div class="field"><input id="ob-region" placeholder="Where are you (city / country)" autocomplete="off"></div>
+  <div class="btn" id="ob-go">Enter</div>
 </div>
 
 <!-- CONTACT LIST -->
@@ -162,9 +162,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   </div>
   <div class="contacts" id="contacts"></div>
   <div class="botnav" id="botnav">
-    <div class="nav on" data-tab="people"><div class="ic">❒</div>people</div>
-    <div class="nav" data-tab="journal"><div class="ic">✎</div>letters</div>
-    <div class="nav" data-tab="settings"><div class="ic">○</div>you</div>
+    <div class="nav on" data-tab="people"><div class="ic">❒</div>People</div>
+    <div class="nav" data-tab="journal"><div class="ic">✎</div>Letters</div>
+    <div class="nav" data-tab="settings"><div class="ic">○</div>You</div>
   </div>
 </div>
 
@@ -185,15 +185,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   <div class="card">
     <h3 id="sheet-title">edit</h3>
     <p>give them a name and a face that feels right to you.</p>
-    <input id="renameInp" placeholder="name" autocomplete="off">
+    <input id="renameInp" placeholder="Name" autocomplete="off">
     <div class="dp-row">
       <div class="dp-prev" id="dp-prev"></div>
-      <label class="dp-pick" for="dp-file">choose photo</label>
+      <label class="dp-pick" for="dp-file">Choose photo</label>
       <input type="file" id="dp-file" accept="image/*" hidden>
     </div>
     <div class="row">
-      <div class="btn" id="editCancel" style="background:transparent">cancel</div>
-      <div class="btn" id="editSave">save</div>
+      <div class="btn" id="editCancel" style="background:transparent">Cancel</div>
+      <div class="btn" id="editSave">Save</div>
     </div>
   </div>
 </div>
@@ -203,9 +203,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   <div class="card">
     <h3 id="prof-hi">you</h3>
     <p id="prof-region"></p>
-    <div class="prow" id="prow-edit">edit your name / region</div>
-    <div class="prow" id="prow-signout" style="color:#e08a8a">sign out</div>
-    <div class="btn" id="profClose" style="background:transparent;width:100%;text-align:center;margin-top:6px">close</div>
+    <div class="prow" id="prow-edit">Edit your name / region</div>
+    <div class="prow" id="prow-signout" style="color:#e08a8a">Sign out</div>
+    <div class="btn" id="profClose" style="background:transparent;width:100%;text-align:center;margin-top:6px">Close</div>
   </div>
 </div>
 
@@ -231,7 +231,7 @@ const ORDER=['the_stranger','the_brother','the_ex','the_colleague','the_mentor',
 const inkCanvas=document.getElementById('ink');
 const ictx=inkCanvas.getContext('2d');
 let inkRGB=[124,92,220], blobs=[], inkRAF=null;
-function sizeInk(){inkCanvas.width=Math.floor(innerWidth*0.5);inkCanvas.height=Math.floor(innerHeight*0.5);}
+function sizeInk(){inkCanvas.width=Math.floor(innerWidth*0.7);inkCanvas.height=Math.floor(innerHeight*0.7);}
 function seedBlobs(){blobs=[];const n=5;for(let i=0;i<n;i++){blobs.push({
   x:Math.random(),y:Math.random(),
   r:0.34+Math.random()*0.4,
@@ -251,8 +251,8 @@ function drawInk(t){
     const cy=(b.y+0.06*Math.cos(t*0.00017+b.ph))*H;
     const rad=b.r*Math.min(W,H)*(0.9+0.1*Math.sin(t*0.0003+b.ph));
     const g=ictx.createRadialGradient(cx,cy,0,cx,cy,rad);
-    g.addColorStop(0,`rgba(${R},${G},${B},0.16)`);
-    g.addColorStop(0.5,`rgba(${R},${G},${B},0.05)`);
+    g.addColorStop(0,`rgba(${R},${G},${B},0.30)`);
+    g.addColorStop(0.5,`rgba(${R},${G},${B},0.10)`);
     g.addColorStop(1,`rgba(${R},${G},${B},0)`);
     ictx.fillStyle=g;ictx.beginPath();ictx.arc(cx,cy,rad,0,6.2832);ictx.fill();
   }
@@ -285,7 +285,7 @@ function dpFor(key){return dpData[key]?`<img src="${dpData[key]}">`:CAT[key].fac
 function nameFor(key){return (threads[key]&&threads[key].name)||CAT[key].name;}
 function renderContacts(){
   const c=$('contacts'); c.innerHTML='';
-  $('lh-sub').textContent='your people';
+  $('lh-sub').textContent='Your people';
   ORDER.forEach(key=>{
     const cat=CAT[key];
     const el=document.createElement('div'); el.className='contact';
@@ -379,7 +379,7 @@ var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
 var _m=$('t-meta'); if(_m)_m.addEventListener('click',openEdit);
 function openEdit(){
   if(!active)return;
-  $('sheet-title').textContent='edit '+nameFor(active);
+  $('sheet-title').textContent='Edit '+nameFor(active);
   $('renameInp').value=nameFor(active);
   $('dp-prev').innerHTML=dpFor(active);
   $('sheet').classList.add('on');
@@ -417,7 +417,7 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
     else if(tab==='settings'){ openProfile(); document.querySelector('.botnav .nav[data-tab=people]').classList.add('on'); n.classList.remove('on'); }
     else{ // letters placeholder
       const c=$('contacts');
-      c.innerHTML='<div style="padding:60px 24px;text-align:center;color:var(--faint);font-style:italic;font-size:14px">your letters from Z will live here soon.</div>';
+      c.innerHTML='<div style="padding:60px 24px;text-align:center;color:var(--faint);font-style:italic;font-size:14px">Your letters from Z will live here soon.</div>';
     }
   };
 });
