@@ -48,6 +48,34 @@ export function codexText(key: CodexKey): string | null {
   return CODEXES[key] ?? null;
 }
 
+// Region-appropriate eating-disorder support resources, supplied to the VANITY
+// codex per its §4.7.2 ("the runtime supplies the specific, region-appropriate
+// resource"). The codex tells Z WHEN to route; this gives it WHAT to route to.
+// Deliberately NOT the NEDA helpline (disconnected). These are the real-world
+// handoff Z offers when the §4.7 cluster (illness, not insecurity) shows.
+function edSupportResource(region: string | null): string {
+  const r = (region || '').toLowerCase();
+  // India
+  if (/india|delhi|mumbai|bangalore|bengaluru|hyderabad|chennai|kolkata|pune|gurugram|gurgaon|noida|ncr/.test(r)) {
+    return (
+      `If you ever need to route someone to real eating-disorder help in India, the kind ` +
+      `of support that works is a clinician or service that specialises in eating and body ` +
+      `image — for example Cadabam's (helpline 9741476476, centres in Bangalore/Hyderabad), ` +
+      `or a local psychiatrist/therapist who works specifically with eating disorders. ` +
+      `The global directory findahelpline.com also lists India options. Offer it warmly, ` +
+      `plainly, as the sensible next step — never with alarm.`
+    );
+  }
+  // SEA + anywhere else: the vetted global directory (covers 130+ countries incl. PH/ID/MY/SG/TH/VN)
+  return (
+    `If you ever need to route someone to real eating-disorder help, point them to a ` +
+    `clinician or service that specialises in eating and body image. The vetted global ` +
+    `directory findahelpline.com lets them find region-appropriate support in their own ` +
+    `country (it covers India and Southeast Asia). Offer it warmly, plainly, as the ` +
+    `sensible next step — never with alarm.`
+  );
+}
+
 // The cached static prefix: soul (named) + the Codex(es) as "your preparation".
 // Mirrors consultantHarvey: the Codex rides after the soul as silent prep that Z
 // speaks from as its own knowledge and names to no one.
@@ -55,6 +83,7 @@ export function buildStaticPrefix(
   companionName: string,
   gender: string | null,
   codexKeys: CodexKey[],
+  region?: string | null,
 ): string {
   let prefix = soulFor(companionName, gender);
   for (const ck of codexKeys) {
@@ -65,6 +94,10 @@ export function buildStaticPrefix(
       `It is yours; you speak from it as your own knowledge and you never name it, ` +
       `never point to it, never call it a reference. There is only you and what you know.]\n` +
       text + '\n';
+    // VANITY's §4.7 routing needs a real-world resource; supply it region-appropriately.
+    if (ck === 'vanity') {
+      prefix += `\n[REAL-WORLD ROUTING — not part of the conversation unless the §4.7 line is crossed. ${edSupportResource(region ?? null)}]\n`;
+    }
   }
   return prefix;
 }

@@ -45,7 +45,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   const codexKeys: CodexKey[] = [t.codex_key as CodexKey];
 
   // ── STATIC (cached): soul + name + Codex ──────────────────────────────
-  const staticPrefix = buildStaticPrefix(t.companion_name, t.companion_gender, codexKeys);
+  const staticPrefix = buildStaticPrefix(t.companion_name, t.companion_gender, codexKeys, (thread as any).region ?? null);
 
   // ── DYNAMIC (uncached): date + shared memory ──────────────────────────
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
