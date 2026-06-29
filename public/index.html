@@ -547,7 +547,7 @@ function renderContacts(q){
     el.onclick=()=>openRoom(r); c.appendChild(el);
   });
   // existing groups (filtered by name too)
-  (groups||[]).filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
+  (groups||[]).filter(g=>!(rooms||[]).some(r=>r.id===g.id)).filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
     const el=document.createElement('div'); el.className='contact group-row';
     const faces=g.members.slice(0,3).map(k=>`<span class="gstack">${dpFor(k)}</span>`).join('');
     el.innerHTML=`<div class="cface gfaces">${faces}</div><div class="cbody"><div class="cn">${g.name}</div><div class="cd">${g.members.map(k=>CAT[k].name).join(' · ')}</div></div><div class="grp-del" title="delete group">✕</div>`;

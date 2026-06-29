@@ -530,7 +530,7 @@ app.get('/groups', async (req, res) => {
     const user = await resolveUser(authId);
     const { data } = await supabase.from('threads')
       .select('id, companion_name, member_keys, last_active')
-      .eq('user_id', user.id).eq('is_group', true).is('deleted_at', null)
+      .eq('user_id', user.id).eq('is_group', true).eq('is_shared', false).is('deleted_at', null)
       .order('last_active', { ascending: false });
     const groups = (data ?? []).map((g: any) => ({ id: g.id, name: g.companion_name, members: g.member_keys || [] }));
     res.json(groups);
