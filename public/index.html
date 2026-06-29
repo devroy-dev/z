@@ -694,7 +694,7 @@ function roomHumanBubble(name, text, mine){
   return wrap;
 }
 /* ===== REALTIME (Supabase) — live messages in shared rooms ===== */
-let _sb=null, _roomChannel=null, _renderedIds=new Set(); let _roomMembers={}, _meId=null; let _lastPersonaReply=null;
+let _sb=null, _roomChannel=null, _renderedIds=new Set(); let _roomMembers={}, _meId=null; let _lastPersonaReply=null; let _pendingReply=null;
 async function initRealtime(){
   if(_sb)return _sb;
   try{
@@ -702,7 +702,8 @@ async function initRealtime(){
     if(!cfg.supabaseUrl||!cfg.supabaseAnonKey||!window.supabase)return null;
     _sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:false}});
     const tok=localStorage.getItem('z_token');
-    if(tok){ try{ await _sb.realtime.setAuth(tok); }catch(e){} }
+    if(tok){ try{ await _sb.realtime.setAuth(tok); console.log('[RT] auth set'); }catch(e){ console.log('[RT] auth fail',e); } }
+    console.log('[RT] client ready', !!_sb);
     return _sb;
   }catch(e){ return null; }
 }
@@ -712,8 +713,8 @@ async function subscribeRoom(threadId){
   _roomChannel=sb.channel('room:'+threadId)
     .on('postgres_changes',
       {event:'INSERT',schema:'z',table:'messages',filter:'thread_id=eq.'+threadId},
-      (payload)=>{ onLiveMessage(payload.new); })
-    .subscribe();
+      (payload)=>{ console.log('[RT] message in', payload.new&&payload.new.role); onLiveMessage(payload.new); })
+    .subscribe((status)=>{ console.log('[RT] channel status:', status); });
 }
 function unsubscribeRoom(){
   if(_roomChannel&&_sb){ try{ _sb.removeChannel(_roomChannel); }catch(e){} _roomChannel=null; }
@@ -724,13 +725,14 @@ function onLiveMessage(m){
   if(_renderedIds.has(key))return; _renderedIds.add(key);
   // my own human message is already on screen optimistically — skip
   if(m.role==='user' && m.sender_user_id && _meId && m.sender_user_id===_meId)return;
-  // a persona reply I just streamed locally — skip the realtime echo of the same text
-  if(m.role==='assistant' && _lastPersonaReply && m.content===_lastPersonaReply){ _lastPersonaReply=null; return; }
   const convo=$('convo');
   if(m.role==='user'){
     const nm=_roomMembers[m.sender_user_id]||'someone';
     convo.appendChild(roomHumanBubble(nm, m.content, false));
   } else {
+    // persona reply: if we have a waiting typing bubble for it, fill that one (no duplicate)
+    if(_pendingReply){ clearTimeout(_pendingReply.t); const tb=_pendingReply.typing; _pendingReply=null;
+      if(tb){ tb.querySelector('.gz-text').textContent=m.content; convo.scrollTop=convo.scrollHeight; return; } }
     const w=gBubble(m.persona_key||activeRoom.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
   }
   convo.scrollTop=convo.scrollHeight;
@@ -866,26 +868,32 @@ function gBubble(key){
   return wrap;
 }
 async function sendRoom(text){
-  // optimistic: my own message right away
+  // my own message, immediately
   $('convo').appendChild(roomHumanBubble(null,text,true));
   $('convo').scrollTop=$('convo').scrollHeight;
+  // typing indicator while the persona thinks
+  let typing=gBubble(activeRoom.persona); typing.querySelector('.gz-text').innerHTML='<span style="opacity:.6">•••</span>'; $('convo').appendChild(typing); $('convo').scrollTop=$('convo').scrollHeight;
+  let streamedReply='';
   try{
-    const r=await zfetch('/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:activeRoom.id,message:text})});
-    if(!r.ok)return;
-    const reader=r.body.getReader();const dec=new TextDecoder();
-    let buf='',cur=null,curKey=null,acc='';
+    const r=await fetch('/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:activeRoom.id,message:text})});
+    if(!r.ok){ typing.remove(); return; }
+    const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
     const drain=()=>{let i; while((i=buf.indexOf('\n\n'))>=0){const chunk=buf.slice(0,i);buf=buf.slice(i+2);
       chunk.split('\n').forEach(line=>{line=line.trim();if(!line.startsWith('data:'))return;const p=line.slice(5).trim();if(!p)return;
         let ev;try{ev=JSON.parse(p);}catch(_){return;}
-        if(ev.speaker&&ev.name&&!ev.token&&!ev.end){curKey=ev.speaker;acc='';cur=gBubble(curKey);$('convo').appendChild(cur);$('convo').scrollTop=$('convo').scrollHeight;}
-        else if(ev.speaker&&typeof ev.token==='string'){if(cur){acc+=ev.token;cur.querySelector('.gz-text').textContent=acc;$('convo').scrollTop=$('convo').scrollHeight;}}
-        else if(ev.error){const e=gBubble(curKey||(activeRoom.persona||'the_oracle'));e.querySelector('.gz-text').textContent='('+ev.error+')';$('convo').appendChild(e);}
+        if(ev.speaker&&typeof ev.token==='string'){ streamedReply+=ev.token; }
+        else if(ev.error){ streamedReply='('+ev.error+')'; }
       });}};
     while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});drain();}
     buf+='\n\n';drain();
-    // mark this persona reply as rendered so realtime's echo of the same row is skipped
-    if(acc&&curKey){ _renderedIds.add('assistant:'+acc+':stream'); _lastPersonaReply=acc; }
-  }catch(e){}
+  }catch(e){ try{typing.remove();}catch(_){}; return; }
+  // realtime should deliver the persisted reply and replace the typing dots.
+  // Fallback: if it hasn't arrived in 2.5s, render the streamed text ourselves.
+  const replyText=streamedReply.trim();
+  if(replyText) _pendingReply={text:replyText, typing:typing, t:setTimeout(()=>{
+    if(_pendingReply&&_pendingReply.typing){ _pendingReply.typing.querySelector('.gz-text').textContent=_pendingReply.text; _renderedIds.add('assistant:'+_pendingReply.text); _pendingReply=null; }
+  },2500)};
+  else { typing.remove(); }
   $('convo').scrollTop=$('convo').scrollHeight;
 }
 async function sendGroup(text){
