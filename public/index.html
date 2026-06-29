@@ -757,31 +757,39 @@ async function leaveRoom(){
 /* ===== SHARED ROOMS ===== */
 let _inviting=false;
 async function inviteToRoom(){
-  if(!active||!SHAREABLE.includes(active)||_inviting)return;
+  if(_inviting)return;
+  // works from inside a room (activeRoom) OR from a shareable 1:1 persona (active)
+  let roomId=null, personaName='this persona';
+  if(activeRoom){ roomId=activeRoom.id; personaName=activeRoom.persona?CAT[activeRoom.persona].name:'a persona'; }
+  else if(active&&SHAREABLE.includes(active)){ personaName=nameFor(active); }
+  else { return; }
   _inviting=true;
   $('sheet').classList.remove('on');
   try{
-    const personaKey=CAT[active].persona;
-    // reuse an existing room for THIS persona if one already exists (no duplicates)
-    let roomId=null;
-    const existing=(rooms||[]).find(r=>r.persona===personaKey);
-    if(existing){ roomId=existing.id; }
-    else{
-      const cr=await zfetch('/rooms',{method:'POST',headers:HDRS(),
-        body:JSON.stringify({name:nameFor(active)+"'s room",persona:personaKey})});
-      const cj=await cr.json();
-      if(!cj.id){alert(cj.error||'could not create room');_inviting=false;return;}
-      roomId=cj.id;
-      await loadRooms();
+    // if not already a room, create/reuse one for this persona
+    if(!roomId){
+      const personaKey=CAT[active].persona;
+      const existing=(rooms||[]).find(r=>r.persona===personaKey);
+      if(existing){ roomId=existing.id; }
+      else{
+        const cr=await zfetch('/rooms',{method:'POST',headers:HDRS(),
+          body:JSON.stringify({name:nameFor(active)+"'s room",persona:personaKey})});
+        const cj=await cr.json();
+        if(!cj||!cj.id){alert((cj&&cj.error)||'could not create room');_inviting=false;return;}
+        roomId=cj.id;
+        await loadRooms();
+      }
     }
     const ir=await zfetch('/rooms/'+roomId+'/invite',{method:'POST',headers:HDRS()});
     const ij=await ir.json();
-    if(!ij.token){alert(ij.error||'could not make a link');_inviting=false;return;}
+    if(!ij||!ij.token){alert((ij&&ij.error)||'could not make a link');_inviting=false;return;}
     const link=location.origin+'/?join='+ij.token;
-    const msg="come chat with "+nameFor(active)+" with me on Anonymously Yours: "+link;
-    if(navigator.share){ try{ await navigator.share({title:'Anonymously Yours',text:msg,url:link}); }catch(e){} }
-    else { try{ await navigator.clipboard.writeText(link); alert('Invite link copied:\n'+link); }catch(e){ prompt('Share this link:',link); } }
-  }catch(e){ alert('something went wrong making the room'); }
+    const msg="come chat with "+personaName+" with me on Anonymously Yours: "+link;
+    // always show the link (share sheet if available, else copy, else prompt)
+    let shared=false;
+    if(navigator.share){ try{ await navigator.share({title:'Anonymously Yours',text:msg,url:link}); shared=true; }catch(e){} }
+    if(!shared){ try{ await navigator.clipboard.writeText(link); alert('Invite link copied:\n'+link); }catch(e){ prompt('Share this link:',link); } }
+  }catch(e){ alert('could not make the invite link — try again'); }
   _inviting=false;
 }
 async function openRoom(r){
