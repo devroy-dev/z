@@ -458,6 +458,16 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .contact .cpin.pinned{opacity:.9;color:var(--accent2)}
 .sec-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:14px 22px 4px;opacity:.7}
 
+
+/* ===== BATCH 2: user display picture ===== */
+.prof-av{width:84px;height:84px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;cursor:pointer;position:relative;overflow:hidden;border:1px solid var(--line-strong);background:var(--card);font-size:30px;color:var(--accent2);box-shadow:inset 0 0 16px rgba(0,0,0,.35)}
+.prof-av img{width:100%;height:100%;object-fit:cover}
+.prof-av .av-edit{position:absolute;bottom:0;left:0;right:0;font-size:8px;letter-spacing:.1em;text-transform:uppercase;background:rgba(0,0,0,.55);color:#fff;padding:3px 0;text-align:center}
+.lh-profile img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.me-av{width:26px;height:26px;border-radius:50%;flex-shrink:0;overflow:hidden;align-self:flex-end;margin-left:6px;border:.5px solid var(--meln);display:grid;place-items:center;font-size:11px;color:var(--accent2);background:var(--card)}
+.me-av img{width:100%;height:100%;object-fit:cover}
+.me-row{display:flex;align-items:flex-end;justify-content:flex-end;gap:0}
+
 </style>
 </head>
 <body>
@@ -703,6 +713,8 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 <!-- PROFILE / SETTINGS SHEET -->
 <div class="sheet" id="profSheet">
   <div class="card">
+    <div class="prof-av" id="prof-av"><span id="prof-av-ph">·</span><span class="av-edit">edit</span></div>
+    <input type="file" id="dp-input" accept="image/*" style="display:none">
     <h3 id="prof-hi">you</h3>
     <p id="prof-region"></p>
     <div class="prow" id="prow-edit">Edit your name / region</div>
@@ -865,6 +877,31 @@ async function zfetch(url,opts){
 
 const HDRS=()=>{const h={'Content-Type':'application/json'};const tok=localStorage.getItem('z_token');if(tok){h['Authorization']='Bearer '+tok;}else{const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;}return h;};
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
+let MY_DP=null; // user's display picture (base64 data-url, resized)
+function loadMyDp(){ try{ MY_DP=localStorage.getItem('z_my_dp')||null; }catch(e){ MY_DP=null; } }
+function saveMyDp(){ if(MY_DP)localStorage.setItem('z_my_dp',MY_DP); else localStorage.removeItem('z_my_dp'); }
+function myAvatarHTML(size){ // size unused; CSS controls. returns img or initial
+  if(MY_DP)return `<img src="${MY_DP}" alt="you">`;
+  const i=(ME.name||'·').trim().charAt(0).toUpperCase()||'·';
+  return `<span>${i}</span>`;
+}
+function resizeImageToDataUrl(file,max,cb){
+  const fr=new FileReader();
+  fr.onload=function(){
+    const img=new Image();
+    img.onload=function(){
+      let w=img.width,h=img.height;
+      if(w>h){ if(w>max){ h=Math.round(h*max/w); w=max; } } else { if(h>max){ w=Math.round(w*max/h); h=max; } }
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      cb(cv.toDataURL('image/jpeg',0.82));
+    };
+    img.onerror=function(){ cb(null); };
+    img.src=fr.result;
+  };
+  fr.onerror=function(){ cb(null); };
+  fr.readAsDataURL(file);
+}
 let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
 let rooms=[]; let activeRoom=null;
@@ -2828,14 +2865,32 @@ $('nt-back')&&($('nt-back').onclick=()=>{show('list');renderContacts();});
 
 /* profile / settings */
 function refreshProfile(){
-  const i=(ME.name||'·').trim().charAt(0).toUpperCase()||'·';
-  const li=$('lh-initial'); if(li)li.textContent=i;
+  const lp=$('lh-profile');
+  if(lp){ if(MY_DP){ lp.innerHTML=`<img src="${MY_DP}" alt="you">`; } else { const i=(ME.name||'·').trim().charAt(0).toUpperCase()||'·'; lp.innerHTML=`<span id="lh-initial">${i}</span>`; } }
 }
 function openProfile(){
   $('prof-hi').textContent=ME.name?('hi, '+ME.name):'you';
   $('prof-region').textContent=ME.region||'no region set';
+  const av=$('prof-av'); if(av){ av.innerHTML = (MY_DP?`<img src="${MY_DP}" alt="you">`:`<span>${(ME.name||'·').trim().charAt(0).toUpperCase()||'·'}</span>`)+'<span class="av-edit">edit</span>'; }
   $('profSheet').classList.add('on');
 }
+// DP upload wiring
+(function(){
+  var av=document.getElementById('prof-av'), inp=document.getElementById('dp-input');
+  if(!av||!inp)return;
+  av.onclick=function(){ inp.click(); };
+  inp.onchange=function(){
+    var f=inp.files&&inp.files[0]; if(!f)return;
+    resizeImageToDataUrl(f,256,function(durl){
+      if(!durl){ return; }
+      MY_DP=durl; saveMyDp();
+      openProfile(); refreshProfile();
+      // best-effort server sync (non-blocking)
+      try{ zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:ME.name,region:ME.region,dp:durl})}); }catch(e){}
+    });
+    inp.value='';
+  };
+})();
 $('lh-profile').addEventListener('click',openProfile);
 $('profClose').onclick=()=>$('profSheet').classList.remove('on');
 $('prow-edit').onclick=()=>{
@@ -3012,6 +3067,7 @@ async function renderJournal(){
 /* boot */
 loadLocal();
 loadPins();
+loadMyDp();
 /* ===== SEARCH (wired after DOM + renderContacts exist) ===== */
 // chats/groups toggle wiring
 (function(){
