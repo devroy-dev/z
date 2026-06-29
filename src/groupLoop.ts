@@ -102,9 +102,10 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     let gameBlock = '';
     if (gameMode) {
       if (key === 'the_moderator') {
-        gameBlock = `\n\n[ARENA — YOU ARE THE MODERATOR & NEUTRAL JUDGE of a "${gameMode}" match. You do NOT take a side. After the opponent and the player have spoken this round, you: (1) judge the round fairly and out loud with a SHORT clear REASON ("Point to {player} — that rebuttal dismantled the GDP claim and the opposition didn't recover it." / "No point — that was an assertion, not an argument."), (2) keep the running score, (3) end your message with the score tag on its own line. You are the reason the contest feels fair — be impartial, decisive, and brief. Here are the full game rules:]\n${gamesText}`;
-        // moderator does the scoring; override the "short group chat" tone for clear verdicts
-        groupNote = `\n\n[You are "the moderator", the neutral referee of this match. In the room: ${others} (the opponent) and the player. You are NOT a debater — you judge. Give a short, reasoned verdict each round and keep score.]`;
+        const playerName = (owner && (owner as any).display_name) ? (owner as any).display_name : 'the player';
+        const oppName = members.filter((k)=>k!=='the_moderator').map(nameFor).join(', ') || 'the opponent';
+        gameBlock = `\n\n[ARENA — YOU ARE THE MODERATOR & NEUTRAL JUDGE of a "${gameMode}" match. You do NOT take a side. The player is ${playerName}. The opponent is ${oppName}. ALWAYS use these real names — NEVER write placeholders like [opponent], [player], {player}, or [name] in brackets; say "${playerName}" and "${oppName}" directly. After the opponent and the player have spoken this round, you: (1) judge the round fairly and out loud with a SHORT clear REASON (e.g. "Point to ${playerName} — that rebuttal dismantled the GDP claim and ${oppName} couldn't recover it."), (2) keep the running score, (3) end your message with the score tag on its own line. Be impartial, decisive, brief. Game rules:]\n${gamesText}`;
+        groupNote = `\n\n[You are "the moderator", the neutral referee of this match. In the room: ${oppName} (the opponent) and ${playerName} (the player). You are NOT a debater — you judge. Use their real names. Give a short, reasoned verdict each round and keep score.]`;
       } else {
         gameBlock = `\n\n[ARENA — a "${gameMode}" match is on. You are the player's OPPONENT. Play to win, in your own voice, per these rules. You do NOT keep score — the moderator judges. Just play your best.]\n${gamesText}`;
       }
