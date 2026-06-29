@@ -1,3 +1,4 @@
+import { buildStaticPrefix } from './content.js';
 // index.ts — the Z engine HTTP surface. Express. Verifies the Supabase Auth JWT
 // the PWA sends, resolves the z.users row, and exposes:
 //   POST /threads          create a named companion (persona instance)
@@ -254,6 +255,27 @@ app.delete('/journal/:id', async (req, res) => {
       .eq('id', req.params.id).eq('user_id', user.id);
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+
+// ── BANTER: a single short in-character line (for games like blackjack). No thread/history.
+app.post('/banter', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const { persona, prompt } = req.body ?? {};
+    const p = personaByKey(persona);
+    if (!p || !prompt) return res.status(400).json({ error: 'persona and prompt required' });
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const anthropic = new Anthropic();
+    const staticPrefix = buildStaticPrefix(p.defaultName, null, [p.codex as any], null);
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 60,
+      system: [{ type: 'text', text: staticPrefix }],
+      messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
+    });
+    const line = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    res.json({ line });
+  } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
 });
 
 // ── PIN AUTH ──────────────────────────────────────────────────────────────
