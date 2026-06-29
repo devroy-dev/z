@@ -1449,7 +1449,17 @@ async function sendMsg(){
 $('send').onclick=sendMsg;
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
 $('t-back').onclick=()=>{
-  if(seriousMode && active==='z_serious'){ /* in the quiet room: leaving goes back to settings, stays in serious unless toggled */ renderContacts(); show('list'); return; }
+  if(seriousMode && active==='z_serious'){
+    // leaving the quiet room exits serious mode entirely — restore the warm app
+    seriousMode=false;
+    localStorage.setItem('z_serious','0');
+    document.body.classList.remove('serious');
+    paintSeriousSwitch();
+    try{ zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({seriousMode:false})}); }catch(e){}
+    active=null;
+    renderContacts(); show('list');
+    return;
+  }
   activeGroup=null;activeRoom=null;unsubscribeRoom();hideScorebar();renderContacts();show('list');
 };
 
