@@ -1165,6 +1165,9 @@ const ARENA_GAMES=[
   {id:'debate', name:'Debate Zone', ic:'🗣', persona:'the_leader_opp', desc:"argue your side. they'll take the other. with facts."},
   {id:'trivia', name:'Trivia Duel', ic:'🧠', persona:'the_brainiac',    desc:"pick a topic. how many can you get?"},
   {id:'dilemma',name:'Dilemma Zone',ic:'⚖', persona:'the_philosopher', desc:"no clean answers. defend your choice."},
+  {id:'twenty', name:'20 Questions', ic:'❓', persona:'the_brainiac',   desc:"think of something. they've got 20 guesses."},
+  {id:'wyr',    name:'Would You Rather', ic:'🔀', persona:'the_leader_opp', desc:"pick one. defend it. they'll champion the other."},
+  {id:'riddle', name:'Riddle Me',   ic:'🗝', persona:'the_brainiac',   desc:"riddles & lateral puzzles. can you crack them?"},
 ];
 let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
 
@@ -1193,9 +1196,15 @@ async function startArena(game, personaKey){
     openGroup(g);
     showScorebar();
     // a quiet opener so the player knows what to do
-    const opener = game==='debate' ? "Debate Zone. give me a topic and pick your side — or say surprise me. the moderator will judge each round."
-                 : game==='trivia' ? "Trivia Duel. pick a topic, or say surprise me — then we begin. the moderator keeps score."
-                 : "Dilemma Zone. say 'hit me' for a dilemma, or name a theme. the moderator scores your reasoning.";
+    const openers={
+      debate:"Debate Zone. give me a topic and pick your side — or say surprise me. the moderator will judge each round.",
+      trivia:"Trivia Duel. pick a topic, or say surprise me — then we begin. the moderator keeps score.",
+      dilemma:"Dilemma Zone. say 'hit me' for a dilemma, or name a theme. the moderator scores your reasoning.",
+      twenty:"20 Questions. think of a person, place, or thing — then say 'ready'. the brainiac gets 20 yes/no questions to guess it.",
+      wyr:"Would You Rather. say 'go' for a dilemma — pick one and defend it, and the opposition will champion the other. moderator scores.",
+      riddle:"Riddle Me. say 'go' (or pick a difficulty) and the riddles begin. moderator tracks how many you crack."
+    };
+    const opener = openers[game] || "let's play. say 'go' to begin.";
     const sb=gBubble('the_moderator'); sb.querySelector('.gz-text').textContent=opener; $('convo').appendChild(sb); $('convo').scrollTop=$('convo').scrollHeight;
   }catch(e){alert('no connection');}
 }

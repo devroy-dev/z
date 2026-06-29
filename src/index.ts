@@ -113,7 +113,7 @@ app.post('/arena/start', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     const { game, personaKey } = req.body ?? {};
-    const allowed = ['debate', 'trivia', 'dilemma'];
+    const allowed = ['debate', 'trivia', 'dilemma', 'twenty', 'wyr', 'riddle'];
     if (!allowed.includes(String(game))) return res.status(400).json({ error: 'unknown game' });
     const persona = personaByKey(personaKey);
     if (!persona) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
