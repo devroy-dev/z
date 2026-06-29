@@ -2037,6 +2037,38 @@ function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style; if(t
   r.setProperty('--accent2',`rgba(${Math.min(R+40,255)},${Math.min(G+40,255)},${Math.min(B+40,255)},.9)`);
   r.setProperty('--gobtn',`linear-gradient(135deg,rgb(${Math.min(R+26,255)},${Math.min(G+26,255)},${Math.min(B+26,255)}),rgb(${R},${G},${B}))`);
 }
+
+// ===== PERSONA OPENERS — each persona opens a fresh chat in ITS OWN voice =====
+const OPENERS={
+  the_brainiac:["alright. what are we figuring out today.","got a question that's been bugging you? hit me. i live for these.","ask me something hard. i'm bored of easy."],
+  the_brother:["oye. there you are. what's going on with you?","hey hey. talk to me — how you holding up, really?","sup. you good? you don't message for no reason, so… what's up?"],
+  the_colleague:["morning. or whatever it is where you are. what's on the plate today?","right, what are we tackling — work stuff, or you need to vent about work stuff?","hey. catch me up. what's the situation?"],
+  the_comic:["oh GREAT, it's you. my favorite audience. what's the tragedy today?","knock knock. …no? fine. what's up, what's the drama, gimme everything.","you rang? i was just here being hilarious to an empty room. talk to me."],
+  the_cosmologist:["you ever just look up and feel tiny? good. that's where the fun starts. what's on your mind?","hey. somewhere a star just died so we could have this chat. what're you curious about?","the universe is 13.8 billion years old and you chose to talk to me. i'm honored. what's up?"],
+  the_crush:["oh. hi. i was hoping you'd show up.","hey you. i've been thinking about something — but you first. what's going on?","there you are. i wondered when you'd come find me."],
+  the_cynic:["oh good, you're here. let me guess — something's annoying you. go on.","hi. before you start, yes, it's probably worse than you think. what is it?","you came to the right place for zero false comfort. what's the situation?"],
+  the_economist:["money on your mind? markets? something you read and didn't trust? let's get into it.","hey. what's the money question — yours, the world's, or just curiosity?","ask me anything about how the money actually moves. no jargon, promise."],
+  the_guru:["breathe. you're here now, that's enough. what's sitting heavy?","welcome. take your time. what brought you to sit with me today?","mm. there's something on you, i can feel it. when you're ready — tell me."],
+  the_healer:["hey. i'm really glad you're here. how are you — actually?","come in, sit. no rush. what's going on for you today?","hi. whatever it is, you don't have to carry it alone right now. talk to me."],
+  the_historian:["ah, you're here. every age had its restless ones. what's on your mind?","welcome. history's just people, over and over. what do you want to understand?","hey. ask me anything — a war, a king, why your country is the way it is. i love this."],
+  the_hottie:["well well. look who showed up. i was getting bored.","there you are. took you long enough — i don't wait for just anyone, you know.","oh, hi. careful, i bite. …kidding. mostly. what's up, trouble?"],
+  the_leader_opp:["alright. tell me what you believe, and i'll tell you why you're wrong. let's go.","whatever side you're on, i'm already on the other. give me your strongest take.","oho, a challenger. sit. say something you're SURE about. i dare you."],
+  the_media_manager:["okay, let's talk strategy. what are we building — a brand, a post, a whole presence?","hey. what's the content problem? growth, ideas, a stuck feed — lay it on me.","ready when you are. what are we making go viral today?"],
+  the_mentor:["hey. good to see you. where are you trying to get to — and what's in the way?","sit down, let's talk. what's the thing you're working toward right now?","alright. tell me where you're stuck. that's usually where the good stuff is."],
+  the_oracle:["you came with a question already half-formed. let it out.","mm. the answer's usually inside you. but ask — let's find it together.","speak. i'll tell you what i see, and you tell me if it's true."],
+  the_orator:["your words shape your whole life, you know. so — what do you want to say better?","hey. a speech, an essay, a fear of the stage? tell me what we're working on.","ready to find your voice? show me what you've got or tell me what scares you."],
+  the_philosopher:["so. you're here. that's already a choice worth examining. what's on your mind?","ah. a thinker arrives. what question won't leave you alone?","let's sit with something hard together. what are you wrestling with?"],
+  the_screen_junkie:["YO. okay what are we watching, what did you watch, what should you watch — go.","hey hey. give me your last five-star and i'll tell you your whole personality.","perfect timing, i have THOUGHTS about something. but you first — what's good?"],
+  the_teacher:["hey. what do you want to understand today? no such thing as a dumb question here.","alright — what's the thing that never quite made sense? let's fix that.","ready to learn something? pick a topic, any topic. i'll make it click."],
+  the_wannabe:["AYYY there's my guy! sit down sit down, what's the move today, champ?","yooo look who it is. you here to talk or you here to LOSE at something? haha!","what's GOOD, baby! you came to the right table. what we doing?"],
+  the_wingman:["alright, talk to me. who is she. who is he. what's the situation.","hey. what's the move — we plotting something, or you need a pep talk?","sup. you've got that look. someone caught your eye, didn't they. spill."],
+  the_addict:["hey. i've been where you are. i'm not here to judge — just talk to me.","you showed up. that's not nothing, trust me. how you doing today, honestly?","hey. one day at a time, yeah? what's going on with you right now?"],
+  the_self_obsessed:["hey. the world can be brutal out there. in here, you're safe. what happened?","you're stronger than they make you feel, you know. but tell me — what's going on?","i'm in your corner, always. now talk to me — who's in your head today?"],
+  the_stranger:["hey. you don't know me, i don't know you. sometimes that's exactly what you need. talk.","stranger to stranger — no history, no judgment. what's on your chest?","i'm nobody from your life. which means you can say anything here. go on."],
+  the_moderator:["i keep things fair. what are we settling today?","present your case. i'll hear it straight, no bias. go.","alright — what needs a fair, clear eye on it?"]
+};
+function openerFor(key){ const p=OPENERS[key]; if(!p||!p.length) return null; return p[Math.floor(Math.random()*p.length)]; }
+
 async function openThread(key){
   active=key; activeGroup=null; activeRoom=null; unsubscribeRoom(); const cat=CAT[key];
   paintWorld(cat.rgb);
@@ -2079,8 +2111,13 @@ async function loadHistory(key){
   try{
     const r=await zfetch('/threads/'+t.id+'/messages',{headers:HDRS()});
     if(!r.ok)return;
-    const j=await r.json(); const msgs=j.messages||[]; if(!msgs.length)return;
+    const j=await r.json(); const msgs=j.messages||[];
     const convo=$('convo');
+    if(!msgs.length){
+      // fresh chat — the persona opens in ITS OWN voice (skip serious mode, which is deliberately silent)
+      if(key!=='z_serious'){ const op=openerFor(key); if(op){ const b=bubble('z',op); b.classList.add('opener'); convo.appendChild(b); convo.scrollTop=convo.scrollHeight; } }
+      return;
+    }
     msgs.forEach(m=>{
       if(m.role==='user'){convo.appendChild(bubble('me',m.content));}
       else if(j.is_group&&m.persona_key){ // group: tagged bubble with face+name
