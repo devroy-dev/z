@@ -7,7 +7,7 @@
 // surface can show the right name/face per bubble.
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './db.js';
-import { buildStaticPrefix } from './content.js';
+import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 
@@ -26,7 +26,7 @@ export interface GroupTurnInput {
 
 interface GroupThreadRow {
   id: string; user_id: string; is_group: boolean;
-  member_keys: string[]; companion_name: string | null;
+  member_keys: string[]; companion_name: string | null; game_mode?: string | null;
 }
 
 export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
@@ -34,13 +34,24 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
   const { data: thread } = await supabase
     .from('threads')
-    .select('id, user_id, is_group, is_shared, member_keys, companion_name')
+    .select('id, user_id, is_group, is_shared, member_keys, companion_name, game_mode')
     .eq('id', threadId).is('deleted_at', null)
     .maybeSingle();
   if (!thread) throw new Error('thread not found');
   const t = thread as GroupThreadRow;
-  const members = (t.member_keys || []).filter(Boolean);
+  let members = (t.member_keys || []).filter(Boolean);
   if (!members.length) throw new Error('group has no members');
+
+  // ARENA: if a game is active, the moderator is the neutral JUDGE and always goes LAST,
+  // so it can score the round after seeing the opponent's and the player's moves.
+  const gameMode = t.game_mode || null;
+  let gamesText = '';
+  if (gameMode) {
+    try { gamesText = await readContentFile('GAMES.md'); } catch {}
+    // ensure the moderator is present and ordered last
+    members = members.filter((k) => k !== 'the_moderator');
+    members.push('the_moderator');
+  }
 
   // owner identity (shared across all members this turn)
   const { data: owner } = await supabase
@@ -85,8 +96,21 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const sharedNote = input.senderName
       ? ` REAL PEOPLE are in this room with you — not personas. Address them by name, react to what they actually said, be a guest in their conversation. Don't dominate, don't speak for them.`
       : '';
-    const groupNote = `\n\n[THIS IS A GROUP CHAT. In the room with you: ${others}. You are "${nameFor(key)}". Speak only as yourself — short, like a real group chat, react to what was just said. Don't speak for the others. Don't narrate. One natural message.${sharedNote}]`;
-    const dynamic = `\n\n[${todayLine}]${ownerLine}${groupNote}${memoryBlock}`;
+    let groupNote = `\n\n[THIS IS A GROUP CHAT. In the room with you: ${others}. You are "${nameFor(key)}". Speak only as yourself — short, like a real group chat, react to what was just said. Don't speak for the others. Don't narrate. One natural message.${sharedNote}]`;
+
+    // ARENA roles
+    let gameBlock = '';
+    if (gameMode) {
+      if (key === 'the_moderator') {
+        gameBlock = `\n\n[ARENA — YOU ARE THE MODERATOR & NEUTRAL JUDGE of a "${gameMode}" match. You do NOT take a side. After the opponent and the player have spoken this round, you: (1) judge the round fairly and out loud with a SHORT clear REASON ("Point to {player} — that rebuttal dismantled the GDP claim and the opposition didn't recover it." / "No point — that was an assertion, not an argument."), (2) keep the running score, (3) end your message with the score tag on its own line. You are the reason the contest feels fair — be impartial, decisive, and brief. Here are the full game rules:]\n${gamesText}`;
+        // moderator does the scoring; override the "short group chat" tone for clear verdicts
+        groupNote = `\n\n[You are "the moderator", the neutral referee of this match. In the room: ${others} (the opponent) and the player. You are NOT a debater — you judge. Give a short, reasoned verdict each round and keep score.]`;
+      } else {
+        gameBlock = `\n\n[ARENA — a "${gameMode}" match is on. You are the player's OPPONENT. Play to win, in your own voice, per these rules. You do NOT keep score — the moderator judges. Just play your best.]\n${gamesText}`;
+      }
+    }
+
+    const dynamic = `\n\n[${todayLine}]${ownerLine}${groupNote}${gameBlock}${memoryBlock}`;
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,

@@ -117,24 +117,27 @@ app.post('/arena/start', async (req, res) => {
     if (!allowed.includes(String(game))) return res.status(400).json({ error: 'unknown game' });
     const persona = personaByKey(personaKey);
     if (!persona) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
-    // reuse the persona's solo thread (history stays), or make one
+    // The Arena match is a GROUP: the opponent + the moderator (neutral judge).
+    const members = [persona.key, 'the_moderator'];
+    const arenaName = 'the arena';
     let threadId: string;
+    // reuse a prior arena group for THIS game+opponent (so a player's match thread is stable), else create
     const { data: existing } = await supabase.from('threads')
-      .select('id').eq('user_id', user.id).eq('persona_key', persona.key)
-      .eq('is_group', false).is('deleted_at', null)
-      .order('last_active', { ascending: false }).limit(1).maybeSingle();
+      .select('id').eq('user_id', user.id).eq('is_group', true)
+      .contains('member_keys', members).eq('companion_name', arenaName)
+      .is('deleted_at', null).order('last_active', { ascending: false }).limit(1).maybeSingle();
     if (existing) {
       threadId = existing.id;
-      await supabase.from('threads').update({ game_mode: game }).eq('id', threadId);
+      await supabase.from('threads').update({ game_mode: game, member_keys: members }).eq('id', threadId);
     } else {
       const { data, error } = await supabase.from('threads').insert({
-        user_id: user.id, persona_key: persona.key, codex_key: persona.codex,
-        companion_name: persona.defaultName, game_mode: game,
+        user_id: user.id, is_group: true, member_keys: members,
+        companion_name: arenaName, game_mode: game,
       }).select('id').single();
       if (error) return res.status(500).json({ error: 'arena start: ' + error.message });
       threadId = data.id;
     }
-    res.json({ threadId, game, persona: persona.key });
+    res.json({ threadId, game, persona: persona.key, members, isGroup: true });
   } catch (e: any) { res.status(500).json({ error: 'arena start failed: ' + (e?.message || String(e)) }); }
 });
 
@@ -719,11 +722,45 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } else if (th.is_group && isOwner) {
+      // ARENA support in groups: strip score tags from the moderator's visible stream,
+      // and after its turn, parse + emit score/result + persist the match.
+      const tagRe = /\[\[(SCORE|RESULT)[^\]]*\]\]/g;
+      const tails: Record<string, string> = {};
+      const flushVisible = (key: string, chunk: string, final = false) => {
+        let buf = (tails[key] || '') + chunk;
+        buf = buf.replace(tagRe, '');
+        if (!final) {
+          const lastOpen = buf.lastIndexOf('[[');
+          if (lastOpen !== -1 && buf.indexOf(']]', lastOpen) === -1) { tails[key] = buf.slice(lastOpen); buf = buf.slice(0, lastOpen); }
+          else { tails[key] = ''; }
+        } else { tails[key] = ''; }
+        if (buf) res.write(`data: ${JSON.stringify({ speaker: key, token: buf })}\n\n`);
+      };
       await runGroupTurn({
         userId: user.id, threadId, message,
         onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
-        onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),
-        onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),
+        onToken: (key, t) => flushVisible(key, t),
+        onPersonaEnd: (key, full) => {
+          flushVisible(key, '', true);
+          res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`);
+          // only the moderator carries score/result tags
+          if (key === 'the_moderator') {
+            const score = /\[\[SCORE\s+you=(\d+)\s+z=(\d+)\]\]/.exec(full);
+            const r2 = /\[\[RESULT\s+winner=(you|z|draw)\s+you=(\d+)\s+z=(\d+)\]\]/.exec(full);
+            if (score) res.write(`data: ${JSON.stringify({ score: { you: +score[1], z: +score[2] } })}\n\n`);
+            if (r2) {
+              res.write(`data: ${JSON.stringify({ result: { winner: r2[1], you: +r2[2], z: +r2[3] } })}\n\n`);
+              supabase.from('threads').select('game_mode, member_keys').eq('id', threadId).maybeSingle().then(({ data: thg }: any) => {
+                const opp = (thg?.member_keys || []).find((k: string) => k !== 'the_moderator') || null;
+                supabase.from('arena_matches').insert({
+                  user_id: user.id, game: thg?.game_mode || 'unknown', persona_key: opp,
+                  you_score: +r2[2], z_score: +r2[3], winner: r2[1],
+                }).then(() => {});
+                supabase.from('threads').update({ game_mode: null }).eq('id', threadId).then(() => {});
+              });
+            }
+          }
+        },
       });
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();

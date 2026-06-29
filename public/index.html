@@ -1187,23 +1187,27 @@ async function startArena(game, personaKey){
     const r=await zfetch('/arena/start',{method:'POST',headers:HDRS(),body:JSON.stringify({game,personaKey})});
     if(!r.ok){const j=await r.json().catch(()=>({}));alert(j.error||'could not start');return;}
     const j=await r.json();
-    // open the persona thread as a MATCH
-    threads[personaKey]=threads[personaKey]||{}; threads[personaKey].id=j.threadId;
     arenaScore={you:0,z:0}; inArenaMatch=true; arenaGameId=game;
-    await openThread(personaKey);
+    // the arena match is a GROUP: opponent + the moderator (judge)
+    const g={ id:j.threadId, members:j.members||[personaKey,'the_moderator'], name:'the arena' };
+    openGroup(g);
     showScorebar();
-    // a quiet system nudge to kick the game off
-    const opener = game==='debate' ? "let's debate. give me a topic, or say surprise me."
-                 : game==='trivia' ? "trivia duel. pick a topic, or say surprise me — then fire away."
-                 : "hit me with a dilemma, or say surprise me.";
-    const sb=bubble('z',opener); $('convo').appendChild(sb); $('convo').scrollTop=$('convo').scrollHeight;
+    // a quiet opener so the player knows what to do
+    const opener = game==='debate' ? "Debate Zone. give me a topic and pick your side — or say surprise me. the moderator will judge each round."
+                 : game==='trivia' ? "Trivia Duel. pick a topic, or say surprise me — then we begin. the moderator keeps score."
+                 : "Dilemma Zone. say 'hit me' for a dilemma, or name a theme. the moderator scores your reasoning.";
+    const sb=gBubble('the_moderator'); sb.querySelector('.gz-text').textContent=opener; $('convo').appendChild(sb); $('convo').scrollTop=$('convo').scrollHeight;
   }catch(e){alert('no connection');}
 }
 
 function showScorebar(){
   let bar=$('arena-scorebar');
-  if(!bar){ bar=document.createElement('div'); bar.id='arena-scorebar'; bar.className='scorebar';
-    const tb=document.querySelector('#thread .t-bar')||$('thread'); tb.parentNode.insertBefore(bar, tb.nextSibling); }
+  const head=document.querySelector('#thread .t-head');
+  const convo=$('convo');
+  if(!bar){ bar=document.createElement('div'); bar.id='arena-scorebar'; bar.className='scorebar'; }
+  // always (re)place it between the header and the convo so it sits in the flow, not under the banner
+  if(head&&convo&&bar.parentNode!==head.parentNode){ head.parentNode.insertBefore(bar, convo); }
+  else if(head&&convo&&bar.nextSibling!==convo){ head.parentNode.insertBefore(bar, convo); }
   bar.style.display='flex';
   bar.innerHTML=`<div class="sb-side"><div class="sb-n">${arenaScore.you}</div><div class="sb-l">you</div></div><div class="sb-vs">vs</div><div class="sb-side"><div class="sb-n">${arenaScore.z}</div><div class="sb-l">Z</div></div>`;
 }
