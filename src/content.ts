@@ -15,6 +15,7 @@ const CONTENT = CANDIDATES.find((p) => existsSync(p)) ?? CANDIDATES[0];
 function load(file: string): string {
   return readFileSync(join(CONTENT, file), 'utf8');
 }
+export function readContentFile(file: string): string { return load(file); }
 
 // strip the HTML build-comment — notes for us, not for Z
 const stripBuildComment = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '').trim();

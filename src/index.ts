@@ -105,6 +105,58 @@ app.post('/threads', async (req, res) => {
   }
 });
 
+// ── ARENA ─────────────────────────────────────────────────────────────────
+// start (or resume) a game: reuse the persona's 1:1 thread, set its game_mode.
+app.post('/arena/start', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { game, personaKey } = req.body ?? {};
+    const allowed = ['debate', 'trivia', 'dilemma'];
+    if (!allowed.includes(String(game))) return res.status(400).json({ error: 'unknown game' });
+    const persona = personaByKey(personaKey);
+    if (!persona) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
+    // reuse the persona's solo thread (history stays), or make one
+    let threadId: string;
+    const { data: existing } = await supabase.from('threads')
+      .select('id').eq('user_id', user.id).eq('persona_key', persona.key)
+      .eq('is_group', false).is('deleted_at', null)
+      .order('last_active', { ascending: false }).limit(1).maybeSingle();
+    if (existing) {
+      threadId = existing.id;
+      await supabase.from('threads').update({ game_mode: game }).eq('id', threadId);
+    } else {
+      const { data, error } = await supabase.from('threads').insert({
+        user_id: user.id, persona_key: persona.key, codex_key: persona.codex,
+        companion_name: persona.defaultName, game_mode: game,
+      }).select('id').single();
+      if (error) return res.status(500).json({ error: 'arena start: ' + error.message });
+      threadId = data.id;
+    }
+    res.json({ threadId, game, persona: persona.key });
+  } catch (e: any) { res.status(500).json({ error: 'arena start failed: ' + (e?.message || String(e)) }); }
+});
+
+// the player's win/loss record per game
+app.get('/arena/record', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('arena_matches')
+      .select('game, winner').eq('user_id', user.id);
+    const rec: Record<string, { wins: number; losses: number; draws: number }> = {};
+    (data ?? []).forEach((m: any) => {
+      rec[m.game] = rec[m.game] || { wins: 0, losses: 0, draws: 0 };
+      if (m.winner === 'you') rec[m.game].wins++;
+      else if (m.winner === 'z') rec[m.game].losses++;
+      else rec[m.game].draws++;
+    });
+    res.json(rec);
+  } catch (e: any) { res.status(500).json({ error: 'arena record failed: ' + (e?.message || String(e)) }); }
+});
+
 // capture / update the owner's identity (name + region) onto their durable user row.
 // called at onboarding and whenever they edit name/region. This is owner binding:
 // the AI and the overseer both speak/write knowing who the person actually is.
@@ -676,10 +728,42 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } else if (isOwner) {
+      // ARENA: if a game is active, strip score tags from the player-visible stream.
+      // Tags can split across tokens, so we hold back a small tail buffer.
+      const tagRe = /\[\[(SCORE|RESULT)[^\]]*\]\]/g;
+      let tail = '';
+      const flushVisible = (chunk: string, final = false) => {
+        let buf = tail + chunk;
+        buf = buf.replace(tagRe, '');                 // drop any complete tags
+        if (!final) {
+          // hold back a trailing partial "[[..." so we don't leak half a tag
+          const lastOpen = buf.lastIndexOf('[[');
+          if (lastOpen !== -1 && buf.indexOf(']]', lastOpen) === -1) {
+            tail = buf.slice(lastOpen); buf = buf.slice(0, lastOpen);
+          } else { tail = ''; }
+        } else { tail = ''; }
+        if (buf) res.write(`data: ${JSON.stringify({ token: buf })}\n\n`);
+      };
       const result = await runZTurn({
         userId: user.id, threadId, message, image: image ?? null,
-        onToken: (t) => res.write(`data: ${JSON.stringify({ token: t })}\n\n`),
+        onToken: (t) => flushVisible(t),
       });
+      flushVisible('', true);
+      // parse score/result tags from the full reply, persist + tell the UI
+      const score = /\[\[SCORE\s+you=(\d+)\s+z=(\d+)\]\]/.exec(result.reply);
+      const res2  = /\[\[RESULT\s+winner=(you|z|draw)\s+you=(\d+)\s+z=(\d+)\]\]/.exec(result.reply);
+      if (score) res.write(`data: ${JSON.stringify({ score: { you: +score[1], z: +score[2] } })}\n\n`);
+      if (res2) {
+        res.write(`data: ${JSON.stringify({ result: { winner: res2[1], you: +res2[2], z: +res2[3] } })}\n\n`);
+        // persist the match + clear game_mode (match over)
+        const { data: th } = await supabase.from('threads').select('game_mode, persona_key').eq('id', threadId).maybeSingle();
+        await supabase.from('arena_matches').insert({
+          user_id: user.id, game: (th as any)?.game_mode || 'unknown',
+          persona_key: (th as any)?.persona_key || null,
+          you_score: +res2[2], z_score: +res2[3], winner: res2[1],
+        });
+        await supabase.from('threads').update({ game_mode: null }).eq('id', threadId);
+      }
       res.write(`data: ${JSON.stringify({ done: true, usage: result.usage })}\n\n`);
       res.end();
     }

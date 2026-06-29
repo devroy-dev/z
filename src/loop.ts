@@ -5,7 +5,7 @@
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './db.js';
-import { buildStaticPrefix } from './content.js';
+import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 
@@ -27,7 +27,7 @@ export interface ZTurnResult {
 
 interface ThreadRow {
   id: string; user_id: string; persona_key: string; codex_key: string;
-  companion_name: string; companion_gender: string | null;
+  companion_name: string; companion_gender: string | null; game_mode?: string | null;
 }
 
 export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
@@ -36,7 +36,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // load the thread (the persona instance)
   const { data: thread } = await supabase
     .from('threads')
-    .select('id, user_id, persona_key, codex_key, companion_name, companion_gender')
+    .select('id, user_id, persona_key, codex_key, companion_name, companion_gender, game_mode')
     .eq('id', threadId).eq('user_id', userId).is('deleted_at', null)
     .maybeSingle();
   if (!thread) throw new Error('thread not found');
@@ -72,7 +72,16 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     seriousLine = `\n\n[SERIOUS MODE IS ON. The person has chosen to set the playful, dry, joking register aside right now — they want real, careful support. For this conversation: drop all sarcasm, bits, teasing, and comedic deflection. Be a warm, grounded, genuinely supportive presence — the way a thoughtful counselor or a deeply trusted friend would be. Listen first. Validate feelings without amplifying distress. Never minimize, never perform. Stay honest and kind. If the person shows signs of crisis or real danger to themselves, gently and directly steer them toward real human support and appropriate resources — this is non-negotiable and overrides everything else. You are still yourself, just your most caring, serious self.]`;
   }
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${memoryBlock}`;
+  // ── ARENA GAME MODE (when a game is active on this thread) ──────────────
+  let gameLine = '';
+  if (t.game_mode) {
+    try {
+      const gtext = await readContentFile('GAMES.md');
+      gameLine = `\n\n[ARENA MODE — the active game is "${t.game_mode}". Run it as host and referee per these rules:]\n${gtext}`;
+    } catch { /* games file missing — skip */ }
+  }
+
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the

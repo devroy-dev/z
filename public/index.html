@@ -253,6 +253,31 @@ body.serious .mark,body.serious .t-name{font-family:'Cormorant Garamond',serif !
 /* a tiny calm way out — the back arrow stays, everything else gone */
 body.serious .t-back,body.serious #t-back{color:rgba(255,255,255,.5) !important}
 
+
+/* __ARENA_PLACEHOLDER__ — the games ===== */
+.arena-wrap{padding:18px 16px 90px}
+.arena-head{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:300;font-style:italic;color:var(--ink);margin:6px 4px 4px}
+.arena-sub{font-size:12.5px;color:var(--faint);margin:0 4px 18px;font-style:italic}
+.arena-rec{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap}
+.arena-rec .chip{font-size:11px;color:var(--faint);background:rgba(201,168,76,.10);border:1px solid rgba(201,168,76,.25);border-radius:20px;padding:4px 10px}
+.gcard{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid rgba(12,10,9,.10);border-radius:16px;margin-bottom:12px;cursor:pointer;background:linear-gradient(135deg,rgba(201,168,76,.05),transparent);transition:transform .12s,box-shadow .12s}
+.gcard:active{transform:scale(.985)}
+.gcard:hover{box-shadow:0 6px 22px rgba(12,10,9,.08)}
+.gcard .gic{font-size:26px;width:48px;height:48px;display:grid;place-items:center;border-radius:12px;background:rgba(201,168,76,.12);flex:0 0 auto}
+.gcard .gname{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:500;color:var(--ink);line-height:1.1}
+.gcard .gdesc{font-size:12px;color:var(--faint);margin-top:3px}
+/* scoreboard header in a live match */
+.scorebar{display:flex;align-items:center;justify-content:center;gap:18px;padding:12px;background:linear-gradient(135deg,rgba(201,168,76,.12),rgba(201,168,76,.04));border-bottom:1px solid rgba(201,168,76,.25);font-family:'Cormorant Garamond',serif}
+.scorebar .sb-side{text-align:center}
+.scorebar .sb-n{font-size:30px;font-weight:600;color:var(--ink);line-height:1}
+.scorebar .sb-l{font-size:11px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+.scorebar .sb-vs{font-size:13px;color:var(--accent);font-style:italic}
+/* result card */
+.result-card{margin:14px auto;max-width:80%;text-align:center;padding:20px;border-radius:18px;background:linear-gradient(135deg,rgba(201,168,76,.14),rgba(201,168,76,.04));border:1px solid rgba(201,168,76,.3)}
+.result-card .rc-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:500;color:var(--ink)}
+.result-card .rc-score{font-size:14px;color:var(--faint);margin-top:4px}
+.result-card .rc-again{margin-top:14px;display:inline-block;font-size:13px;color:var(--accent);border:1px solid rgba(201,168,76,.4);border-radius:20px;padding:8px 18px;cursor:pointer}
+
 </style>
 </head>
 <body>
@@ -317,6 +342,7 @@ body.serious .t-back,body.serious #t-back{color:rgba(255,255,255,.5) !important}
   <div class="botnav" id="botnav">
     <div class="nav on" data-tab="people"><div class="ic">❒</div>People</div>
     <div class="nav" data-tab="journal"><div class="ic">✎</div>Letters</div>
+    <div class="nav" data-tab="arena"><div class="ic">⚔</div>Arena</div>
     <div class="nav" data-tab="journal-rec"><div class="ic">🎙</div>Journal</div>
   </div>
 </div>
@@ -1110,6 +1136,67 @@ $('imgfile')&&($('imgfile').onchange=(e)=>{
 });
 
 /* send */
+
+/* ===== ARENA — game select + match flow ===== */
+const ARENA_GAMES=[
+  {id:'debate', name:'Debate Zone', ic:'🗣', persona:'the_leader_opp', desc:"argue your side. they'll take the other. with facts."},
+  {id:'trivia', name:'Trivia Duel', ic:'🧠', persona:'the_brainiac',    desc:"pick a topic. how many can you get?"},
+  {id:'dilemma',name:'Dilemma Zone',ic:'⚖', persona:'the_philosopher', desc:"no clean answers. defend your choice."},
+];
+let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
+
+async function renderArena(){
+  const c=$('contacts'); if(!c)return;
+  let rec={}; try{ const r=await zfetch('/arena/record',{headers:HDRS()}); if(r.ok) rec=await r.json(); }catch(e){}
+  let html='<div class="arena-wrap"><div class="arena-head">the Arena</div><div class="arena-sub">play against the cast. keep score. come back sharper.</div>';
+  // record chips
+  const chips=Object.keys(rec).map(g=>{const x=rec[g];return `<span class="chip">${g}: ${x.wins}W ${x.losses}L</span>`;}).join('');
+  if(chips) html+='<div class="arena-rec">'+chips+'</div>';
+  ARENA_GAMES.forEach(g=>{
+    html+=`<div class="gcard" onclick="startArena('${g.id}','${g.persona}')"><div class="gic">${g.ic}</div><div><div class="gname">${g.name}</div><div class="gdesc">${g.desc}</div></div></div>`;
+  });
+  html+='</div>';
+  c.innerHTML=html;
+}
+
+async function startArena(game, personaKey){
+  try{
+    const r=await zfetch('/arena/start',{method:'POST',headers:HDRS(),body:JSON.stringify({game,personaKey})});
+    if(!r.ok){const j=await r.json().catch(()=>({}));alert(j.error||'could not start');return;}
+    const j=await r.json();
+    // open the persona thread as a MATCH
+    threads[personaKey]=threads[personaKey]||{}; threads[personaKey].id=j.threadId;
+    arenaScore={you:0,z:0}; inArenaMatch=true; arenaGameId=game;
+    await openThread(personaKey);
+    showScorebar();
+    // a quiet system nudge to kick the game off
+    const opener = game==='debate' ? "let's debate. give me a topic, or say surprise me."
+                 : game==='trivia' ? "trivia duel. pick a topic, or say surprise me — then fire away."
+                 : "hit me with a dilemma, or say surprise me.";
+    const sb=bubble('z',opener); $('convo').appendChild(sb); $('convo').scrollTop=$('convo').scrollHeight;
+  }catch(e){alert('no connection');}
+}
+
+function showScorebar(){
+  let bar=$('arena-scorebar');
+  if(!bar){ bar=document.createElement('div'); bar.id='arena-scorebar'; bar.className='scorebar';
+    const tb=document.querySelector('#thread .t-bar')||$('thread'); tb.parentNode.insertBefore(bar, tb.nextSibling); }
+  bar.style.display='flex';
+  bar.innerHTML=`<div class="sb-side"><div class="sb-n">${arenaScore.you}</div><div class="sb-l">you</div></div><div class="sb-vs">vs</div><div class="sb-side"><div class="sb-n">${arenaScore.z}</div><div class="sb-l">Z</div></div>`;
+}
+function hideScorebar(){ const b=$('arena-scorebar'); if(b)b.style.display='none'; inArenaMatch=false; arenaGameId=null; }
+
+function showResult(rz){
+  const won = rz.winner==='you'; const draw = rz.winner==='draw';
+  const title = draw?'A draw!':won?'You won! 🏆':'Z takes this one';
+  const card=document.createElement('div'); card.className='result-card';
+  card.innerHTML=`<div class="rc-title">${title}</div><div class="rc-score">${rz.you} — ${rz.z}</div><div class="rc-again" onclick="rematch()">play again</div>`;
+  $('convo').appendChild(card); $('convo').scrollTop=$('convo').scrollHeight;
+  hideScorebar();
+}
+function rematch(){ const tab=document.querySelector('.botnav .nav[data-tab=arena]'); if(tab)tab.click(); }
+
+
 async function sendMsg(){
   const inp=$('inp'); const text=inp.value.trim();
   if(activeRoom){ if(!text)return; inp.value=''; return sendRoom(text); }
@@ -1145,7 +1232,9 @@ async function sendMsg(){
           if(typeof ev.token==='string'){
             if(!started){started=true;zb.classList.remove('typing');zb.textContent='';}
             acc+=ev.token; zb.textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;
-          } else if(ev.error){zb.classList.remove('typing');zb.textContent='('+ev.error+')';}
+          } else if(ev.score){ arenaScore={you:ev.score.you,z:ev.score.z}; if(inArenaMatch)showScorebar(); }
+          else if(ev.result){ if(inArenaMatch)showResult(ev.result); }
+          else if(ev.error){zb.classList.remove('typing');zb.textContent='('+ev.error+')';}
         });
       }
     };
@@ -1162,7 +1251,7 @@ $('send').onclick=sendMsg;
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
 $('t-back').onclick=()=>{
   if(seriousMode && active==='z_serious'){ /* in the quiet room: leaving goes back to settings, stays in serious unless toggled */ renderContacts(); show('list'); return; }
-  activeGroup=null;activeRoom=null;unsubscribeRoom();renderContacts();show('list');
+  activeGroup=null;activeRoom=null;unsubscribeRoom();hideScorebar();renderContacts();show('list');
 };
 
 /* edit sheet: rename + dp */
@@ -1221,6 +1310,7 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
     document.querySelectorAll('.botnav .nav').forEach(x=>x.classList.toggle('on',x===n));
     if(tab==='journal-rec'){ showJournal(); return; }
     hideJournal();
+    if(tab==='arena'){ show('list'); renderArena(); return; }
     show('list');
     if(tab==='people'){ renderContacts(); }
     else if(tab==='journal'){ renderLetters(); }
