@@ -2121,9 +2121,9 @@ function dpFor(key){
   if(dpData[key])return `<img src="${dpData[key]}">`;
   // gendered personas show a neutral placeholder until the user picks a gender
   if(GENDERED_PERSONAS.indexOf(key)>=0 && (!ME.sex || ME.sex==='na')) return neutralFace(key);
-  return CAT[key].face;
+  return (CAT[key]&&CAT[key].face)||neutralFace(key);
 }
-function nameFor(key){return (threads[key]&&threads[key].name)||CAT[key].name;}
+function nameFor(key){ if(key==='you')return 'you'; if(threads[key]&&threads[key].name)return threads[key].name; return (CAT[key]&&CAT[key].name)||key||''; }
 function contactEl(key,opts){
   opts=opts||{};
   const cat=CAT[key];
