@@ -311,6 +311,30 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .bj-bank{text-align:center;font-size:13px;color:var(--dim)}
 .bj-bank b{color:var(--ink)}
 
+
+/* ===== SNAKES & LADDERS ===== */
+.snl-wrap{flex:1;display:flex;flex-direction:column;padding:12px 14px calc(16px + env(safe-area-inset-bottom));gap:12px;overflow-y:auto;align-items:center;
+  background:radial-gradient(120% 60% at 50% 18%, rgba(90,70,40,.18), transparent), var(--bg)}
+.snl-board{width:100%;max-width:360px;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);
+  border:1px solid var(--line-strong);border-radius:12px;overflow:hidden;background:var(--card);position:relative}
+.snl-cell{position:relative;display:flex;align-items:flex-start;justify-content:flex-start;font-size:8px;color:var(--faint);padding:2px 0 0 2px;border:.5px solid rgba(255,255,255,.04)}
+.snl-cell.dark{background:rgba(255,255,255,.022)}
+.snl-cell.snake{background:rgba(180,60,60,.14)}
+.snl-cell.ladder{background:rgba(70,150,90,.14)}
+.snl-emoji{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;opacity:.85}
+.snl-tok{position:absolute;width:60%;height:60%;border-radius:50%;top:20%;left:20%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;transition:all .35s ease;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2}
+.snl-tok.you{background:radial-gradient(circle at 35% 30%,#a78bfa,#6d4ad8);color:#fff}
+.snl-tok.z{background:radial-gradient(circle at 35% 30%,#e8b86a,#c98a3a);color:#1a1206;left:40%;top:40%;width:50%;height:50%}
+.snl-talk{min-height:38px;text-align:center;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px;color:var(--ink);line-height:1.45;padding:2px 8px;max-width:360px}
+.snl-controls{display:flex;align-items:center;gap:16px}
+.snl-die{font-size:34px;width:50px;text-align:center}
+.snl-die.rolling{animation:dieRoll .5s ease}
+@keyframes dieRoll{0%{transform:rotate(0) scale(1)}50%{transform:rotate(180deg) scale(1.25)}100%{transform:rotate(360deg) scale(1)}}
+.snl-roll{cursor:pointer;border:none;border-radius:14px;padding:13px 32px;font-size:15px;font-weight:600;letter-spacing:.05em;background:var(--ink);color:var(--bg)}
+.snl-roll:disabled{opacity:.4}
+.snl-roll:active{transform:scale(.97)}
+.snl-result{text-align:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink);padding:8px}
+
 </style>
 </head>
 <body>
@@ -435,6 +459,23 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 </div>
 
 <!-- WHAT Z REMEMBERS -->
+
+<div class="screen" id="snl">
+  <div class="t-head">
+    <div class="t-back" id="snl-back">‹</div>
+    <div class="t-face" id="snl-face"></div>
+    <div class="t-meta"><div class="t-name">the wannabe hustler</div><div class="t-status mono">snakes & ladders · race me, baby</div></div>
+    <div style="width:34px"></div>
+  </div>
+  <div class="snl-wrap">
+    <div class="snl-board" id="snl-board"></div>
+    <div class="snl-talk" id="snl-talk">aight aight — you and me, first to 100. roll the dice, hotshot.</div>
+    <div class="snl-controls">
+      <div class="snl-die" id="snl-die">🎲</div>
+      <button class="snl-roll" id="snl-roll" onclick="snlRoll()">Roll</button>
+    </div>
+  </div>
+</div>
 
 <div class="screen" id="blackjack">
   <div class="t-head">
@@ -720,6 +761,108 @@ async function bjDealerReact(event){
   }catch(e){}
 }
 
+/* ===== SNAKES & LADDERS — race the wannabe hustler ===== */
+const SNL={ pos:{you:0,z:0}, turn:'you', over:false,
+  snakes:{16:6,47:26,49:11,56:53,62:19,64:60,87:24,93:73,95:75,98:78},
+  ladders:{1:38,4:14,9:31,21:42,28:84,36:44,51:67,71:91,80:100} };
+function snlCellIndex(n){
+  const row=Math.floor((n-1)/10);
+  let col=(n-1)%10;
+  if(row%2===1) col=9-col;
+  const gridRow=9-row;
+  return gridRow*10+col;
+}
+function snlBuildBoard(){
+  const b=$('snl-board'); b.innerHTML='';
+  const cells=new Array(100);
+  for(let n=1;n<=100;n++){
+    const idx=snlCellIndex(n);
+    const cell=document.createElement('div');
+    cell.className='snl-cell'+(((Math.floor((n-1)/10))+((n-1)%10))%2?' dark':'');
+    cell.dataset.n=n;
+    let emoji='';
+    if(SNL.snakes[n]) { cell.classList.add('snake'); emoji='🐍'; }
+    if(SNL.ladders[n]){ cell.classList.add('ladder'); emoji='🪜'; }
+    cell.innerHTML=`<span>${n}</span>${emoji?`<span class="snl-emoji">${emoji}</span>`:''}`;
+    cells[idx]=cell;
+  }
+  for(let i=0;i<100;i++) if(cells[i]) b.appendChild(cells[i]);
+  snlPlaceTokens();
+}
+function snlPlaceTokens(){
+  document.querySelectorAll('.snl-tok').forEach(t=>t.remove());
+  for(const who of ['you','z']){
+    const p=SNL.pos[who]; if(p<1) continue;
+    const idx=snlCellIndex(p);
+    const cell=$('snl-board').children[idx];
+    if(cell){ const tok=document.createElement('div'); tok.className='snl-tok '+who; tok.textContent=who==='you'?'Y':'Z'; cell.appendChild(tok); }
+  }
+}
+function snlTalk(t){ $('snl-talk').textContent=t; }
+function openSnakes(){
+  SNL.pos={you:0,z:0}; SNL.turn='you'; SNL.over=false;
+  $('snl-face').innerHTML=dpFor('the_wannabe');
+  show('snl'); snlBuildBoard();
+  const rb=$('snl-roll'); rb.disabled=false; rb.textContent='Roll'; rb.onclick=snlRoll;
+  snlTalk("aight aight — you and me, first to 100. you go first, hotshot. ROLL.");
+}
+async function snlMove(who, roll){
+  let p=SNL.pos[who];
+  let target=p+roll;
+  if(target>100){ snlTalk(who==='you'?`${roll}? overshoot — you stay at ${p}. so close, baby!`:`i rolled ${roll}, overshot. still ${p}. ugh.`); return p; }
+  for(let step=p+1; step<=target; step++){ SNL.pos[who]=step; snlPlaceTokens(); await new Promise(r=>setTimeout(r,110)); }
+  p=target;
+  if(SNL.snakes[p]){ await new Promise(r=>setTimeout(r,280)); const to=SNL.snakes[p]; SNL.pos[who]=to; snlPlaceTokens(); snlDealerReact(who==='you'?'you_snake':'z_snake',p,to); return to; }
+  if(SNL.ladders[p]){ await new Promise(r=>setTimeout(r,280)); const to=SNL.ladders[p]; SNL.pos[who]=to; snlPlaceTokens(); snlDealerReact(who==='you'?'you_ladder':'z_ladder',p,to); return to; }
+  SNL.pos[who]=p; snlPlaceTokens();
+  return p;
+}
+async function snlRoll(){
+  if(SNL.over) return;
+  const rb=$('snl-roll'); rb.disabled=true;
+  const die=$('snl-die');
+  die.classList.add('rolling'); await new Promise(r=>setTimeout(r,400));
+  const yr=1+Math.floor(Math.random()*6); die.textContent=['⚀','⚁','⚂','⚃','⚄','⚅'][yr-1]; die.classList.remove('rolling');
+  if(!(SNL.snakes[SNL.pos.you+yr]||SNL.ladders[SNL.pos.you+yr])) snlDealerReact('you_roll',yr,null);
+  const yp=await snlMove('you',yr);
+  if(yp>=100){ return snlWin('you'); }
+  await new Promise(r=>setTimeout(r,650));
+  snlTalk("aight, MY turn. watch and learn, baby.");
+  await new Promise(r=>setTimeout(r,500));
+  die.classList.add('rolling'); await new Promise(r=>setTimeout(r,400));
+  const zr=1+Math.floor(Math.random()*6); die.textContent=['⚀','⚁','⚂','⚃','⚄','⚅'][zr-1]; die.classList.remove('rolling');
+  const zp=await snlMove('z',zr);
+  if(zp>=100){ return snlWin('z'); }
+  rb.disabled=false;
+  if(SNL.pos.you>SNL.pos.z) snlTalk(`you're at ${SNL.pos.you}, i'm at ${SNL.pos.z}. don't get cocky. roll.`);
+  else if(SNL.pos.z>SNL.pos.you) snlTalk(`i'm at ${SNL.pos.z}, you're trailin' at ${SNL.pos.you}. catch up, baby. roll.`);
+  else snlTalk(`dead even at ${SNL.pos.you}. roll.`);
+}
+function snlWin(who){
+  SNL.over=true;
+  if(who==='you'){ snlTalk("AYYYE! you hit 100! okay okay you GOT me, you lucky legend!"); }
+  else { snlTalk("HUNDRED! i WIN, baby! told you — watch and learn! rematch?"); }
+  const c=document.createElement('div'); c.className='snl-result'; c.textContent=who==='you'?'🏆 you win!':'🎲 the house wins';
+  $('snl-talk').after(c);
+  const rb=$('snl-roll'); rb.disabled=false; rb.textContent='Play again'; rb.onclick=()=>{ c.remove(); openSnakes(); };
+}
+async function snlDealerReact(event,from,to){
+  const local={
+    you_roll:["nice roll. let's see where it takes ya.","ooh, "+from+". not bad, not bad."],
+    you_snake:["OHHHH SNAKE at "+from+"! down to "+to+", baby! i TOLD you this game was cruel! 🐍","ssssss! "+from+" to "+to+"! that's gotta hurt! hahaha!"],
+    you_ladder:["LADDER at "+from+"! shoot up to "+to+"! okay okay i see you climbin'! 🪜","up you go — "+from+" to "+to+"! don't let it go to your head."],
+    z_snake:["nah nah NAH, i hit a snake at "+from+"?! down to "+to+"?? this game is RIGGED.","ugh, "+from+" to "+to+". you didn't see that. that didn't happen."],
+    z_ladder:["LADDER baby! "+from+" straight to "+to+"! THAT'S what i'm talkin' about!","whoosh — "+to+"! i'm BUILT different, baby!"]
+  };
+  const pool=local[event]||["roll 'em."];
+  snlTalk(pool[Math.floor(Math.random()*pool.length)]);
+  try{
+    const ctx=`You are the wannabe hustler playing snakes & ladders against the player. Event: ${event} (from ${from} to ${to}). ONE short loud hype line, max 16 words, in character. No quotes.`;
+    const r=await zfetch('/banter',{method:'POST',headers:HDRS(),body:JSON.stringify({persona:'the_wannabe',prompt:ctx})});
+    if(r.ok){ const j=await r.json(); if(j.line) snlTalk(j.line.trim()); }
+  }catch(e){}
+}
+
 let seriousMode = localStorage.getItem('z_serious')==='1';
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
@@ -859,6 +1002,7 @@ $('setpin')&&$('setpin').addEventListener('keydown',e=>{if(e.key==='Enter')setPi
 $('pin')&&$('pin').addEventListener('keydown',e=>{if(e.key==='Enter')unlockPin();});
 var _ss=$('prow-serious'); if(_ss)_ss.onclick=toggleSerious; paintSeriousSwitch();
 var _bjb=$('bj-back'); if(_bjb)_bjb.onclick=()=>bjLeave();
+var _snb=$('snl-back'); if(_snb)_snb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
 var _so=$('send-otp'); if(_so)_so.onclick=sendOtp;
 var _vo=$('verify-otp'); if(_vo)_vo.onclick=verifyOtp;
 var _ob=$('otp-back'); if(_ob)_ob.onclick=function(){$('door-phase-otp').style.display='none';$('door-phase-phone').style.display='block';doorNote('otp-note','');};
@@ -1331,6 +1475,7 @@ const ARENA_GAMES=[
   {id:'riddle', name:'Riddle Me',   ic:'🗝', persona:'the_brainiac',   desc:"riddles & lateral puzzles. can you crack them?"},
   {id:'learn', name:'Quiz & Learn', ic:'📚', persona:'the_teacher', desc:"the professor teaches you anything — and checks you got it."},
   {id:'blackjack', name:'Blackjack', ic:'🃏', persona:'the_wannabe', type:'table', desc:"the wannabe hustler deals. beat the house, baby."},
+  {id:'snakes', name:'Snakes & Ladders', ic:'🐍', persona:'the_wannabe', type:'table', desc:"race the wannabe hustler to 100. saanp seedhi, baby."},
 ];
 let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
 
@@ -1342,7 +1487,7 @@ async function renderArena(){
   const chips=Object.keys(rec).map(g=>{const x=rec[g];return `<span class="chip">${g}: ${x.wins}W ${x.losses}L</span>`;}).join('');
   if(chips) html+='<div class="arena-rec">'+chips+'</div>';
   ARENA_GAMES.forEach(g=>{
-    const onc = g.type==='table' ? (g.id==='blackjack'?'openBlackjack()':'') : `startArena('${g.id}','${g.persona}')`;
+    const onc = g.type==='table' ? (g.id==='blackjack'?'openBlackjack()':g.id==='snakes'?'openSnakes()':'') : `startArena('${g.id}','${g.persona}')`;
     html+=`<div class="gcard" onclick="${onc}"><div class="gic">${g.ic}</div><div><div class="gname">${g.name}</div><div class="gdesc">${g.desc}</div></div></div>`;
   });
   html+='</div>';
