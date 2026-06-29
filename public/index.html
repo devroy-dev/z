@@ -508,6 +508,7 @@ let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
 let rooms=[]; let activeRoom=null;
+let seriousMode = localStorage.getItem('z_serious')==='1';
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
 const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
@@ -859,7 +860,6 @@ async function leaveRoom(){
 
 
 /* ===== SERIOUS MODE (global toggle) ===== */
-let seriousMode = localStorage.getItem('z_serious')==='1';
 function paintSeriousSwitch(){ const sw=$('serious-switch'); if(sw) sw.classList.toggle('on', seriousMode); }
 async function toggleSerious(){
   seriousMode=!seriousMode;
