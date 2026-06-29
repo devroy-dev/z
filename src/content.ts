@@ -52,6 +52,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   economist:      'codex-economist.md',
   leader_opp:     'codex-leader-opposition.md',
   serious:        'codex-serious.md',
+  wannabe:        'codex-wannabe-hustler.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};

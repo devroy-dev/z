@@ -452,6 +452,7 @@ const CAT={
   the_teacher:     {persona:'the_teacher',     name:'the professor',     desc:"you're not bad at it. it was explained badly. let's fix that.",          rgb:[120,190,170],face:face('#dcc8b0','#1f2e2a','#16241f','#0a1310')},
   the_economist:   {persona:'the_economist',   name:'the economist',   desc:"markets, money, and why your rent keeps rising. let's make it make sense.",rgb:[110,170,140],face:face('#d8c8b0','#1c2a22','#142019','#0a120c')},
   z_serious:       {persona:'z_serious',       name:'Z',               desc:"i'm here.",                                                              rgb:[200,200,200],face:face('#cccccc','#1a1a1a','#141414','#0a0a0a')},
+  the_wannabe:     {persona:'the_wannabe',     name:'the wannabe hustler', desc:"you talkin' to me, dawg? ayy place your bets — the house is HOT tonight.", rgb:[235,180,90],face:face('#e8c89a','#3a2c12','#332408','#1a1204')},
   the_leader_opp:  {persona:'the_leader_opp',  name:'the leader of opposition', desc:"whatever side you're on, i'm on the other. come at me with facts not opinions.", rgb:[200,120,110],face:face('#e0c0a8','#33201c','#2a1612','#160a08')},
   the_brother:     {persona:'the_brother',     name:'the brother',     desc:"love them, hate them, can't live without them. let's talk family.",        rgb:[200,120,80], face:face('#e0b896','#3a2418','#3a2214','#1a0e08')},
   the_healer:      {persona:'the_healer',      name:'the healer',      desc:"love once and you know what love is. love twice and you know what life is.",rgb:[124,92,220], face:face('#e8c4a8','#2a1f4a','#241a44','#0e0a22')},
@@ -462,8 +463,8 @@ const CAT={
   the_addict:      {persona:'the_addict',      name:'the rehab',       desc:"i've been where you are. let's get you out — one day at a time.",rgb:[80,220,180], face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
   the_self_obsessed:{persona:'the_self_obsessed',name:'the guardian angel',desc:"the world can be cruel. i'm in your corner — you're stronger than they made you feel.",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
 };
-const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp'];
-const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_screen_junkie','the_brainiac','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_teacher','the_economist','the_leader_opp','the_media_manager','the_moderator','the_cynic','the_addict','the_self_obsessed'];
+const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe'];
+const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_wannabe','the_screen_junkie','the_brainiac','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_teacher','the_economist','the_leader_opp','the_media_manager','the_moderator','the_cynic','the_addict','the_self_obsessed'];
 
 /* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
 const inkCanvas=document.getElementById('ink');
@@ -563,7 +564,7 @@ let rooms=[]; let activeRoom=null;
 let seriousMode = localStorage.getItem('z_serious')==='1';
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
-const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp'];
+const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
 async function loadThreads(){
   try{

@@ -9,7 +9,7 @@
 export type CodexKey =
   | 'intellect' | 'close' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru'
   | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
-  | 'teacher' | 'economist' | 'leader_opp' | 'serious';
+  | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe';
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -36,6 +36,7 @@ export const PERSONAS: Record<string, Persona> = {
   the_economist:    { key: 'the_economist',    defaultName: 'the economist',    codex: 'economist',  webEnabled: true  },
   the_leader_opp:   { key: 'the_leader_opp',   defaultName: 'the leader of opposition', codex: 'leader_opp', webEnabled: true },
   z_serious:        { key: 'z_serious',        defaultName: 'Z',                codex: 'serious',    webEnabled: true  },
+  the_wannabe:      { key: 'the_wannabe',      defaultName: 'the wannabe hustler', codex: 'wannabe', webEnabled: true },
   the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'people',    webEnabled: false },
   the_healer:       { key: 'the_healer',       defaultName: 'the healer',       codex: 'people',    webEnabled: false },
   the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'people',    webEnabled: false },
