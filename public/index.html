@@ -232,109 +232,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
 
 
-/* ===== BLACKJACK — the wannabe hustler deals ===== */
-const BJ={ deck:[], player:[], dealer:[], bank:500, bet:0, phase:'bet', wins:0, losses:0, pushes:0 };
-function bjLoadRecord(){ try{ const r=JSON.parse(localStorage.getItem('z_bj')||'{}'); BJ.bank=r.bank??500; BJ.wins=r.wins||0; BJ.losses=r.losses||0; BJ.pushes=r.pushes||0; }catch(e){} }
-function bjSaveRecord(){ localStorage.setItem('z_bj', JSON.stringify({bank:BJ.bank,wins:BJ.wins,losses:BJ.losses,pushes:BJ.pushes})); }
-function bjNewDeck(){ const s=['♠','♥','♦','♣'],r=[['A',11],['2',2],['3',3],['4',4],['5',5],['6',6],['7',7],['8',8],['9',9],['10',10],['J',10],['Q',10],['K',10]]; const d=[]; for(const su of s)for(const[rk,v]of r)d.push({r:rk,s:su,v,red:(su==='♥'||su==='♦')}); for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];} return d; }
-function bjVal(hand){ let v=0,aces=0; for(const c of hand){ v+=c.v; if(c.r==='A')aces++; } while(v>21&&aces){ v-=10; aces--; } return v; }
-function bjCardHTML(c,hidden){ if(hidden) return '<div class="pcard back"></div>'; return `<div class="pcard ${c.red?'red':''}"><div class="pc-r">${c.r}</div><div class="pc-s">${c.s}</div></div>`; }
-function bjRender(hideHole){
-  const dl=$('bj-dealer'), pl=$('bj-player');
-  dl.innerHTML = BJ.dealer.map((c,i)=>bjCardHTML(c, hideHole&&i===1)).join('');
-  pl.innerHTML = BJ.player.map(c=>bjCardHTML(c,false)).join('');
-  $('bj-pval').textContent = BJ.player.length? bjVal(BJ.player) : '';
-  $('bj-dval').textContent = (BJ.dealer.length && !hideHole)? bjVal(BJ.dealer) : (BJ.dealer.length? bjVal([BJ.dealer[0]])+' +?' : '');
-  $('bj-record').innerHTML = `<span class="bj-bank">bank <b>${BJ.bank}</b> chips</span> · ${BJ.wins}W ${BJ.losses}L ${BJ.pushes}P`;
-}
-function bjTalk(t){ $('bj-talk').textContent = t; }
-function bjActions(buttons){ $('bj-actions').innerHTML = buttons.map(b=>`<button class="bj-btn ${b.ghost?'ghost':''}" onclick="${b.fn}">${b.label}</button>`).join(''); }
-function bjChips(show){
-  const wrap=$('bj-chips');
-  if(!show){ wrap.innerHTML=''; return; }
-  const amounts=[10,25,50,100].filter(a=>a<=BJ.bank);
-  wrap.innerHTML = amounts.map(a=>`<button class="bj-chip" onclick="bjBet(${a})">+${a}</button>`).join('') + (BJ.bet?`<button class="bj-chip" onclick="bjDeal()" style="background:var(--ink);color:var(--bg)">deal · ${BJ.bet}</button>`:'') + (BJ.bet?`<button class="bj-chip" onclick="bjClearBet()">clear</button>`:'');
-}
-function openBlackjack(){
-  bjLoadRecord();
-  $('bj-face').innerHTML = dpFor('the_wannabe');
-  show('blackjack');
-  BJ.phase='bet'; BJ.bet=0; BJ.player=[]; BJ.dealer=[];
-  bjRender(true); bjActions([]);
-  if(BJ.bank<10){ BJ.bank=500; bjSaveRecord(); bjTalk("ayy you tapped out — here's a fresh 500, on the house. don't say i never did nothin' for you."); }
-  else bjTalk("ayyy welcome back to MY table, baby. place your bet — the house is HOT tonight. 🔥");
-  bjChips(true);
-}
-function bjBet(a){ if(BJ.bank>=a){ BJ.bet+=a; BJ.bank-=a; bjRender(true); bjChips(true); } }
-function bjClearBet(){ BJ.bank+=BJ.bet; BJ.bet=0; bjRender(true); bjChips(true); }
-function bjDeal(){
-  if(!BJ.bet) return;
-  if(BJ.deck.length<15) BJ.deck=bjNewDeck();
-  BJ.player=[BJ.deck.pop(),BJ.deck.pop()];
-  BJ.dealer=[BJ.deck.pop(),BJ.deck.pop()];
-  BJ.phase='play'; bjChips(false); bjRender(true);
-  const pv=bjVal(BJ.player);
-  if(pv===21){ bjStand(true); return; } // natural blackjack
-  bjTalk("you're in. hit or stand, champ — don't choke on me now.");
-  bjActions([{label:'Hit',fn:'bjHit()'},{label:'Stand',fn:'bjStand()',ghost:true}]);
-  bjDealerReact('deal');
-}
-function bjHit(){
-  BJ.player.push(BJ.deck.pop()); bjRender(true);
-  const pv=bjVal(BJ.player);
-  if(pv>21){ bjResolve('bust'); }
-  else if(pv===21){ bjStand(); }
-  else { bjTalk("twenty? feelin' lucky? hit or stand."); }
-}
-async function bjStand(natural){
-  BJ.phase='dealer'; bjActions([]); bjRender(false);
-  // dealer draws to 17
-  while(bjVal(BJ.dealer)<17){ await new Promise(r=>setTimeout(r,520)); BJ.dealer.push(BJ.deck.pop()); bjRender(false); }
-  const pv=bjVal(BJ.player), dv=bjVal(BJ.dealer);
-  if(natural && pv===21 && dv!==21){ bjResolve('blackjack'); }
-  else if(dv>21){ bjResolve('dealerbust'); }
-  else if(pv>dv){ bjResolve('win'); }
-  else if(pv<dv){ bjResolve('lose'); }
-  else { bjResolve('push'); }
-}
-function bjResolve(outcome){
-  let payout=0, line='';
-  if(outcome==='bust'){ BJ.losses++; line='lose'; }
-  else if(outcome==='lose'){ BJ.losses++; line='lose'; }
-  else if(outcome==='push'){ BJ.bank+=BJ.bet; BJ.pushes++; line='push'; }
-  else if(outcome==='win'||outcome==='dealerbust'){ payout=BJ.bet*2; BJ.bank+=payout; BJ.wins++; line='win'; }
-  else if(outcome==='blackjack'){ payout=Math.floor(BJ.bet*2.5); BJ.bank+=payout; BJ.wins++; line='blackjack'; }
-  bjSaveRecord(); bjRender(false);
-  bjDealerReact(outcome);
-  bjActions([{label:'Deal again',fn:'bjNextHand()'},{label:'Leave table',fn:'bjLeave()',ghost:true}]);
-  BJ.bet=0;
-}
-function bjNextHand(){ BJ.phase='bet'; BJ.bet=0; BJ.player=[]; BJ.dealer=[]; bjRender(true); bjActions([]); bjChips(true); if(BJ.bank<10){ BJ.bank=500; bjSaveRecord(); bjTalk("tapped out again?? aight, 500 more, but you OWE me. place your bet."); } else bjTalk("again? that's the spirit. place your bet, baby."); }
-function bjLeave(){ show('list'); document.querySelector('.botnav .nav[data-tab=arena]')?.click(); }
-
-// the wannabe hustler reacts to the play (LLM banter, with a fast local fallback)
-async function bjDealerReact(event){
-  const pv=bjVal(BJ.player), dv=bjVal(BJ.dealer);
-  // instant local line so it never feels dead, then upgrade with a real one
-  const local={
-    deal:["dealt. let's see what you got, hotshot.","cards are out — no pressure, only your whole reputation."],
-    bust:["OHHH you BUSTED! "+pv+"! i TOLD you not to get greedy! house takes it. 💸","busted at "+pv+"?? baby what are we DOING out here. pay the man."],
-    lose:["house wins, "+dv+" over "+pv+". don't cry, it's just money. MY money now.","ooh, "+dv+" beats your "+pv+". better luck next time, champ. (there won't be.)"],
-    win:["AYYYE! "+pv+" over "+dv+"! okay okay i see you! pay up... ugh, fine, you earned it.","you got me — "+pv+" takes it. don't get used to this, superstar."],
-    dealerbust:["house busted at "+dv+"?! that's... that's not supposed to— you got LUCKY, baby. take your chips.","ugh, i busted. "+dv+". YOU didn't win, *I* lost, there's a difference. take it."],
-    push:["push. "+pv+" all around. nobody wins, nobody cries. run it back.","tie at "+pv+". the universe said 'try again.' so try again."],
-    blackjack:["BLACKJACK!! TWENTY-ONE OFF THE DEAL! okay you're officially my favorite, pays two-and-a-half, you lucky LEGEND!"]
-  };
-  const pool=local[event]||local.deal;
-  bjTalk(pool[Math.floor(Math.random()*pool.length)]);
-  // try a richer line from the persona (non-blocking)
-  try{
-    const ctx = `You are dealing blackjack as the wannabe hustler. Event: ${event}. Player hand=${pv}, dealer hand=${dv}, bank=${BJ.bank}. Give ONE short, loud, hype dealer line (max 18 words), in character. No quotes.`;
-    const r=await zfetch('/banter',{method:'POST',headers:HDRS(),body:JSON.stringify({persona:'the_wannabe',prompt:ctx})});
-    if(r.ok){ const j=await r.json(); if(j.line) bjTalk(j.line.trim()); }
-  }catch(e){}
-}
-
 /* ===== SERIOUS MODE — matte black, white text, nothing else ===== */
 body.serious{background:#070707}
 body.serious .screen,body.serious #thread,body.serious .convo,body.serious .door,body.serious .door-atmos,body.serious .door-inner{background:#070707 !important}
@@ -719,6 +616,109 @@ let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
 let rooms=[]; let activeRoom=null;
+/* ===== BLACKJACK — the wannabe hustler deals ===== */
+const BJ={ deck:[], player:[], dealer:[], bank:500, bet:0, phase:'bet', wins:0, losses:0, pushes:0 };
+function bjLoadRecord(){ try{ const r=JSON.parse(localStorage.getItem('z_bj')||'{}'); BJ.bank=r.bank??500; BJ.wins=r.wins||0; BJ.losses=r.losses||0; BJ.pushes=r.pushes||0; }catch(e){} }
+function bjSaveRecord(){ localStorage.setItem('z_bj', JSON.stringify({bank:BJ.bank,wins:BJ.wins,losses:BJ.losses,pushes:BJ.pushes})); }
+function bjNewDeck(){ const s=['♠','♥','♦','♣'],r=[['A',11],['2',2],['3',3],['4',4],['5',5],['6',6],['7',7],['8',8],['9',9],['10',10],['J',10],['Q',10],['K',10]]; const d=[]; for(const su of s)for(const[rk,v]of r)d.push({r:rk,s:su,v,red:(su==='♥'||su==='♦')}); for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];} return d; }
+function bjVal(hand){ let v=0,aces=0; for(const c of hand){ v+=c.v; if(c.r==='A')aces++; } while(v>21&&aces){ v-=10; aces--; } return v; }
+function bjCardHTML(c,hidden){ if(hidden) return '<div class="pcard back"></div>'; return `<div class="pcard ${c.red?'red':''}"><div class="pc-r">${c.r}</div><div class="pc-s">${c.s}</div></div>`; }
+function bjRender(hideHole){
+  const dl=$('bj-dealer'), pl=$('bj-player');
+  dl.innerHTML = BJ.dealer.map((c,i)=>bjCardHTML(c, hideHole&&i===1)).join('');
+  pl.innerHTML = BJ.player.map(c=>bjCardHTML(c,false)).join('');
+  $('bj-pval').textContent = BJ.player.length? bjVal(BJ.player) : '';
+  $('bj-dval').textContent = (BJ.dealer.length && !hideHole)? bjVal(BJ.dealer) : (BJ.dealer.length? bjVal([BJ.dealer[0]])+' +?' : '');
+  $('bj-record').innerHTML = `<span class="bj-bank">bank <b>${BJ.bank}</b> chips</span> · ${BJ.wins}W ${BJ.losses}L ${BJ.pushes}P`;
+}
+function bjTalk(t){ $('bj-talk').textContent = t; }
+function bjActions(buttons){ $('bj-actions').innerHTML = buttons.map(b=>`<button class="bj-btn ${b.ghost?'ghost':''}" onclick="${b.fn}">${b.label}</button>`).join(''); }
+function bjChips(show){
+  const wrap=$('bj-chips');
+  if(!show){ wrap.innerHTML=''; return; }
+  const amounts=[10,25,50,100].filter(a=>a<=BJ.bank);
+  wrap.innerHTML = amounts.map(a=>`<button class="bj-chip" onclick="bjBet(${a})">+${a}</button>`).join('') + (BJ.bet?`<button class="bj-chip" onclick="bjDeal()" style="background:var(--ink);color:var(--bg)">deal · ${BJ.bet}</button>`:'') + (BJ.bet?`<button class="bj-chip" onclick="bjClearBet()">clear</button>`:'');
+}
+function openBlackjack(){
+  bjLoadRecord();
+  $('bj-face').innerHTML = dpFor('the_wannabe');
+  show('blackjack');
+  BJ.phase='bet'; BJ.bet=0; BJ.player=[]; BJ.dealer=[];
+  bjRender(true); bjActions([]);
+  if(BJ.bank<10){ BJ.bank=500; bjSaveRecord(); bjTalk("ayy you tapped out — here's a fresh 500, on the house. don't say i never did nothin' for you."); }
+  else bjTalk("ayyy welcome back to MY table, baby. place your bet — the house is HOT tonight. 🔥");
+  bjChips(true);
+}
+function bjBet(a){ if(BJ.bank>=a){ BJ.bet+=a; BJ.bank-=a; bjRender(true); bjChips(true); } }
+function bjClearBet(){ BJ.bank+=BJ.bet; BJ.bet=0; bjRender(true); bjChips(true); }
+function bjDeal(){
+  if(!BJ.bet) return;
+  if(BJ.deck.length<15) BJ.deck=bjNewDeck();
+  BJ.player=[BJ.deck.pop(),BJ.deck.pop()];
+  BJ.dealer=[BJ.deck.pop(),BJ.deck.pop()];
+  BJ.phase='play'; bjChips(false); bjRender(true);
+  const pv=bjVal(BJ.player);
+  if(pv===21){ bjStand(true); return; } // natural blackjack
+  bjTalk("you're in. hit or stand, champ — don't choke on me now.");
+  bjActions([{label:'Hit',fn:'bjHit()'},{label:'Stand',fn:'bjStand()',ghost:true}]);
+  bjDealerReact('deal');
+}
+function bjHit(){
+  BJ.player.push(BJ.deck.pop()); bjRender(true);
+  const pv=bjVal(BJ.player);
+  if(pv>21){ bjResolve('bust'); }
+  else if(pv===21){ bjStand(); }
+  else { bjTalk("twenty? feelin' lucky? hit or stand."); }
+}
+async function bjStand(natural){
+  BJ.phase='dealer'; bjActions([]); bjRender(false);
+  // dealer draws to 17
+  while(bjVal(BJ.dealer)<17){ await new Promise(r=>setTimeout(r,520)); BJ.dealer.push(BJ.deck.pop()); bjRender(false); }
+  const pv=bjVal(BJ.player), dv=bjVal(BJ.dealer);
+  if(natural && pv===21 && dv!==21){ bjResolve('blackjack'); }
+  else if(dv>21){ bjResolve('dealerbust'); }
+  else if(pv>dv){ bjResolve('win'); }
+  else if(pv<dv){ bjResolve('lose'); }
+  else { bjResolve('push'); }
+}
+function bjResolve(outcome){
+  let payout=0, line='';
+  if(outcome==='bust'){ BJ.losses++; line='lose'; }
+  else if(outcome==='lose'){ BJ.losses++; line='lose'; }
+  else if(outcome==='push'){ BJ.bank+=BJ.bet; BJ.pushes++; line='push'; }
+  else if(outcome==='win'||outcome==='dealerbust'){ payout=BJ.bet*2; BJ.bank+=payout; BJ.wins++; line='win'; }
+  else if(outcome==='blackjack'){ payout=Math.floor(BJ.bet*2.5); BJ.bank+=payout; BJ.wins++; line='blackjack'; }
+  bjSaveRecord(); bjRender(false);
+  bjDealerReact(outcome);
+  bjActions([{label:'Deal again',fn:'bjNextHand()'},{label:'Leave table',fn:'bjLeave()',ghost:true}]);
+  BJ.bet=0;
+}
+function bjNextHand(){ BJ.phase='bet'; BJ.bet=0; BJ.player=[]; BJ.dealer=[]; bjRender(true); bjActions([]); bjChips(true); if(BJ.bank<10){ BJ.bank=500; bjSaveRecord(); bjTalk("tapped out again?? aight, 500 more, but you OWE me. place your bet."); } else bjTalk("again? that's the spirit. place your bet, baby."); }
+function bjLeave(){ show('list'); document.querySelector('.botnav .nav[data-tab=arena]')?.click(); }
+
+// the wannabe hustler reacts to the play (LLM banter, with a fast local fallback)
+async function bjDealerReact(event){
+  const pv=bjVal(BJ.player), dv=bjVal(BJ.dealer);
+  // instant local line so it never feels dead, then upgrade with a real one
+  const local={
+    deal:["dealt. let's see what you got, hotshot.","cards are out — no pressure, only your whole reputation."],
+    bust:["OHHH you BUSTED! "+pv+"! i TOLD you not to get greedy! house takes it. 💸","busted at "+pv+"?? baby what are we DOING out here. pay the man."],
+    lose:["house wins, "+dv+" over "+pv+". don't cry, it's just money. MY money now.","ooh, "+dv+" beats your "+pv+". better luck next time, champ. (there won't be.)"],
+    win:["AYYYE! "+pv+" over "+dv+"! okay okay i see you! pay up... ugh, fine, you earned it.","you got me — "+pv+" takes it. don't get used to this, superstar."],
+    dealerbust:["house busted at "+dv+"?! that's... that's not supposed to— you got LUCKY, baby. take your chips.","ugh, i busted. "+dv+". YOU didn't win, *I* lost, there's a difference. take it."],
+    push:["push. "+pv+" all around. nobody wins, nobody cries. run it back.","tie at "+pv+". the universe said 'try again.' so try again."],
+    blackjack:["BLACKJACK!! TWENTY-ONE OFF THE DEAL! okay you're officially my favorite, pays two-and-a-half, you lucky LEGEND!"]
+  };
+  const pool=local[event]||local.deal;
+  bjTalk(pool[Math.floor(Math.random()*pool.length)]);
+  // try a richer line from the persona (non-blocking)
+  try{
+    const ctx = `You are dealing blackjack as the wannabe hustler. Event: ${event}. Player hand=${pv}, dealer hand=${dv}, bank=${BJ.bank}. Give ONE short, loud, hype dealer line (max 18 words), in character. No quotes.`;
+    const r=await zfetch('/banter',{method:'POST',headers:HDRS(),body:JSON.stringify({persona:'the_wannabe',prompt:ctx})});
+    if(r.ok){ const j=await r.json(); if(j.line) bjTalk(j.line.trim()); }
+  }catch(e){}
+}
+
 let seriousMode = localStorage.getItem('z_serious')==='1';
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
