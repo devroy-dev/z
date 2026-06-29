@@ -317,12 +317,14 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
   background:radial-gradient(120% 60% at 50% 18%, rgba(90,70,40,.18), transparent), var(--bg)}
 .snl-board{width:100%;max-width:360px;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);
   border:1.5px solid rgba(201,168,76,.35);border-radius:12px;overflow:hidden;background:#0d0b08;position:relative}
-.snl-cell{position:relative;display:flex;align-items:flex-start;justify-content:flex-start;font-size:8px;color:rgba(242,240,236,.4);padding:2px 0 0 3px;border:.5px solid rgba(255,255,255,.07);background:#17130d}
-.snl-cell.dark{background:#1f1a11}
-.snl-cell.snake{background:rgba(190,55,55,.30)}
-.snl-cell.ladder{background:rgba(70,160,95,.28)}
-.snl-emoji{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:.9}
-.snl-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.snl-cell{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;font-size:7.5px;color:rgba(242,240,236,.45);padding:2px;border:.5px solid rgba(255,255,255,.06);background:#15110b;overflow:hidden}
+.snl-cell.dark{background:#1c1710}
+.snl-cell.snake{background:rgba(190,55,55,.22)}
+.snl-cell.ladder{background:rgba(70,160,95,.22)}
+.snl-num{font-size:7.5px;color:rgba(242,240,236,.5);line-height:1}
+.snl-dest{font-size:8px;font-weight:700;line-height:1;align-self:center;padding-bottom:1px}
+.snl-dest.up{color:#7fe09b}
+.snl-dest.down{color:#f08585}
 .snl-tok{position:absolute;width:60%;height:60%;border-radius:50%;top:20%;left:20%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;transition:all .35s ease;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2}
 .snl-tok.you{background:radial-gradient(circle at 35% 30%,#a78bfa,#6d4ad8);color:#fff}
 .snl-tok.z{background:radial-gradient(circle at 35% 30%,#e8b86a,#c98a3a);color:#1a1206;left:40%;top:40%;width:50%;height:50%}
@@ -843,42 +845,14 @@ function snlBuildBoard(){
     const cell=document.createElement('div');
     cell.className='snl-cell'+(((Math.floor((n-1)/10))+((n-1)%10))%2?' dark':'');
     cell.dataset.n=n;
-    let emoji='';
-    if(SNL.snakes[n]) { cell.classList.add('snake'); emoji='🐍'; }
-    if(SNL.ladders[n]){ cell.classList.add('ladder'); emoji='🪜'; }
-    cell.innerHTML=`<span>${n}</span>${emoji?`<span class="snl-emoji">${emoji}</span>`:''}`;
+    let badge='';
+    if(SNL.ladders[n]){ cell.classList.add('ladder'); badge=`<span class="snl-dest up">🪜 ${SNL.ladders[n]}</span>`; }
+    else if(SNL.snakes[n]){ cell.classList.add('snake'); badge=`<span class="snl-dest down">🐍 ${SNL.snakes[n]}</span>`; }
+    cell.innerHTML=`<span class="snl-num">${n}</span>${badge}`;
     cells[idx]=cell;
   }
   for(let i=0;i<100;i++) if(cells[i]) b.appendChild(cells[i]);
-  snlDrawConnectors();
   snlPlaceTokens();
-}
-function snlCellCenter(n){
-  // center of square n as fraction (0..1) of the board, for the SVG overlay
-  const idx=snlCellIndex(n);
-  const gx=idx%10, gy=Math.floor(idx/10);
-  return { x:(gx+0.5)/10, y:(gy+0.5)/10 };
-}
-function snlDrawConnectors(){
-  const b=$('snl-board');
-  let svg=b.querySelector('.snl-svg');
-  if(svg) svg.remove();
-  svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('class','snl-svg'); svg.setAttribute('viewBox','0 0 100 100'); svg.setAttribute('preserveAspectRatio','none');
-  const line=(from,to,color)=>{
-    const a=snlCellCenter(from), z=snlCellCenter(to);
-    const ln=document.createElementNS('http://www.w3.org/2000/svg','line');
-    ln.setAttribute('x1',a.x*100); ln.setAttribute('y1',a.y*100); ln.setAttribute('x2',z.x*100); ln.setAttribute('y2',z.y*100);
-    ln.setAttribute('stroke',color); ln.setAttribute('stroke-width','1.4'); ln.setAttribute('stroke-linecap','round'); ln.setAttribute('opacity','0.75');
-    svg.appendChild(ln);
-    // a dot at the destination so direction is clear
-    const dot=document.createElementNS('http://www.w3.org/2000/svg','circle');
-    dot.setAttribute('cx',z.x*100); dot.setAttribute('cy',z.y*100); dot.setAttribute('r','1.6'); dot.setAttribute('fill',color); dot.setAttribute('opacity','0.9');
-    svg.appendChild(dot);
-  };
-  for(const k in SNL.ladders) line(+k, SNL.ladders[k], '#5fbf7f'); // green up
-  for(const k in SNL.snakes)  line(+k, SNL.snakes[k],  '#e06464'); // red down
-  b.appendChild(svg);
 }
 function snlPlaceTokens(){
   document.querySelectorAll('.snl-tok').forEach(t=>t.remove());
@@ -901,10 +875,10 @@ async function snlMove(who, roll){
   let p=SNL.pos[who];
   let target=p+roll;
   if(target>100){ snlTalk(who==='you'?`${roll}? overshoot — you stay at ${p}. so close, baby!`:`i rolled ${roll}, overshot. still ${p}. ugh.`); return p; }
-  for(let step=p+1; step<=target; step++){ SNL.pos[who]=step; snlPlaceTokens(); await new Promise(r=>setTimeout(r,300)); }
+  for(let step=p+1; step<=target; step++){ SNL.pos[who]=step; snlPlaceTokens(); await new Promise(r=>setTimeout(r,420)); }
   p=target;
-  if(SNL.snakes[p]){ await new Promise(r=>setTimeout(r,500)); const to=SNL.snakes[p]; SNL.pos[who]=to; snlPlaceTokens(); snlDealerReact(who==='you'?'you_snake':'z_snake',p,to); return to; }
-  if(SNL.ladders[p]){ await new Promise(r=>setTimeout(r,500)); const to=SNL.ladders[p]; SNL.pos[who]=to; snlPlaceTokens(); snlDealerReact(who==='you'?'you_ladder':'z_ladder',p,to); return to; }
+  if(SNL.snakes[p]){ await new Promise(r=>setTimeout(r,700)); const to=SNL.snakes[p]; SNL.pos[who]=to; snlPlaceTokens(); snlDealerReact(who==='you'?'you_snake':'z_snake',p,to); return to; }
+  if(SNL.ladders[p]){ await new Promise(r=>setTimeout(r,700)); const to=SNL.ladders[p]; SNL.pos[who]=to; snlPlaceTokens(); snlDealerReact(who==='you'?'you_ladder':'z_ladder',p,to); return to; }
   SNL.pos[who]=p; snlPlaceTokens();
   return p;
 }
