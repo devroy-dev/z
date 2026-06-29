@@ -485,7 +485,8 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 
 
 /* ===== BATCH 3: serious mode character ===== */
-body.serious #thread{position:relative}
+body.serious #thread{position:relative;display:flex;flex-direction:column}
+body.serious .convo{flex:1 1 auto;min-height:0}
 body.serious #thread::before{
   content:"";position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);
   width:420px;height:420px;border-radius:50%;pointer-events:none;z-index:0;
@@ -496,7 +497,7 @@ body.serious #thread::before{
 body.serious .convo{position:relative;z-index:1}
 .serious-arrival{align-self:center;max-width:78%;text-align:center;color:rgba(255,255,255,.5);
   font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px;line-height:1.5;
-  margin:34px auto 8px;letter-spacing:.01em;animation:fadeInSlow 1.6s ease both}
+  margin:auto 0;padding:24px 0;letter-spacing:.01em;animation:fadeInSlow 1.6s ease both}
 @keyframes fadeInSlow{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 body.serious .t-status{color:rgba(255,255,255,.32) !important}
 
@@ -808,7 +809,7 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
     <p id="prof-region"></p>
     <div class="prow" id="prow-edit">Edit your name / region</div>
     <div class="prow prow-toggle" id="prow-serious">
-      <span>Serious mode <span class="prow-sub">just the ones who can hold real weight</span></span>
+      <span>SOS mode <span class="prow-sub">when you need the real, quiet space — only the ones who can hold it</span></span>
       <span class="z-switch" id="serious-switch"><span class="z-knob"></span></span>
     </div>
     <div class="prow" id="prow-notes">What Z remembers</div>
@@ -3225,14 +3226,22 @@ $('prow-edit').onclick=()=>{
   show('onboard');
 };
 $('prow-signout').onclick=()=>{
-  if(!confirm('sign out? you\'ll need to verify your number again to get back in.'))return;
-  // clear the whole session so it's a real sign-out
-  ['z_token','z_refresh','z_exp','z_onboarded','z_real_uid','z_uid','z_me','z_threads','z_groups','z_pending_join'].forEach(k=>localStorage.removeItem(k));
+  if(!confirm('lock Z? you\'ll come back in with your PIN — no need to verify your number again.'))return;
+  // LOCK (not a full wipe): drop the live session but KEEP the device-remembered
+  // account (z_real_uid) + long-lived refresh token + PIN context, so the next entry
+  // routes to the 4-digit PIN screen, never back to OTP. "Forget this device" (full
+  // wipe → OTP) lives separately for shared/lost phones.
+  ['z_token','z_exp','z_threads','z_groups','z_pending_join'].forEach(k=>localStorage.removeItem(k));
   if(typeof _refreshTimer!=='undefined'&&_refreshTimer)clearTimeout(_refreshTimer);
   try{ unsubscribeRoom(); }catch(e){}
   active=null; activeRoom=null; activeGroup=null; threads={}; groups=[]; rooms=[];
   $('profSheet').classList.remove('on');
-  show('door');   // back to phone + OTP login, NOT onboarding
+  // route straight to the PIN screen for the remembered account
+  show('door');
+  $('door-phase-phone').style.display='none';
+  $('door-phase-pin').style.display='block';
+  const nm=(JSON.parse(localStorage.getItem('z_me')||'{}').name)||'';
+  $('pin-name')&&($('pin-name').textContent=nm?(', '+nm):'');
 };
 
 
