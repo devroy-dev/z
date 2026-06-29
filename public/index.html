@@ -375,6 +375,42 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .uno-tips-toggle.on{opacity:1}
 .uno-win{text-align:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink);padding:10px}
 
+
+/* ===== LUDO ===== */
+.ludo-wrap{flex:1;display:flex;flex-direction:column;padding:10px 12px calc(14px + env(safe-area-inset-bottom));gap:10px;overflow-y:auto;align-items:center;
+  background:radial-gradient(120% 55% at 50% 14%, rgba(60,50,80,.16), transparent), var(--bg)}
+.ludo-players{display:flex;justify-content:space-around;gap:6px;width:100%;max-width:360px;flex-wrap:wrap}
+.ludo-pl{display:flex;align-items:center;gap:5px;opacity:.6;transition:.25s;padding:4px 8px;border-radius:12px;font-size:10px}
+.ludo-pl.active{opacity:1;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+.ludo-pl .dot{width:11px;height:11px;border-radius:50%}
+.ludo-pl .pn{color:var(--dim)}
+.ludo-pl .ph{color:var(--ink);font-weight:600}
+.ludo-board{width:100%;max-width:360px;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);
+  border:1.5px solid rgba(201,168,76,.3);border-radius:10px;overflow:hidden;background:#0d0b08;position:relative}
+.lc{position:relative;border:.5px solid rgba(255,255,255,.05)}
+.lc.path{background:#1a160f}
+.lc.safe{background:#2a2418}
+.lc.home-r{background:rgba(211,50,44,.30)}.lc.home-y{background:rgba(232,180,0,.28)}
+.lc.home-g{background:rgba(58,157,78,.28)}.lc.home-b{background:rgba(43,111,208,.30)}
+.lc.base-r{background:rgba(211,50,44,.16)}.lc.base-y{background:rgba(232,180,0,.15)}
+.lc.base-g{background:rgba(58,157,78,.15)}.lc.base-b{background:rgba(43,111,208,.16)}
+.lc.center{background:radial-gradient(circle,#c9a84c33,#0d0b08)}
+.ltok{position:absolute;width:74%;height:74%;top:13%;left:13%;border-radius:50%;border:1.5px solid rgba(255,255,255,.85);
+  box-shadow:0 1px 4px rgba(0,0,0,.5);transition:all .3s ease;z-index:3;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;cursor:pointer}
+.ltok.R{background:#d3322c}.ltok.Y{background:#e8b400}.ltok.G{background:#3a9d4e}.ltok.B{background:#2b6fd0}
+.ltok.you{box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5)}
+.ltok.playable{box-shadow:0 0 0 2px var(--accent2),0 0 8px var(--accent2);animation:ltokPulse 1s infinite}
+@keyframes ltokPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.ltok.stacked{font-size:8px}
+.ludo-talk{min-height:34px;text-align:center;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:16px;color:var(--ink);line-height:1.4;padding:2px 8px;max-width:360px}
+.ludo-controls{display:flex;align-items:center;gap:16px}
+.ludo-die{font-size:36px;width:52px;text-align:center}
+.ludo-die.rolling{animation:ludoDie .15s linear infinite}
+@keyframes ludoDie{0%{transform:rotate(0) scale(1.05)}25%{transform:rotate(90deg) scale(.92)}50%{transform:rotate(180deg) scale(1.08)}75%{transform:rotate(270deg) scale(.95)}100%{transform:rotate(360deg) scale(1.05)}}
+.ludo-roll{cursor:pointer;border:none;border-radius:14px;padding:13px 32px;font-size:15px;font-weight:600;letter-spacing:.05em;background:var(--ink);color:var(--bg)}
+.ludo-roll:disabled{opacity:.4}.ludo-roll:active{transform:scale(.97)}
+.ludo-win{text-align:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink);padding:8px}
+
 </style>
 </head>
 <body>
@@ -500,6 +536,23 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 </div>
 
 <!-- WHAT Z REMEMBERS -->
+
+<div class="screen" id="ludo">
+  <div class="t-head">
+    <div class="t-back" id="ludo-back">‹</div>
+    <div class="t-meta"><div class="t-name">Ludo · the table</div><div class="t-status mono" id="ludo-turn">roll a 6 to start</div></div>
+    <div style="width:34px"></div>
+  </div>
+  <div class="ludo-wrap">
+    <div class="ludo-players" id="ludo-players"></div>
+    <div class="ludo-board" id="ludo-board"></div>
+    <div class="ludo-talk" id="ludo-talk"></div>
+    <div class="ludo-controls">
+      <div class="ludo-die" id="ludo-die">🎲</div>
+      <button class="ludo-roll" id="ludo-roll" onclick="ludoRollClick()">Roll</button>
+    </div>
+  </div>
+</div>
 
 <div class="screen" id="uno">
   <div class="t-head">
@@ -1213,6 +1266,298 @@ async function unoReact(key,event,pIdx){
   }catch(e){}
 }
 
+/* ===== LUDO — you + the wannabe hustler, the comic, the brainiac ===== */
+// 15x15 grid. Standard Ludo. Main track = 52 cells (loop). Each color has an entry, a start cell,
+// a home-column of 5 cells leading to center, and a 4-token base.
+const LUDO={
+  players:[
+    {key:'you',          color:'B', name:'you',                ai:false, style:'you'},
+    {key:'the_wannabe',  color:'R', name:'the wannabe hustler',ai:true,  style:'bold'},
+    {key:'the_comic',    color:'G', name:'the comic',          ai:true,  style:'loose'},
+    {key:'the_brainiac', color:'Y', name:'the brainiac',       ai:true,  style:'sharp'}
+  ],
+  tokens:{}, // key -> [pos x4]; pos: -1=base, 0..51=track(absolute), 100..105=home column, 200=home/done
+  turn:0, dice:0, over:false, busy:false, sixStreak:0
+};
+// --- board coordinate tables (row,col on 15x15) ---
+// main track absolute index 0..51 mapped to grid cells (clockwise). Standard layout.
+const LUDO_TRACK=(()=>{
+  // build the classic Ludo path as [row,col] pairs, 52 cells, clockwise starting from red's entry
+  const p=[];
+  // top-left arm going down the left vertical, then standard clockwise. We'll hand-trace the canonical path.
+  // Using the well-known 52-cell coordinate sequence (0-indexed), red start at index 0 = (6,1)
+  const seq=[
+    [6,1],[6,2],[6,3],[6,4],[6,5],            // 0-4
+    [5,6],[4,6],[3,6],[2,6],[1,6],[0,6],      // 5-10
+    [0,7],                                    // 11
+    [0,8],[1,8],[2,8],[3,8],[4,8],[5,8],      // 12-17
+    [6,9],[6,10],[6,11],[6,12],[6,13],[6,14], // 18-23
+    [7,14],                                   // 24
+    [8,14],[8,13],[8,12],[8,11],[8,10],[8,9], // 25-30
+    [9,8],[10,8],[11,8],[12,8],[13,8],[14,8], // 31-36
+    [14,7],                                   // 37
+    [14,6],[13,6],[12,6],[11,6],[10,6],[9,6], // 38-43
+    [8,5],[8,4],[8,3],[8,2],[8,1],[8,0],      // 44-49
+    [7,0],[6,0]                               // 50-51
+  ];
+  for(const c of seq) p.push(c);
+  return p; // length 52
+})();
+// each color: start index on track, and home-column cells (5) + center
+const LUDO_COLORS={
+  R:{start:1,  entry:51, home:[[7,1],[7,2],[7,3],[7,4],[7,5]],  base:[[1,1],[1,3],[3,1],[3,3]],     cls:'r'},
+  G:{start:14, entry:12, home:[[1,7],[2,7],[3,7],[4,7],[5,7]],  base:[[1,11],[1,13],[3,11],[3,13]], cls:'g'},
+  Y:{start:27, entry:25, home:[[7,13],[7,12],[7,11],[7,10],[7,9]],base:[[11,11],[11,13],[13,11],[13,13]],cls:'y'},
+  B:{start:40, entry:38, home:[[13,7],[12,7],[11,7],[10,7],[9,7]],base:[[11,1],[11,3],[13,1],[13,3]], cls:'b'}
+};
+const LUDO_SAFE=new Set([1,9,14,22,27,35,40,48]); // start cells + star cells
+function ludoInit(){
+  LUDO.tokens={};
+  LUDO.players.forEach(p=>{ LUDO.tokens[p.key]=[-1,-1,-1,-1]; });
+  LUDO.turn=0; LUDO.dice=0; LUDO.over=false; LUDO.busy=false; LUDO.sixStreak=0;
+}
+function ludoCellIdx(r,c){ return r*15+c; }
+function ludoBuildBoard(){
+  const b=$('ludo-board'); b.innerHTML='';
+  const cells=[];
+  for(let i=0;i<225;i++){ const d=document.createElement('div'); d.className='lc'; cells.push(d); }
+  // paint bases
+  for(const col in LUDO_COLORS){
+    const C=LUDO_COLORS[col];
+    // base quadrant: find the 6x6 corner block
+  }
+  // paint base quadrants (corners)
+  const quad=(r0,c0,cls)=>{ for(let r=r0;r<r0+6;r++)for(let c=c0;c<c0+6;c++) cells[ludoCellIdx(r,c)].className='lc base-'+cls; };
+  quad(0,0,'r'); quad(0,9,'g'); quad(9,9,'y'); quad(9,0,'b');
+  // paint track
+  LUDO_TRACK.forEach(([r,c],i)=>{ cells[ludoCellIdx(r,c)].className='lc path'+(LUDO_SAFE.has(i)?' safe':''); });
+  // paint home columns
+  for(const col in LUDO_COLORS){ LUDO_COLORS[col].home.forEach(([r,c])=>{ cells[ludoCellIdx(r,c)].className='lc home-'+LUDO_COLORS[col].cls; }); }
+  // center
+  for(let r=6;r<9;r++)for(let c=6;c<9;c++) cells[ludoCellIdx(r,c)].className='lc center';
+  cells.forEach(c=>b.appendChild(c));
+  ludoPlaceTokens();
+}
+function ludoTokenCell(pkey, ti){
+  const p=LUDO.players.find(x=>x.key===pkey); const C=LUDO_COLORS[p.color];
+  const pos=LUDO.tokens[pkey][ti];
+  if(pos===-1) return C.base[ti];           // in base
+  if(pos>=200) return [7,7];                 // done (center)
+  if(pos>=100){ return C.home[pos-100]; }    // home column
+  return LUDO_TRACK[pos%52];                 // on track
+}
+function ludoPlaceTokens(){
+  document.querySelectorAll('.ltok').forEach(t=>t.remove());
+  const board=$('ludo-board');
+  // group tokens by cell for stacking
+  const at={};
+  LUDO.players.forEach(p=>{
+    LUDO.tokens[p.key].forEach((pos,ti)=>{
+      const [r,c]=ludoTokenCell(p.key,ti);
+      const k=r+'-'+c; (at[k]=at[k]||[]).push({p,ti});
+    });
+  });
+  for(const k in at){
+    const [r,c]=k.split('-').map(Number);
+    const cell=board.children[ludoCellIdx(r,c)];
+    at[k].forEach(({p,ti},n)=>{
+      const t=document.createElement('div');
+      const playable = !p.ai && ludoCanMove(p.key,ti) && LUDO.turn===0 && LUDO.dice>0 && !LUDO.busy;
+      t.className='ltok '+p.color+(p.key==='you'?' you':'')+(playable?' playable':'');
+      t.style.transform=`translate(${n*12}%,${n*12}%)`;
+      t.textContent=ti+1;
+      t.onclick=()=>{ if(playable) ludoMoveToken(p.key,ti); };
+      cell.appendChild(t);
+    });
+  }
+}
+function ludoTalk(t){ $('ludo-talk').textContent=t; }
+function openLudo(){
+  ludoInit();
+  show('ludo'); ludoBuildBoard(); ludoRenderPlayers();
+  $('ludo-roll').disabled=false; $('ludo-roll').textContent='Roll';
+  ludoTalk("aight, four of us, four tokens each. roll a 6 to break out. you're up, champ.");
+}
+function ludoRenderPlayers(){
+  const w=$('ludo-players'); w.innerHTML='';
+  LUDO.players.forEach((p,i)=>{
+    const done=LUDO.tokens[p.key].filter(x=>x>=200).length;
+    const colmap={R:'#d3322c',Y:'#e8b400',G:'#3a9d4e',B:'#2b6fd0'};
+    w.innerHTML+=`<div class="ludo-pl${i===LUDO.turn&&!LUDO.over?' active':''}"><span class="dot" style="background:${colmap[p.color]}"></span><span class="pn">${p.key==='you'?'you':nameFor(p.key)}</span><span class="ph">${done}/4</span></div>`;
+  });
+}
+function ludoCanMove(pkey, ti){
+  const pos=LUDO.tokens[pkey][ti];
+  const d=LUDO.dice;
+  if(pos>=200) return false;            // already home
+  if(pos===-1) return d===6;            // need 6 to leave base
+  if(pos>=100){ return (pos-100)+d<=5; } // home column: exact-ish, must not overshoot past center (idx5=center)
+  // on track: compute steps to entry then home col
+  const p=LUDO.players.find(x=>x.key===pkey); const C=LUDO_COLORS[p.color];
+  return true; // movement validity computed in move (handles home entry)
+}
+function ludoTokenTarget(pkey,ti){
+  // returns the new pos value after moving dice steps, or null if illegal
+  const pos=LUDO.tokens[pkey][ti]; const d=LUDO.dice;
+  const p=LUDO.players.find(x=>x.key===pkey); const C=LUDO_COLORS[p.color];
+  if(pos===-1){ return d===6 ? C.start : null; }
+  if(pos>=100){ const ni=(pos-100)+d; return ni<=5 ? (ni===5?200:100+ni) : null; }
+  // on track: count distance to this color's entry, then into home col
+  // steps from start(=C.start) traveling forward; home entry is C.entry, then home column
+  // distance traveled so far along this color's route:
+  let rel=(pos - C.start + 52)%52;       // 0..51 along route
+  let nrel=rel+d;
+  if(nrel<=50){ // still on the main loop (51 cells before home column; entry handled by route length)
+    return (C.start + nrel)%52;
+  }
+  // entering home column: route main length is 51 steps then 5 home cells then center
+  const intoHome=nrel-51;                 // 1..
+  if(intoHome>=1 && intoHome<=5){ return intoHome===5?200:100+(intoHome-1); }
+  if(intoHome===6) return 200;            // exact center
+  return null;                            // overshoot
+}
+async function ludoMoveToken(pkey, ti){
+  if(LUDO.busy) return;
+  const target=ludoTokenTarget(pkey,ti);
+  if(target===null){ if(pkey==='you') ludoTalk("can't move that one — need a different roll."); return; }
+  LUDO.busy=true;
+  // animate step-by-step along the route
+  const startPos=LUDO.tokens[pkey][ti];
+  // simple: set final pos, animate via transition (token positions recompute)
+  LUDO.tokens[pkey][ti]=target;
+  ludoPlaceTokens();
+  await new Promise(r=>setTimeout(r,420));
+  // capture check (only on track, only on non-safe)
+  if(target<100){
+    const trackAbs=target%52;
+    if(!LUDO_SAFE.has(trackAbs)){
+      for(const op of LUDO.players){
+        if(op.key===pkey) continue;
+        op.tokens=LUDO.tokens[op.key];
+        op.tokens.forEach((opos,oti)=>{
+          if(opos<100 && opos>=0 && (opos%52)===trackAbs){
+            LUDO.tokens[op.key][oti]=-1; // send home
+            ludoReact(pkey,'capture',op.key);
+          }
+        });
+      }
+    }
+  }
+  ludoPlaceTokens(); ludoRenderPlayers();
+  if(target>=200){ ludoReact(pkey,'token_home',null); }
+  // win?
+  if(LUDO.tokens[pkey].every(x=>x>=200)){ LUDO.busy=false; return ludoWin(pkey); }
+  // a 6 grants another turn
+  const wasSix=LUDO.dice===6;
+  LUDO.dice=0;
+  LUDO.busy=false;
+  if(wasSix && !LUDO.over){ ludoTalk(pkey==='you'?"a SIX — roll again!":nameFor(pkey)+" rolled a six — goes again."); if(pkey!=='you'){ await new Promise(r=>setTimeout(r,1200)); ludoAITurn(); } else { ludoRenderPlayers(); ludoPlaceTokens(); $('ludo-roll').disabled=false; } return; }
+  ludoAdvanceTurn();
+}
+function ludoAdvanceTurn(){
+  LUDO.turn=(LUDO.turn+1)%4; LUDO.dice=0; LUDO.sixStreak=0;
+  ludoRenderPlayers(); ludoPlaceTokens();
+  if(LUDO.players[LUDO.turn].ai){ setTimeout(ludoAITurn, 900); }
+  else { $('ludo-roll').disabled=false; ludoTalk("your turn — roll."); }
+}
+async function ludoRollDice(){
+  const die=$('ludo-die');
+  die.classList.add('rolling');
+  // anticipation: tumble for ~1.3s, flashing random faces
+  const faces=['⚀','⚁','⚂','⚃','⚄','⚅'];
+  const t0=Date.now();
+  while(Date.now()-t0<1300){ die.textContent=faces[Math.floor(Math.random()*6)]; await new Promise(r=>setTimeout(r,90)); }
+  const v=1+Math.floor(Math.random()*6);
+  die.textContent=faces[v-1]; die.classList.remove('rolling');
+  LUDO.dice=v;
+  return v;
+}
+async function ludoRollClick(){
+  if(LUDO.busy||LUDO.over||LUDO.turn!==0) return;
+  $('ludo-roll').disabled=true; LUDO.busy=true;
+  const v=await ludoRollDice();
+  LUDO.busy=false;
+  ludoTalk("you rolled a "+v+".");
+  // any legal move?
+  const me=LUDO.players[0];
+  const moves=[0,1,2,3].filter(ti=>ludoTokenTarget('you',ti)!==null);
+  if(!moves.length){
+    ludoTalk("rolled a "+v+" — no legal move. turn passes.");
+    LUDO.dice=0; await new Promise(r=>setTimeout(r,1100)); ludoAdvanceTurn(); return;
+  }
+  if(moves.length===1){ await ludoMoveToken('you',moves[0]); return; }
+  ludoPlaceTokens(); // highlight playable tokens, wait for tap
+  ludoTalk("tap a glowing token to move it.");
+}
+function ludoAIChoose(pkey){
+  const moves=[0,1,2,3].map(ti=>({ti,target:ludoTokenTarget(pkey,ti)})).filter(m=>m.target!==null);
+  if(!moves.length) return null;
+  const p=LUDO.players.find(x=>x.key===pkey);
+  // score moves: capture > get home > leave base > advance; brainiac weighs safety
+  const score=(m)=>{
+    let sc=0;
+    if(m.target>=200) sc+=100;                         // bringing a token home
+    if(LUDO.tokens[pkey][m.ti]===-1) sc+=30;           // leaving base (only on 6)
+    if(m.target<100){
+      const abs=m.target%52;
+      // capture?
+      for(const op of LUDO.players){ if(op.key===pkey)continue; for(const opos of LUDO.tokens[op.key]){ if(opos<100&&opos>=0&&(opos%52)===abs && !LUDO_SAFE.has(abs)) sc+=80; } }
+      if(p.style==='sharp' && LUDO_SAFE.has(abs)) sc+=15; // brainiac likes safe squares
+      sc+=m.target%52*0.1;
+    }
+    return sc;
+  };
+  moves.sort((a,b)=>score(b)-score(a));
+  if(p.style==='loose' && moves.length>1 && Math.random()<0.4) return moves[Math.floor(Math.random()*moves.length)];
+  return moves[0];
+}
+async function ludoAITurn(){
+  if(LUDO.over) return;
+  const pkey=LUDO.players[LUDO.turn].key;
+  LUDO.busy=true; ludoRenderPlayers();
+  await new Promise(r=>setTimeout(r,700));
+  const v=await ludoRollDice();
+  ludoTalk(nameFor(pkey)+" rolled a "+v+".");
+  await new Promise(r=>setTimeout(r,900));
+  const choice=ludoAIChoose(pkey);
+  LUDO.busy=false;
+  if(!choice){
+    ludoReact(pkey,'no_move',null);
+    LUDO.dice=0;
+    await new Promise(r=>setTimeout(r,3000));
+    ludoAdvanceTurn(); return;
+  }
+  await ludoMoveToken(pkey, choice.ti);
+  // read beat handled in move (six) / advanceTurn
+  if(!LUDO.over && LUDO.turn!==0){ /* next AI scheduled by advanceTurn */ }
+  // pacing read beat
+  await new Promise(r=>setTimeout(r,3200));
+}
+function ludoWin(pkey){
+  LUDO.over=true; LUDO.busy=false;
+  ludoRenderPlayers();
+  const c=document.createElement('div'); c.className='ludo-win';
+  if(pkey==='you'){ c.textContent='🏆 you win!'; ludoTalk("ALL four home! you cleaned UP, champ!"); }
+  else { c.textContent=nameFor(pkey)+' wins'; ludoReact(pkey,'win',null); }
+  $('ludo-talk').after(c);
+  const rb=$('ludo-roll'); rb.disabled=false; rb.textContent='Play again'; rb.onclick=()=>{ c.remove(); openLudo(); };
+}
+const LUDO_LOCAL={
+  the_wannabe:{ capture:["SENT YOU HOME, baby! all the way back! hahaha!","GOTCHA! pack your bags, see you at square one!"], token_home:["one token HOME! who's the king?? ME!","that's ONE in the bag, baby!"], no_move:["man, NOTHIN'? this dice HATES me.","no move?? rigged. RIGGED i say."], win:["I WIN! four tokens HOME! bow down!"] },
+  the_brainiac:{ capture:["Calculated capture. Back to base you go.","Sending that home was statistically correct."], token_home:["One token secured. As planned.","Home. Precisely on schedule."], no_move:["No legal move. Suboptimal dice.","Nothing. The variance is irritating."], win:["All four home. The math always wins."] },
+  the_comic:{ capture:["SENT one home! sorry not sorry! okay slightly sorry!","bye bye little token! it was nice knowing you!"], token_home:["one's home! it's a Christmas miracle!","got one in! I'm basically a pro now!"], no_move:["no move? story of my life, honestly.","nothing. the dice and I are in a fight."], win:["I WON LUDO?? call my mother!"] }
+};
+async function ludoReact(pkey,event,victimKey){
+  const set=LUDO_LOCAL[pkey]||{}; const pool=set[event]||[nameFor(pkey)+'...'];
+  ludoTalk(pool[Math.floor(Math.random()*pool.length)]);
+  try{
+    const vic=victimKey?(' (victim: '+nameFor(victimKey)+')'):'';
+    const ctx=`You are ${nameFor(pkey)} playing Ludo with the player, the comic, the brainiac, the wannabe hustler. Event: ${event}${vic}. ONE short in-character line, max 14 words. No quotes.`;
+    const r=await zfetch('/banter',{method:'POST',headers:HDRS(),body:JSON.stringify({persona:pkey,prompt:ctx})});
+    if(r.ok){ const j=await r.json(); if(j.line) ludoTalk(j.line.trim()); }
+  }catch(e){}
+}
+
 let seriousMode = localStorage.getItem('z_serious')==='1';
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
@@ -1354,6 +1699,7 @@ var _ss=$('prow-serious'); if(_ss)_ss.onclick=toggleSerious; paintSeriousSwitch(
 var _bjb=$('bj-back'); if(_bjb)_bjb.onclick=()=>bjLeave();
 var _snb=$('snl-back'); if(_snb)_snb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
 var _unb=$('uno-back'); if(_unb)_unb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
+var _ldb=$('ludo-back'); if(_ldb)_ldb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
 var _so=$('send-otp'); if(_so)_so.onclick=sendOtp;
 var _vo=$('verify-otp'); if(_vo)_vo.onclick=verifyOtp;
 var _ob=$('otp-back'); if(_ob)_ob.onclick=function(){$('door-phase-otp').style.display='none';$('door-phase-phone').style.display='block';doorNote('otp-note','');};
@@ -1828,6 +2174,7 @@ const ARENA_GAMES=[
   {id:'blackjack', name:'Blackjack', ic:'🃏', persona:'the_wannabe', type:'table', desc:"the wannabe hustler deals. beat the house, baby."},
   {id:'snakes', name:'Snakes & Ladders', ic:'🐍', persona:'the_wannabe', type:'table', desc:"race the wannabe hustler to 100. saanp seedhi, baby."},
   {id:'uno', name:'UNO', ic:'🎴', persona:'the_wannabe', type:'table', desc:"you + the hustler, the comic & the brainiac. first to empty wins."},
+  {id:'ludo', name:'Ludo', ic:'🎲', persona:'the_wannabe', type:'table', desc:"the desi classic. you + 3 at the table. all four home wins."},
 ];
 let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
 
@@ -1839,7 +2186,7 @@ async function renderArena(){
   const chips=Object.keys(rec).map(g=>{const x=rec[g];return `<span class="chip">${g}: ${x.wins}W ${x.losses}L</span>`;}).join('');
   if(chips) html+='<div class="arena-rec">'+chips+'</div>';
   ARENA_GAMES.forEach(g=>{
-    const onc = g.type==='table' ? (g.id==='blackjack'?'openBlackjack()':g.id==='snakes'?'openSnakes()':g.id==='uno'?'openUno()':'') : `startArena('${g.id}','${g.persona}')`;
+    const onc = g.type==='table' ? (g.id==='blackjack'?'openBlackjack()':g.id==='snakes'?'openSnakes()':g.id==='uno'?'openUno()':g.id==='ludo'?'openLudo()':'') : `startArena('${g.id}','${g.persona}')`;
     html+=`<div class="gcard" onclick="${onc}"><div class="gic">${g.ic}</div><div><div class="gname">${g.name}</div><div class="gdesc">${g.desc}</div></div></div>`;
   });
   html+='</div>';
