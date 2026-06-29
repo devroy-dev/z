@@ -54,7 +54,9 @@ const otpClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_A
 // NEVER the crush, self-loathing/self-obsessed, addict, hottie, wingman, stranger (1:1 only).
 const SHAREABLE_PERSONAS = new Set([
   'the_guru','the_oracle','the_brainiac','the_brother','the_healer',
-  'the_comic','the_mentor','the_colleague',
+  'the_comic','the_mentor','the_colleague','the_philosopher','the_historian',
+  'the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher',
+  'the_economist','the_leader_opp','the_wannabe','the_orator',
 ]);
 
 const OPEN_MODE = (process.env.OPEN_MODE ?? 'true') === 'true';
