@@ -832,7 +832,7 @@ async function loadHistory(key){
     msgs.forEach(m=>{
       if(m.role==='user'){convo.appendChild(bubble('me',m.content));}
       else if(j.is_group&&m.persona_key){ // group: tagged bubble with face+name
-        const w=gBubble(m.persona_key); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
+        const w=gBubble(m.persona_key); w.querySelector('.gz-text').innerHTML=mdRender(m.content||''); convo.appendChild(w);
       } else {convo.appendChild(bubble('z',m.content));}
     });
     convo.scrollTop=convo.scrollHeight;
@@ -848,7 +848,7 @@ async function loadGroupHistory(g){
     const convo=$('convo');
     msgs.forEach(m=>{
       if(m.role==='user'){convo.appendChild(bubble('me',m.content));}
-      else{const w=gBubble(m.persona_key||GROUP_OK[0]); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);}
+      else{const w=gBubble(m.persona_key||GROUP_OK[0]); w.querySelector('.gz-text').innerHTML=mdRender(m.content||''); convo.appendChild(w);}
     });
     convo.scrollTop=convo.scrollHeight;
   }catch(e){}
@@ -863,7 +863,7 @@ function roomHumanBubble(name, text, mine){
   const wrap=document.createElement('div'); wrap.className='gz';
   wrap.innerHTML='<div class="gz-face"></div><div class="gz-body"><div class="gz-name human"></div><div class="gz-text"></div></div>';
   wrap.querySelector('.gz-name').textContent=name||'someone';
-  wrap.querySelector('.gz-text').textContent=text;
+  wrap.querySelector('.gz-text').innerHTML=mdRender(text||'');
   return wrap;
 }
 /* ===== REALTIME (Supabase) — live messages in shared rooms ===== */
@@ -908,8 +908,8 @@ function onLiveMessage(m){
   } else {
     // persona reply: fill the waiting typing bubble (single source = realtime, no double)
     if(_pendingReply&&_pendingReply.typing){ const tb=_pendingReply.typing; _pendingReply=null;
-      tb.querySelector('.gz-text').textContent=m.content; requestAnimationFrame(()=>{convo.scrollTop=convo.scrollHeight;}); return; }
-    const w=gBubble(m.persona_key||activeRoom.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
+      tb.querySelector('.gz-text').innerHTML=mdRender(m.content||''); requestAnimationFrame(()=>{convo.scrollTop=convo.scrollHeight;}); return; }
+    const w=gBubble(m.persona_key||activeRoom.persona); w.querySelector('.gz-text').innerHTML=mdRender(m.content||''); convo.appendChild(w);
   }
   requestAnimationFrame(()=>{ convo.scrollTop=convo.scrollHeight; });
 }
@@ -1009,7 +1009,7 @@ async function loadRoomHistory(r){
     msgs.forEach(m=>{
       const k=m.created_at||(m.role+':'+m.content); _renderedIds.add(k);
       if(m.role==='user'){ convo.appendChild(roomHumanBubble(m.sender_name, m.content, !!m.mine)); }
-      else{ const w=gBubble(m.persona_key||r.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w); }
+      else{ const w=gBubble(m.persona_key||r.persona); w.querySelector('.gz-text').innerHTML=mdRender(m.content||''); convo.appendChild(w); }
     });
     convo.scrollTop=convo.scrollHeight;
   }catch(e){}
@@ -1117,17 +1117,22 @@ async function sendGroup(text){
           const p=line.slice(5).trim(); if(!p)return;
           let ev; try{ev=JSON.parse(p);}catch(_){return;}
           if(ev.speaker&&ev.name&&!ev.token&&!ev.end){
+            // finalize the previous speaker's bubble as markdown
+            if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
             // new speaker starting
             curKey=ev.speaker; acc=''; cur=gBubble(curKey); $('convo').appendChild(cur);
             $('convo').scrollTop=$('convo').scrollHeight;
           } else if(ev.speaker&&typeof ev.token==='string'){
             if(cur){acc+=ev.token; cur.querySelector('.gz-text').textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;}
+          } else if(ev.end){
+            if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
           } else if(ev.error){const e=gBubble(curKey||GROUP_OK[0]); e.querySelector('.gz-text').textContent='('+ev.error+')'; $('convo').appendChild(e);}
         });
       }
     };
     while(true){const{done,value}=await reader.read(); if(done)break; buf+=dec.decode(value,{stream:true}); drain();}
     buf+='\n\n'; drain();
+    if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
   }catch(e){}
   $('convo').scrollTop=$('convo').scrollHeight;
 }
