@@ -371,6 +371,8 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .uno-cp-row{display:flex;gap:12px}
 .cp{width:40px;height:40px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.7)}
 .cp:active{transform:scale(.92)}.cp.red{background:#d3322c}.cp.yellow{background:#e8b400}.cp.green{background:#3a9d4e}.cp.blue{background:#2b6fd0}
+.uno-tips-toggle{font-size:17px;padding:6px;cursor:pointer;opacity:.5;transition:.2s}
+.uno-tips-toggle.on{opacity:1}
 .uno-win{text-align:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink);padding:10px}
 
 </style>
@@ -503,7 +505,7 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
   <div class="t-head">
     <div class="t-back" id="uno-back">‹</div>
     <div class="t-meta"><div class="t-name">UNO · the table</div><div class="t-status mono" id="uno-turn">your table — first to empty wins</div></div>
-    <div style="width:34px"></div>
+    <div class="uno-tips-toggle" id="uno-tips" onclick="unoToggleTips()" title="hints">💡</div>
   </div>
   <div class="uno-wrap">
     <div class="uno-opps" id="uno-opps"></div>
@@ -988,7 +990,7 @@ function openUno(){
   UNO.discard.push(first); UNO.top=first;
   UNO.color = first.c==='W' ? 'R' : first.c;
   UNO.turn=0;
-  show('uno'); unoRender();
+  show('uno'); const tb=$('uno-tips'); if(tb) tb.classList.toggle('on',unoHints); unoRender();
   unoTalk("aight, table's set. you, me, the comic, the brainiac. first to empty wins. your move, champ.");
 }
 function unoRender(){
@@ -1009,15 +1011,18 @@ function unoRender(){
   me.hand.forEach((card,idx)=>{
     const can = yourTurn && unoCanPlay(card);
     const el=document.createElement('div');
-    el.innerHTML=unoCardHTML(card,false,can);
-    const c=el.firstChild; if(!can && yourTurn) c.classList.add('dim');
-    c.onclick=()=>{ if(yourTurn && unoCanPlay(card)) unoPlay(0,idx); };
+    el.innerHTML=unoCardHTML(card,false, unoHints && can);  // highlight only if hints on
+    const c=el.firstChild; if(unoHints && !can && yourTurn) c.classList.add('dim');  // dim only if hints on
+    c.onclick=()=>{ if(yourTurn && unoCanPlay(card)) unoPlay(0,idx); else if(yourTurn && !unoHints) unoNudgeInvalid(); };
     h.appendChild(c);
   });
   // turn label
   $('uno-turn').textContent = UNO.over ? 'game over' : (UNO.turn===0?'your turn — play a card or draw':`${nameFor(UNO.players[UNO.turn].key)}'s turn…`);
 }
+let unoHints = (localStorage.getItem('z_uno_hints')??'1')==='1';
+function unoToggleTips(){ unoHints=!unoHints; localStorage.setItem('z_uno_hints', unoHints?'1':'0'); const b=$('uno-tips'); if(b){ b.classList.toggle('on',unoHints); b.textContent=unoHints?'💡':'💡'; b.title=unoHints?'hints on':'hints off'; } unoRender(); }
 function unoTalk(t){ $('uno-talk').textContent=t; }
+function unoNudgeInvalid(){ unoTalk("can't play that one — match the color or the number."); }
 function unoNextTurn(skip){
   let step = skip?2:1;
   UNO.turn = (UNO.turn + UNO.dir*step + UNO.players.length*2) % UNO.players.length;
@@ -1118,7 +1123,7 @@ function unoAiChoose(p){
 async function unoDriveAI(){
   while(!UNO.over && UNO.turn!==0){
     UNO.busy=true; unoRender();
-    await new Promise(r=>setTimeout(r,900));
+    await new Promise(r=>setTimeout(r,1200));
     const p=UNO.players[UNO.turn];
     const choice=unoAiChoose(p);
     if(!choice){
@@ -1130,6 +1135,8 @@ async function unoDriveAI(){
     } else {
       await unoAiPlayCard(UNO.turn, choice.i);
     }
+    unoRender();
+    await new Promise(r=>setTimeout(r,800));
     UNO.busy=false; unoRender();
     if(UNO.over) return;
   }
@@ -1142,8 +1149,10 @@ async function unoAiPlayCard(pIdx, cardIdx){
   if(card.c==='W') card.color=unoAiPickColor(p);
   UNO.discard.push(card); UNO.top=card; UNO.color = card.c==='W'?card.color:card.c;
   unoRender();
-  if(['D2','WD4','S'].includes(card.v)) unoReact(p.key, card.v==='WD4'?'play_d4':card.v==='D2'?'play_d2':'play_skip', pIdx);
-  if(p.hand.length===1){ unoReact(p.key,'uno',pIdx); }
+  // the table ALWAYS talks — every play gets an in-character line (the soul of the arena)
+  const ev = card.v==='WD4'?'play_d4':card.v==='D2'?'play_d2':card.v==='S'?'play_skip':'play';
+  await unoReact(p.key, ev, pIdx);
+  if(p.hand.length===1){ await unoReact(p.key,'uno',pIdx); }
   if(p.hand.length===0){ unoWin(pIdx); return; }
   const {skip}=await unoApplyCard(card,pIdx);
   unoNextTurn(skip);
@@ -1160,22 +1169,45 @@ function unoWin(pIdx){
   const dp=$('uno-draw'); dp.onclick=()=>{ c.remove(); openUno(); };
   dp.querySelector('.uno-pilelabel').textContent='play again';
 }
+const UNO_LOCAL={
+  the_wannabe:{
+    play:["aight, watch THIS.","boom. read it and weep.","that's how it's DONE, baby."],
+    play_d2:["+2! draw 'em, sucker! hahaha!","+2 baby! the house always wins!"],
+    play_d4:["+4!! you SNAKE— wait that's ME. take that!","WILD +4! i'm RUTHLESS out here!"],
+    play_skip:["SKIP! sit DOWN, you don't get a turn!","skipped! nothin' personal. (it's personal.)"],
+    got_d2:["man WHO gave me a +2?! rigged!","ugh, +2. i'll remember this."],
+    got_d4:["+4?? on ME?? this table is HOSTILE!","four cards?! y'all are MONSTERS."],
+    uno:["UNOOO baby! one card! say goodnight!","ONE card left! you can't catch me!"],
+    win:["AYYE I WIN! told you! TOLD you! watch and LEARN!"]
+  },
+  the_brainiac:{
+    play:["Optimal.","As calculated.","Predictable, but I'll allow it.","Probability favored that."],
+    play_d2:["+2. Statistically your best punishment.","A +2 here maximizes my expected value."],
+    play_d4:["+4. I held it for precisely this moment.","Wild +4 — textbook timing, really."],
+    play_skip:["Skip. Your turn was a liability anyway.","Skipped. Tempo is everything."],
+    got_d2:["A +2? Mildly inefficient for you, but fine.","Noted. I'll recalibrate."],
+    got_d4:["Four cards. Statistically annoying.","+4. An emotional play. Effective, I concede."],
+    uno:["One card remaining. The math is closing.","UNO. This was always the trajectory."],
+    win:["And that's the game. The numbers never lied."]
+  },
+  the_comic:{
+    play:["bold move, let's see if it pays off — for me.","I have no plan and I'm thriving.","eeny meeny miny… this one."],
+    play_d2:["+2! a little gift. you're welcome.","+2 — consider it a love tap."],
+    play_d4:["+4! I'm not even sorry. okay slightly sorry.","wild +4! chaos is a ladder!"],
+    play_skip:["skip! see ya! wouldn't wanna be ya!","skipped — this is a comedy, not a democracy."],
+    got_d2:["a +2? rude. hilarious, but rude.","+2 for me? you shouldn't have. really."],
+    got_d4:["FOUR cards?? this is a hate crime against comedy.","+4?! my whole bit is ruined!"],
+    uno:["one card! the suspense! the drama!","UNO — somebody cue the dramatic music."],
+    win:["I WON? with no strategy?? art imitates life!"]
+  }
+};
 async function unoReact(key,event,pIdx){
-  const nm=nameFor(key);
-  const local={
-    play_d2:[nm+" drops a +2! someone's drawin'!"],
-    play_d4:[nm+" hits +4! oof, that's cold!"],
-    play_skip:[nm+" plays a skip — turn gone!"],
-    got_d2:[nm+" eats a +2. brutal."],
-    got_d4:[nm+" has to draw FOUR. savage."],
-    uno:[nm+" is on UNO — one card left!"],
-    win:[nm+" cleared the table!"]
-  };
-  const pool=local[event]||[''];
-  if(pool[0]) unoTalk(pool[0]);
-  // richer in-character line from the actual persona on big moments
+  const set=UNO_LOCAL[key]||{};
+  const pool=set[event]||set['play']||[nameFor(key)+' plays.'];
+  unoTalk(pool[Math.floor(Math.random()*pool.length)]);
+  // upgrade to a richer in-character line; await so it surfaces and holds
   try{
-    const ctx=`You are ${nm} playing UNO with the player, the comic, the brainiac, and the wannabe hustler. Event: ${event}. React with ONE short, in-character line (max 14 words). No quotes.`;
+    const ctx=`You are ${nameFor(key)} playing UNO at a table with the player, the comic, the brainiac, and the wannabe hustler. What just happened: ${event}. Say ONE short, in-character line reacting to it (max 14 words). Just the line, no quotes.`;
     const r=await zfetch('/banter',{method:'POST',headers:HDRS(),body:JSON.stringify({persona:key,prompt:ctx})});
     if(r.ok){ const j=await r.json(); if(j.line) unoTalk(j.line.trim()); }
   }catch(e){}
