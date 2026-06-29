@@ -47,6 +47,9 @@ const CODEX_FILES: Record<CodexKey, string> = {
   historian:     'codex-historian.md',
   cosmologist:   'codex-cosmologist.md',
   media_manager: 'codex-media-manager.md',
+  teacher:        'codex-teacher.md',
+  economist:      'codex-economist.md',
+  leader_opp:     'codex-leader-opposition.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};

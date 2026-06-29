@@ -8,7 +8,8 @@
 
 export type CodexKey =
   | 'intellect' | 'close' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru'
-  | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager';
+  | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
+  | 'teacher' | 'economist' | 'leader_opp';
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -31,6 +32,9 @@ export const PERSONAS: Record<string, Persona> = {
   the_historian:    { key: 'the_historian',    defaultName: 'the historian',    codex: 'historian',    webEnabled: true  },
   the_cosmologist:  { key: 'the_cosmologist',  defaultName: 'the cosmologist',  codex: 'cosmologist',  webEnabled: true  },
   the_media_manager:{ key: 'the_media_manager',defaultName: 'the media manager',codex: 'media_manager',webEnabled: true  },
+  the_teacher:      { key: 'the_teacher',      defaultName: 'the teacher',      codex: 'teacher',    webEnabled: true  },
+  the_economist:    { key: 'the_economist',    defaultName: 'the economist',    codex: 'economist',  webEnabled: true  },
+  the_leader_opp:   { key: 'the_leader_opp',   defaultName: 'the leader of opposition', codex: 'leader_opp', webEnabled: true },
   the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'people',    webEnabled: false },
   the_healer:       { key: 'the_healer',       defaultName: 'the healer',       codex: 'people',    webEnabled: false },
   the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'people',    webEnabled: false },
