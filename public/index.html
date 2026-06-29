@@ -500,6 +500,13 @@ body.serious .convo{position:relative;z-index:1}
 @keyframes fadeInSlow{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 body.serious .t-status{color:rgba(255,255,255,.32) !important}
 
+
+/* ===== BATCH 3: bluff turn clarity ===== */
+#bluff-turn.your-turn{color:#ffe08a !important;font-weight:700;letter-spacing:.03em;animation:turnPulse 1.4s ease-in-out infinite}
+@keyframes turnPulse{0%,100%{opacity:1}50%{opacity:.6}}
+.my-move #bluff-hand{box-shadow:0 -2px 24px rgba(255,224,138,.10)}
+.bluff-must{color:#ffe08a;font-size:13px;text-align:center;margin-bottom:8px;font-weight:600}
+
 </style>
 </head>
 <body>
@@ -1791,8 +1798,14 @@ function bluffRender(){
     const pass=document.createElement('button'); pass.className='bluff-btn ghost'; pass.textContent='let it slide';
     pass.onclick=()=>bluffPassCall(); cb.appendChild(pass);
   }
-  // turn label
-  $('bluff-turn').textContent = BLUFF.over?'game over':(BLUFF.turn===0?`your turn — claim ${bluffRankName(BLUFF.rank)}`:`${nameFor(BLUFF.players[BLUFF.turn].key)} is playing…`);
+  // turn label — make YOUR turn unmistakable
+  const tEl=$('bluff-turn');
+  if(BLUFF.over){ tEl.textContent='game over'; tEl.classList.remove('your-turn'); }
+  else if(yourTurn){ tEl.textContent=`▶ YOUR TURN — claim ${bluffRankName(BLUFF.rank)}`; tEl.classList.add('your-turn'); }
+  else if(BLUFF.awaitCall && BLUFF.lastPlay && BLUFF.lastPlay.by!=='you'){ tEl.textContent=`call it, or let it slide…`; tEl.classList.remove('your-turn'); }
+  else { tEl.textContent=`${nameFor(BLUFF.players[BLUFF.turn].key)} is playing…`; tEl.classList.remove('your-turn'); }
+  // highlight the whole table when it's your move
+  const tw=$('bluff-screen')||document.body; if(tw){ tw.classList.toggle('my-move', yourTurn || (BLUFF.awaitCall&&BLUFF.lastPlay&&BLUFF.lastPlay.by!=='you')); }
 }
 async function bluffPlay(){
   if(!BLUFF.sel.length) return;
@@ -1808,12 +1821,12 @@ async function bluffPlay(){
   bluffRender();
   bluffTalk(`you put down ${count}, claiming ${bluffRankName(claimRank)}…`);
   // do the AIs call you?
-  await new Promise(r=>setTimeout(r,1500));
+  await new Promise(r=>setTimeout(r,2400));
   const caller=bluffAIDecideCall('you');
   if(caller){ await bluffCall(caller); return; }
   bluffTalk("…nobody calls it. you're safe.");
   if(BLUFF.hands.you.length===0){ return bluffWin('you'); }
-  await new Promise(r=>setTimeout(r,1200));
+  await new Promise(r=>setTimeout(r,1800));
   bluffNext(); BLUFF.busy=false; bluffDriveAI();
 }
 function bluffNext(){ BLUFF.turn=(BLUFF.turn+1)%4; BLUFF.rank=(BLUFF.rank+1)%13; BLUFF.awaitCall=false; }
@@ -1821,7 +1834,7 @@ async function bluffCall(callerKey){
   BLUFF.busy=true; BLUFF.awaitCall=false;
   const lp=BLUFF.lastPlay;
   bluffTalk(`${callerKey==='you'?'you':nameFor(callerKey)} calls BLUFF on ${lp.by==='you'?'you':nameFor(lp.by)}!`);
-  await new Promise(r=>setTimeout(r,1600)); // suspense
+  await new Promise(r=>setTimeout(r,2200)); // suspense
   // reveal
   const wasLying = !lp.truth;
   const loser = wasLying ? lp.by : callerKey;
@@ -1832,7 +1845,7 @@ async function bluffCall(callerKey){
   BLUFF.pile=[];
   // banter from the caller + loser
   if(callerKey!=='you') bluffReact(callerKey, wasLying?'call_right':'call_wrong', lp.by);
-  await new Promise(r=>setTimeout(r,1400));
+  await new Promise(r=>setTimeout(r,2200));
   BLUFF.lastPlay=null;
   // the loser starts the next round (rank resets to where? classic: next player continues sequence; we reset to loser's turn, keep rank advancing)
   BLUFF.turn=BLUFF.players.findIndex(p=>p.key===loser);
@@ -1869,8 +1882,10 @@ function bluffAIPlay(pkey){
 function bluffAIDecideCall(byKey){
   // do any of the OTHER ai players call the play by byKey? returns caller key or null
   const lp=BLUFF.lastPlay;
+  if(!lp) return null;                 // nothing to call yet
   for(const p of BLUFF.players){
     if(p.key===byKey || !p.ai) continue;
+    if(!BLUFF.hands[p.key]) continue;
     // how many of the claimed rank does THIS ai hold? if it holds many, the claim is suspicious
     const holds=BLUFF.hands[p.key].filter(c=>c.r===lp.rank).length;
     let suspicion = (holds + lp.count) > 4 ? 0.9 : 0.12;       // >4 of a rank claimed impossible
@@ -1884,7 +1899,7 @@ function bluffAIDecideCall(byKey){
 async function bluffDriveAI(){
   while(!BLUFF.over && BLUFF.turn!==0){
     BLUFF.busy=true; bluffRender();
-    await new Promise(r=>setTimeout(r,1400));
+    await new Promise(r=>setTimeout(r,2600));
     const pkey=BLUFF.players[BLUFF.turn].key;
     const idxs=bluffAIPlay(pkey).sort((a,b)=>b-a);
     const played=idxs.map(i=>BLUFF.hands[pkey][i]);
@@ -1895,7 +1910,7 @@ async function bluffDriveAI(){
     BLUFF.lastPlay={by:pkey,count,rank:claimRank,cards:played,truth};
     bluffRender();
     bluffReact(pkey, truth?'play_truth':'play_bluff', null);
-    await new Promise(r=>setTimeout(r,2200));
+    await new Promise(r=>setTimeout(r,3400));
     // does anyone (incl you) call?
     const aiCaller=bluffAIDecideCall(pkey);
     if(aiCaller){ await bluffCall(aiCaller); if(BLUFF.over)return; continue; }
