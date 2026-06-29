@@ -7,7 +7,7 @@
 // not functions, so a user instantly knows who they're talking to.
 
 export type CodexKey =
-  | 'intellect' | 'close' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru'
+  | 'intellect' | 'close' | 'hottie' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru'
   | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
   | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator';
 
@@ -20,7 +20,7 @@ export interface Persona {
 
 export const PERSONAS: Record<string, Persona> = {
   the_wingman:      { key: 'the_wingman',      defaultName: 'the wingman',      codex: 'close',     webEnabled: false },
-  the_hottie:       { key: 'the_hottie',       defaultName: 'the hottie',       codex: 'close',     webEnabled: false },
+  the_hottie:       { key: 'the_hottie',       defaultName: 'the hottie',       codex: 'hottie',    webEnabled: false },
   the_comic:        { key: 'the_comic',        defaultName: 'the comic',        codex: 'comic',     webEnabled: true  },
   the_crush:        { key: 'the_crush',        defaultName: 'the crush',        codex: 'crush',     webEnabled: false },
   the_screen_junkie:{ key: 'the_screen_junkie',defaultName: 'the screen junkie',codex: 'intellect', webEnabled: true  },

@@ -34,6 +34,7 @@ const SMALL_TALK_WORLD = (() => { try { return stripBuildComment(load('handbook-
 const CODEX_FILES: Record<CodexKey, string> = {
   intellect: 'codex-intellect.md',
   close:     'codex-close.md',
+  hottie:    'codex-hottie.md',
   people:    'codex-people.md',
   shadow:    'codex-shadow.md',
   inner:     'codex-inner.md',
