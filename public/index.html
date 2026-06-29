@@ -614,24 +614,34 @@ async function loadGroupHistory(g){
 
 
 /* ===== SHARED ROOMS ===== */
+let _inviting=false;
 async function inviteToRoom(){
-  if(!active||!SHAREABLE.includes(active))return;
+  if(!active||!SHAREABLE.includes(active)||_inviting)return;
+  _inviting=true;
   $('sheet').classList.remove('on');
   try{
-    // create a room around this persona, then mint an invite link
-    const cr=await fetch('/rooms',{method:'POST',headers:HDRS(),
-      body:JSON.stringify({name:nameFor(active)+"'s room",persona:CAT[active].persona})});
-    const cj=await cr.json();
-    if(!cj.id){alert(cj.error||'could not create room');return;}
-    const ir=await fetch('/rooms/'+cj.id+'/invite',{method:'POST',headers:HDRS()});
+    const personaKey=CAT[active].persona;
+    // reuse an existing room for THIS persona if one already exists (no duplicates)
+    let roomId=null;
+    const existing=(rooms||[]).find(r=>r.persona===personaKey);
+    if(existing){ roomId=existing.id; }
+    else{
+      const cr=await fetch('/rooms',{method:'POST',headers:HDRS(),
+        body:JSON.stringify({name:nameFor(active)+"'s room",persona:personaKey})});
+      const cj=await cr.json();
+      if(!cj.id){alert(cj.error||'could not create room');_inviting=false;return;}
+      roomId=cj.id;
+      await loadRooms();
+    }
+    const ir=await fetch('/rooms/'+roomId+'/invite',{method:'POST',headers:HDRS()});
     const ij=await ir.json();
-    if(!ij.token){alert(ij.error||'could not make a link');return;}
+    if(!ij.token){alert(ij.error||'could not make a link');_inviting=false;return;}
     const link=location.origin+'/?join='+ij.token;
-    loadRooms();
     const msg="come chat with "+nameFor(active)+" with me on Anonymously Yours: "+link;
     if(navigator.share){ try{ await navigator.share({title:'Anonymously Yours',text:msg,url:link}); }catch(e){} }
     else { try{ await navigator.clipboard.writeText(link); alert('Invite link copied:\n'+link); }catch(e){ prompt('Share this link:',link); } }
   }catch(e){ alert('something went wrong making the room'); }
+  _inviting=false;
 }
 async function openRoom(r){
   activeRoom=r; activeGroup=null; active=null;
