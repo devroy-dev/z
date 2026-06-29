@@ -264,6 +264,7 @@ app.post('/me', async (req, res) => {
     const { displayName, region } = req.body ?? {};
     const patch: Record<string, unknown> = {};
     if (typeof displayName === 'string' && displayName.trim()) patch.display_name = displayName.trim().slice(0, 80);
+    if (typeof req.body?.seriousMode === 'boolean') patch.serious_mode = req.body.seriousMode;
     if (typeof region === 'string') patch.region = region.trim().slice(0, 120) || null;
     if (Object.keys(patch).length) {
       const { error } = await supabase.from('users').update(patch).eq('id', user.id);

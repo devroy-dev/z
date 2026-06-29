@@ -223,7 +223,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .searchbar:focus{border-color:var(--line-strong)}
 .search-x{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:20px;cursor:pointer;display:none;line-height:1}
 .searchwrap.has .search-x{display:block}
-.gz-name.human{color:#bdb4a6}.them-h{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);border-radius:14px 14px 14px 4px}.room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
+.gz-name.human{color:#bdb4a6}.them-h{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);border-radius:14px 14px 14px 4px}.prow-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.prow-sub{display:block;font-size:11px;color:var(--faint);margin-top:2px;font-style:italic}
+.z-switch{width:42px;height:24px;border-radius:14px;background:rgba(255,255,255,.12);position:relative;transition:background .2s;flex:0 0 auto}
+.z-switch.on{background:var(--accent2)}
+.z-knob{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s}
+.z-switch.on .z-knob{left:21px}
+.room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
 </style>
 </head>
 <body>
@@ -363,6 +369,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
     <h3 id="prof-hi">you</h3>
     <p id="prof-region"></p>
     <div class="prow" id="prow-edit">Edit your name / region</div>
+    <div class="prow prow-toggle" id="prow-serious">
+      <span>Serious mode <span class="prow-sub">just the ones who can hold real weight</span></span>
+      <span class="z-switch" id="serious-switch"><span class="z-knob"></span></span>
+    </div>
     <div class="prow" id="prow-notes">What Z remembers</div>
     <div class="prow" id="prow-signout" style="color:#e08a8a">Sign out</div>
     <div class="btn" id="profClose" style="background:transparent;width:100%;text-align:center;margin-top:6px">Close</div>
@@ -495,6 +505,7 @@ let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
 let rooms=[]; let activeRoom=null;
+const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
 const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
 async function loadThreads(){
@@ -629,6 +640,7 @@ var _pg=$('pin-go'); if(_pg)_pg.onclick=unlockPin;
 var _po=$('pin-otp'); if(_po)_po.onclick=goPhone;
 $('setpin')&&$('setpin').addEventListener('keydown',e=>{if(e.key==='Enter')setPin();});
 $('pin')&&$('pin').addEventListener('keydown',e=>{if(e.key==='Enter')unlockPin();});
+var _ss=$('prow-serious'); if(_ss)_ss.onclick=toggleSerious; paintSeriousSwitch();
 var _so=$('send-otp'); if(_so)_so.onclick=sendOtp;
 var _vo=$('verify-otp'); if(_vo)_vo.onclick=verifyOtp;
 var _ob=$('otp-back'); if(_ob)_ob.onclick=function(){$('door-phase-otp').style.display='none';$('door-phase-phone').style.display='block';doorNote('otp-note','');};
@@ -667,6 +679,7 @@ function renderContacts(q){
   ng.innerHTML='<div class="cface ngf">+</div><div class="cbody"><div class="cn">New group</div><div class="cd">put a few of your people in one room.</div></div>';
   ng.onclick=openGroupPicker; c.appendChild(ng);
   }
+  if(!seriousMode){ /* groups & rooms hidden in serious mode */ }
   // shared rooms (you + friends + a persona)
   (rooms||[]).filter(r=>!q||r.name.toLowerCase().includes(q)).forEach(r=>{
     const el=document.createElement('div'); el.className='contact';
@@ -696,6 +709,7 @@ function renderContacts(q){
     if(la&&lb)return lb-la; if(la)return -1; if(lb)return 1; return 0;
   });
   sortedKeys.forEach(key=>{
+    if(seriousMode && !SERIOUS_OK.includes(key))return;  // serious mode: only counselor-grade personas
     if(!match(key))return;
     const cat=CAT[key];
     const el=document.createElement('div'); el.className='contact';
@@ -838,6 +852,18 @@ async function leaveRoom(){
   activeRoom=null; unsubscribeRoom();
   $('sheet').classList.remove('on');
   renderContacts(); show('list');
+}
+
+
+/* ===== SERIOUS MODE (global toggle) ===== */
+let seriousMode = localStorage.getItem('z_serious')==='1';
+function paintSeriousSwitch(){ const sw=$('serious-switch'); if(sw) sw.classList.toggle('on', seriousMode); }
+async function toggleSerious(){
+  seriousMode=!seriousMode;
+  localStorage.setItem('z_serious', seriousMode?'1':'0');
+  paintSeriousSwitch();
+  renderContacts(); // re-filter the list
+  try{ await zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({seriousMode})}); }catch(e){}
 }
 
 /* ===== SHARED ROOMS ===== */

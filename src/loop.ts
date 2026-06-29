@@ -57,7 +57,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // the cached soul. Z greets and reasons knowing the actual person.
   const { data: owner } = await supabase
     .from('users')
-    .select('display_name, region')
+    .select('display_name, region, serious_mode')
     .eq('id', userId).maybeSingle();
   let ownerLine = '';
   if (owner && (owner.display_name || owner.region)) {
@@ -66,7 +66,13 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     ownerLine = `\n\n[WHO YOU'RE TALKING TO: ${who}${where}. This is the real person on the other end — speak to them by name when it's natural, mirror how people talk where they're from, and never read this aloud as a label.]`;
   }
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${memoryBlock}`;
+  // ── SERIOUS MODE (global, per-user): counselor-grade care, no bits ──────
+  let seriousLine = '';
+  if (owner && (owner as any).serious_mode) {
+    seriousLine = `\n\n[SERIOUS MODE IS ON. The person has chosen to set the playful, dry, joking register aside right now — they want real, careful support. For this conversation: drop all sarcasm, bits, teasing, and comedic deflection. Be a warm, grounded, genuinely supportive presence — the way a thoughtful counselor or a deeply trusted friend would be. Listen first. Validate feelings without amplifying distress. Never minimize, never perform. Stay honest and kind. If the person shows signs of crisis or real danger to themselves, gently and directly steer them toward real human support and appropriate resources — this is non-negotiable and overrides everything else. You are still yourself, just your most caring, serious self.]`;
+  }
+
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
