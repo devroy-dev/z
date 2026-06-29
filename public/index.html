@@ -723,12 +723,12 @@ function unsubscribeRoom(){
   if(_roomChannel&&_sb){ try{ _sb.removeChannel(_roomChannel); }catch(e){} _roomChannel=null; }
 }
 function onLiveMessage(m){
-  if(!activeRoom||!m)return;
-  if(String(m.thread_id)!==String(activeRoom.id))return;
+  if(!activeRoom||!m){ console.log('[RT] bail: no room/msg'); return; }
+  if(String(m.thread_id)!==String(activeRoom.id)){ console.log('[RT] bail: thread mismatch', m.thread_id, 'vs', activeRoom.id); return; }
   const key=m.created_at?(m.role+':'+m.content+':'+m.created_at):(m.role+':'+m.content);
-  if(_renderedIds.has(key))return; _renderedIds.add(key);
-  // my own human message is already on screen optimistically — skip
-  if(m.role==='user' && m.sender_user_id && _meId && m.sender_user_id===_meId)return;
+  if(_renderedIds.has(key)){ console.log('[RT] bail: already rendered'); return; } _renderedIds.add(key);
+  if(m.role==='user' && m.sender_user_id && _meId && m.sender_user_id===_meId){ console.log('[RT] bail: my own msg'); return; }
+  console.log('[RT] RENDERING', m.role, m.sender_user_id);
   const convo=$('convo');
   if(m.role==='user'){
     const nm=_roomMembers[m.sender_user_id]||'someone';
