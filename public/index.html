@@ -732,9 +732,9 @@ function onLiveMessage(m){
     const nm=_roomMembers[m.sender_user_id]||'someone';
     convo.appendChild(roomHumanBubble(nm, m.content, false));
   } else {
-    // persona reply: if we have a waiting typing bubble for it, fill that one (no duplicate)
-    if(_pendingReply){ clearTimeout(_pendingReply.t); const tb=_pendingReply.typing; _pendingReply=null;
-      if(tb){ tb.querySelector('.gz-text').textContent=m.content; convo.scrollTop=convo.scrollHeight; return; } }
+    // persona reply: fill the waiting typing bubble (single source = realtime, no double)
+    if(_pendingReply&&_pendingReply.typing){ const tb=_pendingReply.typing; _pendingReply=null;
+      tb.querySelector('.gz-text').textContent=m.content; requestAnimationFrame(()=>{convo.scrollTop=convo.scrollHeight;}); return; }
     const w=gBubble(m.persona_key||activeRoom.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
   }
   requestAnimationFrame(()=>{ convo.scrollTop=convo.scrollHeight; });
@@ -882,33 +882,19 @@ function gBubble(key){
   return wrap;
 }
 async function sendRoom(text){
-  // my own message, immediately
+  // my own message immediately
   $('convo').appendChild(roomHumanBubble(null,text,true));
-  $('convo').scrollTop=$('convo').scrollHeight;
-  // typing indicator while the persona thinks
-  let typing=gBubble(activeRoom.persona); typing.querySelector('.gz-text').innerHTML='<span style="opacity:.6">•••</span>'; $('convo').appendChild(typing); $('convo').scrollTop=$('convo').scrollHeight;
-  let streamedReply='';
+  requestAnimationFrame(()=>{const c=$('convo');c.scrollTop=c.scrollHeight;});
+  // a typing bubble that realtime will fill with the persona's reply
+  let typing=gBubble(activeRoom.persona); typing.querySelector('.gz-text').innerHTML='<span style="opacity:.55">•••</span>'; $('convo').appendChild(typing);
+  requestAnimationFrame(()=>{const c=$('convo');c.scrollTop=c.scrollHeight;});
+  _pendingReply={typing:typing};
   try{
     const r=await fetch('/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:activeRoom.id,message:text})});
-    if(!r.ok){ typing.remove(); return; }
-    const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
-    const drain=()=>{let i; while((i=buf.indexOf('\n\n'))>=0){const chunk=buf.slice(0,i);buf=buf.slice(i+2);
-      chunk.split('\n').forEach(line=>{line=line.trim();if(!line.startsWith('data:'))return;const p=line.slice(5).trim();if(!p)return;
-        let ev;try{ev=JSON.parse(p);}catch(_){return;}
-        if(ev.speaker&&typeof ev.token==='string'){ streamedReply+=ev.token; }
-        else if(ev.error){ streamedReply='('+ev.error+')'; }
-      });}};
-    while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});drain();}
-    buf+='\n\n';drain();
-  }catch(e){ try{typing.remove();}catch(_){}; return; }
-  // realtime should deliver the persisted reply and replace the typing dots.
-  // Fallback: if it hasn't arrived in 2.5s, render the streamed text ourselves.
-  const replyText=streamedReply.trim();
-  if(replyText) _pendingReply={text:replyText, typing:typing, t:setTimeout(()=>{
-    if(_pendingReply&&_pendingReply.typing){ _pendingReply.typing.querySelector('.gz-text').textContent=_pendingReply.text; _renderedIds.add('assistant:'+_pendingReply.text); _pendingReply=null; }
-  },2500)};
-  else { typing.remove(); }
-  $('convo').scrollTop=$('convo').scrollHeight;
+    if(!r.ok){ if(_pendingReply&&_pendingReply.typing)_pendingReply.typing.remove(); _pendingReply=null; return; }
+    // drain the stream so the server finishes; ignore tokens — realtime renders the reply once.
+    const reader=r.body.getReader(); while(true){const{done}=await reader.read(); if(done)break;}
+  }catch(e){ if(_pendingReply&&_pendingReply.typing)_pendingReply.typing.remove(); _pendingReply=null; }
 }
 async function sendGroup(text){
   $('convo').appendChild(bubble('me',text));
