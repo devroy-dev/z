@@ -10,6 +10,7 @@ import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
+import { broadcastRoomMessage } from './broadcast.js';
 
 const anthropic = new Anthropic();
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -25,7 +26,7 @@ export interface GroupTurnInput {
 }
 
 interface GroupThreadRow {
-  id: string; user_id: string; is_group: boolean;
+  id: string; user_id: string; is_group: boolean; is_shared?: boolean;
   member_keys: string[]; companion_name: string | null; game_mode?: string | null;
 }
 
@@ -75,6 +76,9 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
   // persist the user message
   await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: message, sender_user_id: userId });
+  if (t.is_shared) {
+    await broadcastRoomMessage(threadId, { role: 'user', content: message, sender_user_id: userId, sender_name: input.senderName ?? null });
+  }
 
   // build a readable transcript: each assistant line prefixed with WHO said it (by name),
   // so each persona knows who's in the room and who said what.
@@ -135,6 +139,9 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     await supabase.from('messages').insert({
       thread_id: threadId, user_id: userId, role: 'assistant', content: reply, persona_key: key,
     });
+    if (t.is_shared) {
+      await broadcastRoomMessage(threadId, { role: 'assistant', content: reply, persona_key: key });
+    }
     saidThisTurn.push(`${nameFor(key)}: ${reply}`);
     input.onPersonaEnd?.(key, reply);
   }

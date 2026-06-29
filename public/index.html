@@ -2138,9 +2138,16 @@ async function subscribeRoom(threadId){
   // subscribe WITHOUT a server-side filter (filters can silently drop events on the z schema);
   // we filter by thread_id in onLiveMessage instead.
   _roomChannel=sb.channel('room-'+threadId,{config:{broadcast:{self:false}}})
+    // PRIMARY: server-pushed broadcast (reliable; no WAL/RLS-on-socket dependency)
+    .on('broadcast',{event:'msg'},(payload)=>{
+      const m=payload&&payload.payload; if(!m)return;
+      console.log('[RT] broadcast', m.thread_id, m.role);
+      onLiveMessage(m);
+    })
+    // FALLBACK: postgres_changes (in case broadcast misses; dedup handles overlap)
     .on('postgres_changes',
       {event:'INSERT',schema:'z',table:'messages'},
-      (payload)=>{ console.log('[RT] event', payload&&payload.new&&payload.new.thread_id, payload&&payload.new&&payload.new.role); onLiveMessage(payload.new); })
+      (payload)=>{ console.log('[RT] pg_event', payload&&payload.new&&payload.new.thread_id, payload&&payload.new&&payload.new.role); onLiveMessage(payload.new); })
     .subscribe((status,err)=>{ console.log('[RT] status:', status, err||''); });
 }
 function unsubscribeRoom(){
