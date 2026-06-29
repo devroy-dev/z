@@ -2902,10 +2902,20 @@ loadLocal();
   // if arriving via an invite link and already signed in, join straight away
   const hasJoin=new URL(location.href).searchParams.get('join');
   if(hasJoin) localStorage.setItem('z_pending_join',hasJoin);
-  const tok=localStorage.getItem('z_token');
-  const exp=parseInt(localStorage.getItem('z_exp')||'0',10);
-  const tokenLive = tok && (!exp || Date.now()<exp-5000);
+  let tok=localStorage.getItem('z_token');
+  let exp=parseInt(localStorage.getItem('z_exp')||'0',10);
+  let tokenLive = tok && (!exp || Date.now()<exp-5000);
   const knownUser = localStorage.getItem('z_real_uid');
+  const haveRefresh = localStorage.getItem('z_refresh');
+  // KEEP THEM LOGGED IN: if the access token is stale but we have a refresh token,
+  // silently mint a fresh one BEFORE showing any login screen. The refresh token is
+  // long-lived, so an active account effectively stays signed in for weeks.
+  if(!tokenLive && knownUser && haveRefresh){
+    try{
+      const ok=await refreshToken();
+      if(ok){ tok=localStorage.getItem('z_token'); exp=parseInt(localStorage.getItem('z_exp')||'0',10); tokenLive = tok && (!exp || Date.now()<exp-5000); }
+    }catch(e){}
+  }
   if(tokenLive && localStorage.getItem('z_onboarded')){
     scheduleRefresh();
     renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
