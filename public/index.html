@@ -711,11 +711,13 @@ async function initRealtime(){
 async function subscribeRoom(threadId){
   const sb=await initRealtime(); if(!sb)return;
   unsubscribeRoom();
-  _roomChannel=sb.channel('room:'+threadId)
+  // subscribe WITHOUT a server-side filter (filters can silently drop events on the z schema);
+  // we filter by thread_id in onLiveMessage instead.
+  _roomChannel=sb.channel('room-'+threadId,{config:{broadcast:{self:false}}})
     .on('postgres_changes',
-      {event:'INSERT',schema:'z',table:'messages',filter:'thread_id=eq.'+threadId},
-      (payload)=>{ console.log('[RT] message in', payload.new&&payload.new.role); onLiveMessage(payload.new); })
-    .subscribe((status)=>{ console.log('[RT] channel status:', status); });
+      {event:'INSERT',schema:'z',table:'messages'},
+      (payload)=>{ console.log('[RT] event', payload&&payload.new&&payload.new.thread_id, payload&&payload.new&&payload.new.role); onLiveMessage(payload.new); })
+    .subscribe((status,err)=>{ console.log('[RT] status:', status, err||''); });
 }
 function unsubscribeRoom(){
   if(_roomChannel&&_sb){ try{ _sb.removeChannel(_roomChannel); }catch(e){} _roomChannel=null; }
