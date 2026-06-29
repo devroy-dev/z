@@ -7,7 +7,8 @@
 // not functions, so a user instantly knows who they're talking to.
 
 export type CodexKey =
-  | 'intellect' | 'close' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru';
+  | 'intellect' | 'close' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru'
+  | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager';
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -24,6 +25,12 @@ export const PERSONAS: Record<string, Persona> = {
   the_screen_junkie:{ key: 'the_screen_junkie',defaultName: 'the screen junkie',codex: 'intellect', webEnabled: true  },
   the_guru:         { key: 'the_guru',         defaultName: 'the guru',         codex: 'guru',      webEnabled: true  },
   the_oracle:       { key: 'the_oracle',       defaultName: 'the oracle',       codex: 'intellect', webEnabled: true  },
+  the_philosopher:  { key: 'the_philosopher',  defaultName: 'the philosopher',  codex: 'philosopher',  webEnabled: true  },
+  the_cynic:        { key: 'the_cynic',        defaultName: 'the cynic',        codex: 'cynic',        webEnabled: false },
+  the_moderator:    { key: 'the_moderator',    defaultName: 'the moderator',    codex: 'moderator',    webEnabled: false },
+  the_historian:    { key: 'the_historian',    defaultName: 'the historian',    codex: 'historian',    webEnabled: true  },
+  the_cosmologist:  { key: 'the_cosmologist',  defaultName: 'the cosmologist',  codex: 'cosmologist',  webEnabled: true  },
+  the_media_manager:{ key: 'the_media_manager',defaultName: 'the media manager',codex: 'media_manager',webEnabled: true  },
   the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'people',    webEnabled: false },
   the_healer:       { key: 'the_healer',       defaultName: 'the healer',       codex: 'people',    webEnabled: false },
   the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'people',    webEnabled: false },

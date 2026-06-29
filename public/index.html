@@ -368,6 +368,12 @@ const CAT={
   the_screen_junkie:{persona:'the_screen_junkie',name:'the screen junkie',desc:"endless suggestions, countless screen time.",                       rgb:[120,150,230],face:face('#dcc0a8','#26283a','#1e2236','#0c0e1a')},
   the_guru:        {persona:'the_guru',        name:'the guru',        desc:"there is one god and his name is knowledge.",                            rgb:[230,190,90], face:face('#e0c4a0','#33301c','#2c2814','#16130a')},
   the_oracle:      {persona:'the_oracle',      name:'the oracle',      desc:"because we all have a google friend.",                                  rgb:[110,200,200],face:face('#d8c8b8','#203030','#16282a','#0a1414')},
+  the_philosopher: {persona:'the_philosopher', name:'the philosopher', desc:"we're all going to die. let's figure out why we lived.",                  rgb:[180,160,210],face:face('#dcc8b0','#2a2438','#221c30','#100c18')},
+  the_cynic:       {persona:'the_cynic',       name:'the cynic',       desc:"everything's a disaster. wonderful, isn't it?",                           rgb:[150,150,150],face:face('#d4c4b4','#2a2a2a','#222222','#101010')},
+  the_moderator:   {persona:'the_moderator',   name:'the moderator',   desc:"two of you, one me. let's keep it civil... ish.",                        rgb:[120,180,150],face:face('#d8c8b0','#203028','#16261e','#0a140e')},
+  the_historian:   {persona:'the_historian',   name:'the historian',   desc:"everything happening now has happened before. let me show you.",         rgb:[200,160,110],face:face('#e0c8a8','#33291a','#2a2110','#161006')},
+  the_cosmologist: {persona:'the_cosmologist', name:'the cosmologist', desc:"you're made of stardust, worried about a text. let's zoom out.",        rgb:[120,140,230],face:face('#d4c4b8','#222840','#1a2036','#0c0e1c')},
+  the_media_manager:{persona:'the_media_manager',name:'the media manager',desc:"your brand is a story. let's tell it right.",                        rgb:[230,140,170],face:face('#e8c4b0','#3a2230','#4a2238','#1c0c14')},
   the_brother:     {persona:'the_brother',     name:'the brother',     desc:"love them, hate them, can't live without them. let's talk family.",        rgb:[200,120,80], face:face('#e0b896','#3a2418','#3a2214','#1a0e08')},
   the_healer:      {persona:'the_healer',      name:'the healer',      desc:"love once and you know what love is. love twice and you know what life is.",rgb:[124,92,220], face:face('#e8c4a8','#2a1f4a','#241a44','#0e0a22')},
   the_colleague:   {persona:'the_colleague',   name:'the colleague',   desc:"every office is a battlefield. let's get you through yours.",                rgb:[190,160,110],face:face('#dcc4a4','#33302a','#2a2620','#14110c')},
@@ -377,8 +383,8 @@ const CAT={
   the_addict:      {persona:'the_addict',      name:'the addict',      desc:"we hit rock bottom because of where we were. now let's climb out together.",rgb:[80,220,180], face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
   the_self_obsessed:{persona:'the_self_obsessed',name:'the self-obsessed',desc:"a mirror doesn't lie. the world does. believe in yourself, not the flattery or the insult.",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
 };
-const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle'];
-const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_screen_junkie','the_brainiac','the_guru','the_oracle','the_addict','the_self_obsessed'];
+const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager'];
+const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_screen_junkie','the_brainiac','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_media_manager','the_moderator','the_cynic','the_addict','the_self_obsessed'];
 
 /* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
 const inkCanvas=document.getElementById('ink');
@@ -416,16 +422,51 @@ function startInk(){sizeInk();seedBlobs();if(!inkRAF)inkRAF=requestAnimationFram
 addEventListener('resize',()=>{sizeInk();});
 startInk();
 
+
+/* ===== TOKEN REFRESH (silent re-auth so sessions don't expire mid-use) ===== */
+let _refreshing=null;
+async function refreshToken(){
+  const rt=localStorage.getItem('z_refresh'); if(!rt)return false;
+  if(_refreshing)return _refreshing;
+  _refreshing=(async()=>{
+    try{
+      const r=await fetch('/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refreshToken:rt})});
+      const j=await r.json();
+      if(j.token){ localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken); return true; }
+    }catch(e){}
+    return false;
+  })();
+  const ok=await _refreshing; _refreshing=null; return ok;
+}
+// wrapped fetch: on 401, refresh once and retry. used for all authed calls.
+async function zfetch(url,opts){
+  opts=opts||{};
+  let r=await fetch(url,opts);
+  if(r.status===401 && localStorage.getItem('z_refresh')){
+    const ok=await refreshToken();
+    if(ok){
+      // rebuild headers with the new token
+      if(opts.headers){ const h=HDRS(); if(opts.headers['Content-Type']) h['Content-Type']=opts.headers['Content-Type']; opts.headers=h; }
+      r=await fetch(url,opts);
+    } else {
+      // refresh failed — session truly dead; send them back to the door
+      localStorage.removeItem('z_token'); localStorage.removeItem('z_refresh');
+      show('door');
+    }
+  }
+  return r;
+}
+
 const HDRS=()=>{const h={'Content-Type':'application/json'};const tok=localStorage.getItem('z_token');if(tok){h['Authorization']='Bearer '+tok;}else{const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;}return h;};
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
 let rooms=[]; let activeRoom=null;
-const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague'];
+const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
 async function loadThreads(){
   try{
-    const r=await fetch('/threads',{headers:HDRS()});
+    const r=await zfetch('/threads',{headers:HDRS()});
     if(!r.ok)return;
     const arr=await r.json();
     if(Array.isArray(arr)){
@@ -440,7 +481,7 @@ async function loadThreads(){
 }
 async function loadRooms(){
   try{
-    const r=await fetch('/rooms',{headers:HDRS()});
+    const r=await zfetch('/rooms',{headers:HDRS()});
     if(!r.ok)return;
     const j=await r.json();
     if(Array.isArray(j)){ rooms=j; renderContacts(); }
@@ -448,7 +489,7 @@ async function loadRooms(){
 }
 async function loadGroups(){
   try{
-    const r=await fetch('/groups',{headers:HDRS()});
+    const r=await zfetch('/groups',{headers:HDRS()});
     if(!r.ok)return;
     const j=await r.json();
     if(Array.isArray(j)){ groups=j; saveGroups(); renderContacts(); }
@@ -492,7 +533,7 @@ async function verifyOtp(){
     $('verify-otp').style.opacity='1';
     if(!r.ok||!j.token){doorNote('otp-note',j.error||'that code didn\'t work.');return;}
     // store the real Supabase session token; drop anon id
-    localStorage.setItem('z_token',j.token);
+    localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken);
     if(j.userId)localStorage.setItem('z_real_uid',j.userId);
     localStorage.removeItem('z_uid');
     // go to the warm name/region step (or straight in if already named)
@@ -517,7 +558,7 @@ $('ob-go').onclick=async()=>{
     localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
   }
   // save the name to the real account (so the server knows who they are — required for rooms)
-  try{ await fetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:n,region:ME.region})}); }catch(e){}
+  try{ await zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:n,region:ME.region})}); }catch(e){}
   localStorage.setItem('z_onboarded','1');
   renderContacts(); refreshProfile(); show('list'); loadThreads(); loadGroups(); loadRooms();
   // complete a pending room-join AFTER the account/name is saved
@@ -556,7 +597,7 @@ function renderContacts(q){
     el.querySelector('.grp-del').onclick=async(ev)=>{
       ev.stopPropagation();
       if(!confirm('Delete "'+g.name+'"?'))return;
-      try{ if(g.id) await fetch('/threads/'+g.id,{method:'DELETE',headers:HDRS()}); }catch(e){}
+      try{ if(g.id) await zfetch('/threads/'+g.id,{method:'DELETE',headers:HDRS()}); }catch(e){}
       groups=groups.filter(x=>x!==g); saveGroups(); renderContacts(q);
     };
     c.appendChild(el);
@@ -599,7 +640,7 @@ async function openThread(key){
   // ensure a thread exists on the server
   if(!threads[key]||!threads[key].id){
     try{
-      const r=await fetch('/threads',{method:'POST',headers:HDRS(),
+      const r=await zfetch('/threads',{method:'POST',headers:HDRS(),
         body:JSON.stringify({personaKey:cat.persona,name:nameFor(key),accent:'rgb('+cat.rgb.join(',')+')'})});
       const j=await r.json(); threads[key]={id:j.id||j.thread_id||null,name:nameFor(key)}; saveThreads();
     }catch(e){/* offline-ok: thread stays local */}
@@ -611,7 +652,7 @@ function bubble(role,text){const b=document.createElement('div');b.className=rol
 async function loadHistory(key){
   const t=threads[key]; if(!t||!t.id)return;
   try{
-    const r=await fetch('/threads/'+t.id+'/messages',{headers:HDRS()});
+    const r=await zfetch('/threads/'+t.id+'/messages',{headers:HDRS()});
     if(!r.ok)return;
     const j=await r.json(); const msgs=j.messages||[]; if(!msgs.length)return;
     const convo=$('convo');
@@ -628,7 +669,7 @@ async function loadHistory(key){
 async function loadGroupHistory(g){
   if(!g||!g.id)return;
   try{
-    const r=await fetch('/threads/'+g.id+'/messages',{headers:HDRS()});
+    const r=await zfetch('/threads/'+g.id+'/messages',{headers:HDRS()});
     if(!r.ok)return;
     const j=await r.json(); const msgs=j.messages||[]; if(!msgs.length)return;
     const convo=$('convo');
@@ -708,14 +749,14 @@ async function inviteToRoom(){
     const existing=(rooms||[]).find(r=>r.persona===personaKey);
     if(existing){ roomId=existing.id; }
     else{
-      const cr=await fetch('/rooms',{method:'POST',headers:HDRS(),
+      const cr=await zfetch('/rooms',{method:'POST',headers:HDRS(),
         body:JSON.stringify({name:nameFor(active)+"'s room",persona:personaKey})});
       const cj=await cr.json();
       if(!cj.id){alert(cj.error||'could not create room');_inviting=false;return;}
       roomId=cj.id;
       await loadRooms();
     }
-    const ir=await fetch('/rooms/'+roomId+'/invite',{method:'POST',headers:HDRS()});
+    const ir=await zfetch('/rooms/'+roomId+'/invite',{method:'POST',headers:HDRS()});
     const ij=await ir.json();
     if(!ij.token){alert(ij.error||'could not make a link');_inviting=false;return;}
     const link=location.origin+'/?join='+ij.token;
@@ -741,7 +782,7 @@ async function openRoom(r){
 async function loadRoomHistory(r){
   if(!r||!r.id)return;
   try{
-    const resp=await fetch('/threads/'+r.id+'/messages',{headers:HDRS()});
+    const resp=await zfetch('/threads/'+r.id+'/messages',{headers:HDRS()});
     if(!resp.ok)return;
     const j=await resp.json(); const msgs=j.messages||[]; _meId=j.meId||_meId;
     const convo=$('convo');
@@ -754,7 +795,7 @@ async function loadRoomHistory(r){
   }catch(e){}
 }
 async function loadRoomMembers(r){
-  try{ const resp=await fetch('/rooms/'+r.id+'/members',{headers:HDRS()}); if(!resp.ok)return;
+  try{ const resp=await zfetch('/rooms/'+r.id+'/members',{headers:HDRS()}); if(!resp.ok)return;
     const j=await resp.json(); _roomMembers=j.members||{}; _meId=j.meId||_meId;
   }catch(e){}
 }
@@ -765,7 +806,7 @@ async function tryJoinFromUrl(){
   // must be signed in to join; if not, stash token and route to door
   if(!localStorage.getItem('z_token')){ localStorage.setItem('z_pending_join',token); show('door'); return true; }
   try{
-    const r=await fetch('/join/'+token,{method:'POST',headers:HDRS()});
+    const r=await zfetch('/join/'+token,{method:'POST',headers:HDRS()});
     const j=await r.json();
     if(j.threadId){
       history.replaceState({},'',location.origin+'/');
@@ -800,7 +841,7 @@ function openGroupPicker(){
     const members=[...picked];
     const name=members.map(k=>CAT[k].name.replace(/^the /,'')).slice(0,3).join(', ');
     try{
-      const r=await fetch('/groups',{method:'POST',headers:HDRS(),
+      const r=await zfetch('/groups',{method:'POST',headers:HDRS(),
         body:JSON.stringify({name,members})});
       const j=await r.json();
       if(j.id){ const g={id:j.id,name:name,members}; groups.push(g); saveGroups(); sheet.classList.remove('on'); renderContacts(); openGroup(g); }
@@ -829,7 +870,7 @@ async function sendRoom(text){
   $('convo').appendChild(roomHumanBubble(null,text,true));
   $('convo').scrollTop=$('convo').scrollHeight;
   try{
-    const r=await fetch('/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:activeRoom.id,message:text})});
+    const r=await zfetch('/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:activeRoom.id,message:text})});
     if(!r.ok)return;
     const reader=r.body.getReader();const dec=new TextDecoder();
     let buf='',cur=null,curKey=null,acc='';
@@ -851,7 +892,7 @@ async function sendGroup(text){
   $('convo').appendChild(bubble('me',text));
   $('convo').scrollTop=$('convo').scrollHeight;
   try{
-    const r=await fetch('/chat',{method:'POST',headers:HDRS(),
+    const r=await zfetch('/chat',{method:'POST',headers:HDRS(),
       body:JSON.stringify({threadId:activeGroup.id,message:text})});
     if(!r.ok){return;}
     const reader=r.body.getReader();const dec=new TextDecoder();
@@ -918,7 +959,7 @@ async function sendMsg(){
   const t=threads[active];
   if(!t||!t.id){zb.classList.remove('typing');zb.textContent='(one sec — reopening this chat)';await openThread(active);return;}
   try{
-    const r=await fetch('/chat',{method:'POST',headers:HDRS(),
+    const r=await zfetch('/chat',{method:'POST',headers:HDRS(),
       body:JSON.stringify({threadId:t.id,message:text,image:sentImg})});
     if(!r.ok){let msg='(z went quiet — try again)';try{const j=await r.json();if(j.error)msg='('+j.error+')';}catch(_){}zb.classList.remove('typing');zb.textContent=msg;return;}
     const reader=r.body.getReader();const dec=new TextDecoder();
@@ -982,7 +1023,7 @@ $('editSave').onclick=async()=>{
   $('sheet').classList.remove('on');
   // re-bind on the server so the persona actually knows its (new) name
   const t=threads[active];
-  if(t&&t.id&&nm){ try{ await fetch('/threads/'+t.id,{method:'PATCH',headers:HDRS(),body:JSON.stringify({name:nm})}); }catch(e){} }
+  if(t&&t.id&&nm){ try{ await zfetch('/threads/'+t.id,{method:'PATCH',headers:HDRS(),body:JSON.stringify({name:nm})}); }catch(e){} }
 };
 
 function saveThreads(){localStorage.setItem('z_threads',JSON.stringify(threads));}
@@ -1015,7 +1056,7 @@ async function openNotes(){
   show('notes');
   const body=$('nt-body'); body.innerHTML='<div class="nt-empty">reading…</div>';
   try{
-    const r=await fetch('/notes',{headers:HDRS()});
+    const r=await zfetch('/notes',{headers:HDRS()});
     const j=await r.json();
     body.innerHTML='';
     const facts=j.facts||[], notes=j.notes||[];
@@ -1038,7 +1079,7 @@ function noteCard(kind,id,key,text){
   const del=document.createElement('div');del.className='nt-del';del.textContent='forget';
   del.onclick=async()=>{
     del.textContent='…';
-    try{const r=await fetch('/notes/'+kind+'/'+id,{method:'DELETE',headers:HDRS()});
+    try{const r=await zfetch('/notes/'+kind+'/'+id,{method:'DELETE',headers:HDRS()});
       if(r.ok){c.style.opacity='0';setTimeout(()=>c.remove(),200);}else{del.textContent='forget';}
     }catch(e){del.textContent='forget';}
   };
@@ -1079,7 +1120,7 @@ async function renderLetters(){
   const list=$('letters-list');
   list.innerHTML='<div class="letters-empty">reading your week…</div>';
   try{
-    const r=await fetch('/letters',{headers:HDRS()});
+    const r=await zfetch('/letters',{headers:HDRS()});
     if(!r.ok){list.innerHTML='<div class="letters-empty">couldn\'t load your letters right now.</div>';return;}
     const items=await r.json();
     if(!items.length){list.innerHTML='<div class="letters-empty">no letters yet. talk to your people for a few days — Z is listening, and will write back.</div>';return;}
@@ -1097,7 +1138,7 @@ async function renderLetters(){
     list.querySelectorAll('.letter-del').forEach(d=>{
       d.onclick=async(e)=>{e.stopPropagation();
         if(!confirm('delete this letter? it\'s gone for good.'))return;
-        await fetch('/letters/'+d.dataset.id,{method:'DELETE',headers:HDRS()}).catch(()=>{});
+        await zfetch('/letters/'+d.dataset.id,{method:'DELETE',headers:HDRS()}).catch(()=>{});
         renderLetters();};
     });
   }catch(e){list.innerHTML='<div class="letters-empty">couldn\'t load your letters right now.</div>';}
@@ -1207,7 +1248,7 @@ async function jrUpload(){
 async function renderJournal(){
   const list=$('jr-list');
   try{
-    const r=await fetch('/journal',{headers:HDRS()});
+    const r=await zfetch('/journal',{headers:HDRS()});
     if(!r.ok){list.innerHTML='';return;}
     const items=await r.json();
     if(!items.length){list.innerHTML='<div style="text-align:center;color:var(--faint);font-style:italic;font-size:13px;padding:30px 20px">your voice notes will live here. just you and Z.</div>';return;}
@@ -1220,7 +1261,7 @@ async function renderJournal(){
     });
     list.querySelectorAll('.jr-del').forEach(x=>x.onclick=async()=>{
       if(!confirm('delete this voice note?'))return;
-      await fetch('/journal/'+x.dataset.id,{method:'DELETE',headers:HDRS()}).catch(()=>{});
+      await zfetch('/journal/'+x.dataset.id,{method:'DELETE',headers:HDRS()}).catch(()=>{});
       renderJournal();
     });
   }catch(e){list.innerHTML='';}

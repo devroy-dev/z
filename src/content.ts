@@ -41,6 +41,12 @@ const CODEX_FILES: Record<CodexKey, string> = {
   comic:     'codex-comic.md',
   crush:     'codex-crush.md',
   guru:      'handbook-spiritual-guru.md',
+  philosopher:   'codex-philosopher.md',
+  cynic:         'codex-cynic.md',
+  moderator:     'codex-moderator.md',
+  historian:     'codex-historian.md',
+  cosmologist:   'codex-cosmologist.md',
+  media_manager: 'codex-media-manager.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};
