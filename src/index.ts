@@ -114,11 +114,31 @@ app.post('/arena/start', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     const { game, personaKey } = req.body ?? {};
-    const allowed = ['debate', 'trivia', 'dilemma', 'twenty', 'wyr', 'riddle'];
+    const allowed = ['debate', 'trivia', 'dilemma', 'twenty', 'wyr', 'riddle', 'learn'];
     if (!allowed.includes(String(game))) return res.status(400).json({ error: 'unknown game' });
     const persona = personaByKey(personaKey);
     if (!persona) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
-    // The Arena match is a GROUP: the opponent + the moderator (neutral judge).
+
+    // QUIZ & LEARN is COOPERATIVE — a solo session with the professor, no moderator, no score.
+    if (game === 'learn') {
+      let lid: string;
+      const { data: ex } = await supabase.from('threads')
+        .select('id').eq('user_id', user.id).eq('persona_key', persona.key)
+        .eq('is_group', false).is('deleted_at', null)
+        .order('last_active', { ascending: false }).limit(1).maybeSingle();
+      if (ex) { lid = ex.id; await supabase.from('threads').update({ game_mode: 'learn' }).eq('id', lid); }
+      else {
+        const { data, error } = await supabase.from('threads').insert({
+          user_id: user.id, persona_key: persona.key, codex_key: persona.codex,
+          companion_name: persona.defaultName, game_mode: 'learn',
+        }).select('id').single();
+        if (error) return res.status(500).json({ error: 'learn start: ' + error.message });
+        lid = data.id;
+      }
+      return res.json({ threadId: lid, game, persona: persona.key, isGroup: false });
+    }
+
+    // The competitive Arena match is a GROUP: the opponent + the moderator (neutral judge).
     const members = [persona.key, 'the_moderator'];
     const arenaName = 'the arena';
     let threadId: string;

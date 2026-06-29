@@ -1328,6 +1328,7 @@ const ARENA_GAMES=[
   {id:'twenty', name:'20 Questions', ic:'❓', persona:'the_brainiac',   desc:"think of something. they've got 20 guesses."},
   {id:'wyr',    name:'Would You Rather', ic:'🔀', persona:'the_leader_opp', desc:"pick one. defend it. they'll champion the other."},
   {id:'riddle', name:'Riddle Me',   ic:'🗝', persona:'the_brainiac',   desc:"riddles & lateral puzzles. can you crack them?"},
+  {id:'learn', name:'Quiz & Learn', ic:'📚', persona:'the_teacher', desc:"the professor teaches you anything — and checks you got it."},
   {id:'blackjack', name:'Blackjack', ic:'🃏', persona:'the_wannabe', type:'table', desc:"the wannabe hustler deals. beat the house, baby."},
 ];
 let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
@@ -1352,6 +1353,15 @@ async function startArena(game, personaKey){
     const r=await zfetch('/arena/start',{method:'POST',headers:HDRS(),body:JSON.stringify({game,personaKey})});
     if(!r.ok){const j=await r.json().catch(()=>({}));alert(j.error||'could not start');return;}
     const j=await r.json();
+    // QUIZ & LEARN: cooperative solo session with the professor — no scoreboard, no moderator
+    if(game==='learn'){
+      threads[personaKey]=threads[personaKey]||{}; threads[personaKey].id=j.threadId;
+      inArenaMatch=false; arenaGameId=null;
+      await openThread(personaKey);
+      const op="Quiz & Learn. tell me a topic you want to understand — anything — or say 'you pick'. i'll teach it bit by bit, check you've got it, and lay out the answers at the end. no pressure, no score. just learning.";
+      const sb=bubble('z',op); $('convo').appendChild(sb); $('convo').scrollTop=$('convo').scrollHeight;
+      return;
+    }
     arenaScore={you:0,z:0}; inArenaMatch=true; arenaGameId=game;
     // the arena match is a GROUP: opponent + the moderator (judge)
     const g={ id:j.threadId, members:j.members||[personaKey,'the_moderator'], name:'the arena' };
