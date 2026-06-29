@@ -342,17 +342,26 @@ app.get('/threads/:id/messages', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     const threadId = req.params.id;
-    // confirm the thread belongs to this user (RLS floor + explicit check)
+    // load the thread; for shared rooms, ANY member may read (not just owner)
     const { data: thread } = await supabase
-      .from('threads').select('id, is_group').eq('id', threadId).eq('user_id', user.id).is('deleted_at', null).maybeSingle();
+      .from('threads').select('id, is_group, is_shared, user_id').eq('id', threadId).is('deleted_at', null).maybeSingle();
     if (!thread) return res.status(404).json({ error: 'thread not found' });
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('role, content, persona_key, created_at')
-      .eq('thread_id', threadId).eq('user_id', user.id)
+    const isOwner = thread.user_id === user.id;
+    if (!isOwner) {
+      // not the owner — allowed only if they're a member of this (shared) thread
+      if (!thread.is_shared || !(await isRoomMember(threadId, user.id))) {
+        return res.status(404).json({ error: 'thread not found' });
+      }
+    }
+    // shared room: return EVERYONE's messages (the whole room). solo thread: just this user's.
+    let q = supabase.from('messages')
+      .select('role, content, persona_key, created_at, sender_user_id')
+      .eq('thread_id', threadId)
       .order('created_at', { ascending: true })
       .limit(200);
-    res.json({ messages: msgs ?? [], is_group: !!thread.is_group });
+    if (!thread.is_shared) q = q.eq('user_id', user.id);
+    const { data: msgs } = await q;
+    res.json({ messages: msgs ?? [], is_group: !!thread.is_group, is_shared: !!thread.is_shared });
   } catch (e: any) { res.status(500).json({ error: 'history failed: ' + (e?.message || String(e)) }); }
 });
 

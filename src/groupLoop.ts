@@ -34,8 +34,8 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
   const { data: thread } = await supabase
     .from('threads')
-    .select('id, user_id, is_group, member_keys, companion_name')
-    .eq('id', threadId).eq('user_id', userId).is('deleted_at', null)
+    .select('id, user_id, is_group, is_shared, member_keys, companion_name')
+    .eq('id', threadId).is('deleted_at', null)
     .maybeSingle();
   if (!thread) throw new Error('thread not found');
   const t = thread as GroupThreadRow;
@@ -63,7 +63,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     .limit(50);
 
   // persist the user message
-  await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: message });
+  await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: message, sender_user_id: userId });
 
   // build a readable transcript: each assistant line prefixed with WHO said it (by name),
   // so each persona knows who's in the room and who said what.
