@@ -250,6 +250,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
       <div class="door-note" id="otp-note"></div>
       <div class="door-back" id="otp-back">‹ change number</div>
     </div>
+    <div id="door-phase-setpin" style="display:none">
+      <div class="door-q">set a 4-digit PIN. you'll use it to get back in — no code needed next time.</div>
+      <input id="setpin" class="otp-in" inputmode="numeric" maxlength="4" placeholder="• • • •" autocomplete="off">
+      <div class="btn" id="setpin-go">Set PIN</div>
+      <div class="door-note" id="setpin-note"></div>
+    </div>
+    <div id="door-phase-pin" style="display:none">
+      <div class="door-q">welcome back<span id="pin-name"></span>. your PIN, please.</div>
+      <input id="pin" class="otp-in" inputmode="numeric" maxlength="4" placeholder="• • • •" autocomplete="off">
+      <div class="btn" id="pin-go">Unlock</div>
+      <div class="door-note" id="pin-note"></div>
+      <div class="door-back" id="pin-otp">use a code instead</div>
+    </div>
   </div>
 </div>
 <div class="screen" id="onboard">
@@ -556,12 +569,66 @@ async function verifyOtp(){
     localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken); if(j.expiresIn)localStorage.setItem('z_exp',String(Date.now()+j.expiresIn*1000)); scheduleRefresh();
     if(j.userId)localStorage.setItem('z_real_uid',j.userId);
     localStorage.removeItem('z_uid');
-    // go to the warm name/region step (or straight in if already named)
-    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
-      const pj=localStorage.getItem('z_pending_join'); if(pj){localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl();}}
-    else{show('onboard');}
+    localStorage.setItem('z_has_name', j.hasName?'1':'0');
+    // FIRST TIME (no PIN yet) → ask them to set a PIN before continuing
+    if(!j.hasPin){
+      $('door-phase-otp').style.display='none';
+      $('door-phase-setpin').style.display='block';
+      $('setpin').focus&&$('setpin').focus();
+      return;
+    }
+    // already had a PIN (e.g. recovery via OTP) → continue normally
+    afterAuthRoute(j.hasName);
   }catch(e){$('verify-otp').style.opacity='1';doorNote('otp-note','no connection. try again.');}
 }
+
+// route after auth succeeds (used by OTP, set-PIN, and PIN-unlock)
+function afterAuthRoute(hasName){
+  if(hasName){
+    localStorage.setItem('z_onboarded','1');
+    renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
+    const pj=localStorage.getItem('z_pending_join'); if(pj){localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl();}
+  } else { show('onboard'); }
+}
+
+// SET PIN (first time, right after OTP)
+async function setPin(){
+  const pin=$('setpin').value.replace(/[^0-9]/g,'');
+  if(pin.length!==4){doorNote('setpin-note','4 digits.');return;}
+  doorNote('setpin-note','saving…'); $('setpin-go').style.opacity='.5';
+  try{
+    const r=await zfetch('/auth/pin/set',{method:'POST',headers:HDRS(),body:JSON.stringify({pin})});
+    const j=await r.json(); $('setpin-go').style.opacity='1';
+    if(!r.ok){doorNote('setpin-note',j.error||'could not save pin');return;}
+    $('door-phase-setpin').style.display='none';
+    afterAuthRoute(localStorage.getItem('z_has_name')==='1');
+  }catch(e){$('setpin-go').style.opacity='1';doorNote('setpin-note','no connection. try again.');}
+}
+
+// UNLOCK WITH PIN (returning user on this device)
+async function unlockPin(){
+  const pin=$('pin').value.replace(/[^0-9]/g,'');
+  if(pin.length!==4){doorNote('pin-note','4 digits.');return;}
+  const userId=localStorage.getItem('z_real_uid'); const rt=localStorage.getItem('z_refresh');
+  doorNote('pin-note','checking…'); $('pin-go').style.opacity='.5';
+  try{
+    const r=await fetch('/auth/pin/verify',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userId, pin, refreshToken:rt})});
+    const j=await r.json(); $('pin-go').style.opacity='1';
+    if(j.needOtp){ doorNote('pin-note','let\'s verify with a code.'); goPhone(); return; }
+    if(!r.ok||!j.token){doorNote('pin-note',j.error||'wrong pin');return;}
+    localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken); if(j.expiresIn)localStorage.setItem('z_exp',String(Date.now()+j.expiresIn*1000)); scheduleRefresh();
+    $('door-phase-pin').style.display='none';
+    afterAuthRoute(j.hasName);
+  }catch(e){$('pin-go').style.opacity='1';doorNote('pin-note','no connection. try again.');}
+}
+
+function goPhone(){ ['otp','setpin','pin'].forEach(p=>{var e=$('door-phase-'+(p==='otp'?'otp':p));}); $('door-phase-otp').style.display='none'; $('door-phase-setpin').style.display='none'; $('door-phase-pin').style.display='none'; $('door-phase-phone').style.display='block'; }
+var _sp=$('setpin-go'); if(_sp)_sp.onclick=setPin;
+var _pg=$('pin-go'); if(_pg)_pg.onclick=unlockPin;
+var _po=$('pin-otp'); if(_po)_po.onclick=goPhone;
+$('setpin')&&$('setpin').addEventListener('keydown',e=>{if(e.key==='Enter')setPin();});
+$('pin')&&$('pin').addEventListener('keydown',e=>{if(e.key==='Enter')unlockPin();});
 var _so=$('send-otp'); if(_so)_so.onclick=sendOtp;
 var _vo=$('verify-otp'); if(_vo)_vo.onclick=verifyOtp;
 var _ob=$('otp-back'); if(_ob)_ob.onclick=function(){$('door-phase-otp').style.display='none';$('door-phase-phone').style.display='block';doorNote('otp-note','');};
@@ -1333,12 +1400,27 @@ loadLocal();
 (async()=>{
   // if arriving via an invite link and already signed in, join straight away
   const hasJoin=new URL(location.href).searchParams.get('join');
-  if(localStorage.getItem('z_token')){ scheduleRefresh(); }
-  if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){
+  if(hasJoin) localStorage.setItem('z_pending_join',hasJoin);
+  const tok=localStorage.getItem('z_token');
+  const exp=parseInt(localStorage.getItem('z_exp')||'0',10);
+  const tokenLive = tok && (!exp || Date.now()<exp-5000);
+  const knownUser = localStorage.getItem('z_real_uid');
+  if(tokenLive && localStorage.getItem('z_onboarded')){
+    scheduleRefresh();
     renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
     if(hasJoin) tryJoinFromUrl();
-  } else if(localStorage.getItem('z_token')){ show('onboard'); }
-  else { if(hasJoin) localStorage.setItem('z_pending_join',hasJoin); show('door'); }
+  } else if(tokenLive){
+    scheduleRefresh(); show('onboard');
+  } else if(knownUser && localStorage.getItem('z_refresh')){
+    // device remembers this account but the token's stale → ask for the PIN (no OTP needed)
+    show('door');
+    $('door-phase-phone').style.display='none';
+    $('door-phase-pin').style.display='block';
+    const nm=(JSON.parse(localStorage.getItem('z_me')||'{}').name)||'';
+    $('pin-name')&&($('pin-name').textContent=nm?(', '+nm):'');
+  } else {
+    show('door'); // brand new on this device → phone + OTP
+  }
 })();
 
 </script>

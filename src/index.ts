@@ -201,6 +201,61 @@ app.delete('/journal/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
 });
 
+// ── PIN AUTH ──────────────────────────────────────────────────────────────
+// hash a pin with a per-app secret salt (sha256). Not bcrypt, but server-side,
+// rate-limited by Supabase, and a 4-digit pin's real protection is the phone+OTP gate.
+import { createHash } from 'crypto';
+function hashPin(pin: string, userId: string): string {
+  const salt = process.env.PIN_SALT || process.env.SUPABASE_SERVICE_ROLE_KEY || 'z-pin';
+  return createHash('sha256').update(`${salt}:${userId}:${pin}`).digest('hex');
+}
+
+// set (or change) the PIN — requires a valid auth token (just verified via OTP)
+app.post('/auth/pin/set', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { pin } = req.body ?? {};
+    if (!/^[0-9]{4}$/.test(String(pin || ''))) return res.status(400).json({ error: 'pin must be 4 digits' });
+    const { error } = await supabase.from('users')
+      .update({ pin_hash: hashPin(String(pin), user.id), pin_set_at: new Date().toISOString() })
+      .eq('id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'pin set failed: ' + (e?.message || String(e)) }); }
+});
+
+// verify a PIN for a known account (fast re-login). Takes userId + pin, returns a fresh session.
+// NOTE: this re-issues a session WITHOUT OTP, so it's gated by knowing the userId (stored on the
+// device after first login) + the correct PIN. Wrong-pin attempts are counted and lock out.
+const pinAttempts: Record<string, { n: number; t: number }> = {};
+app.post('/auth/pin/verify', async (req, res) => {
+  try {
+    const { userId, pin, refreshToken } = req.body ?? {};
+    if (!userId || !/^[0-9]{4}$/.test(String(pin || ''))) return res.status(400).json({ error: 'userId and 4-digit pin required' });
+    // simple lockout: 5 wrong attempts → 60s cooldown
+    const a = pinAttempts[userId] || { n: 0, t: 0 };
+    if (a.n >= 5 && Date.now() - a.t < 60000) return res.status(429).json({ error: 'too many tries — wait a minute or use OTP' });
+    const { data: u } = await supabase.from('users').select('id, pin_hash, auth_user_id, display_name').eq('id', userId).is('deleted_at', null).maybeSingle();
+    if (!u || !u.pin_hash) return res.status(404).json({ error: 'no pin set — sign in with OTP' });
+    if (u.pin_hash !== hashPin(String(pin), u.id)) {
+      pinAttempts[userId] = { n: a.n + 1, t: Date.now() };
+      return res.status(401).json({ error: 'wrong pin' });
+    }
+    delete pinAttempts[userId];
+    // PIN correct → mint a fresh session from the stored refresh token (kept on device)
+    if (refreshToken) {
+      const { data: rs } = await otpClient.auth.refreshSession({ refresh_token: refreshToken });
+      if (rs?.session) {
+        return res.json({ token: rs.session.access_token, refreshToken: rs.session.refresh_token, expiresIn: rs.session.expires_in, userId: u.id, hasName: !!u.display_name, hasPin: true });
+      }
+    }
+    // no usable refresh token → PIN is correct but session can't be minted; ask for OTP
+    return res.status(409).json({ error: 'session expired — sign in with OTP once', needOtp: true });
+  } catch (e: any) { res.status(500).json({ error: 'pin verify failed: ' + (e?.message || String(e)) }); }
+});
+
 app.post('/me', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -249,6 +304,21 @@ app.post('/auth/otp', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'otp failed: ' + (e?.message || String(e)) }); }
 });
 
+// refresh: exchange a refresh token for a fresh access token (silent re-auth)
+app.post('/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body ?? {};
+    if (!refreshToken) return res.status(400).json({ error: 'no refresh token' });
+    const { data, error } = await otpClient.auth.refreshSession({ refresh_token: refreshToken });
+    if (error || !data?.session) return res.status(401).json({ error: 'session expired' });
+    res.json({
+      token: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresIn: data.session.expires_in,
+    });
+  } catch (e: any) { res.status(500).json({ error: 'refresh failed: ' + (e?.message || String(e)) }); }
+});
+
 // verify the code → returns a Supabase session token. Optionally claims an anon user's
 // existing threads/letters/journal onto the now-verified identity (so nobody loses history).
 app.post('/auth/verify', async (req, res) => {
@@ -279,8 +349,11 @@ app.post('/auth/verify', async (req, res) => {
 
     res.json({
       token: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresIn: data.session.expires_in,
       userId: realUser.id,
       hasName: !!realUser.display_name,
+      hasPin: !!(realUser as any).pin_hash,
     });
   } catch (e: any) { res.status(500).json({ error: 'verify failed: ' + (e?.message || String(e)) }); }
 });
