@@ -505,6 +505,7 @@ const CAT={
   the_cosmologist: {persona:'the_cosmologist', name:'the cosmologist', desc:"you're made of stardust, worried about a text. let's zoom out.",        rgb:[120,140,230],face:face('#d4c4b8','#222840','#1a2036','#0c0e1c')},
   the_media_manager:{persona:'the_media_manager',name:'the media manager',desc:"your brand is a story. let's tell it right.",                        rgb:[230,140,170],face:face('#e8c4b0','#3a2230','#4a2238','#1c0c14')},
   the_teacher:     {persona:'the_teacher',     name:'the professor',     desc:"you're not bad at it. it was explained badly. let's fix that.",          rgb:[120,190,170],face:face('#dcc8b0','#1f2e2a','#16241f','#0a1310')},
+  the_orator:      {persona:'the_orator',      name:'the orator',      desc:"your words control your future, your speech controls life.",              rgb:[210,150,90],face:face('#e4c4a0','#33241a','#2c1d12','#160e08')},
   the_economist:   {persona:'the_economist',   name:'the economist',   desc:"markets, money, and why your rent keeps rising. let's make it make sense.",rgb:[110,170,140],face:face('#d8c8b0','#1c2a22','#142019','#0a120c')},
   z_serious:       {persona:'z_serious',       name:'Z',               desc:"i'm here.",                                                              rgb:[200,200,200],face:face('#cccccc','#1a1a1a','#141414','#0a0a0a')},
   the_wannabe:     {persona:'the_wannabe',     name:'the wannabe hustler', desc:"you talkin' to me, dawg? ayy place your bets — the house is HOT tonight.", rgb:[235,180,90],face:face('#e8c89a','#3a2c12','#332408','#1a1204')},
@@ -518,7 +519,7 @@ const CAT={
   the_addict:      {persona:'the_addict',      name:'the rehab',       desc:"i've been where you are. let's get you out — one day at a time.",rgb:[80,220,180], face:face('#d4c0a0','#1a382e','#0e3228','#061a14')},
   the_self_obsessed:{persona:'the_self_obsessed',name:'the guardian angel',desc:"the world can be cruel. i'm in your corner — you're stronger than they made you feel.",rgb:[235,165,185],face:face('#ecc8b0','#3a2832','#3a2632','#1c121a')},
 };
-const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe'];
+const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_orator','the_economist','the_leader_opp','the_wannabe'];
 const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_wannabe','the_screen_junkie','the_brainiac','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_teacher','the_economist','the_leader_opp','the_media_manager','the_moderator','the_cynic','the_addict','the_self_obsessed'];
 
 /* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
@@ -722,7 +723,7 @@ async function bjDealerReact(event){
 let seriousMode = localStorage.getItem('z_serious')==='1';
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
-const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe'];
+const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe','the_orator'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
 async function loadThreads(){
   try{

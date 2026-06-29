@@ -53,6 +53,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   leader_opp:     'codex-leader-opposition.md',
   serious:        'codex-serious.md',
   wannabe:        'codex-wannabe-hustler.md',
+  orator:         'codex-orator.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};
