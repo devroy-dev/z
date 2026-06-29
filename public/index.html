@@ -1152,10 +1152,14 @@ $('prow-edit').onclick=()=>{
   show('onboard');
 };
 $('prow-signout').onclick=()=>{
-  if(!confirm('sign out? your local chats and names stay on this device.'))return;
-  localStorage.removeItem('z_onboarded');
-  show('onboard');
+  if(!confirm('sign out? you\'ll need to verify your number again to get back in.'))return;
+  // clear the whole session so it's a real sign-out
+  ['z_token','z_refresh','z_exp','z_onboarded','z_real_uid','z_uid','z_me','z_threads','z_groups','z_pending_join'].forEach(k=>localStorage.removeItem(k));
+  if(typeof _refreshTimer!=='undefined'&&_refreshTimer)clearTimeout(_refreshTimer);
+  try{ unsubscribeRoom(); }catch(e){}
+  active=null; activeRoom=null; activeGroup=null; threads={}; groups=[]; rooms=[];
   $('profSheet').classList.remove('on');
+  show('door');   // back to phone + OTP login, NOT onboarding
 };
 
 
