@@ -275,6 +275,8 @@ body.serious .t-back,body.serious #t-back{color:rgba(255,255,255,.5) !important}
 /* result card */
 .result-card{margin:14px auto;max-width:80%;text-align:center;padding:20px;border-radius:18px;background:linear-gradient(135deg,rgba(201,168,76,.14),rgba(201,168,76,.04));border:1px solid rgba(201,168,76,.3)}
 .result-card .rc-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:500;color:var(--ink)}
+.z code,.me code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px;font-size:.92em;font-family:ui-monospace,monospace}
+body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .result-card .rc-score{font-size:14px;color:var(--faint);margin-top:4px}
 .result-card .rc-again{margin-top:14px;display:inline-block;font-size:13px;color:var(--accent);border:1px solid rgba(201,168,76,.4);border-radius:20px;padding:8px 18px;cursor:pointer}
 
@@ -802,7 +804,23 @@ async function openThread(key){
   }
   loadHistory(key);
 }
-function bubble(role,text){const b=document.createElement('div');b.className=role==='me'?'me':'z';b.textContent=text;return b;}
+function mdRender(text){
+  // escape HTML first (safety — never inject raw markup)
+  let h=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // **bold** and __bold__
+  h=h.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  h=h.replace(/__([^_]+)__/g,'<strong>$1</strong>');
+  // *italic* and _italic_ (single, not touching the bold already converted)
+  h=h.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g,'$1<em>$2</em>');
+  h=h.replace(/(^|[^_])_([^_\n]+)_(?!_)/g,'$1<em>$2</em>');
+  // `code`
+  h=h.replace(/`([^`]+)`/g,'<code>$1</code>');
+  // line breaks
+  h=h.replace(/\n/g,'<br>');
+  return h;
+}
+function setBubbleMd(el,text){ el.innerHTML=mdRender(text); }
+function bubble(role,text){const b=document.createElement('div');b.className=role==='me'?'me':'z';if(role==='me'){b.textContent=text;}else{b.innerHTML=mdRender(text||'');}return b;}
 // rehydrate a thread's real saved conversation, so reopening continues where you left off.
 async function loadHistory(key){
   const t=threads[key]; if(!t||!t.id)return;
@@ -1234,6 +1252,7 @@ async function sendMsg(){
             acc+=ev.token; zb.textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;
           } else if(ev.score){ arenaScore={you:ev.score.you,z:ev.score.z}; if(inArenaMatch)showScorebar(); }
           else if(ev.result){ if(inArenaMatch)showResult(ev.result); }
+          else if(ev.done){ if(acc) setBubbleMd(zb,acc); }
           else if(ev.error){zb.classList.remove('typing');zb.textContent='('+ev.error+')';}
         });
       }
