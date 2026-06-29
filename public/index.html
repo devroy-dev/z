@@ -1505,7 +1505,7 @@ async function ludoMoveToken(pkey, ti){
 function ludoAdvanceTurn(){
   LUDO.turn=(LUDO.turn+1)%4; LUDO.dice=0; LUDO.sixStreak=0;
   ludoRenderPlayers(); ludoPlaceTokens();
-  if(LUDO.players[LUDO.turn].ai){ setTimeout(ludoAITurn, 900); }
+  if(LUDO.players[LUDO.turn].ai){ setTimeout(ludoAITurn, 1300); }
   else { $('ludo-roll').disabled=false; ludoTalk("your turn — roll."); }
 }
 async function ludoRollDice(){
@@ -1563,10 +1563,10 @@ async function ludoAITurn(){
   if(LUDO.over) return;
   const pkey=LUDO.players[LUDO.turn].key;
   LUDO.busy=true; ludoRenderPlayers();
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r=>setTimeout(r,1100));
   const v=await ludoRollDice();
   ludoTalk(nameFor(pkey)+" rolled a "+v+".");
-  await new Promise(r=>setTimeout(r,900));
+  await new Promise(r=>setTimeout(r,1500));
   const choice=ludoAIChoose(pkey);
   LUDO.busy=false;
   if(!choice){
@@ -1579,7 +1579,7 @@ async function ludoAITurn(){
   // read beat handled in move (six) / advanceTurn
   if(!LUDO.over && LUDO.turn!==0){ /* next AI scheduled by advanceTurn */ }
   // pacing read beat
-  await new Promise(r=>setTimeout(r,3200));
+  await new Promise(r=>setTimeout(r,4000));
 }
 function ludoWin(pkey){
   LUDO.over=true; LUDO.busy=false;
@@ -2275,8 +2275,21 @@ async function loadRoomMembers(r){
 async function tryJoinFromUrl(){
   const u=new URL(location.href); const token=u.searchParams.get('join');
   if(!token)return false;
-  // must be signed in to join; if not, stash token and route to door
-  if(!localStorage.getItem('z_token')){ localStorage.setItem('z_pending_join',token); show('door'); return true; }
+  // must be signed in to join; if not, stash token and route to the RIGHT door
+  if(!localStorage.getItem('z_token')){
+    localStorage.setItem('z_pending_join',token);
+    show('door');
+    // returning user on this device → PIN screen (no OTP, no re-onboarding); brand new → phone+OTP
+    if(localStorage.getItem('z_real_uid') && localStorage.getItem('z_refresh')){
+      $('door-phase-phone').style.display='none';
+      $('door-phase-otp').style.display='none';
+      $('door-phase-setpin').style.display='none';
+      $('door-phase-pin').style.display='block';
+      const nm=(JSON.parse(localStorage.getItem('z_me')||'{}').name)||'';
+      $('pin-name')&&($('pin-name').textContent=nm?(', '+nm):'');
+    }
+    return true;
+  }
   try{
     const r=await zfetch('/join/'+token,{method:'POST',headers:HDRS()});
     const j=await r.json();
