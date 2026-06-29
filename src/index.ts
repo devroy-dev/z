@@ -31,6 +31,14 @@ app.use((req, res, next) => {
 });
 app.use(express.static(join(__dirname2, 'public')));
 
+// public config for the browser realtime client (anon key is public by design; RLS protects rows)
+app.get('/config', (_req, res) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+  });
+});
+
 // verify the caller's Supabase JWT → auth_user_id. Uses anon client just to read the token's user.
 const authClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!);
 // OTP uses the anon-key client (the real Supabase phone-auth path; Twilio Verify is the

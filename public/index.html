@@ -223,7 +223,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .searchbar:focus{border-color:var(--line-strong)}
 .search-x{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:20px;cursor:pointer;display:none;line-height:1}
 .searchwrap.has .search-x{display:block}
-.room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
+.them-h{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);border-radius:14px 14px 14px 4px}.room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
 </style>
 </head>
 <body>
@@ -355,6 +355,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 /* ===== the nine, with descriptors (charcoal; per-persona accent kept subtle for ink only) ===== */
 function face(skin,hair,a,b){return `<svg viewBox="0 0 100 100"><defs><linearGradient id="bg${a.slice(1)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="100" height="100" fill="url(#bg${a.slice(1)})"/><path d="M27 47 Q25 13 50 11 Q75 13 73 47 Q79 27 64 17 Q56 9 50 9 Q44 9 36 17 Q21 27 27 47Z" fill="${hair}"/><ellipse cx="50" cy="49" rx="21" ry="25" fill="${skin}"/><ellipse cx="42" cy="49" rx="2.6" ry="3.3" fill="#1a1620"/><ellipse cx="58" cy="49" rx="2.6" ry="3.3" fill="#1a1620"/><path d="M44 61 Q50 65 56 61" stroke="#00000044" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M30 73 Q50 83 70 73 L70 100 L30 100Z" fill="${hair}"/></svg>`;}
@@ -566,7 +567,7 @@ function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style; if(t
   r.setProperty('--gobtn',`linear-gradient(135deg,rgb(${Math.min(R+26,255)},${Math.min(G+26,255)},${Math.min(B+26,255)}),rgb(${R},${G},${B}))`);
 }
 async function openThread(key){
-  active=key; activeGroup=null; activeRoom=null; const cat=CAT[key];
+  active=key; activeGroup=null; activeRoom=null; unsubscribeRoom(); const cat=CAT[key];
   paintWorld(cat.rgb);
   $('t-face').innerHTML=dpFor(key);
   $('t-name').textContent=nameFor(key);
@@ -620,6 +621,50 @@ async function loadGroupHistory(g){
 
 
 
+
+/* ===== REALTIME (Supabase) — live messages in shared rooms ===== */
+let _sb=null, _roomChannel=null, _renderedIds=new Set();
+async function initRealtime(){
+  if(_sb)return _sb;
+  try{
+    const r=await fetch('/config'); const cfg=await r.json();
+    if(!cfg.supabaseUrl||!cfg.supabaseAnonKey||!window.supabase)return null;
+    _sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{persistSession:false}});
+    const tok=localStorage.getItem('z_token');
+    if(tok){ try{ await _sb.realtime.setAuth(tok); }catch(e){} }
+    return _sb;
+  }catch(e){ return null; }
+}
+async function subscribeRoom(threadId){
+  const sb=await initRealtime(); if(!sb)return;
+  unsubscribeRoom();
+  _roomChannel=sb.channel('room:'+threadId)
+    .on('postgres_changes',
+      {event:'INSERT',schema:'z',table:'messages',filter:'thread_id=eq.'+threadId},
+      (payload)=>{ onLiveMessage(payload.new); })
+    .subscribe();
+}
+function unsubscribeRoom(){
+  if(_roomChannel&&_sb){ try{ _sb.removeChannel(_roomChannel); }catch(e){} _roomChannel=null; }
+}
+function onLiveMessage(m){
+  if(!activeRoom||!m||m.thread_id!==activeRoom.id)return;
+  // skip messages we already rendered (our own optimistic bubbles / dupes)
+  const key=m.id||(m.role+':'+m.content+':'+(m.created_at||''));
+  if(_renderedIds.has(key))return; _renderedIds.add(key);
+  // skip our OWN just-sent human message (already on screen optimistically)
+  const myUid=localStorage.getItem('z_real_uid');
+  if(m.role==='user' && m.sender_user_id && myUid && m.sender_user_id===myUid)return;
+  const convo=$('convo');
+  if(m.role==='user'){
+    const b=bubble('me',m.content); b.classList.remove('me'); b.classList.add('them-h');
+    convo.appendChild(b);
+  } else {
+    const w=gBubble(m.persona_key||activeRoom.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
+  }
+  convo.scrollTop=convo.scrollHeight;
+}
+
 /* ===== SHARED ROOMS ===== */
 let _inviting=false;
 async function inviteToRoom(){
@@ -658,7 +703,9 @@ async function openRoom(r){
   show('thread');
   const convo=$('convo'); convo.innerHTML='';
   const d=document.createElement('div'); d.className='t-desc'; d.textContent='a shared room — you, your friends, and '+(r.persona?CAT[r.persona].name:'a persona'); convo.appendChild(d);
+  _renderedIds=new Set();
   loadRoomHistory(r);
+  subscribeRoom(r.id);
 }
 async function loadRoomHistory(r){
   if(!r||!r.id)return;
@@ -864,7 +911,7 @@ async function sendMsg(){
 }
 $('send').onclick=sendMsg;
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
-$('t-back').onclick=()=>{activeGroup=null;activeRoom=null;renderContacts();show('list');};
+$('t-back').onclick=()=>{activeGroup=null;activeRoom=null;unsubscribeRoom();renderContacts();show('list');};
 
 /* edit sheet: rename + dp */
 var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
