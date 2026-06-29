@@ -82,6 +82,13 @@ app.post('/threads', async (req, res) => {
     const { personaKey, name, gender, avatarUrl, accent } = req.body ?? {};
     const persona = personaByKey(personaKey);
     if (!persona) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
+    // reuse the user's existing 1:1 thread for this persona if one exists (no duplicates, history stays)
+    const { data: existing } = await supabase.from('threads')
+      .select('id, persona_key, companion_name, avatar_url, accent')
+      .eq('user_id', user.id).eq('persona_key', persona.key)
+      .eq('is_group', false).is('deleted_at', null)
+      .order('last_active', { ascending: false }).limit(1).maybeSingle();
+    if (existing) return res.json(existing);
     const { data, error } = await supabase.from('threads').insert({
       user_id: user.id,
       persona_key: persona.key,

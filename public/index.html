@@ -423,6 +423,21 @@ let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server 
 let rooms=[]; let activeRoom=null;
 const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
+async function loadThreads(){
+  try{
+    const r=await fetch('/threads',{headers:HDRS()});
+    if(!r.ok)return;
+    const arr=await r.json();
+    if(Array.isArray(arr)){
+      // map server threads back onto persona keys by persona_key, capturing last_active
+      arr.forEach(t=>{
+        const key=Object.keys(CAT).find(k=>CAT[k].persona===t.persona_key);
+        if(key){ threads[key]=Object.assign(threads[key]||{},{id:t.id,name:t.companion_name||nameFor(key),last:t.last_active||null}); }
+      });
+      saveThreads(); renderContacts();
+    }
+  }catch(e){}
+}
 async function loadRooms(){
   try{
     const r=await fetch('/rooms',{headers:HDRS()});
@@ -481,7 +496,7 @@ async function verifyOtp(){
     if(j.userId)localStorage.setItem('z_real_uid',j.userId);
     localStorage.removeItem('z_uid');
     // go to the warm name/region step (or straight in if already named)
-    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');loadGroups();loadRooms();
+    if(j.hasName){localStorage.setItem('z_onboarded','1');renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
       const pj=localStorage.getItem('z_pending_join'); if(pj){localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl();}}
     else{show('onboard');}
   }catch(e){$('verify-otp').style.opacity='1';doorNote('otp-note','no connection. try again.');}
@@ -504,7 +519,7 @@ $('ob-go').onclick=async()=>{
   // save the name to the real account (so the server knows who they are — required for rooms)
   try{ await fetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:n,region:ME.region})}); }catch(e){}
   localStorage.setItem('z_onboarded','1');
-  renderContacts(); refreshProfile(); show('list'); loadGroups(); loadRooms();
+  renderContacts(); refreshProfile(); show('list'); loadThreads(); loadGroups(); loadRooms();
   // complete a pending room-join AFTER the account/name is saved
   const pj=localStorage.getItem('z_pending_join');
   if(pj){ localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); await tryJoinFromUrl(); }
@@ -546,7 +561,13 @@ function renderContacts(q){
     };
     c.appendChild(el);
   });
-  ORDER.forEach(key=>{
+  // recency: personas with recent activity float to the top, in last_active order
+  const sortedKeys=ORDER.slice().sort((a,b)=>{
+    const la=threads[a]&&threads[a].last?Date.parse(threads[a].last):0;
+    const lb=threads[b]&&threads[b].last?Date.parse(threads[b].last):0;
+    if(la&&lb)return lb-la; if(la)return -1; if(lb)return 1; return 0;
+  });
+  sortedKeys.forEach(key=>{
     if(!match(key))return;
     const cat=CAT[key];
     const el=document.createElement('div'); el.className='contact';
@@ -1203,7 +1224,7 @@ loadLocal();
   // if arriving via an invite link and already signed in, join straight away
   const hasJoin=new URL(location.href).searchParams.get('join');
   if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){
-    renderContacts();refreshProfile();show('list');loadGroups();loadRooms();
+    renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
     if(hasJoin) tryJoinFromUrl();
   } else if(localStorage.getItem('z_token')){ show('onboard'); }
   else { if(hasJoin) localStorage.setItem('z_pending_join',hasJoin); show('door'); }
