@@ -1123,7 +1123,7 @@ function unoAiChoose(p){
 async function unoDriveAI(){
   while(!UNO.over && UNO.turn!==0){
     UNO.busy=true; unoRender();
-    await new Promise(r=>setTimeout(r,1200));
+    await new Promise(r=>setTimeout(r,1400));
     const p=UNO.players[UNO.turn];
     const choice=unoAiChoose(p);
     if(!choice){
@@ -1136,7 +1136,7 @@ async function unoDriveAI(){
       await unoAiPlayCard(UNO.turn, choice.i);
     }
     unoRender();
-    await new Promise(r=>setTimeout(r,800));
+    await new Promise(r=>setTimeout(r,3200));
     UNO.busy=false; unoRender();
     if(UNO.over) return;
   }
