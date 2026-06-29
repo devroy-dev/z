@@ -9,7 +9,8 @@
 export type CodexKey =
   | 'intellect' | 'close' | 'hottie' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru'
   | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
-  | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator';
+  | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator'
+  | 'hippie' | 'diva' | 'cousin';
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -46,6 +47,9 @@ export const PERSONAS: Record<string, Persona> = {
   the_brainiac:     { key: 'the_brainiac',     defaultName: 'the brainiac',     codex: 'intellect', webEnabled: true  },
   the_addict:       { key: 'the_addict',       defaultName: 'the rehab',       codex: 'shadow',    webEnabled: false },
   the_self_obsessed:{ key: 'the_self_obsessed',defaultName: 'the guardian angel',codex: 'vanity',    webEnabled: false },
+  the_hippie:       { key: 'the_hippie',       defaultName: 'the hippie',       codex: 'hippie',    webEnabled: false },
+  the_diva:         { key: 'the_diva',         defaultName: 'the diva',         codex: 'diva',      webEnabled: true  },
+  the_cousin:       { key: 'the_cousin',       defaultName: 'the awkward cousin', codex: 'cousin',  webEnabled: false },
 };
 
 export function personaByKey(k: string): Persona | null {

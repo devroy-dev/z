@@ -56,6 +56,9 @@ const CODEX_FILES: Record<CodexKey, string> = {
   serious:        'codex-serious.md',
   wannabe:        'codex-wannabe-hustler.md',
   orator:         'codex-orator.md',
+  hippie:         'codex-hippie.md',
+  diva:           'codex-diva.md',
+  cousin:         'codex-cousin.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};

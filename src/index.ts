@@ -57,6 +57,7 @@ const SHAREABLE_PERSONAS = new Set([
   'the_comic','the_mentor','the_colleague','the_philosopher','the_historian',
   'the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher',
   'the_economist','the_leader_opp','the_wannabe','the_orator',
+  'the_hippie','the_diva','the_cousin',
 ]);
 
 const OPEN_MODE = (process.env.OPEN_MODE ?? 'true') === 'true';

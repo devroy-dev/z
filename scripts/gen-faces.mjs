@@ -63,6 +63,9 @@ const PERSONAS = {
   the_comic:       'a mischievous comedian, wide playful eyes, big infectious grin, expressive animated face',
   the_cynic:       'a dry skeptical wit, one eyebrow raised, knowing smirk, sharp unimpressed but clever eyes',
   the_moderator:   'a fair impartial referee figure, composed neutral face, steady balanced gaze, calm authority',
+  the_hippie:      'a serene free-spirited person, long relaxed hair, soft knowing half-smile, peaceful unbothered eyes, gentle bohemian warmth, faint earthy calm',
+  the_diva:        'a striking confident fashionable person, impeccable style, sharp arched brow, chic knowing smirk, magnetic editorial glamour, effortlessly current',
+  the_cousin:      'a shy gentle person, slightly hunched, soft hesitant eyes looking just away from camera, faint nervous half-smile, endearing awkward warmth',
 };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));

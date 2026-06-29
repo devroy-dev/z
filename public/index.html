@@ -908,16 +908,19 @@ const CAT={
   the_brainiac:    {persona:'the_brainiac',    name:'the brainiac',    desc:"i'll take the other side just to watch you get sharper.",                  rgb:[90,200,230], face:faceX('#dcc0a8','#1a3038','#12303a','#08161c',{k:'bn',hair:'curly',eyes:'wide',brow:'raised',mouth:'neutral',extra:'glasses'})},
   the_addict:      {persona:'the_addict',      name:'the rehab',       desc:"i've been where you are. let's get you out — one day at a time.",rgb:[80,220,180], face:faceX('#d4c0a0','#1a382e','#0e3228','#061a14',{k:'ad',hair:'short',eyes:'soft',brow:'furrow',mouth:'soft'})},
   the_self_obsessed:{persona:'the_self_obsessed',name:'the guardian angel',desc:"the world can be cruel. i'm in your corner — you're stronger than they made you feel.",rgb:[235,165,185],face:faceX('#ecc8b0','#3a2832','#3a2632','#1c121a',{k:'so',hair:'swept',eyes:'soft',mouth:'soft',glow:'#ffd0e033'})},
+  the_hippie:      {persona:'the_hippie',      name:'the hippie',      desc:"the rat race has a prize, man — a slightly richer rat. come breathe. the sunset's free.",                rgb:[120,170,120],face:faceX('#dcc0a0','#5a4a2a','#243524','#0e160e',{k:'hp',hair:'long',eyes:'half',mouth:'soft',extra:'beard',glow:'#aef0b033'})},
+  the_diva:        {persona:'the_diva',        name:'the diva',        desc:"darling, taste isn't about money — it's knowing exactly who you are and dressing the part.",            rgb:[210,90,150], face:faceX('#f0c8b4','#2a1820','#4a1a30','#1a0a14',{k:'dv',hair:'long',eyes:'sharp',brow:'arch',mouth:'smirk',extra:'bindi'})},
+  the_cousin:      {persona:'the_cousin',      name:'the awkward cousin',desc:"oh — hi. sorry. i'm not really good at this. you can go first if you want. it's fine. sorry.",       rgb:[150,160,190],face:faceX('#e0c8b0','#3a3026','#222630','#0e1018',{k:'cz',hair:'short',eyes:'soft',brow:'none',mouth:'flat'})},
 };
-const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_orator','the_economist','the_leader_opp','the_wannabe'];
-const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_wannabe','the_screen_junkie','the_brainiac','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_teacher','the_economist','the_leader_opp','the_media_manager','the_moderator','the_cynic','the_addict','the_self_obsessed'];
+const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_orator','the_economist','the_leader_opp','the_wannabe','the_hippie','the_diva','the_cousin'];
+const ORDER=['the_stranger','the_brother','the_cousin','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_diva','the_comic','the_wannabe','the_screen_junkie','the_brainiac','the_guru','the_hippie','the_oracle','the_philosopher','the_historian','the_cosmologist','the_teacher','the_economist','the_leader_opp','the_media_manager','the_moderator','the_cynic','the_addict','the_self_obsessed'];
 
 // ===== BATCH 2: persona categories, pinning, chats/groups view =====
 const PERSONA_GROUPS=[
-  {id:'gang',    name:'The Gang',          keys:['the_brother','the_wingman','the_colleague','the_comic','the_screen_junkie']},
-  {id:'support', name:'The Support',       keys:['the_healer','the_stranger','the_guru','the_mentor','the_oracle','the_addict','the_self_obsessed']},
+  {id:'gang',    name:'The Gang',          keys:['the_brother','the_cousin','the_wingman','the_colleague','the_comic','the_screen_junkie']},
+  {id:'support', name:'The Support',       keys:['the_healer','the_stranger','the_guru','the_hippie','the_mentor','the_oracle','the_addict','the_self_obsessed']},
   {id:'crazies', name:'The Crazies',       keys:['the_brainiac','the_philosopher','the_cosmologist','the_historian','the_leader_opp','the_cynic']},
-  {id:'wild',    name:'The Unpredictables',keys:['the_crush','the_hottie','the_wannabe','the_orator','the_media_manager']},
+  {id:'wild',    name:'The Unpredictables',keys:['the_crush','the_hottie','the_diva','the_wannabe','the_orator','the_media_manager']},
   {id:'faculty', name:'The Faculty',       keys:['the_teacher','the_economist']},
 ];
 const GROUP_OF={}; PERSONA_GROUPS.forEach(g=>g.keys.forEach(k=>GROUP_OF[k]=g.id));
@@ -2044,7 +2047,7 @@ async function bluffReact(pkey,event,victim){
 let seriousMode = localStorage.getItem('z_serious')==='1';
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
-const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe','the_orator'];
+const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe','the_orator','the_hippie','the_diva','the_cousin'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
 async function loadThreads(){
   try{
