@@ -376,7 +376,19 @@ app.get('/threads/:id/messages', async (req, res) => {
       .limit(200);
     if (!thread.is_shared) q = q.eq('user_id', user.id);
     const { data: msgs } = await q;
-    res.json({ messages: msgs ?? [], is_group: !!thread.is_group, is_shared: !!thread.is_shared });
+    // resolve a roster of member names (id -> display_name) for shared rooms
+    let roster: Record<string,string> = {};
+    if (thread.is_shared) {
+      const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', threadId);
+      const ids = (mem ?? []).map((m: any) => m.user_id);
+      if (ids.length) {
+        const { data: us } = await supabase.from('users').select('id, display_name').in('id', ids);
+        (us ?? []).forEach((u: any) => { roster[u.id] = u.display_name || 'someone'; });
+      }
+    }
+    // attach sender_name to each message
+    const out = (msgs ?? []).map((m: any) => ({ ...m, sender_name: m.sender_user_id ? (roster[m.sender_user_id] || 'someone') : null }));
+    res.json({ messages: out, is_group: !!thread.is_group, is_shared: !!thread.is_shared, roster, you: user.id });
   } catch (e: any) { res.status(500).json({ error: 'history failed: ' + (e?.message || String(e)) }); }
 });
 
@@ -465,6 +477,23 @@ app.post('/join/:token', async (req, res) => {
 });
 
 // rooms the user is a member of (server is source of truth)
+app.get('/rooms/:id/members', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!(await isRoomMember(req.params.id, user.id))) return res.status(403).json({ error: 'not a member' });
+    const { data: mems } = await supabase.from('room_members').select('user_id').eq('thread_id', req.params.id);
+    const ids = (mems ?? []).map((m: any) => m.user_id);
+    const map: Record<string,string> = {};
+    if (ids.length) {
+      const { data: us } = await supabase.from('users').select('id, display_name').in('id', ids);
+      (us ?? []).forEach((u: any) => { map[u.id] = u.display_name || 'someone'; });
+    }
+    res.json({ members: map, meId: user.id });
+  } catch (e: any) { res.status(500).json({ error: 'members failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/rooms', async (req, res) => {
   try {
     const authId = await authUser(req);

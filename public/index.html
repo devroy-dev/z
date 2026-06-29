@@ -223,7 +223,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .searchbar:focus{border-color:var(--line-strong)}
 .search-x{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:20px;cursor:pointer;display:none;line-height:1}
 .searchwrap.has .search-x{display:block}
-.them-h{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);border-radius:14px 14px 14px 4px}.room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
+.gz-name.human{color:#bdb4a6}.them-h{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);border-radius:14px 14px 14px 4px}.room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
 </style>
 </head>
 <body>
@@ -643,8 +643,17 @@ async function loadGroupHistory(g){
 
 
 
+function roomHumanBubble(name, text, mine){
+  if(mine){ const b=bubble('me',text); return b; }
+  // someone else: left-aligned, labelled with their name (like persona bubbles)
+  const wrap=document.createElement('div'); wrap.className='gz';
+  wrap.innerHTML='<div class="gz-face"></div><div class="gz-body"><div class="gz-name human"></div><div class="gz-text"></div></div>';
+  wrap.querySelector('.gz-name').textContent=name||'someone';
+  wrap.querySelector('.gz-text').textContent=text;
+  return wrap;
+}
 /* ===== REALTIME (Supabase) — live messages in shared rooms ===== */
-let _sb=null, _roomChannel=null, _renderedIds=new Set();
+let _sb=null, _roomChannel=null, _renderedIds=new Set(); let _roomMembers={}, _meId=null; let _lastPersonaReply=null;
 async function initRealtime(){
   if(_sb)return _sb;
   try{
@@ -670,16 +679,16 @@ function unsubscribeRoom(){
 }
 function onLiveMessage(m){
   if(!activeRoom||!m||m.thread_id!==activeRoom.id)return;
-  // skip messages we already rendered (our own optimistic bubbles / dupes)
-  const key=m.id||(m.role+':'+m.content+':'+(m.created_at||''));
+  const key=m.created_at?(m.role+':'+m.content+':'+m.created_at):(m.role+':'+m.content);
   if(_renderedIds.has(key))return; _renderedIds.add(key);
-  // skip our OWN just-sent human message (already on screen optimistically)
-  const myUid=localStorage.getItem('z_real_uid');
-  if(m.role==='user' && m.sender_user_id && myUid && m.sender_user_id===myUid)return;
+  // my own human message is already on screen optimistically — skip
+  if(m.role==='user' && m.sender_user_id && _meId && m.sender_user_id===_meId)return;
+  // a persona reply I just streamed locally — skip the realtime echo of the same text
+  if(m.role==='assistant' && _lastPersonaReply && m.content===_lastPersonaReply){ _lastPersonaReply=null; return; }
   const convo=$('convo');
   if(m.role==='user'){
-    const b=bubble('me',m.content); b.classList.remove('me'); b.classList.add('them-h');
-    convo.appendChild(b);
+    const nm=_roomMembers[m.sender_user_id]||'someone';
+    convo.appendChild(roomHumanBubble(nm, m.content, false));
   } else {
     const w=gBubble(m.persona_key||activeRoom.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
   }
@@ -725,7 +734,8 @@ async function openRoom(r){
   const convo=$('convo'); convo.innerHTML='';
   const d=document.createElement('div'); d.className='t-desc'; d.textContent='a shared room — you, your friends, and '+(r.persona?CAT[r.persona].name:'a persona'); convo.appendChild(d);
   _renderedIds=new Set();
-  loadRoomHistory(r);
+  await loadRoomMembers(r);
+  await loadRoomHistory(r);
   subscribeRoom(r.id);
 }
 async function loadRoomHistory(r){
@@ -733,13 +743,19 @@ async function loadRoomHistory(r){
   try{
     const resp=await fetch('/threads/'+r.id+'/messages',{headers:HDRS()});
     if(!resp.ok)return;
-    const j=await resp.json(); const msgs=j.messages||[]; if(!msgs.length)return;
+    const j=await resp.json(); const msgs=j.messages||[]; _meId=j.meId||_meId;
     const convo=$('convo');
     msgs.forEach(m=>{
-      if(m.role==='user'){ const b=bubble('me',m.content); convo.appendChild(b); }
+      const k=m.created_at||(m.role+':'+m.content); _renderedIds.add(k);
+      if(m.role==='user'){ convo.appendChild(roomHumanBubble(m.sender_name, m.content, !!m.mine)); }
       else{ const w=gBubble(m.persona_key||r.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w); }
     });
     convo.scrollTop=convo.scrollHeight;
+  }catch(e){}
+}
+async function loadRoomMembers(r){
+  try{ const resp=await fetch('/rooms/'+r.id+'/members',{headers:HDRS()}); if(!resp.ok)return;
+    const j=await resp.json(); _roomMembers=j.members||{}; _meId=j.meId||_meId;
   }catch(e){}
 }
 // handle an incoming ?join=<token> link
@@ -809,7 +825,8 @@ function gBubble(key){
   return wrap;
 }
 async function sendRoom(text){
-  $('convo').appendChild(bubble('me',text));
+  // optimistic: my own message right away
+  $('convo').appendChild(roomHumanBubble(null,text,true));
   $('convo').scrollTop=$('convo').scrollHeight;
   try{
     const r=await fetch('/chat',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:activeRoom.id,message:text})});
@@ -825,6 +842,8 @@ async function sendRoom(text){
       });}};
     while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});drain();}
     buf+='\n\n';drain();
+    // mark this persona reply as rendered so realtime's echo of the same row is skipped
+    if(acc&&curKey){ _renderedIds.add('assistant:'+acc+':stream'); _lastPersonaReply=acc; }
   }catch(e){}
   $('convo').scrollTop=$('convo').scrollHeight;
 }
