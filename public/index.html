@@ -426,6 +426,25 @@ startInk();
 
 /* ===== TOKEN REFRESH (silent re-auth so sessions don't expire mid-use) ===== */
 let _refreshing=null;
+
+let _refreshTimer=null;
+function scheduleRefresh(){
+  if(_refreshTimer)clearTimeout(_refreshTimer);
+  const exp=parseInt(localStorage.getItem('z_exp')||'0',10);
+  const now=Date.now();
+  // refresh 60s before expiry; if already close/expired, refresh in 2s
+  let wait=exp?(exp-now-60000):300000;
+  if(wait<2000)wait=2000;
+  _refreshTimer=setTimeout(async()=>{
+    const ok=await refreshToken();
+    if(ok){
+      // re-auth the realtime client with the fresh token so the channel stays alive
+      try{ if(_sb){ const t=localStorage.getItem('z_token'); await _sb.realtime.setAuth(t); if(activeRoom)subscribeRoom(activeRoom.id); } }catch(e){}
+    }
+    scheduleRefresh();
+  }, wait);
+}
+
 async function refreshToken(){
   const rt=localStorage.getItem('z_refresh'); if(!rt)return false;
   if(_refreshing)return _refreshing;
@@ -433,7 +452,7 @@ async function refreshToken(){
     try{
       const r=await fetch('/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refreshToken:rt})});
       const j=await r.json();
-      if(j.token){ localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken); return true; }
+      if(j.token){ localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken); if(j.expiresIn)localStorage.setItem('z_exp',String(Date.now()+j.expiresIn*1000)); scheduleRefresh(); return true; }
     }catch(e){}
     return false;
   })();
@@ -534,7 +553,7 @@ async function verifyOtp(){
     $('verify-otp').style.opacity='1';
     if(!r.ok||!j.token){doorNote('otp-note',j.error||'that code didn\'t work.');return;}
     // store the real Supabase session token; drop anon id
-    localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken);
+    localStorage.setItem('z_token',j.token); if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken); if(j.expiresIn)localStorage.setItem('z_exp',String(Date.now()+j.expiresIn*1000)); scheduleRefresh();
     if(j.userId)localStorage.setItem('z_real_uid',j.userId);
     localStorage.removeItem('z_uid');
     // go to the warm name/region step (or straight in if already named)
@@ -1310,6 +1329,7 @@ loadLocal();
 (async()=>{
   // if arriving via an invite link and already signed in, join straight away
   const hasJoin=new URL(location.href).searchParams.get('join');
+  if(localStorage.getItem('z_token')){ scheduleRefresh(); }
   if(localStorage.getItem('z_token')&&localStorage.getItem('z_onboarded')){
     renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
     if(hasJoin) tryJoinFromUrl();
