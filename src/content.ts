@@ -50,6 +50,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   teacher:        'codex-teacher.md',
   economist:      'codex-economist.md',
   leader_opp:     'codex-leader-opposition.md',
+  serious:        'codex-serious.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};

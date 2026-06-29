@@ -230,6 +230,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .z-knob{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s}
 .z-switch.on .z-knob{left:21px}
 .room-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:6px;padding:1px 5px;vertical-align:middle;margin-left:6px}
+
+/* ===== SERIOUS MODE — matte black, white text, nothing else ===== */
+body.serious{background:#070707}
+body.serious .screen,body.serious #thread,body.serious .convo,body.serious .door,body.serious .door-atmos,body.serious .door-inner{background:#070707 !important}
+body.serious .world-canvas,body.serious #world,body.serious .jr-orb-wrap{display:none !important}
+body.serious .t-bar,body.serious #thread-bar{background:#070707 !important;border-bottom:1px solid rgba(255,255,255,.08) !important}
+body.serious .t-name,body.serious .t-meta,body.serious #t-name{color:#f2f2f2 !important}
+/* hide the persona face + descriptor + kebab in the quiet room */
+body.serious #t-face,body.serious .t-face,body.serious #t-kebab,body.serious .t-desc{display:none !important}
+/* bubbles: your words in soft grey, Z's words in clean white, no gold/cream */
+body.serious .bubble.me{background:rgba(255,255,255,.10) !important;color:#f4f4f4 !important;border:none !important}
+body.serious .bubble:not(.me),body.serious .gz-text{background:transparent !important;color:#f2f2f2 !important;border:none !important}
+body.serious .gz-name,body.serious .gz-face{display:none !important}
+/* input row: quiet, dark, minimal */
+body.serious .inp-row,body.serious #inp-row,body.serious .composer{background:#070707 !important;border-top:1px solid rgba(255,255,255,.08) !important}
+body.serious #inp,body.serious .inp{background:rgba(255,255,255,.06) !important;color:#f2f2f2 !important;border:1px solid rgba(255,255,255,.10) !important}
+body.serious #inp::placeholder{color:rgba(255,255,255,.35) !important}
+body.serious .send-btn,body.serious #send{background:rgba(255,255,255,.14) !important;color:#fff !important}
+/* keep Cormorant for any display text, just stripped of warmth */
+body.serious .mark,body.serious .t-name{font-family:'Cormorant Garamond',serif !important}
+/* a tiny calm way out — the back arrow stays, everything else gone */
+body.serious .t-back,body.serious #t-back{color:rgba(255,255,255,.5) !important}
+
 </style>
 </head>
 <body>
@@ -400,6 +423,7 @@ const CAT={
   the_media_manager:{persona:'the_media_manager',name:'the media manager',desc:"your brand is a story. let's tell it right.",                        rgb:[230,140,170],face:face('#e8c4b0','#3a2230','#4a2238','#1c0c14')},
   the_teacher:     {persona:'the_teacher',     name:'the professor',     desc:"you're not bad at it. it was explained badly. let's fix that.",          rgb:[120,190,170],face:face('#dcc8b0','#1f2e2a','#16241f','#0a1310')},
   the_economist:   {persona:'the_economist',   name:'the economist',   desc:"markets, money, and why your rent keeps rising. let's make it make sense.",rgb:[110,170,140],face:face('#d8c8b0','#1c2a22','#142019','#0a120c')},
+  z_serious:       {persona:'z_serious',       name:'Z',               desc:"i'm here.",                                                              rgb:[200,200,200],face:face('#cccccc','#1a1a1a','#141414','#0a0a0a')},
   the_leader_opp:  {persona:'the_leader_opp',  name:'the leader of opposition', desc:"whatever side you're on, i'm on the other. come at me with facts not opinions.", rgb:[200,120,110],face:face('#e0c0a8','#33201c','#2a1612','#160a08')},
   the_brother:     {persona:'the_brother',     name:'the brother',     desc:"love them, hate them, can't live without them. let's talk family.",        rgb:[200,120,80], face:face('#e0b896','#3a2418','#3a2214','#1a0e08')},
   the_healer:      {persona:'the_healer',      name:'the healer',      desc:"love once and you know what love is. love twice and you know what life is.",rgb:[124,92,220], face:face('#e8c4a8','#2a1f4a','#241a44','#0e0a22')},
@@ -509,6 +533,7 @@ let activeGroup=null;
 let groups=JSON.parse(localStorage.getItem('z_groups')||'[]'); // cache; server is source of truth
 let rooms=[]; let activeRoom=null;
 let seriousMode = localStorage.getItem('z_serious')==='1';
+function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
 const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp'];
 function saveGroups(){localStorage.setItem('z_groups',JSON.stringify(groups));}
@@ -713,7 +738,6 @@ function renderContacts(q){
     if(la&&lb)return lb-la; if(la)return -1; if(lb)return 1; return 0;
   });
   sortedKeys.forEach(key=>{
-    if(seriousMode && !SERIOUS_OK.includes(key))return;  // serious mode: only counselor-grade personas
     if(!match(key))return;
     const cat=CAT[key];
     const el=document.createElement('div'); el.className='contact';
@@ -859,14 +883,25 @@ async function leaveRoom(){
 }
 
 
-/* ===== SERIOUS MODE (global toggle) ===== */
+/* __SERIOUS_SKIN_PLACEHOLDER__ (global toggle) ===== */
 function paintSeriousSwitch(){ const sw=$('serious-switch'); if(sw) sw.classList.toggle('on', seriousMode); }
 async function toggleSerious(){
   seriousMode=!seriousMode;
   localStorage.setItem('z_serious', seriousMode?'1':'0');
   paintSeriousSwitch();
-  renderContacts(); // re-filter the list
+  applySeriousSkin();
+  $('profSheet')&&$('profSheet').classList.remove('on');
   try{ await zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({seriousMode})}); }catch(e){}
+  if(seriousMode){
+    // enter the quiet room: open the consolidated Z directly, silent (no greeting)
+    openThread('z_serious');
+  } else {
+    // leave: back to the warm full app
+    renderContacts(); show('list');
+  }
+}
+function applySeriousSkin(){
+  document.body.classList.toggle('serious', seriousMode);
 }
 
 /* ===== SHARED ROOMS ===== */
@@ -1125,7 +1160,10 @@ async function sendMsg(){
 }
 $('send').onclick=sendMsg;
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
-$('t-back').onclick=()=>{activeGroup=null;activeRoom=null;unsubscribeRoom();renderContacts();show('list');};
+$('t-back').onclick=()=>{
+  if(seriousMode && active==='z_serious'){ /* in the quiet room: leaving goes back to settings, stays in serious unless toggled */ renderContacts(); show('list'); return; }
+  activeGroup=null;activeRoom=null;unsubscribeRoom();renderContacts();show('list');
+};
 
 /* edit sheet: rename + dp */
 var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
