@@ -516,6 +516,23 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 @keyframes micPulse{0%,100%{opacity:1}50%{opacity:.45}}
 .mic-hint{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--accent2);background:var(--card);border:1px solid var(--line-strong);padding:5px 12px;border-radius:20px;white-space:nowrap;z-index:40;animation:fadeInSlow .3s ease both}
 
+
+/* ===== BATCH 4: welcome tour ===== */
+#welcome{display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(180deg,var(--bg-soft),var(--bg))}
+.wel-wrap{width:100%;max-width:420px;display:flex;flex-direction:column;align-items:center;gap:22px}
+.wel-card{width:100%;min-height:300px;background:var(--card);border:1px solid var(--line-strong);border-radius:22px;padding:30px 26px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.wel-emoji{font-size:42px;margin-bottom:14px}
+.wel-title{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:27px;line-height:1.25;color:var(--ink-on);margin-bottom:12px}
+.wel-title .i{font-style:italic;color:var(--accent2)}
+.wel-body{font-size:14px;line-height:1.6;color:var(--faint)}
+.wel-body b{color:var(--ink-on);font-weight:600}
+.wel-dots{display:flex;gap:7px}
+.wel-dot{width:7px;height:7px;border-radius:50%;background:var(--line-strong);transition:.2s}
+.wel-dot.on{background:var(--accent2);width:20px;border-radius:4px}
+.wel-actions{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.wel-skip{font-size:13px;color:var(--faint);cursor:pointer;padding:10px}
+.wel-next{flex:1;max-width:160px;text-align:center;cursor:pointer}
+
 </style>
 </head>
 <body>
@@ -579,6 +596,18 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 </div>
 
 <!-- CONTACT LIST -->
+<div class="screen" id="welcome" style="display:none">
+  <div class="wel-wrap">
+    <div class="wel-card" id="wel-card">
+      <div class="wel-step" id="wel-step"></div>
+    </div>
+    <div class="wel-dots" id="wel-dots"></div>
+    <div class="wel-actions">
+      <div class="wel-skip" id="wel-skip">skip</div>
+      <div class="btn wel-next" id="wel-next">next</div>
+    </div>
+  </div>
+</div>
 <div class="screen" id="list">
   <div class="list-head">
     <div class="lh-left">
@@ -2187,6 +2216,48 @@ let OB_SEX='na';
     o.onclick=function(){ OB_SEX=o.getAttribute('data-sex'); seg.querySelectorAll('.seg-opt').forEach(function(x){x.classList.toggle('on',x===o);}); };
   });
 })();
+// ===== BATCH 4: the welcome tour — Z's warm first hello + how the app works =====
+function welcomeSteps(){
+  const nm = (ME.name||'').trim() || 'you';
+  return [
+    { emoji:'👋', title:`hey ${nm}. <span class="i">i'm Z.</span>`,
+      body:`not an assistant, not a chatbot — think of me as a whole <b>cast of people</b> who actually get you. some to think with, some to lean on, some just to mess around with. ze answer to your boredom, basically. 😉` },
+    { emoji:'💬', title:`a person for every <span class="i">kind of moment</span>`,
+      body:`rough night? there's someone for that. want to argue ideas till 2am? someone for that too. flirt, vent, learn, laugh — each one's their own self, and they <b>remember you</b> across all of it. one you, many of them.` },
+    { emoji:'🎭', title:`step into a <span class="i">scene</span>`,
+      body:`when you want to be <b>someone else</b> for a bit — roleplay missions where you talk your way out of a hostage standoff, or flip a senate vote. no one watching, no judgment. just you, free.` },
+    { emoji:'🎲', title:`come <span class="i">play</span>`,
+      body:`bored? there's a whole arena — UNO, Ludo, Bluff, debates, trivia. play against the cast, or pull in real friends. the point is simple: get off the endless scroll, do something that actually feels good.` },
+    { emoji:'🔒', title:`this space is <span class="i">yours</span>`,
+      body:`whatever you say here <b>stays yours</b> — we never sell it, never train on it. there's even a quiet room for the heavy nights. you're safe here, ${nm}. that's the whole point.` },
+    { emoji:'✨', title:`ready when <span class="i">you are</span>`,
+      body:`pick anyone from your people and just start talking. they're already waiting. let's go.` },
+  ];
+}
+let _welIdx=0, _welSteps=[];
+function renderWelStep(){
+  const st=_welSteps[_welIdx]; if(!st)return;
+  $('wel-step').innerHTML=`<div class="wel-emoji">${st.emoji}</div><div class="wel-title">${st.title}</div><div class="wel-body">${st.body}</div>`;
+  const dots=$('wel-dots'); dots.innerHTML=_welSteps.map((_,i)=>`<div class="wel-dot${i===_welIdx?' on':''}"></div>`).join('');
+  $('wel-next').textContent = _welIdx===_welSteps.length-1 ? "let's go" : 'next';
+  $('wel-skip').style.visibility = _welIdx===_welSteps.length-1 ? 'hidden' : 'visible';
+}
+function startWelcome(){
+  _welSteps=welcomeSteps(); _welIdx=0;
+  show('welcome'); renderWelStep();
+}
+function finishWelcome(){
+  localStorage.setItem('z_welcomed','1');
+  renderContacts(); refreshProfile(); show('list'); loadThreads(); loadGroups(); loadRooms();
+  // honor a pending room-join after the tour
+  const pj=localStorage.getItem('z_pending_join');
+  if(pj){ localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl(); }
+}
+(function(){
+  var nx=$('wel-next'), sk=$('wel-skip');
+  if(nx)nx.onclick=function(){ if(_welIdx<_welSteps.length-1){ _welIdx++; renderWelStep(); } else { finishWelcome(); } };
+  if(sk)sk.onclick=function(){ finishWelcome(); };
+})();
 $('ob-go').onclick=async()=>{
   const n=$('ob-name').value.trim(); if(!n)return;
   ME.name=n; ME.region=$('ob-region').value.trim();
@@ -2202,10 +2273,9 @@ $('ob-go').onclick=async()=>{
   // save the name to the real account (so the server knows who they are — required for rooms)
   try{ await zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:n,region:ME.region,dob:ME.dob,sex:ME.sex})}); }catch(e){}
   localStorage.setItem('z_onboarded','1');
-  renderContacts(); refreshProfile(); show('list'); loadThreads(); loadGroups(); loadRooms();
-  // complete a pending room-join AFTER the account/name is saved
-  const pj=localStorage.getItem('z_pending_join');
-  if(pj){ localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); await tryJoinFromUrl(); }
+  // preload data quietly, then run Z's warm welcome tour (first-time only)
+  loadThreads(); loadGroups(); loadRooms();
+  startWelcome();
 };
 
 /* contact list */

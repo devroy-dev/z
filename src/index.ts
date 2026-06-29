@@ -400,6 +400,8 @@ app.post('/me', async (req, res) => {
     if (typeof displayName === 'string' && displayName.trim()) patch.display_name = displayName.trim().slice(0, 80);
     if (typeof req.body?.seriousMode === 'boolean') patch.serious_mode = req.body.seriousMode;
     if (typeof region === 'string') patch.region = region.trim().slice(0, 120) || null;
+    if (typeof req.body?.dob === 'string') patch.dob = req.body.dob.trim() || null;   // 'YYYY-MM-DD'
+    if (typeof req.body?.sex === 'string' && ['female','male','na'].includes(req.body.sex)) patch.sex = req.body.sex;
     if (Object.keys(patch).length) {
       const { error } = await supabase.from('users').update(patch).eq('id', user.id);
       if (error) return res.status(500).json({ error: 'me update: ' + error.message });

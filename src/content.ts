@@ -30,6 +30,7 @@ const SMALL_TALK = (() => { try { return stripBuildComment(load('handbook-small-
 // Small-talk-around-the-world: the international texture, also a permanent lens. Powers the
 // "when in Rome" law — Z meets each person the way people talk where they're from.
 const SMALL_TALK_WORLD = (() => { try { return stripBuildComment(load('handbook-small-talk-world.md')); } catch { return ''; } })();
+const PSYCHOLOGY = (() => { try { return stripBuildComment(load('handbook-psychology.md')); } catch { return ''; } })();
 
 const CODEX_FILES: Record<CodexKey, string> = {
   intellect: 'codex-intellect.md',
@@ -72,6 +73,7 @@ export function soulFor(companionName: string, gender: string | null): string {
   let out = soul;
   if (SMALL_TALK) out += '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK;
   if (SMALL_TALK_WORLD) out += '\n\n[TALKING ACROSS CULTURES — a permanent lens. Meet each person the way people talk where they are from; lower your own defaults and read theirs.]\n' + SMALL_TALK_WORLD;
+  if (PSYCHOLOGY) out += '\n\n[THE READ — a permanent lens, true under every role. How you understand people: as intuition, never as diagnosis or label, never named aloud, never as leverage.]\n' + PSYCHOLOGY;
   return out;
 }
 

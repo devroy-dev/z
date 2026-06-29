@@ -57,13 +57,24 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // the cached soul. Z greets and reasons knowing the actual person.
   const { data: owner } = await supabase
     .from('users')
-    .select('display_name, region, serious_mode')
+    .select('display_name, region, serious_mode, dob')
     .eq('id', userId).maybeSingle();
   let ownerLine = '';
   if (owner && (owner.display_name || owner.region)) {
     const who = owner.display_name ? owner.display_name : 'this person';
     const where = owner.region ? `, from ${owner.region}` : '';
-    ownerLine = `\n\n[WHO YOU'RE TALKING TO: ${who}${where}. This is the real person on the other end — speak to them by name when it's natural, mirror how people talk where they're from, and never read this aloud as a label.]`;
+    let ageBit = '';
+    if ((owner as any).dob) {
+      const d = new Date((owner as any).dob);
+      if (!isNaN(d.getTime())) {
+        const now = new Date();
+        let age = now.getFullYear() - d.getFullYear();
+        const m = now.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+        if (age > 0 && age < 120) ageBit = `, ${age} years old`;
+      }
+    }
+    ownerLine = `\n\n[WHO YOU'RE TALKING TO: ${who}${where}${ageBit}. This is the real person on the other end — speak to them by name when it's natural, mirror how people talk where they're from, meet them at their age (a 19-year-old and a 45-year-old need very different things from the same words), and never read this aloud as a label.]`;
   }
 
   // ── SERIOUS MODE (global, per-user): counselor-grade care, no bits ──────
