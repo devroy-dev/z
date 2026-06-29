@@ -277,6 +277,24 @@ app.delete('/journal/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
 });
 
+// ── CLEAR CHAT: wipe the messages in one of the user's threads (keeps the thread + persona).
+app.post('/thread/clear', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { threadId } = req.body ?? {};
+    if (!threadId) return res.status(400).json({ error: 'threadId required' });
+    // only the owner may clear; verify ownership
+    const { data: th } = await supabase.from('threads')
+      .select('id, user_id').eq('id', threadId).is('deleted_at', null).maybeSingle();
+    if (!th || th.user_id !== user.id) return res.status(403).json({ error: 'not your chat' });
+    // wipe messages + any per-thread summary/memory derived state for a clean slate
+    await supabase.from('messages').delete().eq('thread_id', threadId);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'clear failed: ' + (e?.message || String(e)) }); }
+});
+
 // ── BANTER: a single short in-character line (for games like blackjack). No thread/history.
 app.post('/banter', async (req, res) => {
   try {

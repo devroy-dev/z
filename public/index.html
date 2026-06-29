@@ -435,6 +435,7 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
     <input id="renameInp" placeholder="Name" autocomplete="off">
     <div class="prow" id="prow-invite" style="display:none;color:var(--accent2)" onclick="inviteToRoom()">＋ Invite a friend to chat with this persona</div>
     <div class="prow" id="prow-leaveroom" style="display:none;color:#e08a8a" onclick="leaveRoom()">Leave this room</div>
+    <div class="prow" id="prow-clearchat" style="display:none;color:#e08a8a" onclick="clearChat()">Clear this chat</div>
     <div class="dp-row">
       <div class="dp-prev" id="dp-prev"></div>
       <label class="dp-pick" for="dp-file">Choose photo</label>
@@ -1622,12 +1623,27 @@ $('t-back').onclick=()=>{
 /* edit sheet: rename + dp */
 var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
 var _m=$('t-meta'); if(_m)_m.addEventListener('click',openEdit);
+async function clearChat(){
+  if(!active){ return; }
+  const t=threads[active];
+  if(!t||!t.id){ $('sheet').classList.remove('on'); return; }
+  if(!confirm("clear this chat? this wipes the conversation here — it can't be undone.")) return;
+  try{
+    const r=await zfetch('/thread/clear',{method:'POST',headers:HDRS(),body:JSON.stringify({threadId:t.id})});
+    if(!r.ok){ const j=await r.json().catch(()=>({})); alert(j.error||'could not clear'); return; }
+    $('sheet').classList.remove('on');
+    const convo=$('convo'); if(convo) convo.innerHTML='';
+    await openThread(active);
+  }catch(e){ alert('no connection'); }
+}
+
 function openEdit(){
   // in a room, the edit sheet offers room actions instead of persona rename
   if(activeRoom){
     $('sheet-title') && ($('sheet-title').textContent=activeRoom.name||'room');
     var ir=$('prow-invite'); if(ir) ir.style.display='block';
     var lr=$('prow-leaveroom'); if(lr) lr.style.display='block';
+    var cc0=$('prow-clearchat'); if(cc0) cc0.style.display='none';
     $('sheet').classList.add('on');
     return;
   }
@@ -1637,6 +1653,7 @@ function openEdit(){
   // show invite option only for shareable personas
   var invRow=$('prow-invite');
   if(invRow) invRow.style.display = SHAREABLE.includes(active) ? 'block' : 'none';
+  var ccRow=$('prow-clearchat'); if(ccRow) ccRow.style.display='block';
   $('renameInp').value=nameFor(active);
   $('dp-prev').innerHTML=dpFor(active);
   $('sheet').classList.add('on');
