@@ -2922,59 +2922,63 @@ async function sendMsg(){
   }catch(e){zb.classList.remove('typing');zb.textContent='(no connection)';}
   $('convo').scrollTop=$('convo').scrollHeight;
 }
-// ===== VOICE NOTES — free Web Speech API, graceful fallback =====
+// ===== VOICE NOTES — record audio → Sarvam transcription (works in native iOS/Android) =====
 (function(){
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   var micBtn = document.getElementById('mic');
-  if(!SR || !micBtn){ return; }            // unsupported (some iOS) -> mic stays hidden, typing works as normal
-  micBtn.style.display='grid';             // supported -> reveal the mic
+  if(!micBtn) return;
+  // need MediaRecorder + getUserMedia; available in Chrome/Android/iOS WebView with mic permission
+  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)){ return; }
+  micBtn.style.display='grid';
 
-  var rec=null, recording=false, hintEl=null;
-  function showHint(t){
-    hideHint();
-    hintEl=document.createElement('div'); hintEl.className='mic-hint'; hintEl.textContent=t;
-    var dock=micBtn.closest('.dock')||document.body; dock.appendChild(hintEl);
-  }
+  var mediaRec=null, chunks=[], recording=false, hintEl=null, streamRef=null;
+  function showHint(t){ hideHint(); hintEl=document.createElement('div'); hintEl.className='mic-hint'; hintEl.textContent=t; (micBtn.closest('.dock')||document.body).appendChild(hintEl); }
   function hideHint(){ if(hintEl){ hintEl.remove(); hintEl=null; } }
+  function stopStream(){ if(streamRef){ streamRef.getTracks().forEach(function(t){ t.stop(); }); streamRef=null; } }
 
-  function pickLang(){
-    // bias to the user's region/language where we can; default to device language
-    try{ if(ME && ME.region){ /* could map region->lang later */ } }catch(e){}
-    return navigator.language || 'en-US';
+  function pickMime(){
+    // pick a mime Sarvam + the browser both accept
+    var prefs=['audio/webm','audio/mp4','audio/ogg'];
+    for(var i=0;i<prefs.length;i++){ if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(prefs[i])) return prefs[i]; }
+    return '';
   }
 
-  function start(){
+  async function start(){
     try{
-      rec=new SR();
-      rec.lang=pickLang();
-      rec.interimResults=true;
-      rec.continuous=true;            // keep listening until they tap stop
-      var inp=$('inp');
-      var baseText=inp.value ? inp.value.trim()+' ' : '';
-      var finalChunk='';
-      rec.onresult=function(e){
-        var interim='';
-        for(var i=e.resultIndex;i<e.results.length;i++){
-          var t=e.results[i][0].transcript;
-          if(e.results[i].isFinal) finalChunk += t+' '; else interim += t;
-        }
-        inp.value = baseText + finalChunk + interim;
+      var stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      streamRef=stream;
+      var mime=pickMime();
+      mediaRec = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream);
+      chunks=[];
+      mediaRec.ondataavailable=function(e){ if(e.data && e.data.size>0) chunks.push(e.data); };
+      mediaRec.onstop=async function(){
+        stopStream();
+        micBtn.classList.remove('recording');
+        var blob=new Blob(chunks,{type:(mediaRec.mimeType||mime||'audio/webm')});
+        if(!blob.size){ hideHint(); return; }
+        showHint('transcribing…');
+        try{
+          var r=await zfetch('/transcribe',{method:'POST',headers:{...HDRS(),'Content-Type':blob.type},body:blob});
+          var j=await r.json();
+          hideHint();
+          if(j && j.transcript){
+            var inp=$('inp');
+            inp.value = (inp.value ? inp.value.trim()+' ' : '') + j.transcript;
+            inp.focus();
+          } else {
+            showHint('could not transcribe'); setTimeout(hideHint,1600);
+          }
+        }catch(err){ hideHint(); showHint('transcription failed'); setTimeout(hideHint,1600); }
       };
-      rec.onerror=function(ev){
-        recording=false; micBtn.classList.remove('recording');
-        if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ showHint('mic permission needed'); setTimeout(hideHint,1800); }
-        else { hideHint(); }
-      };
-      rec.onend=function(){
-        recording=false; micBtn.classList.remove('recording'); hideHint();
-        $('inp').focus();
-      };
-      rec.start();
+      mediaRec.start();
       recording=true; micBtn.classList.add('recording');
-      showHint('listening… tap to stop');
-    }catch(err){ recording=false; micBtn.classList.remove('recording'); }
+      showHint('recording… tap to stop');
+    }catch(err){
+      recording=false; micBtn.classList.remove('recording'); stopStream();
+      showHint(err && err.name==='NotAllowedError' ? 'mic permission needed' : 'mic unavailable');
+      setTimeout(hideHint,1800);
+    }
   }
-  function stop(){ if(rec){ try{ rec.stop(); }catch(e){} } recording=false; micBtn.classList.remove('recording'); hideHint(); }
+  function stop(){ recording=false; if(mediaRec && mediaRec.state!=='inactive'){ try{ mediaRec.stop(); }catch(e){} } else { micBtn.classList.remove('recording'); stopStream(); hideHint(); } }
 
   micBtn.onclick=function(){ if(recording) stop(); else start(); };
 })();

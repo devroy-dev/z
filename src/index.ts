@@ -9,7 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
-import { transcribeAndStore } from './journal.js';
+import { transcribeAndStore, transcribeAudio } from './journal.js';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { personaByKey } from './personas.js';
@@ -247,6 +247,23 @@ app.post('/journal', express2.raw({ type: 'audio/*', limit: '12mb' }), async (re
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: 'journal failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// transcribe a chat voice note via Sarvam — returns TEXT only, stores nothing.
+// (the journal stores; chat voice notes just drop text into the composer.)
+app.post('/transcribe', express2.raw({ type: 'audio/*', limit: '12mb' }), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    await resolveUser(authId);
+    const audio = req.body as Buffer;
+    if (!audio || !audio.length) return res.status(400).json({ error: 'no audio' });
+    const mime = (req.headers['content-type'] as string) || 'audio/webm';
+    const result = await transcribeAudio(audio, mime);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: 'transcribe failed: ' + (e?.message || String(e)) });
   }
 });
 

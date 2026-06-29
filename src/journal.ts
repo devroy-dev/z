@@ -14,23 +14,19 @@ const SARVAM_URL = 'https://api.sarvam.ai/speech-to-text';
 
 export interface JournalResult { id: string; transcript: string; lang: string | null; }
 
-// transcribe an audio buffer via Sarvam, store transcript, discard audio.
-export async function transcribeAndStore(
-  userId: string,
-  audio: Buffer,
-  filename: string,
-  mime: string,
-): Promise<JournalResult> {
+// transcribe an audio buffer via Sarvam — returns text only (no storage).
+// shared by the journal (which then stores) and chat voice notes (which don't store).
+export async function transcribeAudio(audio: Buffer, mime: string): Promise<{ transcript: string; lang: string | null }> {
   if (!SARVAM_KEY) throw new Error('SARVAM_API_KEY not set');
 
-  // Sarvam REST expects multipart/form-data: file + model + mode + language_code
+  // Sarvam REST expects multipart/form-data: file + model + mode + language_code.
   // Sarvam validates the MIME exactly and rejects 'audio/webm;codecs=opus' even though
   // 'audio/webm' is allowed — strip the ';codecs=...' suffix to the bare type.
   const cleanMime = (mime || 'audio/webm').split(';')[0].trim();
   const ext = cleanMime.includes('webm') ? 'webm' : cleanMime.includes('mp4') ? 'mp4' : cleanMime.includes('wav') ? 'wav' : 'webm';
   const form = new FormData();
   const blob = new Blob([new Uint8Array(audio)], { type: cleanMime });
-  form.append('file', blob, `journal.${ext}`);
+  form.append('file', blob, `audio.${ext}`);
   form.append('model', 'saaras:v3');
   form.append('mode', 'codemix');
   form.append('language_code', 'unknown'); // auto-detect
@@ -42,16 +38,26 @@ export async function transcribeAndStore(
   });
   const raw = await r.text();
   if (!r.ok) {
-    console.error('[journal] sarvam', r.status, raw.slice(0, 500));
+    console.error('[transcribe] sarvam', r.status, raw.slice(0, 500));
     throw new Error(`sarvam ${r.status}: ${raw.slice(0, 300)}`);
   }
   let data: any = {};
-  try { data = JSON.parse(raw); } catch { console.error('[journal] non-json sarvam reply:', raw.slice(0,300)); }
-  console.log('[journal] sarvam keys:', Object.keys(data).join(','), '| raw:', raw.slice(0,300));
+  try { data = JSON.parse(raw); } catch { console.error('[transcribe] non-json sarvam reply:', raw.slice(0,300)); }
   // Sarvam STT response field can be transcript / text / output; cover them.
   const transcript: string = (data.transcript || data.text || data.output || data.transcript_text || '').trim();
   const lang: string | null = data.language_code || data.lang || data.detected_language || null;
   if (!transcript) throw new Error('empty transcript — sarvam keys: ' + Object.keys(data).join(','));
+  return { transcript, lang };
+}
+
+// transcribe an audio buffer via Sarvam, store transcript, discard audio.
+export async function transcribeAndStore(
+  userId: string,
+  audio: Buffer,
+  filename: string,
+  mime: string,
+): Promise<JournalResult> {
+  const { transcript, lang } = await transcribeAudio(audio, mime);
 
   // store TEXT only — audio buffer is never persisted, goes out of scope here.
   const { data: row, error } = await supabase
