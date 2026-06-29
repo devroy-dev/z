@@ -496,10 +496,17 @@ $('ob-go').onclick=async()=>{
   const n=$('ob-name').value.trim(); if(!n)return;
   ME.name=n; ME.region=$('ob-region').value.trim();
   localStorage.setItem('z_me',JSON.stringify(ME));
-  if(!localStorage.getItem('z_uid'))localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
+  // only create an anon id if there's NO real token (legacy open mode). authed users keep their token.
+  if(!localStorage.getItem('z_token') && !localStorage.getItem('z_uid')){
+    localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
+  }
+  // save the name to the real account (so the server knows who they are — required for rooms)
+  try{ await fetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:n,region:ME.region})}); }catch(e){}
   localStorage.setItem('z_onboarded','1');
   renderContacts(); refreshProfile(); show('list'); loadGroups(); loadRooms();
-  { const pj=localStorage.getItem('z_pending_join'); if(pj){localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl();} }
+  // complete a pending room-join AFTER the account/name is saved
+  const pj=localStorage.getItem('z_pending_join');
+  if(pj){ localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); await tryJoinFromUrl(); }
 };
 
 /* contact list */
