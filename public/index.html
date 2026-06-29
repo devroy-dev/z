@@ -235,7 +235,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 /* ===== SERIOUS MODE — matte black, white text, nothing else ===== */
 body.serious{background:#070707}
 body.serious .screen,body.serious #thread,body.serious .convo,body.serious .door,body.serious .door-atmos,body.serious .door-inner{background:#070707 !important}
-body.serious .world-canvas,body.serious #world,body.serious .jr-orb-wrap{display:none !important}
+body.serious .world-canvas,body.serious #world{display:none !important}
 body.serious .t-bar,body.serious #thread-bar{background:#070707 !important;border-bottom:1px solid rgba(255,255,255,.08) !important}
 body.serious .t-name,body.serious .t-meta,body.serious #t-name{color:#f2f2f2 !important}
 /* hide the persona face + descriptor + kebab in the quiet room */
@@ -485,9 +485,9 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 
 
 /* ===== BATCH 3: serious mode character ===== */
-body.serious #thread{position:relative;display:flex;flex-direction:column}
+body.serious #thread.on{position:relative;display:flex;flex-direction:column}
 body.serious .convo{flex:1 1 auto;min-height:0}
-body.serious #thread::before{
+body.serious #thread.on::before{
   content:"";position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);
   width:420px;height:420px;border-radius:50%;pointer-events:none;z-index:0;
   background:radial-gradient(circle, rgba(255,255,255,.05) 0%, rgba(255,255,255,.018) 38%, transparent 70%);
