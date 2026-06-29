@@ -468,6 +468,21 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .me-av img{width:100%;height:100%;object-fit:cover}
 .me-row{display:flex;align-items:flex-end;justify-content:flex-end;gap:0}
 
+
+/* ===== BATCH 2: richer onboarding (dob, country autocomplete, sex) ===== */
+.ob-lbl{font-size:11px;color:var(--faint);letter-spacing:.02em;margin-bottom:6px;display:block}
+.ob-lbl-sub{opacity:.7}
+.ob-dob-wrap input[type=date]{color-scheme:dark}
+.ob-country-wrap{position:relative}
+.country-list{position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--card);border:1px solid var(--line-strong);border-radius:12px;margin-top:4px;max-height:200px;overflow-y:auto;display:none;box-shadow:0 12px 30px rgba(0,0,0,.4)}
+.country-list.on{display:block}
+.country-opt{padding:11px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--line)}
+.country-opt:last-child{border-bottom:none}
+.country-opt:hover,.country-opt.active{background:rgba(var(--accent),.14);color:var(--accent2)}
+.seg{display:flex;gap:6px}
+.seg-opt{flex:1;text-align:center;padding:11px 4px;font-size:12px;border-radius:11px;border:1px solid var(--line-strong);background:var(--card);color:var(--faint);cursor:pointer;transition:.15s}
+.seg-opt.on{background:linear-gradient(135deg,rgba(var(--accent),.2),rgba(var(--accent),.08));color:var(--accent2);border-color:rgba(var(--accent),.45)}
+
 </style>
 </head>
 <body>
@@ -513,7 +528,19 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
   <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
   <div class="q">no logins, no judgement, no one watching. just tell me who i'm talking to.</div>
   <div class="field"><input id="ob-name" placeholder="what do i call you?" autocomplete="off"></div>
-  <div class="field"><input id="ob-region" placeholder="and where are you in the world?" autocomplete="off"></div>
+  <div class="field ob-dob-wrap"><label class="ob-lbl" for="ob-dob">your date of birth</label><input id="ob-dob" type="date" autocomplete="off"></div>
+  <div class="field ob-country-wrap">
+    <input id="ob-region" placeholder="where in the world are you?" autocomplete="off">
+    <div class="country-list" id="country-list"></div>
+  </div>
+  <div class="field ob-sex-wrap">
+    <div class="ob-lbl">who you are <span class="ob-lbl-sub">— helps me get a couple of characters right</span></div>
+    <div class="seg" id="ob-sex">
+      <div class="seg-opt" data-sex="female">woman</div>
+      <div class="seg-opt" data-sex="male">man</div>
+      <div class="seg-opt" data-sex="na">rather not say</div>
+    </div>
+  </div>
   <div class="ob-foot">i'll talk to you like the people back home do.</div>
   <div class="btn" id="ob-go">let's talk</div>
 </div>
@@ -2036,16 +2063,46 @@ $('phone')&&$('phone').addEventListener('keydown',e=>{if(e.key==='Enter')sendOtp
 $('otp')&&$('otp').addEventListener('keydown',e=>{if(e.key==='Enter')verifyOtp();});
 
 /* onboarding */
+// ===== BATCH 2: onboarding extras (country autocomplete, sex select) =====
+const COUNTRY_NAMES=["Afghanistan","Albania","Algeria","Andorra","Angola","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cambodia","Cameroon","Canada","Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba","Cyprus","Czechia","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt","El Salvador","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guyana","Haiti","Honduras","Hong Kong","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Macau","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Mauritania","Mauritius","Mexico","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar","Namibia","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway","Oman","Pakistan","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"];
+let OB_SEX='na';
+(function(){
+  var inp=document.getElementById('ob-region'), list=document.getElementById('country-list');
+  if(!inp||!list)return;
+  function render(q){
+    q=(q||'').trim().toLowerCase();
+    var matches = q ? COUNTRY_NAMES.filter(function(c){return c.toLowerCase().indexOf(q)>=0;}).slice(0,8) : [];
+    if(!matches.length){ list.classList.remove('on'); list.innerHTML=''; return; }
+    list.innerHTML = matches.map(function(c){return '<div class="country-opt">'+c+'</div>';}).join('');
+    list.classList.add('on');
+    list.querySelectorAll('.country-opt').forEach(function(o){
+      o.onclick=function(){ inp.value=o.textContent; list.classList.remove('on'); list.innerHTML=''; };
+    });
+  }
+  inp.addEventListener('input',function(){ render(inp.value); });
+  inp.addEventListener('focus',function(){ if(inp.value)render(inp.value); });
+  document.addEventListener('click',function(e){ if(e.target!==inp && !list.contains(e.target)){ list.classList.remove('on'); } });
+})();
+(function(){
+  var seg=document.getElementById('ob-sex'); if(!seg)return;
+  seg.querySelectorAll('.seg-opt').forEach(function(o){
+    o.onclick=function(){ OB_SEX=o.getAttribute('data-sex'); seg.querySelectorAll('.seg-opt').forEach(function(x){x.classList.toggle('on',x===o);}); };
+  });
+})();
 $('ob-go').onclick=async()=>{
   const n=$('ob-name').value.trim(); if(!n)return;
   ME.name=n; ME.region=$('ob-region').value.trim();
+  ME.dob=$('ob-dob').value||''; ME.sex=OB_SEX||'na';
+  // gender the hottie & crush relative to the user; "rather not say" => no DP (neutral)
+  // woman -> they present male; man -> they present female; na -> neutral/no-dp
+  ME.flirtGender = ME.sex==='female' ? 'male' : (ME.sex==='male' ? 'female' : 'na');
   localStorage.setItem('z_me',JSON.stringify(ME));
   // only create an anon id if there's NO real token (legacy open mode). authed users keep their token.
   if(!localStorage.getItem('z_token') && !localStorage.getItem('z_uid')){
     localStorage.setItem('z_uid','anon_'+Math.random().toString(36).slice(2)+Date.now().toString(36));
   }
   // save the name to the real account (so the server knows who they are — required for rooms)
-  try{ await zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:n,region:ME.region})}); }catch(e){}
+  try{ await zfetch('/me',{method:'POST',headers:HDRS(),body:JSON.stringify({displayName:n,region:ME.region,dob:ME.dob,sex:ME.sex})}); }catch(e){}
   localStorage.setItem('z_onboarded','1');
   renderContacts(); refreshProfile(); show('list'); loadThreads(); loadGroups(); loadRooms();
   // complete a pending room-join AFTER the account/name is saved
@@ -2054,7 +2111,18 @@ $('ob-go').onclick=async()=>{
 };
 
 /* contact list */
-function dpFor(key){return dpData[key]?`<img src="${dpData[key]}">`:CAT[key].face;}
+const GENDERED_PERSONAS=['the_hottie','the_crush','the_wingman','the_stranger'];
+function neutralFace(key){
+  // a clean, genderless placeholder used when the user hasn't given a gender
+  const cat=CAT[key]; const rgb=(cat&&cat.rgb)||[120,130,150];
+  return `<svg viewBox="0 0 100 100"><defs><linearGradient id="nf${key}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="rgba(${rgb[0]},${rgb[1]},${rgb[2]},.5)"/><stop offset="1" stop-color="rgba(${Math.max(rgb[0]-40,0)},${Math.max(rgb[1]-40,0)},${Math.max(rgb[2]-40,0)},.7)"/></linearGradient></defs><rect width="100" height="100" fill="url(#nf${key})"/><circle cx="50" cy="40" r="15" fill="rgba(255,255,255,.22)"/><path d="M22 84 Q22 60 50 60 Q78 60 78 84Z" fill="rgba(255,255,255,.22)"/></svg>`;
+}
+function dpFor(key){
+  if(dpData[key])return `<img src="${dpData[key]}">`;
+  // gendered personas show a neutral placeholder until the user picks a gender
+  if(GENDERED_PERSONAS.indexOf(key)>=0 && (!ME.sex || ME.sex==='na')) return neutralFace(key);
+  return CAT[key].face;
+}
 function nameFor(key){return (threads[key]&&threads[key].name)||CAT[key].name;}
 function contactEl(key,opts){
   opts=opts||{};
