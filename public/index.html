@@ -483,6 +483,23 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .seg-opt{flex:1;text-align:center;padding:11px 4px;font-size:12px;border-radius:11px;border:1px solid var(--line-strong);background:var(--card);color:var(--faint);cursor:pointer;transition:.15s}
 .seg-opt.on{background:linear-gradient(135deg,rgba(var(--accent),.2),rgba(var(--accent),.08));color:var(--accent2);border-color:rgba(var(--accent),.45)}
 
+
+/* ===== BATCH 3: serious mode character ===== */
+body.serious #thread{position:relative}
+body.serious #thread::before{
+  content:"";position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);
+  width:420px;height:420px;border-radius:50%;pointer-events:none;z-index:0;
+  background:radial-gradient(circle, rgba(255,255,255,.05) 0%, rgba(255,255,255,.018) 38%, transparent 70%);
+  animation:seriousBreath 7s ease-in-out infinite;
+}
+@keyframes seriousBreath{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
+body.serious .convo{position:relative;z-index:1}
+.serious-arrival{align-self:center;max-width:78%;text-align:center;color:rgba(255,255,255,.5);
+  font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px;line-height:1.5;
+  margin:34px auto 8px;letter-spacing:.01em;animation:fadeInSlow 1.6s ease both}
+@keyframes fadeInSlow{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+body.serious .t-status{color:rgba(255,255,255,.32) !important}
+
 </style>
 </head>
 <body>
@@ -2252,6 +2269,15 @@ const OPENERS={
   the_stranger:["i'm here, and whatever you tell me stays with me. always. what's going on?","you can say the thing you can't say to anyone else. i've got you. talk to me.","no judgment, no leaks, no agenda — just me, in your corner. what's on your chest?"],
   the_moderator:["i keep things fair. what are we settling today?","present your case. i'll hear it straight, no bias. go.","alright — what needs a fair, clear eye on it?"]
 };
+// serious mode: a quiet line of ARRIVAL — establishes the still, safe space without chatter
+const SERIOUS_ARRIVALS=[
+  "you're here. that's enough. say whatever you need to — or just sit a while.",
+  "no faces, no noise, no one watching. just this quiet, and me. take your time.",
+  "the door's shut behind you. whatever you carry, you can set it down here.",
+  "it's just us now. no rush, no judgment. start wherever you want — or don't, yet.",
+  "you found the quiet room. i'm here, for as long as you need. tell me, or breathe first."
+];
+function seriousArrival(){ return SERIOUS_ARRIVALS[Math.floor(Math.random()*SERIOUS_ARRIVALS.length)]; }
 function openerFor(key){ const p=OPENERS[key]; if(!p||!p.length) return null; return p[Math.floor(Math.random()*p.length)]; }
 
 async function openThread(key){
@@ -2259,6 +2285,9 @@ async function openThread(key){
   paintWorld(cat.rgb);
   $('t-face').innerHTML=dpFor(key);
   $('t-name').textContent=nameFor(key);
+  // serious mode header reads as the quiet room, not "tap to rename"
+  const _ts=document.querySelector('#thread .t-status');
+  if(_ts){ _ts.textContent = (key==='z_serious') ? 'the quiet room' : 'tap name to rename'; }
   show('thread');
   const convo=$('convo'); convo.innerHTML='';
   // descriptor as a system line at the top
@@ -2299,8 +2328,14 @@ async function loadHistory(key){
     const j=await r.json(); const msgs=j.messages||[];
     const convo=$('convo');
     if(!msgs.length){
-      // fresh chat — the persona opens in ITS OWN voice (skip serious mode, which is deliberately silent)
-      if(key!=='z_serious'){ const op=openerFor(key); if(op){ const b=bubble('z',op); b.classList.add('opener'); convo.appendChild(b); convo.scrollTop=convo.scrollHeight; } }
+      if(key==='z_serious'){
+        // the quiet room: a single still line of arrival (not chatter)
+        const a=document.createElement('div'); a.className='serious-arrival'; a.textContent=seriousArrival();
+        convo.appendChild(a); convo.scrollTop=convo.scrollHeight;
+      } else {
+        // fresh chat — the persona opens in ITS OWN voice
+        const op=openerFor(key); if(op){ const b=bubble('z',op); b.classList.add('opener'); convo.appendChild(b); convo.scrollTop=convo.scrollHeight; }
+      }
       return;
     }
     msgs.forEach(m=>{
