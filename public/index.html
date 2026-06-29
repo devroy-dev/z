@@ -440,6 +440,24 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .bluff-must{font-size:12px;color:var(--accent2);text-align:center;font-style:italic}
 .bluff-win{text-align:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink);padding:8px}
 
+
+/* ===== BATCH 2: chats/groups toggle, categories, pins ===== */
+.cg-toggle{display:flex;gap:6px;padding:0 20px 10px}
+.cg-tab{flex:1;text-align:center;padding:9px 0;font-size:12px;letter-spacing:.04em;border-radius:11px;border:1px solid var(--line-strong);background:var(--card);color:var(--faint);cursor:pointer;transition:.18s;font-weight:500}
+.cg-tab.on{background:linear-gradient(135deg,rgba(var(--accent),.18),rgba(var(--accent),.07));color:var(--accent2);border-color:rgba(var(--accent),.4)}
+.cg-tab .cgc{font-size:9px;opacity:.7;margin-left:5px}
+.cat-head{display:flex;align-items:center;gap:8px;padding:13px 22px 6px;cursor:pointer;user-select:none}
+.cat-head .cat-name{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.cat-head .cat-chev{font-size:10px;color:var(--faint);transition:transform .2s;margin-left:auto}
+.cat-head.collapsed .cat-chev{transform:rotate(-90deg)}
+.cat-head .cat-count{font-size:9px;color:var(--faint);opacity:.6}
+.pin-badge{font-size:9px;color:var(--accent2);opacity:.8;margin-left:5px}
+.contact .cpin{margin-left:auto;font-size:13px;opacity:0;color:var(--faint);cursor:pointer;padding:4px 8px;transition:.15s;flex-shrink:0}
+.contact:hover .cpin{opacity:.45}
+.contact .cpin:hover{opacity:1;color:var(--accent2)}
+.contact .cpin.pinned{opacity:.9;color:var(--accent2)}
+.sec-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:14px 22px 4px;opacity:.7}
+
 </style>
 </head>
 <body>
@@ -500,6 +518,10 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
     <div class="lh-profile" id="lh-profile" aria-label="settings"><span id="lh-initial">·</span></div>
   </div>
   <div class="searchwrap"><input id="search" class="searchbar" placeholder="search" autocomplete="off"><span class="search-x" id="search-x">×</span></div>
+  <div class="cg-toggle" id="cg-toggle">
+    <div class="cg-tab on" id="cg-chats" data-cg="chats">Chats</div>
+    <div class="cg-tab" id="cg-groups" data-cg="groups">Groups <span class="cgc" id="cg-gcount"></span></div>
+  </div>
   <div class="contacts" id="contacts"></div>
   <div class="botnav" id="botnav">
     <div class="nav on" data-tab="people"><div class="ic">❒</div>People</div>
@@ -730,6 +752,26 @@ const CAT={
 };
 const GROUP_OK=['the_wingman','the_hottie','the_brother','the_colleague','the_brainiac','the_mentor','the_healer','the_comic','the_crush','the_screen_junkie','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_orator','the_economist','the_leader_opp','the_wannabe'];
 const ORDER=['the_stranger','the_brother','the_healer','the_crush','the_colleague','the_mentor','the_wingman','the_hottie','the_comic','the_wannabe','the_screen_junkie','the_brainiac','the_guru','the_oracle','the_philosopher','the_historian','the_cosmologist','the_teacher','the_economist','the_leader_opp','the_media_manager','the_moderator','the_cynic','the_addict','the_self_obsessed'];
+
+// ===== BATCH 2: persona categories, pinning, chats/groups view =====
+const PERSONA_GROUPS=[
+  {id:'gang',    name:'The Gang',          keys:['the_brother','the_wingman','the_colleague','the_comic','the_screen_junkie']},
+  {id:'support', name:'The Support',       keys:['the_healer','the_stranger','the_guru','the_mentor','the_oracle','the_addict','the_self_obsessed']},
+  {id:'crazies', name:'The Crazies',       keys:['the_brainiac','the_philosopher','the_cosmologist','the_historian','the_leader_opp','the_cynic']},
+  {id:'wild',    name:'The Unpredictables',keys:['the_crush','the_hottie','the_wannabe','the_orator','the_media_manager']},
+  {id:'faculty', name:'The Faculty',       keys:['the_teacher','the_economist']},
+];
+const GROUP_OF={}; PERSONA_GROUPS.forEach(g=>g.keys.forEach(k=>GROUP_OF[k]=g.id));
+let cgView='chats';                 // 'chats' | 'groups'
+let PINS=[];                        // pinned persona keys (order = pin order)
+let CAT_COLLAPSED={};               // {catId:true} when collapsed
+function loadPins(){ try{ PINS=JSON.parse(localStorage.getItem('z_pins')||'[]'); }catch(e){ PINS=[]; } try{ CAT_COLLAPSED=JSON.parse(localStorage.getItem('z_cat_collapsed')||'{}'); }catch(e){ CAT_COLLAPSED={}; } }
+function savePins(){ localStorage.setItem('z_pins', JSON.stringify(PINS)); }
+function saveCollapsed(){ localStorage.setItem('z_cat_collapsed', JSON.stringify(CAT_COLLAPSED)); }
+function isPinned(key){ return PINS.indexOf(key)>=0; }
+function togglePin(key){ const i=PINS.indexOf(key); if(i>=0)PINS.splice(i,1); else PINS.unshift(key); savePins(); renderContacts($('search')?$('search').value:''); }
+function toggleCat(id){ CAT_COLLAPSED[id]=!CAT_COLLAPSED[id]; saveCollapsed(); renderContacts($('search')?$('search').value:''); }
+
 
 /* ===== INK: slow drifting smoke behind everything (matte, warm, per-persona accent) ===== */
 const inkCanvas=document.getElementById('ink');
@@ -1977,27 +2019,37 @@ $('ob-go').onclick=async()=>{
 /* contact list */
 function dpFor(key){return dpData[key]?`<img src="${dpData[key]}">`:CAT[key].face;}
 function nameFor(key){return (threads[key]&&threads[key].name)||CAT[key].name;}
-function renderContacts(q){
-  q=(q||'').trim().toLowerCase();
-  const c=$('contacts'); c.innerHTML='';
-  $('lh-sub').textContent='Your people';
-  const match=(key)=>{ if(!q)return true; const nm=nameFor(key).toLowerCase(); const d=(CAT[key].desc||'').toLowerCase(); return nm.includes(q)||d.includes(q); };
-  // new-group tile (hidden while searching)
+function contactEl(key,opts){
+  opts=opts||{};
+  const cat=CAT[key];
+  const el=document.createElement('div'); el.className='contact';
+  const pinned=isPinned(key);
+  el.innerHTML=`<div class="cface">${dpFor(key)}</div><div class="cbody"><div class="cn">${nameFor(key)}</div><div class="cd">${cat.desc}</div></div><div class="cpin${pinned?' pinned':''}" title="${pinned?'unpin':'pin to top'}">${pinned?'★':'☆'}</div>`;
+  el.querySelector('.cface').onclick=()=>openThread(key);
+  el.querySelector('.cbody').onclick=()=>openThread(key);
+  el.querySelector('.cpin').onclick=(ev)=>{ ev.stopPropagation(); togglePin(key); };
+  return el;
+}
+function renderGroupsView(q){
+  const c=$('contacts');
+  // new-group + new-room tiles
   if(!q){
-  const ng=document.createElement('div'); ng.className='contact ng';
-  ng.innerHTML='<div class="cface ngf">+</div><div class="cbody"><div class="cn">New group</div><div class="cd">put a few of your people in one room.</div></div>';
-  ng.onclick=openGroupPicker; c.appendChild(ng);
+    const ng=document.createElement('div'); ng.className='contact ng';
+    ng.innerHTML='<div class="cface ngf">+</div><div class="cbody"><div class="cn">New group</div><div class="cd">put a few of your people in one room.</div></div>';
+    ng.onclick=openGroupPicker; c.appendChild(ng);
   }
-  if(!seriousMode){ /* groups & rooms hidden in serious mode */ }
+  let any=false;
   // shared rooms (you + friends + a persona)
   (rooms||[]).filter(r=>!q||r.name.toLowerCase().includes(q)).forEach(r=>{
+    any=true;
     const el=document.createElement('div'); el.className='contact';
     const pf=r.persona?dpFor(r.persona):'';
     el.innerHTML=`<div class="cface">${pf}</div><div class="cbody"><div class="cn">${r.name} <span class="room-tag">room</span></div><div class="cd">a shared room with ${r.persona?CAT[r.persona].name:'a persona'}</div></div>`;
     el.onclick=()=>openRoom(r); c.appendChild(el);
   });
-  // existing groups (filtered by name too)
+  // groups (persona-only)
   (groups||[]).filter(g=>!(rooms||[]).some(r=>r.id===g.id)).filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
+    any=true;
     const el=document.createElement('div'); el.className='contact group-row';
     const faces=g.members.slice(0,3).map(k=>`<span class="gstack">${dpFor(k)}</span>`).join('');
     el.innerHTML=`<div class="cface gfaces">${faces}</div><div class="cbody"><div class="cn">${g.name}</div><div class="cd">${g.members.map(k=>CAT[k].name).join(' · ')}</div></div><div class="grp-del" title="delete group">✕</div>`;
@@ -2011,22 +2063,50 @@ function renderContacts(q){
     };
     c.appendChild(el);
   });
-  // recency: personas with recent activity float to the top, in last_active order
-  const sortedKeys=ORDER.slice().sort((a,b)=>{
-    const la=threads[a]&&threads[a].last?Date.parse(threads[a].last):0;
-    const lb=threads[b]&&threads[b].last?Date.parse(threads[b].last):0;
-    if(la&&lb)return lb-la; if(la)return -1; if(lb)return 1; return 0;
-  });
-  sortedKeys.forEach(key=>{
-    if(!match(key))return;
-    const cat=CAT[key];
-    const el=document.createElement('div'); el.className='contact';
-    el.innerHTML=`<div class="cface">${dpFor(key)}</div><div class="cbody"><div class="cn">${nameFor(key)}</div><div class="cd">${cat.desc}</div></div>`;
-    el.onclick=()=>openThread(key);
-    c.appendChild(el);
-  });
+  if(!any&&!q){ const e=document.createElement('div'); e.className='sec-label'; e.style.opacity='.5'; e.textContent='no groups or rooms yet — make one above'; c.appendChild(e); }
 }
+function renderContacts(q){
+  q=(q||'').trim().toLowerCase();
+  const c=$('contacts'); c.innerHTML='';
+  // keep the groups-count badge fresh
+  const gc=$('cg-gcount'); if(gc){ const n=(groups||[]).length+(rooms||[]).length; gc.textContent=n?('· '+n):''; }
+  $('lh-sub').textContent = cgView==='groups' ? 'Groups & rooms' : 'Your people';
+  const match=(key)=>{ if(!q)return true; const nm=nameFor(key).toLowerCase(); const d=(CAT[key].desc||'').toLowerCase(); return nm.includes(q)||d.includes(q); };
 
+  // ---- GROUPS VIEW ----
+  if(cgView==='groups'){ renderGroupsView(q); return; }
+
+  // ---- CHATS VIEW ----
+  // recency map for sorting within sections
+  const recency=(key)=>{ const t=threads[key]; return t&&t.last?Date.parse(t.last):0; };
+
+  // 1) PINNED (always at very top, in pin order, filtered by search)
+  const pins=PINS.filter(k=>CAT[k]&&match(k));
+  if(pins.length){
+    const h=document.createElement('div'); h.className='sec-label'; h.textContent='📌 Pinned'; c.appendChild(h);
+    pins.forEach(k=>c.appendChild(contactEl(k)));
+  }
+
+  // 2) CATEGORIES (each collapsible; pinned personas are NOT repeated inside)
+  PERSONA_GROUPS.forEach(g=>{
+    const keys=g.keys.filter(k=>CAT[k]&&!isPinned(k)&&match(k))
+      .sort((a,b)=>recency(b)-recency(a));
+    if(!keys.length)return;
+    const collapsed=!!CAT_COLLAPSED[g.id] && !q; // search always expands
+    const head=document.createElement('div'); head.className='cat-head'+(collapsed?' collapsed':'');
+    head.innerHTML=`<span class="cat-name">${g.name}</span><span class="cat-count">${keys.length}</span><span class="cat-chev">▾</span>`;
+    head.onclick=()=>toggleCat(g.id);
+    c.appendChild(head);
+    if(!collapsed){ keys.forEach(k=>c.appendChild(contactEl(k))); }
+  });
+
+  // 3) any persona not in a category (safety net — e.g. moderator)
+  const ungrouped=ORDER.filter(k=>CAT[k]&&!GROUP_OF[k]&&!isPinned(k)&&match(k)).sort((a,b)=>recency(b)-recency(a));
+  if(ungrouped.length){
+    const h=document.createElement('div'); h.className='sec-label'; h.textContent='More';
+    c.appendChild(h); ungrouped.forEach(k=>c.appendChild(contactEl(k)));
+  }
+}
 /* thread */
 function paintWorld(rgb){const[R,G,B]=rgb,r=document.documentElement.style; if(typeof setInk==='function')setInk(rgb);
   r.setProperty('--accent',`${R},${G},${B}`);
@@ -2931,7 +3011,19 @@ async function renderJournal(){
 
 /* boot */
 loadLocal();
+loadPins();
 /* ===== SEARCH (wired after DOM + renderContacts exist) ===== */
+// chats/groups toggle wiring
+(function(){
+  var t=document.getElementById('cg-toggle'); if(!t)return;
+  t.querySelectorAll('.cg-tab').forEach(function(tab){
+    tab.onclick=function(){
+      cgView=tab.getAttribute('data-cg');
+      t.querySelectorAll('.cg-tab').forEach(function(x){ x.classList.toggle('on', x===tab); });
+      renderContacts($('search')?$('search').value:'');
+    };
+  });
+})();
 (function(){
   var sb=document.getElementById('search'); if(!sb)return;
   sb.addEventListener('input',function(){
