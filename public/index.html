@@ -411,6 +411,35 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 .ludo-roll:disabled{opacity:.4}.ludo-roll:active{transform:scale(.97)}
 .ludo-win{text-align:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink);padding:8px}
 
+
+/* ===== BLUFF ===== */
+.bluff-wrap{flex:1;display:flex;flex-direction:column;padding:10px 14px calc(14px + env(safe-area-inset-bottom));gap:10px;overflow-y:auto;
+  background:radial-gradient(120% 55% at 50% 14%, rgba(70,55,85,.16), transparent), var(--bg)}
+.bluff-opps{display:flex;justify-content:space-around;gap:8px;flex-wrap:wrap}
+.bluff-opp{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.65;transition:.25s;padding:5px 8px;border-radius:12px}
+.bluff-opp.active{opacity:1;background:rgba(201,168,76,.12);box-shadow:0 0 0 1px rgba(201,168,76,.3)}
+.bluff-opp .of{width:36px;height:36px;border-radius:50%;overflow:hidden}.bluff-opp .of svg,.bluff-opp .of img{width:100%;height:100%}
+.bluff-opp .on{font-size:9.5px;color:var(--dim)}.bluff-opp .oc{font-size:10px;color:var(--ink);background:rgba(255,255,255,.1);border-radius:10px;padding:1px 7px;font-weight:600}
+.bluff-pile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0}
+.bluff-pilecard{width:74px;height:100px;border-radius:11px;background:#1a1430;border:2px solid rgba(255,255,255,.4);color:#cfc4ff;
+  display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;font-style:italic;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.bluff-claim{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:17px;color:var(--ink);min-height:24px;text-align:center}
+.bluff-talk{min-height:34px;text-align:center;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:16px;color:var(--ink);line-height:1.4;padding:2px 8px}
+.bluff-callbar{display:flex;gap:10px;justify-content:center;min-height:0}
+.bluff-hand{display:flex;gap:5px;overflow-x:auto;padding:8px 2px;min-height:88px;align-items:center;flex-wrap:wrap}
+.bcard{width:46px;height:66px;border-radius:8px;background:#f7f4ee;color:#161310;display:flex;flex-direction:column;justify-content:space-between;
+  padding:5px 6px;font-family:Georgia,serif;cursor:pointer;border:2px solid transparent;transition:.15s;flex:0 0 auto}
+.bcard.red{color:#b4252a}
+.bcard.sel{border-color:var(--accent2);transform:translateY(-6px);box-shadow:0 4px 12px rgba(124,92,220,.4)}
+.bcard .bc-r{font-size:15px;font-weight:600;line-height:1}.bcard .bc-s{font-size:15px;text-align:right;line-height:1}
+.bluff-playbar{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+.bluff-btn{cursor:pointer;border:none;border-radius:13px;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:.04em;background:var(--ink);color:var(--bg)}
+.bluff-btn.ghost{background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--line-strong)}
+.bluff-btn.call{background:#c0455a;color:#fff}
+.bluff-btn:disabled{opacity:.4}.bluff-btn:active{transform:scale(.97)}
+.bluff-must{font-size:12px;color:var(--accent2);text-align:center;font-style:italic}
+.bluff-win{text-align:center;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink);padding:8px}
+
 </style>
 </head>
 <body>
@@ -536,6 +565,25 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 </div>
 
 <!-- WHAT Z REMEMBERS -->
+
+<div class="screen" id="bluff">
+  <div class="t-head">
+    <div class="t-back" id="bluff-back">‹</div>
+    <div class="t-meta"><div class="t-name">Bluff · the table</div><div class="t-status mono" id="bluff-turn">call their lies. empty your hand.</div></div>
+    <div style="width:34px"></div>
+  </div>
+  <div class="bluff-wrap">
+    <div class="bluff-opps" id="bluff-opps"></div>
+    <div class="bluff-pile">
+      <div class="bluff-pilecard" id="bluff-pilecard">pile<br>empty</div>
+      <div class="bluff-claim" id="bluff-claim"></div>
+    </div>
+    <div class="bluff-talk" id="bluff-talk"></div>
+    <div class="bluff-callbar" id="bluff-callbar"></div>
+    <div class="bluff-hand" id="bluff-hand"></div>
+    <div class="bluff-playbar" id="bluff-playbar"></div>
+  </div>
+</div>
 
 <div class="screen" id="ludo">
   <div class="t-head">
@@ -1558,6 +1606,207 @@ async function ludoReact(pkey,event,victimKey){
   }catch(e){}
 }
 
+/* ===== BLUFF (Cheat) — you + the wannabe hustler, the comic, the brainiac ===== */
+const BLUFF={
+  players:[
+    {key:'you',          name:'you',                 ai:false},
+    {key:'the_wannabe',  name:'the wannabe hustler', ai:true, style:'overbluff'},
+    {key:'the_comic',    name:'the comic',           ai:true, style:'chaos'},
+    {key:'the_brainiac', name:'the brainiac',        ai:true, style:'calc'}
+  ],
+  hands:{}, pile:[], lastPlay:null, rank:0, turn:0, over:false, busy:false, sel:[]
+};
+const BRANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+function bluffRankName(i){ return BRANKS[i%13]; }
+function bluffDeal(){
+  const suits=['♠','♥','♦','♣']; let d=[];
+  for(const s of suits) for(let r=0;r<13;r++) d.push({r, s, red:(s==='♥'||s==='♦')});
+  for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}
+  BLUFF.players.forEach(p=>BLUFF.hands[p.key]=[]);
+  let i=0; while(d.length){ BLUFF.hands[BLUFF.players[i%4].key].push(d.pop()); i++; }
+  BLUFF.players.forEach(p=>BLUFF.hands[p.key].sort((a,b)=>a.r-b.r));
+}
+function openBluff(){
+  bluffDeal(); BLUFF.pile=[]; BLUFF.lastPlay=null; BLUFF.rank=0; BLUFF.turn=0; BLUFF.over=false; BLUFF.busy=false; BLUFF.sel=[];
+  show('bluff'); bluffRender();
+  bluffTalk("aight — lie, bluff, call 'em out. first to empty their hand wins. you start: play some ACES (truth or lie, your call).");
+}
+function bluffTalk(t){ $('bluff-talk').textContent=t; }
+function bluffCardHTML(c,sel){ return `<div class="bcard ${c.red?'red':''}${sel?' sel':''}"><div class="bc-r">${bluffRankName(c.r)}</div><div class="bc-s">${c.s}</div></div>`; }
+function bluffRender(){
+  // opponents
+  const wrap=$('bluff-opps'); wrap.innerHTML='';
+  BLUFF.players.forEach((p,i)=>{
+    if(p.key==='you')return;
+    wrap.innerHTML+=`<div class="bluff-opp${i===BLUFF.turn&&!BLUFF.over?' active':''}"><div class="of">${dpFor(p.key)}</div><div class="on">${nameFor(p.key)}</div><div class="oc">${BLUFF.hands[p.key].length}</div></div>`;
+  });
+  // pile
+  $('bluff-pilecard').innerHTML = BLUFF.pile.length? `${BLUFF.pile.length}<br>cards` : 'pile<br>empty';
+  $('bluff-claim').textContent = BLUFF.lastPlay? `${nameFor(BLUFF.lastPlay.by)} claims ${BLUFF.lastPlay.count} × ${bluffRankName(BLUFF.lastPlay.rank)}` : '';
+  // your hand
+  const me=BLUFF.players[0]; const h=$('bluff-hand'); h.innerHTML='';
+  const yourTurn = BLUFF.turn===0 && !BLUFF.over && !BLUFF.busy;
+  BLUFF.hands.you.forEach((c,idx)=>{
+    const el=document.createElement('div'); el.innerHTML=bluffCardHTML(c, BLUFF.sel.includes(idx));
+    const card=el.firstChild;
+    card.onclick=()=>{ if(!yourTurn)return; const k=BLUFF.sel.indexOf(idx); if(k>=0)BLUFF.sel.splice(k,1); else { if(BLUFF.sel.length<4) BLUFF.sel.push(idx); } bluffRender(); };
+    h.appendChild(card);
+  });
+  // play bar (your turn) — you must claim the current required rank
+  const pb=$('bluff-playbar'); pb.innerHTML='';
+  if(yourTurn){
+    const reqRank=bluffRankName(BLUFF.rank);
+    pb.innerHTML=`<div class="bluff-must">you must claim <b>${reqRank}</b>${BLUFF.sel.length?` — playing ${BLUFF.sel.length}`:''}</div>`;
+    const btn=document.createElement('button'); btn.className='bluff-btn'; btn.textContent=`Play ${BLUFF.sel.length||''} as ${reqRank}`; btn.disabled=BLUFF.sel.length===0;
+    btn.onclick=()=>bluffPlay(); pb.appendChild(btn);
+  }
+  // call bar (after an AI play, you can call BLUFF)
+  const cb=$('bluff-callbar'); cb.innerHTML='';
+  if(BLUFF.lastPlay && BLUFF.lastPlay.by!=='you' && !BLUFF.over && !BLUFF.busy && BLUFF.awaitCall){
+    const cbtn=document.createElement('button'); cbtn.className='bluff-btn call'; cbtn.textContent=`BLUFF! (call ${nameFor(BLUFF.lastPlay.by)})`;
+    cbtn.onclick=()=>bluffCall('you'); cb.appendChild(cbtn);
+    const pass=document.createElement('button'); pass.className='bluff-btn ghost'; pass.textContent='let it slide';
+    pass.onclick=()=>bluffPassCall(); cb.appendChild(pass);
+  }
+  // turn label
+  $('bluff-turn').textContent = BLUFF.over?'game over':(BLUFF.turn===0?`your turn — claim ${bluffRankName(BLUFF.rank)}`:`${nameFor(BLUFF.players[BLUFF.turn].key)} is playing…`);
+}
+async function bluffPlay(){
+  if(!BLUFF.sel.length) return;
+  BLUFF.busy=true;
+  const idxs=[...BLUFF.sel].sort((a,b)=>b-a);
+  const played=idxs.map(i=>BLUFF.hands.you[i]);
+  idxs.forEach(i=>BLUFF.hands.you.splice(i,1));
+  BLUFF.sel=[];
+  const claimRank=BLUFF.rank, count=played.length;
+  const truth = played.every(c=>c.r===claimRank);
+  BLUFF.pile.push(...played);
+  BLUFF.lastPlay={by:'you', count, rank:claimRank, cards:played, truth};
+  bluffRender();
+  bluffTalk(`you put down ${count}, claiming ${bluffRankName(claimRank)}…`);
+  // do the AIs call you?
+  await new Promise(r=>setTimeout(r,1500));
+  const caller=bluffAIDecideCall('you');
+  if(caller){ await bluffCall(caller); return; }
+  bluffTalk("…nobody calls it. you're safe.");
+  if(BLUFF.hands.you.length===0){ return bluffWin('you'); }
+  await new Promise(r=>setTimeout(r,1200));
+  bluffNext(); BLUFF.busy=false; bluffDriveAI();
+}
+function bluffNext(){ BLUFF.turn=(BLUFF.turn+1)%4; BLUFF.rank=(BLUFF.rank+1)%13; BLUFF.awaitCall=false; }
+async function bluffCall(callerKey){
+  BLUFF.busy=true; BLUFF.awaitCall=false;
+  const lp=BLUFF.lastPlay;
+  bluffTalk(`${callerKey==='you'?'you':nameFor(callerKey)} calls BLUFF on ${lp.by==='you'?'you':nameFor(lp.by)}!`);
+  await new Promise(r=>setTimeout(r,1600)); // suspense
+  // reveal
+  const wasLying = !lp.truth;
+  const loser = wasLying ? lp.by : callerKey;
+  bluffTalk(`the cards flip… ${lp.by==='you'?'you':nameFor(lp.by)} ${wasLying?'was LYING':'was telling the TRUTH'}! ${loser==='you'?'you':nameFor(loser)} takes the pile.`);
+  // loser picks up the pile
+  BLUFF.hands[loser].push(...BLUFF.pile);
+  BLUFF.hands[loser].sort((a,b)=>a.r-b.r);
+  BLUFF.pile=[];
+  // banter from the caller + loser
+  if(callerKey!=='you') bluffReact(callerKey, wasLying?'call_right':'call_wrong', lp.by);
+  await new Promise(r=>setTimeout(r,1400));
+  BLUFF.lastPlay=null;
+  // the loser starts the next round (rank resets to where? classic: next player continues sequence; we reset to loser's turn, keep rank advancing)
+  BLUFF.turn=BLUFF.players.findIndex(p=>p.key===loser);
+  BLUFF.rank=(BLUFF.rank+1)%13;
+  BLUFF.busy=false; bluffRender();
+  if(BLUFF.players[BLUFF.turn].ai) bluffDriveAI();
+  else bluffTalk(`your turn — claim ${bluffRankName(BLUFF.rank)}.`);
+}
+function bluffPassCall(){ // you choose not to call; continue
+  BLUFF.awaitCall=false; bluffRender();
+  bluffTalk("you let it slide.");
+  if(BLUFF.hands[BLUFF.lastPlay.by].length===0){ return bluffWin(BLUFF.lastPlay.by); }
+  setTimeout(()=>{ bluffNext(); BLUFF.busy=false; bluffDriveAI(); }, 800);
+}
+function bluffAIPlay(pkey){
+  // decide cards to play for the required rank; bluff per personality
+  const hand=BLUFF.hands[pkey]; const reqRank=BLUFF.rank;
+  const haveReq=hand.map((c,i)=>({c,i})).filter(x=>x.c.r===reqRank);
+  const p=BLUFF.players.find(x=>x.key===pkey);
+  let toPlay=[];
+  if(haveReq.length){
+    // play the honest ones (1-3)
+    toPlay=haveReq.slice(0, Math.min(haveReq.length, 1+Math.floor(Math.random()*Math.min(haveReq.length,3)))).map(x=>x.i);
+    // overbluffer sometimes adds an extra fake card
+    if(p.style==='overbluff' && hand.length>toPlay.length && Math.random()<0.5){ const extra=hand.findIndex((c,i)=>!toPlay.includes(i)&&c.r!==reqRank); if(extra>=0)toPlay.push(extra); }
+  } else {
+    // must bluff — play 1-2 random cards claiming the rank
+    const n = p.style==='overbluff'?(1+Math.floor(Math.random()*2)) : 1;
+    const avail=hand.map((c,i)=>i);
+    for(let k=0;k<n && avail.length;k++){ const pick=avail.splice(Math.floor(Math.random()*avail.length),1)[0]; toPlay.push(pick); }
+  }
+  return toPlay;
+}
+function bluffAIDecideCall(byKey){
+  // do any of the OTHER ai players call the play by byKey? returns caller key or null
+  const lp=BLUFF.lastPlay;
+  for(const p of BLUFF.players){
+    if(p.key===byKey || !p.ai) continue;
+    // how many of the claimed rank does THIS ai hold? if it holds many, the claim is suspicious
+    const holds=BLUFF.hands[p.key].filter(c=>c.r===lp.rank).length;
+    let suspicion = (holds + lp.count) > 4 ? 0.9 : 0.12;       // >4 of a rank claimed impossible
+    if(p.style==='calc'){ suspicion += holds*0.18; if((holds+lp.count)>4) suspicion=0.98; }
+    if(p.style==='chaos') suspicion = Math.random()*0.4;       // comic calls randomly
+    if(p.style==='overbluff') suspicion += 0.1;                 // hustler is trigger-happy
+    if(Math.random()<suspicion) return p.key;
+  }
+  return null;
+}
+async function bluffDriveAI(){
+  while(!BLUFF.over && BLUFF.turn!==0){
+    BLUFF.busy=true; bluffRender();
+    await new Promise(r=>setTimeout(r,1400));
+    const pkey=BLUFF.players[BLUFF.turn].key;
+    const idxs=bluffAIPlay(pkey).sort((a,b)=>b-a);
+    const played=idxs.map(i=>BLUFF.hands[pkey][i]);
+    idxs.forEach(i=>BLUFF.hands[pkey].splice(i,1));
+    const claimRank=BLUFF.rank, count=played.length;
+    const truth=played.every(c=>c.r===claimRank);
+    BLUFF.pile.push(...played);
+    BLUFF.lastPlay={by:pkey,count,rank:claimRank,cards:played,truth};
+    bluffRender();
+    bluffReact(pkey, truth?'play_truth':'play_bluff', null);
+    await new Promise(r=>setTimeout(r,2200));
+    // does anyone (incl you) call?
+    const aiCaller=bluffAIDecideCall(pkey);
+    if(aiCaller){ await bluffCall(aiCaller); if(BLUFF.over)return; continue; }
+    // offer YOU the call
+    BLUFF.awaitCall=true; BLUFF.busy=false; bluffRender();
+    bluffTalk(`${nameFor(pkey)} claims ${count} × ${bluffRankName(claimRank)}. call BLUFF, or let it slide.`);
+    return; // wait for your decision
+  }
+  BLUFF.busy=false; bluffRender();
+}
+function bluffWin(pkey){
+  BLUFF.over=true; BLUFF.busy=false; bluffRender();
+  const c=document.createElement('div'); c.className='bluff-win';
+  if(pkey==='you'){ c.textContent='🏆 you win!'; bluffTalk("empty hand! you lied, you called, you CLEANED UP!"); }
+  else { c.textContent=nameFor(pkey)+' wins'; bluffReact(pkey,'win',null); }
+  $('bluff-talk').after(c);
+  bluffTalk(""); 
+  const pb=$('bluff-playbar'); pb.innerHTML='<button class="bluff-btn" onclick="(function(){document.querySelector(\'.bluff-win\')?.remove();openBluff();})()">Play again</button>';
+}
+const BLUFF_LOCAL={
+  the_wannabe:{ play_truth:["all day, baby. would i lie to you? (i would. not now.)","read 'em. truth. for ONCE."], play_bluff:["trust me, baby — three of 'em, easy. would i LIE?","facts. total facts. look at this honest face."], call_right:["CAUGHT you! i KNEW it! pick 'em UP!","liar liar! pay the pile, baby!"], call_wrong:["wait you were HONEST?? aw man, my bad, my bad."], win:["EMPTY! i bluffed my way to the TOP! legend!"] },
+  the_brainiac:{ play_truth:["Accurate declaration. As stated.","Truth. Verify if you dare."], play_bluff:["Precisely as claimed. Statistically unimpeachable.","Exactly what I said. Trust the data."], call_right:["I'm holding three of those. You cannot have them. Caught.","The math says you lied. The math is correct."], call_wrong:["...You were honest. An unlikely play. Noted."], win:["Hand empty. Deception is just applied probability."] },
+  the_comic:{ play_truth:["totally lying! …or am I? (I'm not. or am I.)","honest! shockingly! even I'm surprised!"], play_bluff:["these are DEFINITELY what I said hehehe— I mean. yes.","trust me I would never— okay I might. play on!"], call_right:["BLUFF! ha! I had a 1-in-something feeling!","caught you! pure instinct! mostly luck!"], call_wrong:["oh no you were honest. this is so embarrassing for me."], win:["I WON by lying badly?? comedy is the real strategy!"] }
+};
+async function bluffReact(pkey,event,victim){
+  const set=BLUFF_LOCAL[pkey]||{}; const pool=set[event]||[nameFor(pkey)+'…'];
+  bluffTalk(pool[Math.floor(Math.random()*pool.length)]);
+  try{
+    const ctx=`You are ${nameFor(pkey)} playing Bluff (Cheat) with the player, the comic, the brainiac, the wannabe hustler. Event: ${event}. ONE short in-character line, max 14 words. No quotes.`;
+    const r=await zfetch('/banter',{method:'POST',headers:HDRS(),body:JSON.stringify({persona:pkey,prompt:ctx})});
+    if(r.ok){ const j=await r.json(); if(j.line) bluffTalk(j.line.trim()); }
+  }catch(e){}
+}
+
 let seriousMode = localStorage.getItem('z_serious')==='1';
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
@@ -1700,6 +1949,7 @@ var _bjb=$('bj-back'); if(_bjb)_bjb.onclick=()=>bjLeave();
 var _snb=$('snl-back'); if(_snb)_snb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
 var _unb=$('uno-back'); if(_unb)_unb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
 var _ldb=$('ludo-back'); if(_ldb)_ldb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
+var _blb=$('bluff-back'); if(_blb)_blb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
 var _so=$('send-otp'); if(_so)_so.onclick=sendOtp;
 var _vo=$('verify-otp'); if(_vo)_vo.onclick=verifyOtp;
 var _ob=$('otp-back'); if(_ob)_ob.onclick=function(){$('door-phase-otp').style.display='none';$('door-phase-phone').style.display='block';doorNote('otp-note','');};
@@ -2175,6 +2425,7 @@ const ARENA_GAMES=[
   {id:'snakes', name:'Snakes & Ladders', ic:'🐍', persona:'the_wannabe', type:'table', desc:"race the wannabe hustler to 100. saanp seedhi, baby."},
   {id:'uno', name:'UNO', ic:'🎴', persona:'the_wannabe', type:'table', desc:"you + the hustler, the comic & the brainiac. first to empty wins."},
   {id:'ludo', name:'Ludo', ic:'🎲', persona:'the_wannabe', type:'table', desc:"the desi classic. you + 3 at the table. all four home wins."},
+  {id:'bluff', name:'Bluff', ic:'🃏', persona:'the_wannabe', type:'table', desc:"lie, bluff, call 'em out. the game where the table reads you."},
 ];
 let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
 
@@ -2186,7 +2437,7 @@ async function renderArena(){
   const chips=Object.keys(rec).map(g=>{const x=rec[g];return `<span class="chip">${g}: ${x.wins}W ${x.losses}L</span>`;}).join('');
   if(chips) html+='<div class="arena-rec">'+chips+'</div>';
   ARENA_GAMES.forEach(g=>{
-    const onc = g.type==='table' ? (g.id==='blackjack'?'openBlackjack()':g.id==='snakes'?'openSnakes()':g.id==='uno'?'openUno()':g.id==='ludo'?'openLudo()':'') : `startArena('${g.id}','${g.persona}')`;
+    const onc = g.type==='table' ? (g.id==='blackjack'?'openBlackjack()':g.id==='snakes'?'openSnakes()':g.id==='uno'?'openUno()':g.id==='ludo'?'openLudo()':g.id==='bluff'?'openBluff()':'') : `startArena('${g.id}','${g.persona}')`;
     html+=`<div class="gcard" onclick="${onc}"><div class="gic">${g.ic}</div><div><div class="gname">${g.name}</div><div class="gdesc">${g.desc}</div></div></div>`;
   });
   html+='</div>';
