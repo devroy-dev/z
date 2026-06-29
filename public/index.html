@@ -59,7 +59,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
 .drow .dface svg,.drow .dface img{width:100%;height:100%;object-fit:cover}
 .drow .dn{font-size:15px}.drow .dd{font-size:9px;color:var(--faint);margin-top:1px}
 .drow .dadd{margin-left:auto;font-size:14px;color:var(--accent2)}
-.convo{flex:1;overflow-y:auto;padding:6px 16px 4px;display:flex;flex-direction:column;gap:13px;justify-content:flex-end;z-index:15}
+.convo{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 4px;display:flex;flex-direction:column;gap:13px;z-index:15}.convo>*:first-child{margin-top:auto}
 .convo::-webkit-scrollbar{display:none}
 .z{align-self:flex-start;max-width:87%;background:var(--card);backdrop-filter:none;
   border:.5px solid var(--pline);border-radius:22px 22px 22px 7px;padding:15px 18px;font-size:16.5px;line-height:1.56;
@@ -309,6 +309,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
     <p>give them a name and a face that feels right to you.</p>
     <input id="renameInp" placeholder="Name" autocomplete="off">
     <div class="prow" id="prow-invite" style="display:none;color:var(--accent2)" onclick="inviteToRoom()">＋ Invite a friend to chat with this persona</div>
+    <div class="prow" id="prow-leaveroom" style="display:none;color:#e08a8a" onclick="leaveRoom()">Leave this room</div>
     <div class="dp-row">
       <div class="dp-prev" id="dp-prev"></div>
       <label class="dp-pick" for="dp-file">Choose photo</label>
@@ -720,7 +721,8 @@ function unsubscribeRoom(){
   if(_roomChannel&&_sb){ try{ _sb.removeChannel(_roomChannel); }catch(e){} _roomChannel=null; }
 }
 function onLiveMessage(m){
-  if(!activeRoom||!m||m.thread_id!==activeRoom.id)return;
+  if(!activeRoom||!m)return;
+  if(String(m.thread_id)!==String(activeRoom.id))return;
   const key=m.created_at?(m.role+':'+m.content+':'+m.created_at):(m.role+':'+m.content);
   if(_renderedIds.has(key))return; _renderedIds.add(key);
   // my own human message is already on screen optimistically — skip
@@ -735,7 +737,19 @@ function onLiveMessage(m){
       if(tb){ tb.querySelector('.gz-text').textContent=m.content; convo.scrollTop=convo.scrollHeight; return; } }
     const w=gBubble(m.persona_key||activeRoom.persona); w.querySelector('.gz-text').textContent=m.content; convo.appendChild(w);
   }
-  convo.scrollTop=convo.scrollHeight;
+  requestAnimationFrame(()=>{ convo.scrollTop=convo.scrollHeight; });
+}
+
+
+async function leaveRoom(){
+  if(!activeRoom)return;
+  if(!confirm('Leave "'+activeRoom.name+'"? You can be re-invited later.'))return;
+  const id=activeRoom.id;
+  try{ await fetch('/rooms/'+id+'/leave',{method:'POST',headers:HDRS()}); }catch(e){}
+  rooms=(rooms||[]).filter(r=>r.id!==id);
+  activeRoom=null; unsubscribeRoom();
+  $('sheet').classList.remove('on');
+  renderContacts(); show('list');
 }
 
 /* ===== SHARED ROOMS ===== */
@@ -1006,6 +1020,15 @@ $('t-back').onclick=()=>{activeGroup=null;activeRoom=null;unsubscribeRoom();rend
 var _k=$('t-kebab'); if(_k)_k.addEventListener('click',openEdit);
 var _m=$('t-meta'); if(_m)_m.addEventListener('click',openEdit);
 function openEdit(){
+  // in a room, the edit sheet offers room actions instead of persona rename
+  if(activeRoom){
+    $('sheet-title') && ($('sheet-title').textContent=activeRoom.name||'room');
+    var ir=$('prow-invite'); if(ir) ir.style.display='block';
+    var lr=$('prow-leaveroom'); if(lr) lr.style.display='block';
+    $('sheet').classList.add('on');
+    return;
+  }
+  var lr2=$('prow-leaveroom'); if(lr2) lr2.style.display='none';
   if(!active)return;
   $('sheet-title').textContent='Edit '+nameFor(active);
   // show invite option only for shareable personas
