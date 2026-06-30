@@ -933,6 +933,9 @@ body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="faces/manifest.js" onerror="window.Z_FACE_IMAGES=window.Z_FACE_IMAGES||[]"></script>
 <script>
+/* Z theme (Lamplight) state — declared early so paintZThemeSwitch/toggleZTheme can use it.
+   default ON unless the user explicitly turned it off ('0'). */
+let zTheme = (function(){ try{ return localStorage.getItem('z_theme') !== '0'; }catch(e){ return true; } })();
 /* ===== the nine, with descriptors (charcoal; per-persona accent kept subtle for ink only) ===== */
 function face(skin,hair,a,b){return faceX(skin,hair,a,b,{});}
 function faceX(skin,hair,a,b,feat){
@@ -2735,8 +2738,6 @@ async function leaveRoom(){
 /* __SERIOUS_SKIN_PLACEHOLDER__ (global toggle) ===== */
 function paintSeriousSwitch(){ const sw=$('serious-switch'); if(sw) sw.classList.toggle('on', seriousMode); }
 // ===== Z THEME (Lamplight) — a warm-dark skin, DEFAULT ON =====
-// default to Lamplight unless the user has explicitly turned it off ('0').
-let zTheme = localStorage.getItem('z_theme') !== '0';
 function applyZTheme(){ document.body.classList.toggle('z-theme', zTheme); }
 function paintZThemeSwitch(){ const sw=$('ztheme-switch'); if(sw) sw.classList.toggle('on', zTheme); }
 function toggleZTheme(){
