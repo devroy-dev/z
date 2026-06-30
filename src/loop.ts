@@ -44,7 +44,10 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   const t = thread as ThreadRow;
 
   const persona = personaByKey(t.persona_key);
-  const codexKeys: CodexKey[] = [t.codex_key as CodexKey];
+  // Resolve the codex from the PERSONA (source of truth), not the thread's stored
+  // codex_key — which is frozen at creation time and goes stale when a persona is
+  // recharacterized. Fall back to the stored key only if the persona has none.
+  const codexKeys: CodexKey[] = [((persona?.codex as CodexKey) || (t.codex_key as CodexKey))];
 
   // ── STATIC (cached): soul + name + Codex ──────────────────────────────
   const staticPrefix = buildStaticPrefix(t.companion_name, t.companion_gender, codexKeys, (thread as any).region ?? null);
