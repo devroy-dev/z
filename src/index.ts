@@ -56,7 +56,7 @@ const SHAREABLE_PERSONAS = new Set([
   'the_guru','the_oracle','the_brainiac','the_brother','the_healer',
   'the_comic','the_mentor','the_colleague','the_philosopher','the_historian',
   'the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher',
-  'the_economist','the_leader_opp','the_wannabe','the_orator',
+  'the_economist','the_leader_opp','the_wannabe','the_screen_junkie','the_orator',
   'the_hippie','the_diva','the_cousin',
 ]);
 
