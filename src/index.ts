@@ -452,6 +452,52 @@ app.post('/banter', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
 });
 
+// ── DEV ECHO ── stateless persona probe for voice/codex testing via curl.
+// Exercises the REAL persona → codex → buildStaticPrefix path + model, but with
+// NO thread, NO DB writes, NO memory harvest. Gated by a server secret (DEV_KEY),
+// never a user token. Inert (404) unless DEV_KEY is set in the environment.
+//   curl .../dev/echo -H 'x-dev-key: $DEV_KEY' -H 'content-type: application/json' \
+//        -d '{"persona":"the_screen_junkie","message":"recommend me something"}'
+// Optional: "dob":"2011-01-01" injects the age line (probe the quiet-minor case),
+//           "serious":true injects serious mode, "region":"Lucknow" for slang.
+app.post('/dev/echo', async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key) return res.status(404).json({ error: 'not found' });
+    if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    const { persona, message, region, dob, serious } = req.body ?? {};
+    const p = personaByKey(persona);
+    if (!p || !message) return res.status(400).json({ error: 'need { persona, message }' });
+
+    const staticPrefix = buildStaticPrefix(p.defaultName, null, [p.codex as any], region ?? null);
+
+    // optional dynamic block — mirrors loop.ts so we can probe age-aware behaviour
+    let dyn = '';
+    if (dob) {
+      const d = new Date(dob);
+      if (!isNaN(d.getTime())) {
+        const now = new Date(); let age = now.getFullYear() - d.getFullYear();
+        const m = now.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+        if (age > 0 && age < 120) dyn += `\n\n[WHO YOU'RE TALKING TO: this person is ${age} years old. Meet them at their age; never read this aloud as a label.]`;
+      }
+    }
+    if (serious) dyn += `\n\n[SERIOUS MODE IS ON. Set the bits and deflection aside; be warm, grounded, careful. If real danger shows, steer to real human help.]`;
+
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const anthropic = new Anthropic();
+    const system: any[] = [{ type: 'text', text: staticPrefix }];
+    if (dyn) system.push({ type: 'text', text: dyn });
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1024,
+      system,
+      messages: [{ role: 'user', content: String(message).slice(0, 2000) }],
+    });
+    const reply = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    res.json({ persona: p.key, codex: p.codex, model: 'claude-haiku-4-5-20251001', reply });
+  } catch (e: any) { res.status(500).json({ error: 'dev echo failed: ' + (e?.message || String(e)) }); }
+});
+
 // ── PIN AUTH ──────────────────────────────────────────────────────────────
 // hash a pin with a per-app secret salt (sha256). Not bcrypt, but server-side,
 // rate-limited by Supabase, and a 4-digit pin's real protection is the phone+OTP gate.
