@@ -3069,16 +3069,45 @@ const ARENA_GAMES=[
 ];
 let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
 
-const ROLEPLAY_SCENARIOS=[
-  {id:'hearing', name:'The Hearing', ic:'\u2696', tag:'world affairs', desc:"a senate committee, a razor-thin vote on gun control. flip a senator — or hold the line.", cast:['the_leader_opp','the_orator','the_cynic','the_economist']},
+// ===== THE STAGE LIBRARY — a big, genre-diverse pool. featured cards SHUFFLE on every open
+// so the Stage feels alive every visit. Surprise Me (infinite) + Headlines (live web) + Type Your
+// Own are always pinned. cast = personas who play the roles; the moderator directs + judges. =====
+const ROLEPLAY_LIBRARY=[
+  {id:'courtroom', name:'The Verdict', ic:'\u2696', tag:'courtroom', desc:"closing arguments in a murder trial the whole country's watching. you're the defense \u2014 the evidence is bad, the jury's hostile. make them doubt.", cast:['the_orator','the_leader_opp','the_cynic','the_brother']},
+  {id:'crossexam', name:'The Witness', ic:'\u2696', tag:'legal thriller', desc:"a hostile witness who knows more than they're saying. ten questions to break their story before the judge cuts you off.", cast:['the_leader_opp','the_cynic','the_orator']},
+  {id:'whodunit', name:'The Locked Room', ic:'\u2632', tag:'whodunit', desc:"a body, a storm, five suspects, no way in or out. you're the detective. one of them is lying to your face. find the killer before morning.", cast:['the_cynic','the_philosopher','the_crush','the_brother','the_self_obsessed']},
+  {id:'interrogation', name:'The Interrogation', ic:'\u2696', tag:'crime', desc:"a suspect across a steel table, a lawyer on the way, the truth somewhere in between. crack them before the clock runs out \u2014 or play the suspect and hold.", cast:['the_cynic','the_leader_opp','the_wingman']},
+  {id:'heist', name:'The Last Job', ic:'\u25C8', tag:'heist', desc:"the crew, the vault, one shot. something's already gone wrong and someone at this table is lying. you're running it. hold the plan together.", cast:['the_wingman','the_cynic','the_brother','the_self_obsessed']},
+  {id:'defector', name:'The Defector', ic:'\u2706', tag:'espionage', desc:"a midnight meet in a foreign city. the asset wants out, the handler smells a trap, one of you is being followed. get the truth and get clear.", cast:['the_cynic','the_leader_opp','the_oracle','the_media_manager']},
+  {id:'mole', name:'The Mole', ic:'\u2706', tag:'spy', desc:"a leak inside the agency and the evidence points at you. one room, four colleagues, one real traitor. clear your name or expose them.", cast:['the_leader_opp','the_cynic','the_self_obsessed','the_brother']},
+  {id:'lifeboat', name:'The Lifeboat', ic:'\u269F', tag:'survival', desc:"too many people, not enough water, land days away. tempers fracture, a leader is needed, and someone has to make the call no one wants to. it's you.", cast:['the_cynic','the_healer','the_brother','the_self_obsessed']},
+  {id:'summit', name:'The Last Ascent', ic:'\u26F0', tag:'survival', desc:"a storm closing on the mountain, a hurt climber, a choice between the summit you bled for and getting everyone home. the team's looking at you.", cast:['the_brother','the_cynic','the_healer','the_mentor']},
+  {id:'interview', name:'The Interview', ic:'\u25C9', tag:'high-stakes', desc:"the final round for the job that changes everything. three interviewers, one impossible panel, every answer a test. land it.", cast:['the_leader_opp','the_economist','the_cynic']},
+  {id:'pitch', name:'The Pitch', ic:'\u25C9', tag:'startup', desc:"sixty seconds with the investors who could make you \u2014 or end you. they're bored and they've heard it all. make them believe.", cast:['the_economist','the_cynic','the_wannabe','the_media_manager']},
+  {id:'dinner', name:'The Dinner', ic:'\u2665', tag:'meeting the parents', desc:"meeting their family for the first time. the father's cold, the mother's testing you, one wrong word sinks it. win the table.", cast:['the_brother','the_cynic','the_healer','the_crush']},
+  {id:'raise', name:'The Ask', ic:'\u25C9', tag:'negotiation', desc:"you've earned the raise. they're hoping you won't push. one conversation, a boss who deflects, your whole worth on the line. don't fold.", cast:['the_economist','the_leader_opp','the_media_manager']},
+  {id:'reconcile', name:'The Last Visit', ic:'\u2767', tag:'reckoning', desc:"a hospital room, an estranged parent, not much time left, everything you both never said. some doors open once. walk through it.", cast:['the_healer','the_brother','the_philosopher']},
+  {id:'breakup', name:'The Crossroads', ic:'\u2767', tag:'relationships', desc:"the conversation you've both been avoiding for months. tonight it happens. say the true thing \u2014 fight for it, or let it go honestly.", cast:['the_crush','the_healer','the_cynic']},
+  {id:'mutiny', name:'The Mutiny', ic:'\u2693', tag:'historical', desc:"a ship far from home, a captain gone too far, a crew at the edge. lead the mutiny \u2014 or talk them back from it. the deck is watching.", cast:['the_brother','the_cynic','the_leader_opp','the_orator']},
+  {id:'trial_hist', name:'The Heretic', ic:'\u2721', tag:'history-inspired', desc:"a great thinker on trial for a dangerous new truth, a council that wants them silenced. defend the idea that could change the world \u2014 or recant to live.", cast:['the_philosopher','the_leader_opp','the_guru','the_cynic']},
   {id:'throne', name:'The Empty Throne', ic:'\u265B', tag:'epic', desc:"a dead emperor, no heir, a hall of ruthless lords. you're the underestimated outsider with only your wits.", cast:['the_leader_opp','the_cynic','the_philosopher','the_brother']},
-  {id:'ledge', name:'The Ledge', ic:'\u260E', tag:'adversarial', desc:"a hostage standoff. play the negotiator talking them down — or the desperate one looking for a way out.", cast:['the_wingman','the_brother','the_healer']},
-  {id:'surprise', name:'Surprise Me', ic:'\u2728', tag:'generated', desc:"the moderator invents a fresh scene and a mission. you find out when you arrive.", cast:['the_leader_opp','the_orator','the_cynic','the_brother']},
-  {id:'custom', name:'Type Your Own', ic:'\u270E', tag:'yours', desc:"describe any scene you want — a heist, a trial, a finale you'd rewrite. the moderator builds it.", cast:['the_leader_opp','the_orator','the_cynic','the_brother']},
+  {id:'ledge', name:'The Ledge', ic:'\u260E', tag:'standoff', desc:"a hostage standoff. play the negotiator talking them down \u2014 or the desperate one looking for a way out.", cast:['the_wingman','the_brother','the_healer']},
+  {id:'hearing', name:'The Hearing', ic:'\u2696', tag:'world affairs', desc:"a committee, a razor-thin vote. flip a wavering vote \u2014 or hold the line. (no real names; both sides at their fair strongest.)", cast:['the_leader_opp','the_orator','the_cynic','the_economist']},
+  {id:'boardroom', name:'The Coup', ic:'\u25C8', tag:'corporate', desc:"the board's turned, the founder's cornered, the vote is at dawn. play the founder fighting to keep your company \u2014 or the one taking it.", cast:['the_economist','the_leader_opp','the_media_manager','the_cynic']},
 ];
+const RP_PINNED=[
+  {id:'headlines', name:'Ripped from the Headlines', ic:'\u26A1', tag:'live \u00b7 current events', desc:"the moderator pulls something from the world this week and builds a scene around it. fresh every time. (situations, not real named people.)", cast:['the_leader_opp','the_orator','the_cynic','the_economist','the_media_manager']},
+  {id:'surprise', name:'Surprise Me', ic:'\u2728', tag:'generated', desc:"the moderator invents a fresh scene from anywhere \u2014 any genre, any tone. you find out when you arrive.", cast:['the_leader_opp','the_orator','the_cynic','the_brother']},
+  {id:'custom', name:'Type Your Own', ic:'\u270E', tag:'yours', desc:"describe any scene you want \u2014 a heist, a trial, a finale you'd rewrite, a moment from history. the moderator builds it.", cast:['the_leader_opp','the_orator','the_cynic','the_brother']},
+];
+function _shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function rollStage(){ return _shuffle(ROLEPLAY_LIBRARY).slice(0,6).concat(RP_PINNED); }
+let ROLEPLAY_SCENARIOS=rollStage();
+function scenarioById(id){ return ROLEPLAY_LIBRARY.concat(RP_PINNED).find(x=>x.id===id); }
 
 async function renderRoleplay(){
   const c=$('contacts'); if(!c)return;
+  ROLEPLAY_SCENARIOS=rollStage(); // reshuffle every open — the Stage feels alive each visit
   let html='<div class="arena-wrap"><div class="arena-head">the Stage</div><div class="arena-sub">step into a scene. every one has a mission. be someone else for a while \u2014 no one\'s watching.</div>';
   ROLEPLAY_SCENARIOS.forEach(sc=>{
     html+=`<div class="gcard" onclick="beginRoleplay('${sc.id}')"><div class="gic">${sc.ic}</div><div><div class="gname">${sc.name} <span class="rp-tag">${sc.tag}</span></div><div class="gdesc">${sc.desc}</div></div></div>`;
@@ -3088,7 +3117,7 @@ async function renderRoleplay(){
 }
 
 async function beginRoleplay(scenarioId){
-  const sc=ROLEPLAY_SCENARIOS.find(x=>x.id===scenarioId); if(!sc)return;
+  const sc=scenarioById(scenarioId); if(!sc)return;
   let brief='';
   if(scenarioId==='custom'){
     const p=prompt("describe the scene you want to play \u2014 the situation, who's in it, and what you're trying to pull off:");
@@ -3102,7 +3131,10 @@ async function beginRoleplay(scenarioId){
     const g={ id:j.threadId, members:j.members||sc.cast.concat(['the_moderator']), name:'the stage' };
     openGroup(g);
     // kick the scene: send a hidden "begin" so the moderator narrates the setup + asks for the role
-    const kick = scenarioId==='custom' ? "let's begin \u2014 set the scene and tell me my options." : "begin the scene.";
+    let kick="begin the scene.";
+    if(scenarioId==='custom') kick="let's begin \u2014 set the scene and tell me my options.";
+    else if(scenarioId==='surprise') kick="surprise me \u2014 invent something fresh, any genre, and set the scene.";
+    else if(scenarioId==='headlines') kick="pull something from the world this week and build the scene \u2014 then set it up for me.";
     setTimeout(()=>{ sendGroup(kick, true); }, 250);
   }catch(e){alert('no connection');}
 }

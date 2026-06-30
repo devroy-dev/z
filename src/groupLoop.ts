@@ -270,10 +270,15 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
     input.onPersonaStart?.(key, nameFor(key));
     const maxTok = scenarioKey ? (key === 'the_moderator' ? 700 : 500) : 400;
-    const stream = anthropic.messages.stream({
+    // web access for web-enabled personas (e.g. the moderator running "Ripped from the Headlines").
+    const streamArgs: any = {
       model: MODEL, max_tokens: maxTok, system,
       messages: [{ role: 'user', content: userBlock }],
-    });
+    };
+    if (persona?.webEnabled) {
+      streamArgs.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }];
+    }
+    const stream = anthropic.messages.stream(streamArgs);
     stream.on('text', (d) => input.onToken?.(key, d));
     const final = await stream.finalMessage();
     const reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();

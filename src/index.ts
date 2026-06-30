@@ -174,8 +174,10 @@ app.post('/roleplay/start', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     const { scenario, brief, cast } = req.body ?? {};
-    const allowed = ['hearing', 'throne', 'ledge', 'surprise', 'custom'];
-    if (!allowed.includes(String(scenario))) return res.status(400).json({ error: 'unknown scenario' });
+    // accept any scenario id (the Stage library rotates through many); just sanitize it.
+    // the id is passed to the moderator as context; it generates the scene from the premise.
+    const scenarioKey = String(scenario || '').replace(/[^a-z0-9_]/gi, '').slice(0, 40);
+    if (!scenarioKey) return res.status(400).json({ error: 'unknown scenario' });
     // cast = persona keys that will play the roles (3-5); fall back to a sensible default set
     let castKeys: string[] = Array.isArray(cast) ? cast.filter((k: any) => typeof k === 'string') : [];
     if (castKeys.length < 3) {
@@ -187,10 +189,10 @@ app.post('/roleplay/start', async (req, res) => {
 
     const { data, error } = await supabase.from('threads').insert({
       user_id: user.id, is_group: true, member_keys: members,
-      companion_name: 'roleplay', scenario_key: String(scenario), scenario_brief: safeBrief || null,
+      companion_name: 'roleplay', scenario_key: scenarioKey, scenario_brief: safeBrief || null,
     }).select('id').single();
     if (error) return res.status(500).json({ error: 'roleplay start: ' + error.message });
-    res.json({ threadId: data.id, scenario, members, isGroup: true });
+    res.json({ threadId: data.id, scenario: scenarioKey, members, isGroup: true });
   } catch (e: any) { res.status(500).json({ error: 'roleplay start failed: ' + (e?.message || String(e)) }); }
 });
 
