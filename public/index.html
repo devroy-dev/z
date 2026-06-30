@@ -552,6 +552,7 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 .src-pill:hover{opacity:1;border-color:var(--accent2)}
 .src-pill::before{content:"\2197";margin-right:3px;opacity:.6}
 
+.rp-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);opacity:.6;margin-left:6px;font-weight:600}
 </style>
 </head>
 <body>
@@ -645,6 +646,7 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
     <div class="nav on" data-tab="people"><div class="ic">❒</div>People</div>
     <div class="nav" data-tab="journal"><div class="ic">✎</div>Letters</div>
     <div class="nav" data-tab="arena"><div class="ic">⚔</div>Arena</div>
+    <div class="nav" data-tab="roleplay"><div class="ic">🎭</div>Stage</div>
     <div class="nav" data-tab="journal-rec"><div class="ic">🎙</div>Journal</div>
   </div>
 </div>
@@ -2074,6 +2076,7 @@ async function bluffReact(pkey,event,victim){
 }
 
 let seriousMode = localStorage.getItem('z_serious')==='1';
+let inRoleplay=false;
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
 const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe','the_orator','the_hippie','the_diva','the_cousin'];
@@ -2851,7 +2854,10 @@ async function sendGroup(text){
             if(cur){acc+=ev.token; cur.querySelector('.gz-text').textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;}
           } else if(ev.end){
             if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
-          } else if(ev.error){const e=gBubble(curKey||GROUP_OK[0]); e.querySelector('.gz-text').textContent='('+ev.error+')'; $('convo').appendChild(e);}
+          } else if(ev.score){ arenaScore={you:ev.score.you,z:ev.score.z}; if(inArenaMatch)showScorebar(); }
+          else if(ev.result){ if(inArenaMatch)showResult(ev.result); }
+          else if(ev.verdict){ if(inRoleplay)showVerdict(ev.verdict); }
+          else if(ev.error){const e=gBubble(curKey||GROUP_OK[0]); e.querySelector('.gz-text').textContent='('+ev.error+')'; $('convo').appendChild(e);}
         });
       }
     };
@@ -2901,6 +2907,54 @@ const ARENA_GAMES=[
   {id:'bluff', name:'Bluff', ic:'🃏', persona:'the_wannabe', type:'table', desc:"lie, bluff, call 'em out. the game where the table reads you."},
 ];
 let arenaScore={you:0,z:0}; let inArenaMatch=false; let arenaGameId=null;
+
+const ROLEPLAY_SCENARIOS=[
+  {id:'hearing', name:'The Hearing', ic:'\u2696', tag:'world affairs', desc:"a senate committee, a razor-thin vote on gun control. flip a senator — or hold the line.", cast:['the_leader_opp','the_orator','the_cynic','the_economist']},
+  {id:'throne', name:'The Empty Throne', ic:'\u265B', tag:'epic', desc:"a dead emperor, no heir, a hall of ruthless lords. you're the underestimated outsider with only your wits.", cast:['the_leader_opp','the_cynic','the_philosopher','the_brother']},
+  {id:'ledge', name:'The Ledge', ic:'\u260E', tag:'adversarial', desc:"a hostage standoff. play the negotiator talking them down — or the desperate one looking for a way out.", cast:['the_wingman','the_brother','the_healer']},
+  {id:'surprise', name:'Surprise Me', ic:'\u2728', tag:'generated', desc:"the moderator invents a fresh scene and a mission. you find out when you arrive.", cast:['the_leader_opp','the_orator','the_cynic','the_brother']},
+  {id:'custom', name:'Type Your Own', ic:'\u270E', tag:'yours', desc:"describe any scene you want — a heist, a trial, a finale you'd rewrite. the moderator builds it.", cast:['the_leader_opp','the_orator','the_cynic','the_brother']},
+];
+
+async function renderRoleplay(){
+  const c=$('contacts'); if(!c)return;
+  let html='<div class="arena-wrap"><div class="arena-head">the Stage</div><div class="arena-sub">step into a scene. every one has a mission. be someone else for a while \u2014 no one\'s watching.</div>';
+  ROLEPLAY_SCENARIOS.forEach(sc=>{
+    html+=`<div class="gcard" onclick="beginRoleplay('${sc.id}')"><div class="gic">${sc.ic}</div><div><div class="gname">${sc.name} <span class="rp-tag">${sc.tag}</span></div><div class="gdesc">${sc.desc}</div></div></div>`;
+  });
+  html+='</div>';
+  c.innerHTML=html;
+}
+
+async function beginRoleplay(scenarioId){
+  const sc=ROLEPLAY_SCENARIOS.find(x=>x.id===scenarioId); if(!sc)return;
+  let brief='';
+  if(scenarioId==='custom'){
+    const p=prompt("describe the scene you want to play \u2014 the situation, who's in it, and what you're trying to pull off:");
+    if(!p||!p.trim())return; brief='The player wants this scenario: '+p.trim();
+  }
+  try{
+    const r=await zfetch('/roleplay/start',{method:'POST',headers:HDRS(),body:JSON.stringify({scenario:scenarioId,brief,cast:sc.cast})});
+    if(!r.ok){const j=await r.json().catch(()=>({}));alert(j.error||'could not start the scene');return;}
+    const j=await r.json();
+    inArenaMatch=false; arenaGameId=null; inRoleplay=true;
+    const g={ id:j.threadId, members:j.members||sc.cast.concat(['the_moderator']), name:'the stage' };
+    openGroup(g);
+    // kick the scene: send a hidden "begin" so the moderator narrates the setup + asks for the role
+    const kick = scenarioId==='custom' ? "let's begin \u2014 set the scene and tell me my options." : "begin the scene.";
+    setTimeout(()=>{ const inp=$('inp'); if(inp){ inp.value=kick; sendGroup(kick); } }, 250);
+  }catch(e){alert('no connection');}
+}
+
+function showVerdict(v){
+  const win = v.outcome==='win'; const draw = v.outcome==='draw';
+  const title = draw?'A stalemate.':win?'Mission accomplished. \u{1F3C6}':'Mission failed.';
+  const sub = draw?'neither side broke. the scene holds.':win?'you pulled it off. the room turned.':'it slipped away this time. run it back?';
+  const card=document.createElement('div'); card.className='result-card';
+  card.innerHTML=`<div class="rc-title">${title}</div><div class="rc-score">${sub}</div><div class="rc-again" onclick="document.querySelector('.botnav .nav[data-tab=roleplay]').click()">new scene</div>`;
+  $('convo').appendChild(card); $('convo').scrollTop=$('convo').scrollHeight;
+  inRoleplay=false;
+}
 
 async function renderArena(){
   const c=$('contacts'); if(!c)return;
@@ -3193,6 +3247,7 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
     if(tab==='journal-rec'){ showJournal(); return; }
     hideJournal();
     if(tab==='arena'){ show('list'); renderArena(); return; }
+    if(tab==='roleplay'){ show('list'); renderRoleplay(); return; }
     show('list');
     if(tab==='people'){ renderContacts(); }
     else if(tab==='journal'){ renderLetters(); }

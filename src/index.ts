@@ -165,6 +165,35 @@ app.post('/arena/start', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'arena start failed: ' + (e?.message || String(e)) }); }
 });
 
+// ── ROLEPLAY (the Freedom Space) ────────────────────────────────────────────
+// start a mission-roleplay: a GROUP thread with a scenario + a cast of personas
+// + the moderator (director/judge). The moderator's first turn sets the scene.
+app.post('/roleplay/start', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { scenario, brief, cast } = req.body ?? {};
+    const allowed = ['hearing', 'throne', 'ledge', 'surprise', 'custom'];
+    if (!allowed.includes(String(scenario))) return res.status(400).json({ error: 'unknown scenario' });
+    // cast = persona keys that will play the roles (3-5); fall back to a sensible default set
+    let castKeys: string[] = Array.isArray(cast) ? cast.filter((k: any) => typeof k === 'string') : [];
+    if (castKeys.length < 3) {
+      castKeys = ['the_leader_opp', 'the_orator', 'the_cynic', 'the_brother'];
+    }
+    castKeys = castKeys.filter((k) => k !== 'the_moderator').slice(0, 5);
+    const members = [...castKeys, 'the_moderator'];
+    const safeBrief = typeof brief === 'string' ? brief.slice(0, 1000) : '';
+
+    const { data, error } = await supabase.from('threads').insert({
+      user_id: user.id, is_group: true, member_keys: members,
+      companion_name: 'roleplay', scenario_key: String(scenario), scenario_brief: safeBrief || null,
+    }).select('id').single();
+    if (error) return res.status(500).json({ error: 'roleplay start: ' + error.message });
+    res.json({ threadId: data.id, scenario, members, isGroup: true });
+  } catch (e: any) { res.status(500).json({ error: 'roleplay start failed: ' + (e?.message || String(e)) }); }
+});
+
 // the player's win/loss record per game
 app.get('/arena/record', async (req, res) => {
   try {
@@ -821,7 +850,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     } else if (th.is_group && isOwner) {
       // ARENA support in groups: strip score tags from the moderator's visible stream,
       // and after its turn, parse + emit score/result + persist the match.
-      const tagRe = /\[\[(SCORE|RESULT)[^\]]*\]\]/g;
+      const tagRe = /\[\[(SCORE|RESULT|VERDICT)[^\]]*\]\]/g;
       const tails: Record<string, string> = {};
       const flushVisible = (key: string, chunk: string, final = false) => {
         let buf = (tails[key] || '') + chunk;
@@ -840,10 +869,11 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         onPersonaEnd: (key, full) => {
           flushVisible(key, '', true);
           res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`);
-          // only the moderator carries score/result tags
+          // only the moderator carries score/result/verdict tags
           if (key === 'the_moderator') {
             const score = /\[\[SCORE\s+you=(\d+)\s+z=(\d+)\]\]/.exec(full);
             const r2 = /\[\[RESULT\s+winner=(you|z|draw)\s+you=(\d+)\s+z=(\d+)\]\]/.exec(full);
+            const verdict = /\[\[VERDICT\s+outcome=(win|loss|draw)\]\]/.exec(full);
             if (score) res.write(`data: ${JSON.stringify({ score: { you: +score[1], z: +score[2] } })}\n\n`);
             if (r2) {
               res.write(`data: ${JSON.stringify({ result: { winner: r2[1], you: +r2[2], z: +r2[3] } })}\n\n`);
@@ -854,6 +884,18 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
                   you_score: +r2[2], z_score: +r2[3], winner: r2[1],
                 }).then(() => {});
                 supabase.from('threads').update({ game_mode: null }).eq('id', threadId).then(() => {});
+              });
+            }
+            if (verdict) {
+              const outcome = verdict[1];
+              res.write(`data: ${JSON.stringify({ verdict: { outcome } })}\n\n`);
+              supabase.from('threads').select('scenario_key, scenario_brief').eq('id', threadId).maybeSingle().then(({ data: thr }: any) => {
+                supabase.from('roleplay_runs').insert({
+                  user_id: user.id, scenario: thr?.scenario_key || 'unknown',
+                  player_role: thr?.scenario_brief || null, outcome,
+                }).then(() => {});
+                // scene over — clear the scenario so the thread returns to normal
+                supabase.from('threads').update({ scenario_key: null, scenario_brief: null }).eq('id', threadId).then(() => {});
               });
             }
           }

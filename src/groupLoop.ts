@@ -28,6 +28,7 @@ export interface GroupTurnInput {
 interface GroupThreadRow {
   id: string; user_id: string; is_group: boolean; is_shared?: boolean;
   member_keys: string[]; companion_name: string | null; game_mode?: string | null;
+  scenario_key?: string | null; scenario_brief?: string | null;
 }
 
 export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
@@ -35,7 +36,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
   const { data: thread } = await supabase
     .from('threads')
-    .select('id, user_id, is_group, is_shared, member_keys, companion_name, game_mode')
+    .select('id, user_id, is_group, is_shared, member_keys, companion_name, game_mode, scenario_key, scenario_brief')
     .eq('id', threadId).is('deleted_at', null)
     .maybeSingle();
   if (!thread) throw new Error('thread not found');
@@ -50,6 +51,17 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   if (gameMode) {
     try { gamesText = await readContentFile('GAMES.md'); } catch {}
     // ensure the moderator is present and ordered last
+    members = members.filter((k) => k !== 'the_moderator');
+    members.push('the_moderator');
+  }
+
+  // ROLEPLAY: a mission-scenario is active. The moderator is the DIRECTOR + JUDGE and
+  // goes LAST (narrates the room, calls the climax, delivers the verdict). The other
+  // members are the cast, in-character and resisting.
+  const scenarioKey = t.scenario_key || null;
+  let roleplayText = '';
+  if (scenarioKey) {
+    try { roleplayText = await readContentFile('ROLEPLAY.md'); } catch {}
     members = members.filter((k) => k !== 'the_moderator');
     members.push('the_moderator');
   }
@@ -115,7 +127,22 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       }
     }
 
-    const dynamic = `\n\n[${todayLine}]${ownerLine}${groupNote}${gameBlock}${memoryBlock}`;
+    // ROLEPLAY roles — moderator directs + judges; others are the cast, in character.
+    let rpBlock = '';
+    if (scenarioKey) {
+      const playerName = (owner && (owner as any).display_name) ? (owner as any).display_name : 'the player';
+      const cast = members.filter((k) => k !== 'the_moderator').map(nameFor).join(', ') || 'the cast';
+      const brief = t.scenario_brief ? `\n\n[THIS RUN: ${t.scenario_brief}]` : '';
+      if (key === 'the_moderator') {
+        rpBlock = `\n\n[ROLEPLAY — YOU ARE THE MODERATOR: the DIRECTOR and the NEUTRAL JUDGE of this scene. The player is ${playerName}. The cast (personas playing roles) are: ${cast}. Run the scenario named "${scenarioKey}" per the craft and the scenario library below. You set the scene, narrate the world's reactions between exchanges, keep the drama real, and — at the ORGANIC right moment (mission clearly won or lost, or the scene has run its head) — you call the climax and deliver an honest WIN/LOSS verdict with a specific reason, ending your final message with the verdict tag on its own line (e.g. [[VERDICT outcome=win]]). NEVER count turns. NEVER take a side in the scene's conflict. If the player just asserts victory without earning it, narrate the room not buying it. Use real names, never bracket placeholders.]${brief}\n${roleplayText}`;
+        groupNote = `\n\n[You are "the moderator" — the director and neutral judge of this roleplay scene. The player is ${playerName}; the cast is ${cast}. You narrate and judge; you never play a side. Keep it cinematic and moving. Call the climax when the story says so, and deliver a clear verdict.]`;
+      } else {
+        rpBlock = `\n\n[ROLEPLAY — a scene is being played. The moderator is directing. YOU are playing a role the moderator assigned you in this scene (read the transcript to see which). Stay fully IN CHARACTER as that role, in your own voice. You genuinely RESIST — if your role opposes the player's mission, you do NOT cave because they made one good point; you argue your position with real, fair force and make them EARN it. That resistance is the game. Speak only as your role, react to what was just said, don't narrate the world (that's the moderator's job), don't break character. The scenario:]${brief}\n${roleplayText}`;
+        groupNote = `\n\n[ROLEPLAY: you are a character in a scene the moderator is directing. Stay in your assigned role, in your own voice, and resist honestly if you're an obstacle to the player's mission. React to what was just said. One in-character message. Don't narrate the world — that's the moderator.]`;
+      }
+    }
+
+    const dynamic = `\n\n[${todayLine}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${memoryBlock}`;
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,
@@ -127,8 +154,9 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const userBlock = `Here's the group chat so far. Respond as ${nameFor(key)} — your next message only.\n\n${runningTranscript}`;
 
     input.onPersonaStart?.(key, nameFor(key));
+    const maxTok = scenarioKey ? (key === 'the_moderator' ? 700 : 500) : 400;
     const stream = anthropic.messages.stream({
-      model: MODEL, max_tokens: 400, system,
+      model: MODEL, max_tokens: maxTok, system,
       messages: [{ role: 'user', content: userBlock }],
     });
     stream.on('text', (d) => input.onToken?.(key, d));
