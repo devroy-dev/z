@@ -8,6 +8,7 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Inter:wght@300;400;500&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=JetBrains+Mono:wght@300;400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
   --bg:#131314; --bg-soft:#1C1C1E; --card:#222225; --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.13); --line:rgba(255,255,255,.09); --line-strong:rgba(255,255,255,.14);
@@ -587,9 +588,51 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 .btn{font-family:'JetBrains Mono',monospace !important;font-style:normal !important;font-size:12px !important;letter-spacing:.28em;text-transform:uppercase}
 .door-back,.door-note{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em}
 
+
+/* ============================================================
+   Z THEME — "Lamplight". a warm dark, embers as light sources.
+   toggled by body.z-theme. every existing token gets a warm-dark value,
+   so the whole app re-skins from this one block.
+   ============================================================ */
+body.z-theme{
+  --bg:#141115;            /* warm near-black (was cold #131314) */
+  --bg-soft:#1C171C;       /* warm umber surface */
+  --card:#241E28;          /* lifted, where light catches */
+  --line:rgba(201,160,245,.08); --line-strong:rgba(201,160,245,.14);
+  --ink:#F4EEF2;           /* lit text — warm white */
+  --dim:rgba(244,238,242,.52); --faint:rgba(244,238,242,.24);
+  --accent:201,160,245;    /* the violet flame (warmer, lighter than the old 124,92,220) */
+  --glow:rgba(201,160,245,.42); --pline:rgba(201,160,245,.28);
+  --glass:rgba(36,30,40,.55);
+  --mebg:linear-gradient(135deg,rgba(201,160,245,.22),rgba(124,92,220,.08));
+  --meln:rgba(201,160,245,.32); --accent2:rgba(201,160,245,.92);
+  --gobtn:linear-gradient(135deg,rgb(201,160,245),rgb(124,92,220));
+  /* the room is never flat — a faint warm pool of light, falling into dark */
+  background-image:
+    radial-gradient(120% 80% at 30% -5%, rgba(201,160,245,.05) 0%, transparent 50%),
+    radial-gradient(90% 70% at 80% 105%, rgba(232,185,140,.035) 0%, transparent 55%) !important;
+  background-attachment:fixed;
+}
+/* the soul: Fraunces serif for the display moments (names, the journal, the warm voice) */
+body.z-theme .lh-title .i, body.z-theme .letters-head .lh-i, body.z-theme .letter-body,
+body.z-theme .jr-head .lh-i, body.z-theme .jr-entry .jr-text, body.z-theme .jr-hint,
+body.z-theme .gz-name, body.z-theme .arena-head, body.z-theme .door-q,
+body.z-theme .z-mark, body.z-theme .z-tag{
+  font-family:'Fraunces',serif !important;
+}
+/* personas glow a little warmer — names lit like coals */
+body.z-theme .gz-name{ color:var(--accent2); text-shadow:0 0 18px rgba(201,160,245,.3); }
+/* the message cards catch the ember (lit from within) */
+body.z-theme .gz-text, body.z-theme .them-h{
+  box-shadow:inset 0 1px 0 rgba(244,238,242,.03), 0 10px 30px -18px rgba(124,92,220,.35);
+}
+/* the breathing flame on the wordmark Z burns brighter in this theme */
+body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px rgba(124,92,220,.3); }
+
 </style>
 </head>
 <body>
+<script>try{if(localStorage.getItem('z_theme')==='1')document.body.classList.add('z-theme');}catch(e){}</script>
 <canvas id="ink"></canvas><div class="grain"></div>
 
 <!-- ONBOARDING -->
@@ -876,6 +919,10 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
     <div class="prow prow-toggle" id="prow-serious">
       <span>SOS mode <span class="prow-sub">when you need the real, quiet space — only the ones who can hold it</span></span>
       <span class="z-switch" id="serious-switch"><span class="z-knob"></span></span>
+    </div>
+    <div class="prow prow-toggle" id="prow-ztheme">
+      <span>Z theme <span class="prow-sub">lamplight — a warm dark, lit by the ember. the room with the lights low.</span></span>
+      <span class="z-switch" id="ztheme-switch"><span class="z-knob"></span></span>
     </div>
     <div class="prow" id="prow-notes">What Z remembers</div>
     <div class="prow" id="prow-signout" style="color:#e08a8a">Sign out</div>
@@ -2249,6 +2296,7 @@ var _po=$('pin-otp'); if(_po)_po.onclick=goPhone;
 $('setpin')&&$('setpin').addEventListener('keydown',e=>{if(e.key==='Enter')setPin();});
 $('pin')&&$('pin').addEventListener('keydown',e=>{if(e.key==='Enter')unlockPin();});
 var _ss=$('prow-serious'); if(_ss)_ss.onclick=toggleSerious; paintSeriousSwitch();
+var _zt=$('prow-ztheme'); if(_zt)_zt.onclick=toggleZTheme; paintZThemeSwitch();
 var _bjb=$('bj-back'); if(_bjb)_bjb.onclick=()=>bjLeave();
 var _snb=$('snl-back'); if(_snb)_snb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
 var _unb=$('uno-back'); if(_unb)_unb.onclick=()=>{show('list');document.querySelector('.botnav .nav[data-tab=arena]')?.click();};
@@ -2686,6 +2734,15 @@ async function leaveRoom(){
 
 /* __SERIOUS_SKIN_PLACEHOLDER__ (global toggle) ===== */
 function paintSeriousSwitch(){ const sw=$('serious-switch'); if(sw) sw.classList.toggle('on', seriousMode); }
+// ===== Z THEME (Lamplight) — a warm-dark skin toggled in settings =====
+let zTheme = localStorage.getItem('z_theme')==='1';
+function applyZTheme(){ document.body.classList.toggle('z-theme', zTheme); }
+function paintZThemeSwitch(){ const sw=$('ztheme-switch'); if(sw) sw.classList.toggle('on', zTheme); }
+function toggleZTheme(){
+  zTheme=!zTheme;
+  localStorage.setItem('z_theme', zTheme?'1':'0');
+  applyZTheme(); paintZThemeSwitch();
+}
 async function toggleSerious(){
   seriousMode=!seriousMode;
   localStorage.setItem('z_serious', seriousMode?'1':'0');
@@ -3642,6 +3699,7 @@ async function renderJournal(){
 }
 
 /* boot */
+applyZTheme();
 loadLocal();
 loadPins();
 loadMyDp();
