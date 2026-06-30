@@ -485,8 +485,8 @@ body.serious .z code,body.serious .me code{background:rgba(255,255,255,.10)}
 
 
 /* ===== BATCH 3: serious mode character ===== */
-body.serious #thread.on{position:relative;display:flex;flex-direction:column}
-body.serious .convo{flex:1 1 auto;min-height:0}
+body.serious .screen:not(.on){display:none !important}
+body.serious #thread.on{position:relative}
 body.serious #thread.on::before{
   content:"";position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);
   width:420px;height:420px;border-radius:50%;pointer-events:none;z-index:0;
@@ -553,6 +553,12 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 .src-pill::before{content:"\2197";margin-right:3px;opacity:.6}
 
 .rp-tag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);opacity:.6;margin-left:6px;font-weight:600}
+
+/* arena sections (Stage + Games) */
+.arena-section{font-family:'Cormorant Garamond',serif;font-size:21px;font-style:italic;color:var(--ink);margin:18px 4px 10px;display:flex;align-items:baseline;gap:8px}
+.arena-section .as-sub{font-family:'DM Sans',sans-serif;font-style:normal;font-size:11px;color:var(--faint)}
+.rp-card{background:linear-gradient(135deg,rgba(201,168,76,.07),transparent)}
+
 </style>
 </head>
 <body>
@@ -646,7 +652,6 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
     <div class="nav on" data-tab="people"><div class="ic">❒</div>People</div>
     <div class="nav" data-tab="journal"><div class="ic">✎</div>Letters</div>
     <div class="nav" data-tab="arena"><div class="ic">⚔</div>Arena</div>
-    <div class="nav" data-tab="roleplay"><div class="ic">🎭</div>Stage</div>
     <div class="nav" data-tab="journal-rec"><div class="ic">🎙</div>Journal</div>
   </div>
 </div>
@@ -2704,11 +2709,19 @@ async function inviteToRoom(){
 async function openRoom(r){
   activeRoom=r; activeGroup=null; active=null;
   paintWorld([201,168,76]);
-  $('t-face').innerHTML=r.persona?dpFor(r.persona):'';
+  // a room can have several personas now — stack their faces, name them all
+  const rPersonas = (r.personas && r.personas.length) ? r.personas : (r.persona ? [r.persona] : []);
+  r.personas = rPersonas;
+  $('t-face').innerHTML = rPersonas.length
+    ? `<div class="gfaces sm">${rPersonas.slice(0,3).map(k=>`<span class="gstack">${dpFor(k)}</span>`).join('')}</div>`
+    : '';
   $('t-name').textContent=r.name;
   show('thread');
   const convo=$('convo'); convo.innerHTML='';
-  const d=document.createElement('div'); d.className='t-desc'; d.textContent='a shared room — you, your friends, and '+(r.persona?CAT[r.persona].name:'a persona'); convo.appendChild(d);
+  const who = rPersonas.length
+    ? rPersonas.map(k=>CAT[k]?CAT[k].name:'a persona').join(', ')
+    : 'a persona';
+  const d=document.createElement('div'); d.className='t-desc'; d.textContent='a shared room — you, your friends, and '+who; convo.appendChild(d);
   _renderedIds=new Set();
   await loadRoomMembers(r);
   await loadRoomHistory(r);
@@ -2960,6 +2973,12 @@ async function renderArena(){
   const c=$('contacts'); if(!c)return;
   let rec={}; try{ const r=await zfetch('/arena/record',{headers:HDRS()}); if(r.ok) rec=await r.json(); }catch(e){}
   let html='<div class="arena-wrap"><div class="arena-head">the Arena</div><div class="arena-sub">play against the cast. keep score. come back sharper.</div>';
+  // ===== ROLEPLAY (the Stage) — featured at the top =====
+  html+='<div class="arena-section">🎭 the Stage <span class="as-sub">step into a scene. every one has a mission.</span></div>';
+  ROLEPLAY_SCENARIOS.forEach(sc=>{
+    html+=`<div class="gcard rp-card" onclick="beginRoleplay('${sc.id}')"><div class="gic">${sc.ic}</div><div><div class="gname">${sc.name} <span class="rp-tag">${sc.tag}</span></div><div class="gdesc">${sc.desc}</div></div></div>`;
+  });
+  html+='<div class="arena-section">⚔ the Games <span class="as-sub">play against the cast, keep score.</span></div>';
   // record chips
   const chips=Object.keys(rec).map(g=>{const x=rec[g];return `<span class="chip">${g}: ${x.wins}W ${x.losses}L</span>`;}).join('');
   if(chips) html+='<div class="arena-rec">'+chips+'</div>';
@@ -3247,7 +3266,6 @@ document.querySelectorAll('.botnav .nav').forEach(n=>{
     if(tab==='journal-rec'){ showJournal(); return; }
     hideJournal();
     if(tab==='arena'){ show('list'); renderArena(); return; }
-    if(tab==='roleplay'){ show('list'); renderRoleplay(); return; }
     show('list');
     if(tab==='people'){ renderContacts(); }
     else if(tab==='journal'){ renderLetters(); }
@@ -3296,6 +3314,20 @@ $('prow-notes')&&($('prow-notes').onclick=openNotes);
 $('nt-back')&&($('nt-back').onclick=()=>{show('list');renderContacts();});
 
 /* profile / settings */
+async function syncMe(){
+  // hydrate ME from the server if our local cache lost the name (fixes the "·" avatar)
+  try{
+    const r=await zfetch('/me',{headers:HDRS()});
+    if(!r.ok)return;
+    const j=await r.json();
+    let changed=false;
+    if(j.displayName && j.displayName!==ME.name){ ME.name=j.displayName; changed=true; }
+    if(j.region && j.region!==ME.region){ ME.region=j.region; changed=true; }
+    if(j.dob && j.dob!==ME.dob){ ME.dob=j.dob; changed=true; }
+    if(j.sex && j.sex!==ME.sex){ ME.sex=j.sex; changed=true; }
+    if(changed){ try{localStorage.setItem('z_me',JSON.stringify(ME));}catch(e){} refreshProfile(); }
+  }catch(e){}
+}
 function refreshProfile(){
   const lp=$('lh-profile');
   if(lp){ if(MY_DP){ lp.innerHTML=`<img src="${MY_DP}" alt="you">`; } else { const i=(ME.name||'·').trim().charAt(0).toUpperCase()||'·'; lp.innerHTML=`<span id="lh-initial">${i}</span>`; } }
@@ -3572,6 +3604,7 @@ loadMyDp();
   if(tokenLive && localStorage.getItem('z_onboarded')){
     scheduleRefresh();
     renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();
+    syncMe();
     if(hasJoin) tryJoinFromUrl();
   } else if(tokenLive){
     scheduleRefresh(); show('onboard');

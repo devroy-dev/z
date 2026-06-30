@@ -435,6 +435,27 @@ app.post('/auth/pin/verify', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'pin verify failed: ' + (e?.message || String(e)) }); }
 });
 
+// fetch the stored identity (so the client can hydrate name/region after a cache loss)
+app.get('/me', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('users')
+      .select('display_name, region, dob, sex, serious_mode')
+      .eq('id', user.id).maybeSingle();
+    res.json({
+      displayName: data?.display_name ?? null,
+      region: data?.region ?? null,
+      dob: (data as any)?.dob ?? null,
+      sex: (data as any)?.sex ?? null,
+      seriousMode: !!(data as any)?.serious_mode,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: 'me fetch failed: ' + (e?.message || String(e)) });
+  }
+});
+
 app.post('/me', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -661,17 +682,20 @@ app.post('/rooms', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const { name, persona } = req.body ?? {};
-    if (!persona || !SHAREABLE_PERSONAS.has(persona)) {
-      return res.status(400).json({ error: 'that persona can\'t be invited into a shared room' });
+    const { name, persona, personas } = req.body ?? {};
+    // accept a single persona (back-compat) OR an array of up to 5
+    let keys: string[] = Array.isArray(personas) ? personas : (persona ? [persona] : []);
+    keys = [...new Set(keys.filter((k: any) => typeof k === 'string' && SHAREABLE_PERSONAS.has(k)))].slice(0, 5);
+    if (!keys.length) {
+      return res.status(400).json({ error: 'pick at least one persona that can be invited into a shared room' });
     }
     const { data: thread, error } = await supabase.from('threads').insert({
-      user_id: user.id, is_group: true, is_shared: true, member_keys: [persona],
+      user_id: user.id, is_group: true, is_shared: true, member_keys: keys,
       companion_name: (name && String(name).trim()) || 'the room',
     }).select('id, companion_name, member_keys').single();
     if (error) return res.status(500).json({ error: 'room create: ' + error.message });
     await supabase.from('room_members').insert({ thread_id: thread.id, user_id: user.id, role: 'owner' });
-    res.json({ id: thread.id, name: thread.companion_name, persona });
+    res.json({ id: thread.id, name: thread.companion_name, personas: keys, persona: keys[0] });
   } catch (e: any) { res.status(500).json({ error: 'room failed: ' + (e?.message || String(e)) }); }
 });
 
@@ -761,7 +785,10 @@ app.get('/rooms', async (req, res) => {
       .select('id, companion_name, member_keys, last_active')
       .in('id', ids).eq('is_shared', true).is('deleted_at', null)
       .order('last_active', { ascending: false });
-    const rooms = (threads ?? []).map((t: any) => ({ id: t.id, name: t.companion_name, persona: (t.member_keys || [])[0] || null }));
+    const rooms = (threads ?? []).map((t: any) => ({
+      id: t.id, name: t.companion_name,
+      personas: (t.member_keys || []), persona: (t.member_keys || [])[0] || null,
+    }));
     res.json(rooms);
   } catch (e: any) { res.status(500).json({ error: 'rooms list failed: ' + (e?.message || String(e)) }); }
 });

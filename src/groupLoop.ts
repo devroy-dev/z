@@ -15,6 +15,56 @@ import { broadcastRoomMessage } from './broadcast.js';
 const anthropic = new Anthropic();
 const MODEL = 'claude-haiku-4-5-20251001';
 
+// ── THE DIRECTOR ───────────────────────────────────────────────────────────
+// In a room with REAL PEOPLE, the personas should not all pile on every message.
+// A great group has people who read the room: they speak when spoken to, when they
+// have something real to add, and otherwise let the humans talk. This cheap Haiku
+// call decides WHICH personas (if any) should respond to the latest message.
+//
+// Rules baked into the prompt: direct address → that persona answers; a human
+// clearly talking to another human → personas stay quiet; a genuine opening for a
+// specific persona's voice → it may chime in, but rarely; default is SILENCE.
+// Returns an ordered list of persona keys to speak (possibly empty).
+async function directRoom(
+  members: string[],
+  roster: { key: string; name: string }[],
+  transcript: string,
+  senderName: string,
+): Promise<string[]> {
+  if (members.length <= 1) return members; // 1:1 or single persona — no director needed
+  const cast = roster.map((r) => `- ${r.key} ("${r.name}")`).join('\n');
+  const sys =
+    `You are the silent DIRECTOR of a group chat that has REAL PEOPLE in it plus some AI personas. ` +
+    `Your only job: decide which personas (if any) should respond to the LATEST message. You output nothing else.\n\n` +
+    `The personas in the room:\n${cast}\n\n` +
+    `RULES — err HARD toward silence:\n` +
+    `1. If the latest message directly addresses a persona by name or clearly asks one of them something → that persona responds.\n` +
+    `2. If a human is clearly talking TO ANOTHER HUMAN (answering them, addressing them by name, continuing their thread) → NO persona responds. Let people talk. Return none.\n` +
+    `3. If the message is a general question to the room, or an obvious opening where ONE persona's voice genuinely fits → that one persona may respond. Pick the single best-fit one.\n` +
+    `4. Multiple personas respond ONLY if the message explicitly invites several (e.g. "what do you all think?"). Even then, cap at 2.\n` +
+    `5. When in doubt, return NONE. A quiet persona is better than a noisy one. Real people find pile-ons annoying.\n\n` +
+    `Output ONLY a JSON array of persona keys to respond, in order, e.g. ["the_brother"] or [] or ["the_wingman","the_comic"]. No prose, no explanation. Just the array.`;
+  try {
+    const r = await anthropic.messages.create({
+      model: MODEL, max_tokens: 60,
+      system: sys,
+      messages: [{ role: 'user', content: `Recent chat (last message is from "${senderName}", a real person):\n\n${transcript}\n\nWhich personas respond? JSON array only.` }],
+    });
+    const txt = (r.content.find((b) => b.type === 'text') as any)?.text || '[]';
+    const m = txt.match(/\[[^\]]*\]/);
+    if (!m) return [];
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return [];
+    // keep only valid members, dedupe, cap at 2
+    const valid = arr.filter((k: any) => typeof k === 'string' && members.includes(k));
+    return [...new Set(valid)].slice(0, 2) as string[];
+  } catch {
+    // on any failure, fall back to a single best guess: the first persona (keeps the room alive)
+    return members.slice(0, 1);
+  }
+}
+
+
 export interface GroupTurnInput {
   userId: string;
   threadId: string;
@@ -75,16 +125,35 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const where = owner.region ? `, from ${owner.region}` : '';
     ownerLine = `\n\n[WHO YOU'RE TALKING TO: ${who}${where}.]`;
   }
-  const memoryBlock = await readMemoryBlock(userId);
+  // EPHEMERAL in shared rooms: a persona in a room with OTHER real people must NOT carry
+  // the owner's private memory (that would leak one person's private history to the room).
+  // It keeps its self/style, and knows only who's in the room. Owner memory is loaded only
+  // for solo persona-groups and the owner's own 1:1-style group threads.
+  const memoryBlock = t.is_shared ? '' : await readMemoryBlock(userId);
+  // in a shared room, replace the single-owner identity line with the room's people
+  if (t.is_shared && input.senderName) {
+    ownerLine = `\n\n[THIS IS A SHARED ROOM with real people in it. The person who just spoke is "${input.senderName}". You do NOT know any private history about anyone here — you only know them from what's said in this room. Treat everyone as someone you're meeting in the room, by name.]`;
+  }
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
 
   // prior conversation in this group thread (all members + user)
   const { data: history } = await supabase
     .from('messages')
-    .select('role, content, persona_key')
+    .select('role, content, persona_key, sender_user_id')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: true })
     .limit(50);
+
+  // in a shared room, resolve each human sender's name so the transcript reads
+  // "Aanya: ..." not "THEM: ..." — the director needs to see who's talking to whom.
+  let nameByUid: Record<string, string> = {};
+  if (t.is_shared) {
+    const uids = [...new Set((history ?? []).map((m: any) => m.sender_user_id).filter(Boolean))];
+    if (uids.length) {
+      const { data: us } = await supabase.from('users').select('id, display_name').in('id', uids);
+      for (const u of (us ?? [])) nameByUid[(u as any).id] = (u as any).display_name || 'someone';
+    }
+  }
 
   // persist the user message
   await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: message, sender_user_id: userId });
@@ -96,13 +165,27 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // so each persona knows who's in the room and who said what.
   const nameFor = (key: string) => personaByKey(key)?.defaultName || key;
   const priorLines: string[] = (history ?? []).map((m: any) =>
-    m.role === 'user' ? `THEM: ${m.content}` : `${nameFor(m.persona_key || '')}: ${m.content}`
+    m.role === 'user'
+      ? `${(t.is_shared && m.sender_user_id && nameByUid[m.sender_user_id]) || 'THEM'}: ${m.content}`
+      : `${nameFor(m.persona_key || '')}: ${m.content}`
   );
   priorLines.push(`${input.senderName ? input.senderName : 'THEM'}: ${message}`);
 
   // each member responds in order, seeing the running transcript incl. this turn's prior replies
   const saidThisTurn: string[] = [];
-  for (const key of members) {
+
+  // THE DIRECTOR — only for shared rooms with real people, and not during arena/roleplay
+  // (those have their own turn structure). Decides which personas should speak this turn.
+  let speakers = members;
+  if (t.is_shared && input.senderName && !gameMode && !scenarioKey) {
+    const roster = members.map((k) => ({ key: k, name: nameFor(k) }));
+    const recent = priorLines.slice(-12).join('\n');
+    speakers = await directRoom(members, roster, recent, input.senderName);
+    // nobody should speak — the humans are talking; stay quiet
+    if (!speakers.length) return;
+  }
+
+  for (const key of speakers) {
     const persona = personaByKey(key);
     if (!persona) continue;
     const codexKeys: CodexKey[] = [persona.codex as CodexKey];
