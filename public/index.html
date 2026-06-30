@@ -2494,8 +2494,11 @@ async function openThread(key){
   if(_ts){ _ts.textContent = (key==='z_serious') ? 'the quiet room' : 'tap name to rename'; }
   show('thread');
   const convo=$('convo'); convo.innerHTML='';
-  // descriptor as a system line at the top
-  const d=document.createElement('div'); d.className='t-desc'; d.textContent=cat.desc; convo.appendChild(d);
+  // descriptor as a system line at the top — but NOT in the SOS quiet room (it's hidden there,
+  // and an invisible first-child would swallow the layout's top spacer, floating the dock up)
+  if(key!=='z_serious'){
+    const d=document.createElement('div'); d.className='t-desc'; d.textContent=cat.desc; convo.appendChild(d);
+  }
   // ensure a thread exists on the server
   if(!threads[key]||!threads[key].id){
     try{
