@@ -50,6 +50,19 @@ export async function transcribeAudio(audio: Buffer, mime: string): Promise<{ tr
   return { transcript, lang };
 }
 
+// store a TYPED journal entry directly — no transcription, just the text.
+export async function storeJournalText(userId: string, text: string): Promise<JournalResult> {
+  const transcript = (text || '').trim();
+  if (!transcript) throw new Error('empty entry');
+  const { data: row, error } = await supabase
+    .from('journal_entries')
+    .insert({ user_id: userId, transcript: transcript.slice(0, 6000), lang: null })
+    .select('id, transcript, lang')
+    .single();
+  if (error) throw new Error('journal insert: ' + error.message);
+  return { id: row.id, transcript: row.transcript, lang: row.lang };
+}
+
 // transcribe an audio buffer via Sarvam, store transcript, discard audio.
 export async function transcribeAndStore(
   userId: string,

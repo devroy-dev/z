@@ -23,6 +23,7 @@ export interface ZTurnInput {
 export interface ZTurnResult {
   reply: string;
   usage: { in: number; out: number; cacheRead: number; cacheWrite: number };
+  sources?: { url: string; title: string }[];
 }
 
 interface ThreadRow {
@@ -141,6 +142,29 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   const final = await stream.finalMessage();
 
   const reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('');
+
+  // pull web-search sources (if the persona reached the web) so the UI can show
+  // optional source pills — Z still speaks in her own voice; the pills just let a
+  // curious person verify. Dedupe by URL, cap a few, keep titles short.
+  const sources: { url: string; title: string }[] = [];
+  if (persona?.webEnabled) {
+    const seen = new Set<string>();
+    for (const b of final.content as any[]) {
+      // citations attached to text blocks
+      const cites = b?.citations || (Array.isArray(b?.content) ? [] : []);
+      if (Array.isArray(b?.citations)) {
+        for (const c of b.citations) {
+          const url = c?.url; if (url && !seen.has(url)) { seen.add(url); sources.push({ url, title: (c?.title || url).slice(0, 80) }); }
+        }
+      }
+      // web_search_tool_result blocks carry the result list
+      if (b?.type === 'web_search_tool_result' && Array.isArray(b?.content)) {
+        for (const r of b.content) {
+          const url = r?.url; if (url && !seen.has(url)) { seen.add(url); sources.push({ url, title: (r?.title || url).slice(0, 80) }); }
+        }
+      }
+    }
+  }
   const u = final.usage as any;
   const usage = {
     in: u.input_tokens ?? 0, out: u.output_tokens ?? 0,
@@ -154,5 +178,5 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // harvest memory out-of-band — never block the reply
   void harvestMemory(userId, threadId, message, reply);
 
-  return { reply, usage };
+  return { reply, usage, sources };
 }

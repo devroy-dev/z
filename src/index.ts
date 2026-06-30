@@ -9,7 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
-import { transcribeAndStore, transcribeAudio } from './journal.js';
+import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { personaByKey } from './personas.js';
@@ -265,6 +265,21 @@ app.post('/transcribe', express2.raw({ type: 'audio/*', limit: '12mb' }), async 
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: 'transcribe failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// typed journal entry — store text directly, no transcription
+app.post('/journal/text', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const text = (req.body?.text ?? '').toString();
+    if (!text.trim()) return res.status(400).json({ error: 'no text' });
+    const result = await storeJournalText(user.id, text);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: 'journal text failed: ' + (e?.message || String(e)) });
   }
 });
 
@@ -868,6 +883,10 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         onToken: (t) => flushVisible(t),
       });
       flushVisible('', true);
+      // optional source pills for web-enabled personas (Z still speaks in her own voice)
+      if (result.sources && result.sources.length) {
+        res.write(`data: ${JSON.stringify({ sources: result.sources.slice(0, 4) })}\n\n`);
+      }
       // parse score/result tags from the full reply, persist + tell the UI
       const score = /\[\[SCORE\s+you=(\d+)\s+z=(\d+)\]\]/.exec(result.reply);
       const res2  = /\[\[RESULT\s+winner=(you|z|draw)\s+you=(\d+)\s+z=(\d+)\]\]/.exec(result.reply);
