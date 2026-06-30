@@ -558,6 +558,12 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 .arena-section .as-sub{font-family:'DM Sans',sans-serif;font-style:normal;font-size:11px;color:var(--faint)}
 .rp-card{background:linear-gradient(135deg,rgba(201,168,76,.07),transparent)}
 
+
+/* ===== STAGE: one-at-a-time "next" reveal ===== */
+.rp-next{display:flex;justify-content:center;padding:10px 0 4px;animation:fadeInSlow .4s ease both}
+.rp-next-btn{font-family:'JetBrains Mono','DM Mono',monospace;font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:100px;padding:9px 26px;cursor:pointer;background:rgba(124,92,220,.05);transition:.2s;-webkit-tap-highlight-color:transparent}
+.rp-next-btn:hover,.rp-next-btn:active{border-color:var(--accent2);background:rgba(124,92,220,.12);letter-spacing:.36em}
+
 </style>
 </head>
 <body>
@@ -2081,6 +2087,7 @@ async function bluffReact(pkey,event,victim){
 
 let seriousMode = localStorage.getItem('z_serious')==='1';
 let inRoleplay=false;
+let pendingVerdict=null;
 function _bootSeriousSkin(){ if(seriousMode) document.body.classList.add('serious'); } _bootSeriousSkin();
 const SERIOUS_OK=['the_healer','the_stranger','the_brother','the_mentor','the_guru','the_philosopher'];
 const SHAREABLE=['the_guru','the_oracle','the_brainiac','the_brother','the_healer','the_comic','the_mentor','the_colleague','the_philosopher','the_historian','the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher','the_economist','the_leader_opp','the_wannabe','the_orator','the_hippie','the_diva','the_cousin'];
@@ -2843,9 +2850,43 @@ async function sendRoom(text){
     const reader=r.body.getReader(); while(true){const{done}=await reader.read(); if(done)break;}
   }catch(e){ if(_pendingReply&&_pendingReply.typing)_pendingReply.typing.remove(); _pendingReply=null; }
 }
-async function sendGroup(text){
-  $('convo').appendChild(bubble('me',text));
+async function sendGroup(text, silent){
+  if(!silent){ $('convo').appendChild(bubble('me',text)); }
   $('convo').scrollTop=$('convo').scrollHeight;
+  // ROLEPLAY: buffer each speaker's finished message and reveal them ONE AT A TIME, gated by a
+  // "next" button the player taps — so the scene never dumps a wall of text. (Normal group chat
+  // streams live as before.)
+  const paced = inRoleplay;
+  const queue=[];           // [{key, text}] finished speakers waiting to be revealed
+  let revealing=false;
+  function showNextBtn(){
+    removeNextBtn();
+    if(!queue.length) return;
+    const b=document.createElement('div'); b.className='rp-next'; b.id='rp-next';
+    b.innerHTML='<span class="rp-next-btn">▸ next</span>';
+    b.querySelector('.rp-next-btn').onclick=revealNext;
+    $('convo').appendChild(b); $('convo').scrollTop=$('convo').scrollHeight;
+  }
+  function removeNextBtn(){ const e=$('rp-next'); if(e) e.remove(); }
+  async function revealNext(){
+    removeNextBtn();
+    if(!queue.length){ revealing=false; return; }
+    revealing=true;
+    const {key,text}=queue.shift();
+    const el=gBubble(key); $('convo').appendChild(el);
+    const tgt=el.querySelector('.gz-text');
+    // gentle type-on reveal so it feels alive but readable
+    tgt.textContent='';
+    const words=text.split(/(\s+)/); let i=0;
+    await new Promise(res=>{
+      const iv=setInterval(()=>{
+        tgt.textContent+=words[i]||''; i++;
+        $('convo').scrollTop=$('convo').scrollHeight;
+        if(i>=words.length){ clearInterval(iv); tgt.innerHTML=mdRender(text); res(); }
+      }, 18);
+    });
+    if(queue.length) showNextBtn(); else revealing=false;
+  }
   try{
     const r=await zfetch('/chat',{method:'POST',headers:HDRS(),
       body:JSON.stringify({threadId:activeGroup.id,message:text})});
@@ -2860,25 +2901,40 @@ async function sendGroup(text){
           const p=line.slice(5).trim(); if(!p)return;
           let ev; try{ev=JSON.parse(p);}catch(_){return;}
           if(ev.speaker&&ev.name&&!ev.token&&!ev.end){
-            // finalize the previous speaker's bubble as markdown
-            if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
-            // new speaker starting
-            curKey=ev.speaker; acc=''; cur=gBubble(curKey); $('convo').appendChild(cur);
-            $('convo').scrollTop=$('convo').scrollHeight;
+            if(paced){
+              // in roleplay we buffer; just track the incoming speaker
+              if(curKey&&acc){ queue.push({key:curKey,text:acc}); }
+              curKey=ev.speaker; acc='';
+            } else {
+              // finalize the previous speaker's bubble as markdown
+              if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
+              // new speaker starting
+              curKey=ev.speaker; acc=''; cur=gBubble(curKey); $('convo').appendChild(cur);
+              $('convo').scrollTop=$('convo').scrollHeight;
+            }
           } else if(ev.speaker&&typeof ev.token==='string'){
-            if(cur){acc+=ev.token; cur.querySelector('.gz-text').textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;}
+            if(paced){ acc+=ev.token; }
+            else if(cur){acc+=ev.token; cur.querySelector('.gz-text').textContent=acc; $('convo').scrollTop=$('convo').scrollHeight;}
           } else if(ev.end){
-            if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
+            if(!paced && cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
           } else if(ev.score){ arenaScore={you:ev.score.you,z:ev.score.z}; if(inArenaMatch)showScorebar(); }
           else if(ev.result){ if(inArenaMatch)showResult(ev.result); }
-          else if(ev.verdict){ if(inRoleplay)showVerdict(ev.verdict); }
+          else if(ev.verdict){ if(inRoleplay)pendingVerdict=ev.verdict; }
           else if(ev.error){const e=gBubble(curKey||GROUP_OK[0]); e.querySelector('.gz-text').textContent='('+ev.error+')'; $('convo').appendChild(e);}
         });
       }
     };
     while(true){const{done,value}=await reader.read(); if(done)break; buf+=dec.decode(value,{stream:true}); drain();}
     buf+='\n\n'; drain();
-    if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
+    if(paced){
+      // push the last speaker, then start revealing one at a time
+      if(curKey&&acc){ queue.push({key:curKey,text:acc}); }
+      if(queue.length){ await revealNext(); }
+      // verdict (if any) shows after the last reveal
+      if(pendingVerdict){ const v=pendingVerdict; pendingVerdict=null; const wait=setInterval(()=>{ if(!revealing && !queue.length){ clearInterval(wait); showVerdict(v); } },150); }
+    } else {
+      if(cur&&acc){ cur.querySelector('.gz-text').innerHTML=mdRender(acc); }
+    }
   }catch(e){}
   $('convo').scrollTop=$('convo').scrollHeight;
 }
@@ -2957,7 +3013,7 @@ async function beginRoleplay(scenarioId){
     openGroup(g);
     // kick the scene: send a hidden "begin" so the moderator narrates the setup + asks for the role
     const kick = scenarioId==='custom' ? "let's begin \u2014 set the scene and tell me my options." : "begin the scene.";
-    setTimeout(()=>{ const inp=$('inp'); if(inp){ inp.value=kick; sendGroup(kick); } }, 250);
+    setTimeout(()=>{ sendGroup(kick, true); }, 250);
   }catch(e){alert('no connection');}
 }
 

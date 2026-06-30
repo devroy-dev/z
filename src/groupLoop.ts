@@ -185,6 +185,29 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     if (!speakers.length) return;
   }
 
+  // ROLEPLAY PACING — so the scene doesn't dump a wall of text:
+  // (1) the OPENING beat is the MODERATOR ALONE — sets the scene, casts the room, states
+  //     the mission, asks the player to pick a role. The cast does NOT speak yet; the scene
+  //     opens on the player.
+  // (2) after that, only the 1-2 cast members the player actually addressed/provoked respond
+  //     (plus the moderator narrating between exchanges) — never the whole cast at once.
+  if (scenarioKey) {
+    const castKeys = members.filter((k) => k !== 'the_moderator');
+    // is this the opening? (no assistant lines yet in the thread)
+    const sceneStarted = (history ?? []).some((m: any) => m.role !== 'user');
+    if (!sceneStarted) {
+      // SETUP TURN: moderator only.
+      speakers = ['the_moderator'];
+    } else {
+      // mid-scene: director picks the relevant cast (cap 2), then the moderator narrates last.
+      const roster = castKeys.map((k) => ({ key: k, name: nameFor(k) }));
+      const recent = priorLines.slice(-12).join('\n');
+      let picked = await directRoom(castKeys, roster, recent, input.senderName || (owner as any)?.display_name || 'the player');
+      if (!picked.length) picked = castKeys.slice(0, 1); // someone should react to keep the scene alive
+      speakers = [...picked, 'the_moderator']; // moderator always closes the beat (narrates/judges)
+    }
+  }
+
   for (const key of speakers) {
     const persona = personaByKey(key);
     if (!persona) continue;
@@ -217,8 +240,12 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       const cast = members.filter((k) => k !== 'the_moderator').map(nameFor).join(', ') || 'the cast';
       const brief = t.scenario_brief ? `\n\n[THIS RUN: ${t.scenario_brief}]` : '';
       if (key === 'the_moderator') {
-        rpBlock = `\n\n[ROLEPLAY — YOU ARE THE MODERATOR: the DIRECTOR and the NEUTRAL JUDGE of this scene. The player is ${playerName}. The cast (personas playing roles) are: ${cast}. Run the scenario named "${scenarioKey}" per the craft and the scenario library below. You set the scene, narrate the world's reactions between exchanges, keep the drama real, and — at the ORGANIC right moment (mission clearly won or lost, or the scene has run its head) — you call the climax and deliver an honest WIN/LOSS verdict with a specific reason, ending your final message with the verdict tag on its own line (e.g. [[VERDICT outcome=win]]). NEVER count turns. NEVER take a side in the scene's conflict. If the player just asserts victory without earning it, narrate the room not buying it. Use real names, never bracket placeholders.]${brief}\n${roleplayText}`;
-        groupNote = `\n\n[You are "the moderator" — the director and neutral judge of this roleplay scene. The player is ${playerName}; the cast is ${cast}. You narrate and judge; you never play a side. Keep it cinematic and moving. Call the climax when the story says so, and deliver a clear verdict.]`;
+        const sceneStarted = (history ?? []).some((m: any) => m.role !== 'user');
+        const openingNote = sceneStarted
+          ? `You are mid-scene: narrate the world's reaction to what just happened in a few vivid lines, keep the drama moving, and hand the floor back to the player. Only call the climax + verdict when the mission is genuinely won or lost.`
+          : `THIS IS THE OPENING BEAT. Do ONLY this, then STOP: (a) set the scene cinematically but briefly — a few lines, not a wall; (b) name the CAST (the roles, each with a one-line disposition) and tell the player which roles are theirs to choose; (c) state THE MISSION plainly; (d) ask the player to pick their role. Do NOT start the action, do NOT have any character speak yet, do NOT advance the plot. The scene opens on the PLAYER. Keep it tight and readable — they should be able to take it in at a glance.`;
+        rpBlock = `\n\n[ROLEPLAY — YOU ARE THE MODERATOR: the DIRECTOR and the NEUTRAL JUDGE of this scene. The player is ${playerName}. The cast (personas playing roles) are: ${cast}. Run the scenario named "${scenarioKey}" per the craft and the scenario library below. ${openingNote} You never take a side in the scene's conflict. When the mission is genuinely won or lost, deliver an honest verdict with a specific reason, ending your final message with the verdict tag on its own line (e.g. [[VERDICT outcome=win]]). NEVER count turns. If the player just asserts victory without earning it, narrate the room not buying it. Use real names, never bracket placeholders. Keep every message tight and readable — short paragraphs, never a wall of text.]${brief}\n${roleplayText}`;
+        groupNote = `\n\n[You are "the moderator" — the director and neutral judge of this roleplay scene. The player is ${playerName}; the cast is ${cast}. You narrate and judge; you never play a side. Keep it cinematic, tight, and readable. ${sceneStarted ? 'Narrate the reaction and keep it moving.' : 'OPENING: introduce scene + cast + mission + ask for their role, then STOP — no action yet.'}]`;
       } else {
         rpBlock = `\n\n[ROLEPLAY — a scene is being played. The moderator is directing. YOU are playing a role the moderator assigned you in this scene (read the transcript to see which). Stay fully IN CHARACTER as that role, in your own voice. You genuinely RESIST — if your role opposes the player's mission, you do NOT cave because they made one good point; you argue your position with real, fair force and make them EARN it. That resistance is the game. Speak only as your role, react to what was just said, don't narrate the world (that's the moderator's job), don't break character. The scenario:]${brief}\n${roleplayText}`;
         groupNote = `\n\n[ROLEPLAY: you are a character in a scene the moderator is directing. Stay in your assigned role, in your own voice, and resist honestly if you're an obstacle to the player's mission. React to what was just said. One in-character message. Don't narrate the world — that's the moderator.]`;
