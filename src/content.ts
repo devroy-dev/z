@@ -60,6 +60,12 @@ const CODEX_FILES: Record<CodexKey, string> = {
   diva:           'codex-diva.md',
   cousin:         'codex-cousin.md',
   'front-desk':   'codex-front-desk.md',
+  screen_junkie:  'codex-screen-junkie.md',
+  oracle:         'codex-oracle.md',
+  brainiac:       'codex-brainiac.md',
+  brother:        'codex-brother.md',
+  healer:         'codex-healer.md',
+  colleague:      'codex-colleague.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};

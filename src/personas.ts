@@ -10,7 +10,8 @@ export type CodexKey =
   | 'intellect' | 'close' | 'hottie' | 'people' | 'shadow' | 'inner' | 'forward' | 'vanity' | 'comic' | 'crush' | 'guru'
   | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
   | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator'
-  | 'hippie' | 'diva' | 'cousin' | 'front-desk';
+  | 'hippie' | 'diva' | 'cousin' | 'front-desk'
+  | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague';
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -24,9 +25,9 @@ export const PERSONAS: Record<string, Persona> = {
   the_hottie:       { key: 'the_hottie',       defaultName: 'the hottie',       codex: 'hottie',    webEnabled: false },
   the_comic:        { key: 'the_comic',        defaultName: 'the comic',        codex: 'comic',     webEnabled: true  },
   the_crush:        { key: 'the_crush',        defaultName: 'the crush',        codex: 'crush',     webEnabled: false },
-  the_screen_junkie:{ key: 'the_screen_junkie',defaultName: 'the screen junkie',codex: 'intellect', webEnabled: true  },
+  the_screen_junkie:{ key: 'the_screen_junkie',defaultName: 'the screen junkie',codex: 'screen_junkie', webEnabled: true  },
   the_guru:         { key: 'the_guru',         defaultName: 'the guru',         codex: 'guru',      webEnabled: true  },
-  the_oracle:       { key: 'the_oracle',       defaultName: 'the oracle',       codex: 'intellect', webEnabled: true  },
+  the_oracle:       { key: 'the_oracle',       defaultName: 'the oracle',       codex: 'oracle', webEnabled: true  },
   the_philosopher:  { key: 'the_philosopher',  defaultName: 'the philosopher',  codex: 'philosopher',  webEnabled: true  },
   the_cynic:        { key: 'the_cynic',        defaultName: 'the cynic',        codex: 'cynic',        webEnabled: false },
   the_moderator:    { key: 'the_moderator',    defaultName: 'the moderator',    codex: 'moderator',    webEnabled: true  },
@@ -40,12 +41,12 @@ export const PERSONAS: Record<string, Persona> = {
   z_serious:        { key: 'z_serious',        defaultName: 'Z',                codex: 'serious',    webEnabled: true  },
   the_wannabe:      { key: 'the_wannabe',      defaultName: 'the wannabe hustler', codex: 'wannabe', webEnabled: true },
   the_orator:       { key: 'the_orator',       defaultName: 'the orator',       codex: 'orator',    webEnabled: true  },
-  the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'people',    webEnabled: false },
-  the_healer:       { key: 'the_healer',       defaultName: 'the healer',       codex: 'people',    webEnabled: false },
-  the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'people',    webEnabled: false },
+  the_brother:      { key: 'the_brother',      defaultName: 'the brother',      codex: 'brother',    webEnabled: false },
+  the_healer:       { key: 'the_healer',       defaultName: 'the healer',       codex: 'healer',    webEnabled: false },
+  the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'colleague',    webEnabled: false },
   the_mentor:       { key: 'the_mentor',       defaultName: 'the mentor',       codex: 'forward',   webEnabled: true  },
   the_stranger:     { key: 'the_stranger',     defaultName: 'the stranger',     codex: 'inner',     webEnabled: false },
-  the_brainiac:     { key: 'the_brainiac',     defaultName: 'the brainiac',     codex: 'intellect', webEnabled: true  },
+  the_brainiac:     { key: 'the_brainiac',     defaultName: 'the brainiac',     codex: 'brainiac', webEnabled: true  },
   the_addict:       { key: 'the_addict',       defaultName: 'the rehab',       codex: 'shadow',    webEnabled: false },
   the_self_obsessed:{ key: 'the_self_obsessed',defaultName: 'the guardian angel',codex: 'vanity',    webEnabled: false },
   the_hippie:       { key: 'the_hippie',       defaultName: 'the hippie',       codex: 'hippie',    webEnabled: false },
