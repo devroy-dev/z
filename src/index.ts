@@ -197,6 +197,76 @@ app.post('/roleplay/start', async (req, res) => {
 });
 
 // the player's win/loss record per game
+// ── THE FRONT DESK: tasks (the concierge holds the user's list) ──────────────
+// list open (and recently-done) tasks for the user
+app.get('/tasks', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('tasks')
+      .select('id, title, notes, due_at, status, suggested_persona, created_at, done_at')
+      .eq('user_id', user.id)
+      .order('status', { ascending: true })       // open first
+      .order('due_at', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(100);
+    res.json({ tasks: data ?? [] });
+  } catch (e: any) { res.status(500).json({ error: 'tasks list failed: ' + (e?.message || String(e)) }); }
+});
+
+// add a task
+app.post('/tasks', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { title, notes, due_at, suggested_persona } = req.body ?? {};
+    const t = typeof title === 'string' ? title.trim().slice(0, 300) : '';
+    if (!t) return res.status(400).json({ error: 'a task needs a title' });
+    const row: any = { user_id: user.id, title: t, status: 'open' };
+    if (typeof notes === 'string' && notes.trim()) row.notes = notes.trim().slice(0, 1000);
+    if (due_at) { const d = new Date(due_at); if (!isNaN(d.getTime())) row.due_at = d.toISOString(); }
+    if (typeof suggested_persona === 'string') row.suggested_persona = suggested_persona.replace(/[^a-z_]/gi, '').slice(0, 40);
+    const { data, error } = await supabase.from('tasks').insert(row).select('id').single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ id: data.id });
+  } catch (e: any) { res.status(500).json({ error: 'task add failed: ' + (e?.message || String(e)) }); }
+});
+
+// toggle done / update a task
+app.patch('/tasks/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const id = String(req.params.id);
+    const { status, title, due_at } = req.body ?? {};
+    const patch: any = {};
+    if (status === 'done') { patch.status = 'done'; patch.done_at = new Date().toISOString(); }
+    else if (status === 'open') { patch.status = 'open'; patch.done_at = null; }
+    if (typeof title === 'string' && title.trim()) patch.title = title.trim().slice(0, 300);
+    if (due_at !== undefined) { const d = due_at ? new Date(due_at) : null; patch.due_at = (d && !isNaN(d.getTime())) ? d.toISOString() : null; }
+    if (!Object.keys(patch).length) return res.status(400).json({ error: 'nothing to update' });
+    const { error } = await supabase.from('tasks').update(patch).eq('id', id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'task update failed: ' + (e?.message || String(e)) }); }
+});
+
+// delete a task
+app.delete('/tasks/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const id = String(req.params.id);
+    const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'task delete failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/arena/record', async (req, res) => {
   try {
     const authId = await authUser(req);

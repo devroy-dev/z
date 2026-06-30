@@ -93,7 +93,23 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     } catch { /* games file missing — skip */ }
   }
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${memoryBlock}`;
+  // ── THE FRONT DESK: inject the user's task list + how to manage it ──────
+  let frontDeskBlock = '';
+  if (t.persona_key === 'the_front_desk') {
+    const { data: tasks } = await supabase.from('tasks')
+      .select('id, title, due_at, status, suggested_persona')
+      .eq('user_id', userId).eq('status', 'open')
+      .order('due_at', { ascending: true, nullsFirst: false }).limit(40);
+    const list = (tasks ?? []).map((tk: any) => {
+      const due = tk.due_at ? ` (due ${new Date(tk.due_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' })})` : '';
+      const room = tk.suggested_persona ? ` [→ ${tk.suggested_persona}]` : '';
+      return `  - {${tk.id}} ${tk.title}${due}${room}`;
+    });
+    const listText = list.length ? `\nTheir open list right now:\n${list.join('\n')}` : '\nTheir list is empty right now.';
+    frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nWhen you add or complete something, still say it warmly in your reply ("added — it's on your list" / "nice, crossing it off"). Emit at most a couple of tags per turn. Use the room hint to record which persona can help (a valid persona key), and offer that door in your words. Never show the user the {id} or the raw tags.]`;
+  }
+
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
@@ -141,7 +157,35 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   stream.on('text', (d) => input.onToken?.(d));
   const final = await stream.finalMessage();
 
-  const reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('');
+  let reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('');
+
+  // ── THE FRONT DESK: execute task tags, then strip them from the visible reply ──
+  if (t.persona_key === 'the_front_desk') {
+    // [[TASK_ADD: title | due: ... | room: persona_key]]
+    const addRe = /\[\[TASK_ADD:\s*([^\]]+)\]\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = addRe.exec(reply)) !== null) {
+      const parts = m[1].split('|').map((s) => s.trim());
+      const title = (parts[0] || '').slice(0, 300);
+      if (!title) continue;
+      const row: any = { user_id: userId, title, status: 'open' };
+      for (const p of parts.slice(1)) {
+        const dm = p.match(/^due:\s*(.+)$/i);
+        const rm = p.match(/^room:\s*(.+)$/i);
+        if (dm) { const d = new Date(dm[1]); if (!isNaN(d.getTime())) row.due_at = d.toISOString(); }
+        if (rm) row.suggested_persona = rm[1].replace(/[^a-z_]/gi, '').slice(0, 40);
+      }
+      try { await supabase.from('tasks').insert(row); } catch { /* non-fatal */ }
+    }
+    // [[TASK_DONE: id]]
+    const doneRe = /\[\[TASK_DONE:\s*\{?([0-9a-f-]{6,})\}?\s*\]\]/gi;
+    while ((m = doneRe.exec(reply)) !== null) {
+      const id = m[1];
+      try { await supabase.from('tasks').update({ status: 'done', done_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId); } catch { /* non-fatal */ }
+    }
+    // strip ALL task tags (and tidy leftover blank lines) from what the user sees + what we persist
+    reply = reply.replace(/\[\[TASK_(?:ADD|DONE):[^\]]*\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  }
 
   // pull web-search sources (if the persona reached the web) so the UI can show
   // optional source pills — Z still speaks in her own voice; the pills just let a
