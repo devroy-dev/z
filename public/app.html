@@ -7,6 +7,7 @@
 <title>Anonymously Yours</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Inter:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=JetBrains+Mono:wght@300;400&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
   --bg:#131314; --bg-soft:#1C1C1E; --card:#222225; --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.13); --line:rgba(255,255,255,.09); --line-strong:rgba(255,255,255,.14);
@@ -564,6 +565,28 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 .rp-next-btn{font-family:'JetBrains Mono','DM Mono',monospace;font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--accent2);border:1px solid var(--line-strong);border-radius:100px;padding:9px 26px;cursor:pointer;background:rgba(124,92,220,.05);transition:.2s;-webkit-tap-highlight-color:transparent}
 .rp-next-btn:hover,.rp-next-btn:active{border-color:var(--accent2);background:rgba(124,92,220,.12);letter-spacing:.36em}
 
+
+/* ===== landing-matched wordmark + ember on the door/onboard ===== */
+.z-mark{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(46px,13vw,68px);line-height:.9;letter-spacing:-.01em;margin-bottom:14px;position:relative;z-index:2}
+.z-mark .z-lead{font-style:italic;font-weight:300;opacity:.94;color:var(--ink)}
+.z-mark .z-zee{font-weight:500;font-style:normal;background:linear-gradient(165deg,rgb(160,130,240),rgb(124,92,220));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-shadow:0 0 34px rgba(124,92,220,.34);padding-right:.04em}
+.z-tag{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;font-size:clamp(15px,4.4vw,19px);letter-spacing:.02em;color:var(--dim);margin-bottom:30px;position:relative;z-index:2}
+.z-tag .z-yz{color:rgba(160,130,240,.92);font-style:italic}
+/* the breathing ember behind the door/onboard wordmark — same soul as the landing + SOS room */
+#door .door-inner::before, #onboard::before{
+  content:"";position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);
+  width:min(74vw,420px);aspect-ratio:1/1;border-radius:50%;pointer-events:none;z-index:0;
+  background:radial-gradient(circle, rgba(160,130,240,.16) 0%, rgba(124,92,220,.10) 28%, rgba(124,92,220,.04) 48%, transparent 68%);
+  animation:zEmber 8s ease-in-out infinite;filter:blur(2px);
+}
+@keyframes zEmber{0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(1)}50%{opacity:.95;transform:translate(-50%,-50%) scale(1.08)}}
+#onboard{position:relative;overflow:hidden}
+/* door inputs + buttons → cormorant/mono to match the landing's calm */
+.door-q,.q{font-family:'Cormorant Garamond',serif !important;font-style:italic;font-size:16px;line-height:1.55;color:var(--dim)}
+.phone-in,.otp-in,.field input{font-family:'Cormorant Garamond',serif !important}
+.btn{font-family:'JetBrains Mono',monospace !important;font-style:normal !important;font-size:12px !important;letter-spacing:.28em;text-transform:uppercase}
+.door-back,.door-note{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em}
+
 </style>
 </head>
 <body>
@@ -573,7 +596,7 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
 <div class="screen on" id="door">
   <div class="door-atmos"></div>
   <div class="door-inner">
-    <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
+    <div class="z-mark"><span class="z-lead">callme</span><span class="z-zee">Z</span></div><div class="z-tag">Anonymously <span class="z-yz">YourZ</span></div>
     <div id="door-phase-phone">
       <div class="door-q">your number stays yours. we just need it to know it's you.</div>
       <div class="phone-row">
@@ -606,7 +629,7 @@ body.serious .t-status{color:rgba(255,255,255,.32) !important}
   </div>
 </div>
 <div class="screen" id="onboard">
-  <div class="mark">Anonymously<br><span class="mark-yours">Yours</span></div>
+  <div class="z-mark"><span class="z-lead">callme</span><span class="z-zee">Z</span></div><div class="z-tag">Anonymously <span class="z-yz">YourZ</span></div>
   <div class="q">no logins, no judgement, no one watching. just tell me who i'm talking to.</div>
   <div class="field"><input id="ob-name" placeholder="what do i call you?" autocomplete="off"></div>
   <div class="field ob-dob-wrap"><label class="ob-lbl" for="ob-dob">your date of birth</label><input id="ob-dob" type="date" autocomplete="off"></div>

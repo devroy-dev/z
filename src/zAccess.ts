@@ -12,6 +12,8 @@ export interface ZUser {
   region: string | null;
   locale: string | null;
   timezone: string | null;
+  pin_hash?: string | null;
+  pin_set_at?: string | null;
 }
 
 // Resolve (or create) the z.users row for an authenticated user. Called after the
@@ -19,7 +21,7 @@ export interface ZUser {
 export async function resolveUser(authUserId: string): Promise<ZUser> {
   const { data: existing } = await supabase
     .from('users')
-    .select('id, auth_user_id, display_name, region, locale, timezone')
+    .select('id, auth_user_id, display_name, region, locale, timezone, pin_hash, pin_set_at')
     .eq('auth_user_id', authUserId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -32,7 +34,7 @@ export async function resolveUser(authUserId: string): Promise<ZUser> {
   const { data: created, error } = await supabase
     .from('users')
     .insert({ auth_user_id: authUserId })
-    .select('id, auth_user_id, display_name, region, locale, timezone')
+    .select('id, auth_user_id, display_name, region, locale, timezone, pin_hash, pin_set_at')
     .single();
   if (error) throw new Error('user create failed: ' + error.message);
 
