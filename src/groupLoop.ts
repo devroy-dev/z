@@ -31,7 +31,12 @@ async function directRoom(
   transcript: string,
   senderName: string,
 ): Promise<string[]> {
-  if (members.length <= 1) return members; // 1:1 or single persona — no director needed
+  if (members.length === 0) return members; // no personas to direct
+  if (members.length === 1) {
+    // a single persona in a room with real people still needs the Director's judgment:
+    // it should speak when addressed, but stay quiet when the humans are talking to each other.
+    // (only skip the director for a true 1:1 — handled upstream; here we always judge.)
+  }
   const cast = roster.map((r) => `- ${r.key} ("${r.name}")`).join('\n');
   const sys =
     `You are the silent DIRECTOR of a group chat that has REAL PEOPLE in it plus some AI personas. ` +

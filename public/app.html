@@ -2627,7 +2627,11 @@ function unsubscribeRoom(){
 function onLiveMessage(m){
   if(!activeRoom||!m){ console.log('[RT] bail: no room/msg'); return; }
   if(String(m.thread_id)!==String(activeRoom.id)){ console.log('[RT] bail: thread mismatch', m.thread_id, 'vs', activeRoom.id); return; }
-  const key=m.created_at?(m.role+':'+m.content+':'+m.created_at):(m.role+':'+m.content);
+  // dedup must be STABLE across both delivery paths (broadcast + postgres_changes fallback),
+  // which can carry different created_at values for the same message. Key on role+who+content
+  // (not created_at, which differs between paths and caused double-rendering).
+  const who = m.sender_user_id || m.persona_key || '';
+  const key = m.role+':'+who+':'+(m.content||'');
   if(_renderedIds.has(key)){ console.log('[RT] bail: already rendered'); return; } _renderedIds.add(key);
   if(m.role==='user' && m.sender_user_id && _meId && m.sender_user_id===_meId){ console.log('[RT] bail: my own msg'); return; }
   console.log('[RT] RENDERING', m.role, m.sender_user_id);
@@ -2849,6 +2853,9 @@ async function sendRoom(text){
     if(!r.ok){ if(_pendingReply&&_pendingReply.typing)_pendingReply.typing.remove(); _pendingReply=null; return; }
     // drain the stream so the server finishes; ignore tokens — realtime renders the reply once.
     const reader=r.body.getReader(); while(true){const{done}=await reader.read(); if(done)break;}
+    // if the Director kept everyone silent (humans talking to each other), no reply will come —
+    // remove the leftover typing bubble after a short grace period for the broadcast to arrive.
+    setTimeout(()=>{ if(_pendingReply&&_pendingReply.typing){ _pendingReply.typing.remove(); _pendingReply=null; } }, 2500);
   }catch(e){ if(_pendingReply&&_pendingReply.typing)_pendingReply.typing.remove(); _pendingReply=null; }
 }
 async function sendGroup(text, silent){
