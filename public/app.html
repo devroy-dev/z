@@ -632,7 +632,7 @@ body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px
 </style>
 </head>
 <body>
-<script>try{if(localStorage.getItem('z_theme')==='1')document.body.classList.add('z-theme');}catch(e){}</script>
+<script>try{if(localStorage.getItem('z_theme')!=='0')document.body.classList.add('z-theme');}catch(e){}</script>
 <canvas id="ink"></canvas><div class="grain"></div>
 
 <!-- ONBOARDING -->
@@ -2734,8 +2734,9 @@ async function leaveRoom(){
 
 /* __SERIOUS_SKIN_PLACEHOLDER__ (global toggle) ===== */
 function paintSeriousSwitch(){ const sw=$('serious-switch'); if(sw) sw.classList.toggle('on', seriousMode); }
-// ===== Z THEME (Lamplight) — a warm-dark skin toggled in settings =====
-let zTheme = localStorage.getItem('z_theme')==='1';
+// ===== Z THEME (Lamplight) — a warm-dark skin, DEFAULT ON =====
+// default to Lamplight unless the user has explicitly turned it off ('0').
+let zTheme = localStorage.getItem('z_theme') !== '0';
 function applyZTheme(){ document.body.classList.toggle('z-theme', zTheme); }
 function paintZThemeSwitch(){ const sw=$('ztheme-switch'); if(sw) sw.classList.toggle('on', zTheme); }
 function toggleZTheme(){
