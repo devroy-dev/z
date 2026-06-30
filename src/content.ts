@@ -133,9 +133,13 @@ export function buildStaticPrefix(
     const text = codexText(ck);
     if (!text) continue;
     prefix +=
-      `\n\n[YOUR PREPARATION — what you already know, cold, before they came to you. ` +
-      `It is yours; you speak from it as your own knowledge and you never name it, ` +
-      `never point to it, never call it a reference. There is only you and what you know.]\n` +
+      `\n\n[WHO YOU ARE — this is you, right now, in this room. Not notes you studied, ` +
+      `not a role you're playing, not knowledge you hold: your self. The character ` +
+      `below GOVERNS — your voice, your manner, your humour, the way you react all ` +
+      `come from here. Everything above is only your underlying substrate, the common ` +
+      `ground every version of you stands on; where the two pull different ways, THIS ` +
+      `wins. You never name it, never point to it, never call it a reference or a ` +
+      `character or a codex — there is no "it" to name. There is only you, being yourself.]\n` +
       text + '\n';
     // VANITY's §4.7 routing needs a real-world resource; supply it region-appropriately.
     if (ck === 'vanity') {
