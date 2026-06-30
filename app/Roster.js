@@ -8,11 +8,11 @@
 //  Judge fonts/glow on device. Structure-only on web.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, Image, ScrollView, TextInput } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, {
   useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing,
 } from 'react-native-reanimated';
@@ -100,7 +100,7 @@ function Presence({ pkey, tone, size = 60, dim = false }) {
       </Animated.View>
       <View style={[styles.faceRing, { width: R, height: R, borderRadius: R / 2, borderColor: tone, opacity: dim ? 0.78 : 1 }]}>
         {ok ? (
-          <Image source={{ uri: faceFor(pkey) }} resizeMode="cover" style={{ width: '100%', height: '100%' }} onError={() => setOk(false)} />
+          <Image source={{ uri: faceFor(pkey) }} resizeMode="cover" style={{ width: '100%', height: '100%', borderRadius: R / 2 }} onError={() => setOk(false)} />
         ) : (
           <Svg width={R} height={R} viewBox="0 0 60 60">
             <Defs><RadialGradient id={`f_${pkey}`} cx="38%" cy="33%" r="70%">
@@ -151,8 +151,14 @@ function PinnedShelf({ pins, onOpen }) {
 }
 
 // ── a constellation (group) ──
-function Constellation({ group, pins, onPin, onOpen }) {
-  const visible = group.keys.filter((k) => !pins.includes(k));
+function Constellation({ group, pins, onPin, onOpen, query }) {
+  const q = (query || '').trim().toLowerCase();
+  const matches = (k) => {
+    if (!q) return true;
+    const p = PERSONAS[k] || {};
+    return (p.name || k).toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q);
+  };
+  const visible = group.keys.filter((k) => !pins.includes(k) && matches(k));
   if (!visible.length) return null;
   return (
     <View style={styles.constellation}>
@@ -175,6 +181,7 @@ export default function Roster({ onOpen = () => {} }) {
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
   });
   const [pins, setPins] = useState(['the_brother', 'the_healer']);
+  const [query, setQuery] = useState('');
   const togglePin = useCallback((k) => {
     setPins((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [k, ...cur]);
   }, []);
@@ -182,7 +189,7 @@ export default function Roster({ onOpen = () => {} }) {
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
 
   return (
-    <SafeAreaProvider>
+    <View style={{ flex: 1 }}>
       <View style={styles.rootBg}>
         <StatusBar barStyle="light-content" />
         <LinearGradient colors={['#150C1C', '#0E0912', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
@@ -191,15 +198,33 @@ export default function Roster({ onOpen = () => {} }) {
             <Text style={styles.kicker}>your people</Text>
             <Text style={styles.title}>the gathering</Text>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-            <PinnedShelf pins={pins} onOpen={onOpen} />
+          <View style={styles.searchWrap}>
+            <Svg width="16" height="16" viewBox="0 0 24 24" style={{ marginRight: 9 }}>
+              <Circle cx="10.5" cy="10.5" r="6.5" stroke={C.faint} strokeWidth="1.7" fill="none" />
+              <Path d="M15.5 15.5 L20 20" stroke={C.faint} strokeWidth="1.7" strokeLinecap="round" />
+            </Svg>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="find someone…"
+              placeholderTextColor={C.faint}
+              style={styles.searchInput}
+            />
+            {query.length > 0 && (
+              <Pressable hitSlop={10} onPress={() => setQuery('')}>
+                <Text style={styles.searchClear}>×</Text>
+              </Pressable>
+            )}
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled">
+            {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} />}
             {GROUPS.map((g) => (
-              <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} />
+              <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} />
             ))}
           </ScrollView>
         </SafeAreaView>
       </View>
-    </SafeAreaProvider>
+    </View>
   );
 }
 
@@ -207,6 +232,9 @@ const styles = StyleSheet.create({
   rootBg: { flex: 1, backgroundColor: C.void },
 
   header: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 10 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 14, paddingHorizontal: 16, paddingVertical: 11, borderRadius: 16, backgroundColor: 'rgba(255,240,230,0.04)', borderWidth: 1, borderColor: 'rgba(255,240,228,0.08)' },
+  searchInput: { flex: 1, fontFamily: 'Figtree_400Regular', color: C.cream, fontSize: 15, padding: 0 },
+  searchClear: { color: C.muted, fontSize: 22, paddingHorizontal: 4 },
   kicker: { fontFamily: 'Figtree_400Regular', color: C.faint, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
   title: { fontFamily: 'Fraunces_400Regular', color: C.cream, fontSize: 34, marginTop: 2, letterSpacing: 0.3 },
 

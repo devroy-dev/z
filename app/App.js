@@ -1,40 +1,62 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — dev switcher (temporary). Lets you flip between the finished
-//  screens while we build, before they're wired into real navigation.
-//  Tap the pill at the bottom to switch Chat <-> Gathering (roster).
+//  yourZ — app entry. Mounts the navigation spine (Nav) and feeds it the
+//  built worlds. Unbuilt worlds fall back to a "coming alive" stub.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import Chat from './Chat';
+import React from 'react';
+import { View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'react-native';
+import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
+import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
+
+import Nav, { WorldStub } from './Nav';
 import Roster from './Roster';
+import Chat from './Chat';
+import Play from './Play';
+import Rooms from './Rooms';
+import RoomChat from './RoomChat';
+import PublicRoom from './PublicRoom';
+import { C } from './theme';
 
-export default function App() {
-  const [screen, setScreen] = useState('roster'); // start on the new one
+// the built worlds, by tab id. (desk/rooms/arena/you are stubs for now.)
+const SCREENS = {
+  gathering: () => <GatheringWorld />,
+  desk:  () => <WorldStub kicker="the lobby" title="Front Desk" line="your concierge — reads your mood, walks you in. coming alive next." />,
+  rooms: () => <RoomsWorld />,
+  play:  () => <Play onEnter={() => {}} />,
+  arena: () => <WorldStub kicker="compete" title="Arena" line="games with friends — and always one AI. coming alive next." />,
+  stage: () => <WorldStub kicker="rehearse" title="Stage" line="step into the scene. coming alive next." />,
+  you:   () => <WorldStub kicker="your space" title="You" line="your name, your people, your settings. coming alive next." />,
+};
 
-  return (
-    <View style={{ flex: 1, backgroundColor: '#0E0912' }}>
-      {screen === 'chat' ? <Chat /> : <Roster onOpen={() => setScreen('chat')} />}
-
-      {/* temporary dev switcher */}
-      <View style={styles.switcher} pointerEvents="box-none">
-        <View style={styles.pill}>
-          <Pressable onPress={() => setScreen('roster')} style={[styles.tab, screen === 'roster' && styles.tabOn]}>
-            <Text style={[styles.tabText, screen === 'roster' && styles.tabTextOn]}>Gathering</Text>
-          </Pressable>
-          <Pressable onPress={() => setScreen('chat')} style={[styles.tab, screen === 'chat' && styles.tabOn]}>
-            <Text style={[styles.tabText, screen === 'chat' && styles.tabTextOn]}>Chat</Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
-  );
+function GatheringWorld() {
+  const [openChat, setOpenChat] = React.useState(false);
+  if (openChat) return <Chat onBack={() => setOpenChat(false)} />;
+  return <Roster onOpen={() => setOpenChat(true)} />;
 }
 
-const styles = StyleSheet.create({
-  switcher: { position: 'absolute', bottom: 6, left: 0, right: 0, alignItems: 'center' },
-  pill: { flexDirection: 'row', backgroundColor: 'rgba(20,14,24,0.92)', borderRadius: 22, padding: 4, borderWidth: 1, borderColor: 'rgba(243,168,95,0.22)' },
-  tab: { paddingVertical: 7, paddingHorizontal: 18, borderRadius: 18 },
-  tabOn: { backgroundColor: 'rgba(243,168,95,0.16)' },
-  tabText: { color: '#A1929B', fontSize: 13 },
-  tabTextOn: { color: '#F3A85F' },
-});
+function RoomsWorld() {
+  const [openRoom, setOpenRoom] = React.useState(null);
+  if (openRoom && !openRoom.create) {
+    if (openRoom.kind === 'public') {
+      return <PublicRoom room={openRoom} onExit={() => setOpenRoom(null)} />;
+    }
+    return <RoomChat room={openRoom} onBack={() => setOpenRoom(null)} />;
+  }
+  return <Rooms onOpen={(r) => setOpenRoom(r)} />;
+}
+
+export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    Fraunces_400Regular, Fraunces_400Regular_Italic,
+    Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
+  });
+  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
+
+  return (
+    <SafeAreaProvider>
+      <StatusBar barStyle="light-content" />
+      <Nav screens={SCREENS} />
+    </SafeAreaProvider>
+  );
+}

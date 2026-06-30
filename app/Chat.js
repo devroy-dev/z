@@ -17,6 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
+import VideoCall from './VideoCall';
 
 // ── locked palette ───────────────────────────────────────────────────────
 const C = {
@@ -102,13 +103,13 @@ function Atmosphere() {
   const glow = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <LinearGradient colors={['#1A1020', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#150C1C', '#0C0814', '#070509']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <Animated.View style={[styles.atmosGlow, glow]}>
         <Svg width="520" height="480" viewBox="0 0 520 480">
           <Defs>
             <RadialGradient id="atmos" cx="50%" cy="40%" r="55%">
-              <Stop offset="0%" stopColor={C.emberHot} stopOpacity="0.42" />
-              <Stop offset="28%" stopColor={C.ember} stopOpacity="0.22" />
+              <Stop offset="0%" stopColor={C.emberHot} stopOpacity="0.34" />
+              <Stop offset="28%" stopColor={C.ember} stopOpacity="0.18" />
               <Stop offset="55%" stopColor={C.emberDeep} stopOpacity="0.10" />
               <Stop offset="100%" stopColor={C.emberDeep} stopOpacity="0" />
             </RadialGradient>
@@ -166,9 +167,17 @@ function Presence({ size = 96 }) {
               <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.55" />
               <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
             </RadialGradient>
+            <RadialGradient id="coreBand" cx="50%" cy="58%" r="62%">
+              <Stop offset="0%" stopColor="#FF7A3C" stopOpacity="0" />
+              <Stop offset="62%" stopColor="#D85A28" stopOpacity="0.0" />
+              <Stop offset="86%" stopColor="#9A3D18" stopOpacity="0.55" />
+              <Stop offset="100%" stopColor="#6E2A10" stopOpacity="0.8" />
+            </RadialGradient>
           </Defs>
           <Circle cx="50" cy="50" r="34" fill="url(#core)" />
+          <Circle cx="50" cy="50" r="34" fill="url(#coreBand)" />
           <Circle cx="50" cy="50" r="34" fill="url(#coreHi)" />
+          <Circle cx="50" cy="50" r="33.2" fill="none" stroke="#FFB877" strokeWidth="0.8" strokeOpacity="0.45" />
         </Svg>
       </Animated.View>
     </View>
@@ -196,10 +205,10 @@ function MiniDP({ uri, size = 36 }) {
   );
 }
 
-function TopBar() {
+function TopBar({ onCall, onBack }) {
   return (
     <View style={styles.topbar}>
-      <Pressable hitSlop={10}><Text style={styles.chev}>‹</Text></Pressable>
+      <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
       <View style={styles.topWho}>
         <MiniDP uri={THREAD_CFG.dp} />
         <View style={{ marginLeft: 10 }}>
@@ -207,7 +216,7 @@ function TopBar() {
           <Text style={styles.topStatus} numberOfLines={1}>{PERSONAS[PERSONA_KEY].name}</Text>
         </View>
       </View>
-      <Pressable hitSlop={10} style={styles.callBtn}>
+      <Pressable hitSlop={10} style={styles.callBtn} onPress={onCall}>
         <Svg width="20" height="20" viewBox="0 0 24 24" fill="none">
           <Path d="M15 10l4.5-3v10L15 14M4 7h9a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z" stroke={C.accentSoft} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"/>
         </Svg>
@@ -269,20 +278,22 @@ function Composer() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-export default function Chat() {
+export default function Chat({ onBack = () => {} }) {
   const [fontsLoaded, fontError] = useFonts({
     Fraunces_400Regular, Fraunces_400Regular_Italic,
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
   });
+  const [inCall, setInCall] = useState(false);
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
+  if (inCall) return <VideoCall persona={{ key: PERSONA_KEY, name: THREAD_CFG.name }} onEnd={() => setInCall(false)} />;
 
   return (
-    <SafeAreaProvider>
+    <View style={{ flex: 1 }}>
       <View style={styles.root}>
         <StatusBar barStyle="light-content" />
         <Atmosphere />
         <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-          <TopBar />
+          <TopBar onCall={() => setInCall(true)} onBack={onBack} />
           <View style={styles.stage}>
             <Presence size={96} />
             <Text style={styles.stageName}>{THREAD_CFG.name}</Text>
@@ -295,7 +306,7 @@ export default function Chat() {
           <Composer />
         </SafeAreaView>
       </View>
-    </SafeAreaProvider>
+    </View>
   );
 }
 
