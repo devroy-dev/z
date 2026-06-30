@@ -3178,6 +3178,15 @@ function deskGreeting(){
   if(h<22) return 'good evening'+name+'.';
   return 'late one'+name+'?';
 }
+// time-of-day word for the mood prompt, so it never says "tonight" at 10am
+function moodWhen(){
+  const h=new Date().getHours();
+  if(h<5) return 'this late';
+  if(h<12) return 'this morning';
+  if(h<17) return 'this afternoon';
+  if(h<22) return 'tonight';
+  return 'tonight';
+}
 function fmtDue(d){
   if(!d) return '';
   const dt=new Date(d); if(isNaN(dt)) return '';
@@ -3198,7 +3207,7 @@ async function renderDesk(){
   // talk-to-the-desk button
   html+='<div class="desk-talk" onclick="openThread(\'the_front_desk\')"><span class="dt-face">'+dpFor('the_front_desk')+'</span><span class="dt-label">talk to the front desk</span><span class="dt-go">›</span></div>';
   // soft mood prompt — optional, taps into the routing chat
-  html+='<div class="desk-mood" onclick="moodChat()"><span class="dm-q">what are you in the mood for tonight?</span><span class="dm-go">→</span></div>';
+  html+='<div class="desk-mood" onclick="moodChat()"><span class="dm-q">what are you in the mood for '+moodWhen()+'?</span><span class="dm-go">→</span></div>';
   // quick add
   html+='<div class="desk-add"><input id="desk-newtask" placeholder="add something to your list…" autocomplete="off"><button id="desk-addbtn" class="desk-addbtn">add</button></div>';
   // the list
@@ -3234,7 +3243,7 @@ function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'
 async function moodChat(){
   // open the Front Desk and kick off the mood-routing conversation (seed is hidden from the user)
   await openThread('the_front_desk');
-  setTimeout(()=>{ sendMsg("(the user just tapped 'what are you in the mood for' — greet them warmly and do the mood read: ask a short, light question about the vibe tonight, and once they answer, suggest 2-3 people with GOTO chips)"); }, 350);
+  setTimeout(()=>{ sendMsg("(the user just tapped 'what are you in the mood for' at "+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})+" — greet them warmly and fitting the time of day, do the mood read: ask a short, light question about what they're in the mood for, and once they answer, suggest 2-3 people with GOTO chips)"); }, 350);
 }
 async function quickAddTask(){
   const inp=$('desk-newtask'); if(!inp)return; const title=inp.value.trim(); if(!title)return;
