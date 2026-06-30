@@ -24,6 +24,7 @@ export interface ZTurnResult {
   reply: string;
   usage: { in: number; out: number; cacheRead: number; cacheWrite: number };
   sources?: { url: string; title: string }[];
+  routes?: string[];
 }
 
 interface ThreadRow {
@@ -109,7 +110,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       return `  - {${tk.id}} ${tk.title}${due}${room}`;
     });
     const listText = list.length ? `\nTheir open list right now:\n${list.join('\n')}` : '\nTheir list is empty right now.';
-    frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nWhen you add or complete something, still say it warmly in your reply ("added — it's on your list" / "nice, crossing it off"). Emit at most a couple of tags per turn. Use the room hint to record which persona can help (a valid persona key), and offer that door in your words. Never show the user the {id} or the raw tags.]`;
+    frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nWhen someone's unsure what they need or you're greeting them fresh, do the mood read: a warm light question, then suggest 2-3 people with GOTO tags. When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags.]`;
   }
 
   const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${memoryBlock}`;
@@ -190,6 +191,20 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     reply = reply.replace(/\[\[TASK_(?:ADD|DONE):[^\]]*\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
   }
 
+  // ── THE FRONT DESK: pull [[GOTO: key]] routing suggestions into tappable chips ──
+  let routes: string[] = [];
+  if (t.persona_key === 'the_front_desk') {
+    const gotoRe = /\[\[GOTO:\s*([a-z_]+)\s*\]\]/gi;
+    let gm: RegExpExecArray | null;
+    while ((gm = gotoRe.exec(reply)) !== null) {
+      const key = gm[1].toLowerCase();
+      if (!routes.includes(key)) routes.push(key);
+    }
+    routes = routes.slice(0, 4);
+    // strip the raw GOTO tags from the visible/persisted text — the chips carry them now
+    reply = reply.replace(/\[\[GOTO:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   // pull web-search sources (if the persona reached the web) so the UI can show
   // optional source pills — Z still speaks in her own voice; the pills just let a
   // curious person verify. Dedupe by URL, cap a few, keep titles short.
@@ -225,5 +240,5 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // harvest memory out-of-band — never block the reply
   void harvestMemory(userId, threadId, message, reply);
 
-  return { reply, usage, sources };
+  return { reply, usage, sources, routes };
 }

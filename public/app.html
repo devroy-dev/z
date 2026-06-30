@@ -663,6 +663,20 @@ body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px
 .dt-x:active{color:var(--ink)}
 .desk-donehead{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:22px 0 6px}
 
+
+/* ===== Front Desk routing chips (tappable persona suggestions) ===== */
+.route-chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px;padding-left:4px}
+.route-chip{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--pline);color:var(--ink);border-radius:100px;padding:9px 16px;font-size:13px;cursor:pointer;transition:.2s;font-family:inherit}
+.route-chip:active{transform:scale(.96)}
+.route-chip:hover{border-color:var(--accent2);background:var(--bg-soft)}
+.route-chip .rc-go{color:var(--accent2);font-weight:600}
+/* the Desk soft mood-prompt (returning users) */
+.desk-mood{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 20px;padding:13px 16px;border:1px dashed var(--pline);border-radius:14px;cursor:pointer;color:var(--dim);transition:.2s}
+.desk-mood:active{transform:scale(.99)}
+.desk-mood:hover{border-color:var(--accent2);color:var(--ink)}
+.desk-mood .dm-q{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:16px}
+.desk-mood .dm-go{color:var(--accent2);font-size:18px}
+
 </style>
 </head>
 <body>
@@ -3183,6 +3197,8 @@ async function renderDesk(){
   html+='<div class="desk-sub">welcome to the front desk. i\'ve got your list — and i know which room can help with whatever’s next.</div>';
   // talk-to-the-desk button
   html+='<div class="desk-talk" onclick="openThread(\'the_front_desk\')"><span class="dt-face">'+dpFor('the_front_desk')+'</span><span class="dt-label">talk to the front desk</span><span class="dt-go">›</span></div>';
+  // soft mood prompt — optional, taps into the routing chat
+  html+='<div class="desk-mood" onclick="moodChat()"><span class="dm-q">what are you in the mood for tonight?</span><span class="dm-go">→</span></div>';
   // quick add
   html+='<div class="desk-add"><input id="desk-newtask" placeholder="add something to your list…" autocomplete="off"><button id="desk-addbtn" class="desk-addbtn">add</button></div>';
   // the list
@@ -3215,6 +3231,11 @@ async function renderDesk(){
   if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') quickAddTask(); });
 }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function moodChat(){
+  // open the Front Desk and kick off the mood-routing conversation (seed is hidden from the user)
+  await openThread('the_front_desk');
+  setTimeout(()=>{ sendMsg("(the user just tapped 'what are you in the mood for' — greet them warmly and do the mood read: ask a short, light question about the vibe tonight, and once they answer, suggest 2-3 people with GOTO chips)"); }, 350);
+}
 async function quickAddTask(){
   const inp=$('desk-newtask'); if(!inp)return; const title=inp.value.trim(); if(!title)return;
   inp.value='';
@@ -3346,17 +3367,21 @@ function showResult(rz){
 function rematch(){ const tab=document.querySelector('.botnav .nav[data-tab=arena]'); if(tab)tab.click(); }
 
 
-async function sendMsg(){
-  const inp=$('inp'); const text=inp.value.trim();
-  if(activeRoom){ if(!text)return; inp.value=''; return sendRoom(text); }
-  if(activeGroup){ if(!text)return; inp.value=''; return sendGroup(text); }
+async function sendMsg(seedText){
+  const inp=$('inp');
+  const isSeed = typeof seedText==='string' && seedText.length>0;
+  const text = isSeed ? seedText : inp.value.trim();
+  if(activeRoom){ if(!text)return; if(!isSeed)inp.value=''; return sendRoom(text); }
+  if(activeGroup){ if(!text)return; if(!isSeed)inp.value=''; return sendGroup(text); }
   if((!text&&!pendingImg)||!active)return;
-  inp.value='';
-  const sentImg=pendingImg; // capture before clearing
+  if(!isSeed)inp.value='';
+  const sentImg=isSeed?null:pendingImg; // capture before clearing
+  if(!isSeed){
   const meb=bubble('me',text||'');
   if(sentImg){const im=document.createElement('img');im.src='data:'+sentImg.media_type+';base64,'+sentImg.data;im.className='msg-img';meb.appendChild(im);}
   $('convo').appendChild(meb);
   clearImg();
+  }
   const zb=bubble('z',''); zb.classList.add('typing');
   zb.innerHTML='<span class="dots"><i></i><i></i><i></i></span>'; $('convo').appendChild(zb);
   $('convo').scrollTop=$('convo').scrollHeight;
@@ -3384,6 +3409,7 @@ async function sendMsg(){
           } else if(ev.score){ arenaScore={you:ev.score.you,z:ev.score.z}; if(inArenaMatch)showScorebar(); }
           else if(ev.result){ if(inArenaMatch)showResult(ev.result); }
           else if(ev.sources){ attachSources(zb, ev.sources); }
+          else if(ev.routes){ attachRoutes(zb, ev.routes); }
           else if(ev.done){ if(acc) setBubbleMd(zb,acc); }
           else if(ev.error){zb.classList.remove('typing');zb.textContent='('+ev.error+')';}
         });
@@ -3399,6 +3425,30 @@ async function sendMsg(){
   $('convo').scrollTop=$('convo').scrollHeight;
 }
 // ===== BATCH 5: source pills (web-enabled personas) — optional, below the message =====
+function attachRoutes(bubbleEl, routes){
+  if(!bubbleEl || !Array.isArray(routes) || !routes.length) return;
+  try{
+    const host = bubbleEl.parentElement || bubbleEl;
+    const wrap = document.createElement('div'); wrap.className='route-chips';
+    routes.slice(0,4).forEach(key=>{
+      // special rooms
+      if(key==='the_stage'){ const b=mkRouteChip('🎭 the Stage',()=>{show('list');renderRoleplay();}); wrap.appendChild(b); return; }
+      if(key==='the_arena'){ const b=mkRouteChip('⚔ the Arena',()=>{show('list');renderArena();}); wrap.appendChild(b); return; }
+      const cat=CAT[key]; if(!cat) return;
+      const b=mkRouteChip(nameFor(key), ()=>openThread(key));
+      wrap.appendChild(b);
+    });
+    if(!wrap.children.length) return;
+    if(bubbleEl.nextSibling) host.insertBefore(wrap, bubbleEl.nextSibling); else host.appendChild(wrap);
+    $('convo').scrollTop=$('convo').scrollHeight;
+  }catch(e){}
+}
+function mkRouteChip(label, onTap){
+  const b=document.createElement('button'); b.className='route-chip';
+  b.innerHTML='<span class="rc-go">→</span> '+escapeHtml(label);
+  b.onclick=onTap;
+  return b;
+}
 function attachSources(bubbleEl, sources){
   if(!bubbleEl || !Array.isArray(sources) || !sources.length) return;
   try{

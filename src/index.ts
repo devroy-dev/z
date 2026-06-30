@@ -1005,7 +1005,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     } else if (isOwner) {
       // ARENA: if a game is active, strip score tags from the player-visible stream.
       // Tags can split across tokens, so we hold back a small tail buffer.
-      const tagRe = /\[\[(SCORE|RESULT)[^\]]*\]\]/g;
+      const tagRe = /\[\[(SCORE|RESULT|TASK_ADD|TASK_DONE|GOTO)[^\]]*\]\]/g;
       let tail = '';
       const flushVisible = (chunk: string, final = false) => {
         let buf = tail + chunk;
@@ -1027,6 +1027,10 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       // optional source pills for web-enabled personas (Z still speaks in her own voice)
       if (result.sources && result.sources.length) {
         res.write(`data: ${JSON.stringify({ sources: result.sources.slice(0, 4) })}\n\n`);
+      }
+      // the Front Desk's routing suggestions → tappable persona chips
+      if ((result as any).routes && (result as any).routes.length) {
+        res.write(`data: ${JSON.stringify({ routes: (result as any).routes })}\n\n`);
       }
       // parse score/result tags from the full reply, persist + tell the UI
       const score = /\[\[SCORE\s+you=(\d+)\s+z=(\d+)\]\]/.exec(result.reply);
