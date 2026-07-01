@@ -134,7 +134,9 @@ function PresenceRow({ pkey, tone, pinned, onPin, onOpen }) {
 }
 
 // ── the pinned "shelf" — warmer, closer, horizontal ──
-function PinnedShelf({ pins, onOpen }) {
+// each item opens on tap; the ★ badge unpins it (the only place a favourite can
+// be removed, since pinned personas are filtered out of the lists below).
+function PinnedShelf({ pins, onOpen, onPin }) {
   if (!pins.length) return null;
   return (
     <View style={styles.shelf}>
@@ -143,6 +145,9 @@ function PinnedShelf({ pins, onOpen }) {
         {pins.map((k) => (
           <Pressable key={k} style={styles.shelfItem} onPress={() => onOpen(k)}>
             <Presence pkey={k} tone={toneFor(k)} size={66} />
+            <Pressable hitSlop={10} onPress={() => onPin(k)} style={styles.shelfStar}>
+              <Text style={styles.shelfStarTxt}>★</Text>
+            </Pressable>
             <Text style={styles.shelfName} numberOfLines={1}>{(PERSONAS[k]||{}).name}</Text>
           </Pressable>
         ))}
@@ -229,7 +234,7 @@ export default function Roster({ onOpen = () => {} }) {
             )}
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled">
-            {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} />}
+            {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} />}
             {GROUPS.map((g) => (
               <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} />
             ))}
@@ -254,6 +259,8 @@ const styles = StyleSheet.create({
   shelf: { marginTop: 6, marginBottom: 18 },
   shelfLabel: { fontFamily: 'Fraunces_400Regular_Italic', color: C.faint, fontSize: 13, paddingHorizontal: 24, marginBottom: 12 },
   shelfItem: { alignItems: 'center', width: 86 },
+  shelfStar: { position: 'absolute', top: -2, right: 12, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(14,9,18,0.85)' },
+  shelfStarTxt: { color: C.ember, fontSize: 13, lineHeight: 15 },
   shelfName: { fontFamily: 'Figtree_400Regular', color: C.cream, fontSize: 12, marginTop: 6, textAlign: 'center' },
 
   // constellation
