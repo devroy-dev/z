@@ -35,7 +35,7 @@ export function QuietPull({ onOpen }) {
   const pan = Gesture.Pan()
     .onUpdate((e) => { drag.value = Math.max(0, Math.min(e.translationY, 140)); })
     .onEnd((e) => {
-      if (e.translationY > 70) { runOnJS(onOpen)(); }
+      if (e.translationY > 50) { runOnJS(onOpen)(); }
       drag.value = withTiming(0, { duration: 220 });
     });
 
@@ -99,6 +99,7 @@ export function QuietRoom({ onClose }) {
       </View>
 
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* a quiet way back up */}
         <Pressable onPress={onClose} style={styles.backUp} hitSlop={14}>
           <View style={styles.backHandle} />
@@ -140,6 +141,7 @@ export function QuietRoom({ onClose }) {
             multiline
           />
         </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -152,7 +154,7 @@ const styles = StyleSheet.create({
   pullHint: { fontFamily: FONTS.displayItalic, color: '#6A7080', fontSize: 11, marginTop: 4, letterSpacing: 0.4 },
 
   // the room
-  curtain: { ...StyleSheet.absoluteFillObject, backgroundColor: '#08080C', zIndex: 50 },
+  curtain: { ...StyleSheet.absoluteFillObject, backgroundColor: '#08080C', zIndex: 999, elevation: 30 },
   edgeWash: { ...StyleSheet.absoluteFillObject },
   backUp: { alignItems: 'center', paddingTop: 6, paddingBottom: 10 },
   backHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(220,220,230,0.25)' },
