@@ -313,6 +313,17 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
+  // synchronous send-lock: React state flips a render too late, so several fast taps
+  // slip past a state guard and each fire a send (the duplicate-send storm). A ref
+  // flips instantly, so only one send is ever in flight.
+  const sendingRef = useRef(false);
+  // stream pacer: the network delivers tokens in fast bursts (10 words at once);
+  // we buffer them here and reveal at a spoken cadence so it reads like someone
+  // talking, not an auto-scrolling haze.
+  const targetRef = useRef('');     // full text received so far
+  const shownRef = useRef('');      // what's currently on screen
+  const streamDoneRef = useRef(false);
+  const pacingRef = useRef(false);
 
   useEffect(() => {
     loadSession().then(() => openThread(PERSONA_KEY, THREAD_CFG.name)).then((id) => id && setThreadId(id));
@@ -320,35 +331,72 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
 
   const scrollDown = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
 
+  // Reveal the buffered reply toward the received text at a human, spoken pace.
+  // One char at a time normally, with a beat at sentence-ends and a breath at commas;
+  // if a big burst lands we catch up gently (never a dump). Settles to rich markdown
+  // only once the whole reply has arrived AND finished revealing.
+  const revealTick = (zId, finalize) => {
+    if (!pacingRef.current) return;
+    const target = targetRef.current;
+    const shown = shownRef.current;
+    if (shown.length < target.length) {
+      const backlog = target.length - shown.length;
+      const step = backlog > 80 ? Math.ceil(backlog / 50) : 1; // catch up on bursts, gently
+      const next = target.slice(0, shown.length + step);
+      shownRef.current = next;
+      setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: next, typing: true } : m)));
+      scrollDown();
+      const last = next[next.length - 1];
+      let delay = 24;                                  // base cadence per step
+      if ('.!?…'.includes(last)) delay = 300;          // a beat at the end of a thought
+      else if (last === '\n') delay = 220;             // pause between lines
+      else if (',;:—'.includes(last)) delay = 130;     // a small breath
+      delay += Math.random() * 18;                     // organic jitter
+      setTimeout(() => revealTick(zId, finalize), delay);
+    } else if (streamDoneRef.current) {
+      pacingRef.current = false;
+      setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: target, typing: false } : m)));
+      finalize && finalize();
+    } else {
+      setTimeout(() => revealTick(zId, finalize), 40); // caught up, more still coming
+    }
+  };
+
   const doSend = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sendingRef.current) return; // synchronous guard — kills the storm
+    sendingRef.current = true;
     setSending(true);
     // resolve the thread if it isn't ready yet (e.g. after a stale-token refresh)
     // so the send never silently does nothing
     let tid = threadId;
     if (!tid) { tid = await openThread(PERSONA_KEY, THREAD_CFG.name); if (tid) setThreadId(tid); }
-    if (!tid) { setSending(false); return; }
+    if (!tid) { sendingRef.current = false; setSending(false); return; }
     setDraft('');
     const youMsg = { id: Date.now(), who: 'you', text };
     const zId = Date.now() + 1;
     setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true }]);
     scrollDown();
 
+    // arm the pacer for this reply
+    targetRef.current = '';
+    shownRef.current = '';
+    streamDoneRef.current = false;
+    pacingRef.current = true;
+    const done = () => { sendingRef.current = false; setSending(false); };
+    revealTick(zId, done);
+
     streamChat({
       threadId: tid,
       message: text,
       persona: PERSONA_KEY,
-      onToken: (acc) => {
-        setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: acc, typing: false } : m));
-        scrollDown();
-      },
-      onDone: (acc) => {
-        setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: acc || m.text, typing: false } : m));
-        setSending(false);
-      },
+      // feed the buffer only; the pacer decides how fast it appears
+      onToken: (acc) => { targetRef.current = acc; },
+      onDone: (acc) => { targetRef.current = acc || targetRef.current; streamDoneRef.current = true; },
       onError: (msg) => {
+        pacingRef.current = false;
         setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: msg, typing: false } : m));
+        sendingRef.current = false;
         setSending(false);
       },
     });
