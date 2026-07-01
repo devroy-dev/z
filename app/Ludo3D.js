@@ -38,15 +38,8 @@ export default function Ludo3D({ game, opponent, onExit = () => {} }) {
     // context → fails on device. expo-gl's gl IS a WebGL2 context. So we hand three
     // a fake "canvas" whose getContext returns expo-gl's context, and force webgl2.
     // three then uses expo-gl's WebGL2 context directly and the r163 check passes.
-    gl.canvas = gl.canvas || { width: w, height: h, style: {}, addEventListener: () => {}, removeEventListener: () => {}, getContext: () => gl };
-    const renderer = new THREE.WebGLRenderer({
-      canvas: gl.canvas,
-      context: gl,
-      antialias: true,
-      alpha: false,
-    });
-    renderer.setPixelRatio(1);
-    renderer.setSize(w, h, false);
+    const renderer = new Renderer({ gl });
+    renderer.setSize(w, h);
     renderer.setClearColor(0x0e0912, 1);
 
     const scene = new THREE.Scene();
