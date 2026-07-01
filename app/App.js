@@ -40,11 +40,11 @@ function PlayWorld() {
   const [match, setMatch] = React.useState(null);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (mode === 'game' && match) {
-    if (match.game?.id === 'uno') return <Uno game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    if (match.game?.id === 'uno') return <Uno game={match.game} opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {
-    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp) => { setMatch({ game, opp }); setMode('game'); }} />;
+    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp, roster) => { setMatch({ game, opp, roster }); setMode('game'); }} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); }} />;
 }
