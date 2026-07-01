@@ -6,8 +6,8 @@
 //  the top bar; bubble wrapping fixed; font loading hardened.
 //  Self-contained on purpose. Mock conversation. Judge fonts/glow on the APK.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, Image } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, StatusBar, Pressable, Image, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -18,6 +18,7 @@ import Animated, {
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
+import { ensureIdentity, openThread, streamChat } from './api';
 
 // ── locked palette ───────────────────────────────────────────────────────
 const C = {
@@ -243,12 +244,16 @@ function Bubble({ m }) {
           </LinearGradient>
         ) : (
           <BlurView intensity={20} tint="dark" style={[styles.bubble, styles.bubbleThem]}>
-            <Text style={[styles.bubbleText, m.moment && styles.moment]}>{m.text}</Text>
+            <Text style={[styles.bubbleText, m.moment && styles.moment]}>
+              {m.typing && !m.text ? '…' : m.text}
+            </Text>
           </BlurView>
         )}
-        <Text style={[styles.meta, mine && { textAlign: 'right' }]}>
-          {mine ? m.time : `${THREAD_CFG.name} · ${m.time}`}
-        </Text>
+        {m.time ? (
+          <Text style={[styles.meta, mine && { textAlign: 'right' }]}>
+            {mine ? m.time : `${THREAD_CFG.name} · ${m.time}`}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -284,6 +289,49 @@ export default function Chat({ onBack = () => {} }) {
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
   });
   const [inCall, setInCall] = useState(false);
+
+  // ── live message state (starts empty; the engine drives it) ──
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [threadId, setThreadId] = useState(PERSONA_KEY);
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    ensureIdentity().then(() => openThread(PERSONA_KEY)).then((id) => id && setThreadId(id));
+  }, []);
+
+  const scrollDown = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+
+  const doSend = () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setDraft('');
+    setSending(true);
+    const youMsg = { id: Date.now(), who: 'you', text };
+    const zId = Date.now() + 1;
+    setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true }]);
+    scrollDown();
+
+    streamChat({
+      threadId,
+      message: text,
+      persona: PERSONA_KEY,
+      onToken: (acc) => {
+        setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: acc, typing: false } : m));
+        scrollDown();
+      },
+      onDone: (acc) => {
+        setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: acc || m.text, typing: false } : m));
+        setSending(false);
+      },
+      onError: (msg) => {
+        setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: msg, typing: false } : m));
+        setSending(false);
+      },
+    });
+  };
+
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
   if (inCall) return <VideoCall persona={{ key: PERSONA_KEY, name: THREAD_CFG.name }} onEnd={() => setInCall(false)} />;
 
@@ -292,19 +340,46 @@ export default function Chat({ onBack = () => {} }) {
       <View style={styles.root}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
         <Atmosphere />
-        <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-          <TopBar onCall={() => setInCall(true)} onBack={onBack} />
-          <View style={styles.stage}>
-            <Presence size={96} />
-            <Text style={styles.stageName}>{THREAD_CFG.name}</Text>
-            <Text style={styles.stageSub}>{THREAD_CFG.desc}</Text>
-          </View>
-          <View style={styles.convo}>
-            <Text style={styles.daymark}>tonight</Text>
-            {THREAD.map((m) => <Bubble key={m.id} m={m} />)}
-          </View>
-          <Composer />
-        </SafeAreaView>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+            <TopBar onCall={() => setInCall(true)} onBack={onBack} />
+            <View style={styles.stage}>
+              <Presence size={96} />
+              <Text style={styles.stageName}>{THREAD_CFG.name}</Text>
+              <Text style={styles.stageSub}>{THREAD_CFG.desc}</Text>
+            </View>
+            <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {messages.length === 0 ? (
+                <Text style={styles.emptyHint}>say hello to {THREAD_CFG.name}.</Text>
+              ) : (
+                messages.map((m) => <Bubble key={m.id} m={m} />)
+              )}
+            </ScrollView>
+            <View style={styles.composer}>
+              <BlurView intensity={24} tint="dark" style={styles.field}>
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  onSubmitEditing={doSend}
+                  placeholder={`message ${THREAD_CFG.name}…`}
+                  placeholderTextColor={C.faint}
+                  style={styles.input}
+                  returnKeyType="send"
+                  editable={!sending}
+                />
+              </BlurView>
+              <Pressable style={styles.send} onPress={doSend}>
+                <Svg width="48" height="48" viewBox="0 0 48 48">
+                  <Defs><RadialGradient id="send" cx="40%" cy="34%" r="70%">
+                    <Stop offset="0%" stopColor="#FFD9AE" /><Stop offset="42%" stopColor={C.ember} /><Stop offset="100%" stopColor={C.emberDeep} />
+                  </RadialGradient></Defs>
+                  <Circle cx="24" cy="24" r="24" fill="url(#send)" />
+                  <Path d="M16 24 L32 17 L27 32 L23.5 25.5 Z" fill="#3A1505" />
+                </Svg>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </View>
     </View>
   );
@@ -349,4 +424,8 @@ const styles = StyleSheet.create({
   fieldPh: { flex: 1, fontFamily: 'Figtree_400Regular', color: C.faint, fontSize: 14.5 },
   fieldIcon: { color: C.muted, fontSize: 17, opacity: 0.8 },
   send: { width: 48, height: 48 },
+  emptyHint: { fontFamily: 'Fraunces_400Regular_Italic', color: C.faint, fontSize: 15, textAlign: 'center', marginTop: 40 },
+  composer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, gap: 10 },
+  field: { flex: 1, borderRadius: 24, paddingVertical: 4, paddingHorizontal: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,240,228,0.10)', backgroundColor: 'rgba(255,240,230,0.04)' },
+  input: { fontFamily: 'Figtree_400Regular', color: C.cream, fontSize: 15, paddingVertical: 11 },
 });
