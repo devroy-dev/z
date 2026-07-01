@@ -9,7 +9,6 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { QuietRoom, QuietPull } from './QuietRoom';
 
 // ── the five worlds ──
 const TABS = [
@@ -92,7 +91,6 @@ export function WorldStub({ title, kicker, line }) {
 // ── the shell: holds the active world + nav + the Quiet Room gesture ──
 export default function Nav({ screens }) {
   const [active, setActive] = useState('gathering');
-  const [quietOpen, setQuietOpen] = useState(false);
   const insets = useSafeAreaInsets();
 
   const Active = screens[active] || (() => <WorldStub kicker="soon" title={active} line="coming alive next." />);
@@ -104,17 +102,6 @@ export default function Nav({ screens }) {
       </View>
 
       <BottomNav active={active} onChange={setActive} />
-
-      {/* quiet-room pull tab — ONLY on the Desk (home), a subtle top-edge affordance.
-          Not plastered over chat/arena/etc. where it read as a bug. */}
-      {active === 'desk' && (
-        <View pointerEvents="box-none" style={{ position: 'absolute', top: insets.top, left: 0, right: 0 }}>
-          <QuietPull onOpen={() => setQuietOpen(true)} />
-        </View>
-      )}
-
-      {/* the quiet room, when called — a curtain drawn over everything */}
-      {quietOpen && <QuietRoom onClose={() => setQuietOpen(false)} />}
     </View>
   );
 }
