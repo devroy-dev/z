@@ -9,7 +9,10 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 
-const anthropic = new Anthropic();
+// Use Node's native fetch (undici) instead of the SDK's default node-fetch@2, which
+// premature-closes streaming responses on Node 22 (this engine pins Node 22 for supabase
+// realtime). The SDK reads native fetch's web ReadableStream body fine.
+const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
 
 export interface ZTurnInput {
@@ -160,17 +163,17 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   const stream = anthropic.messages.stream(streamArgs);
   let __chars = 0;
   stream.on('text', (d) => { __chars += d.length; input.onToken?.(d); });
-  stream.on('error', (err: any) => {
+  const final = await stream.finalMessage().catch((err: any) => {
     // DIAGNOSTIC (no behavior change): a /chat stream dying mid-flight ("Premature close")
-    // was never logged before — the error was swallowed into the SSE and lost. Log the real
-    // reason + context so Railway shows WHERE/WHY: how far it got, which persona, web or not.
+    // was never logged before — the rejection was swallowed upstream. Log the real reason +
+    // context (how far it got, which persona, web or not), then rethrow so behavior is unchanged.
     console.error('[chat/loop] stream error',
       'persona=', t?.persona_key, 'web=', !!persona?.webEnabled, 'streamedChars=', __chars,
       'name=', err?.name, 'code=', err?.code, 'msg=', err?.message);
     if (err?.cause) console.error('[chat/loop] cause=', err.cause);
     if (err?.stack) console.error(err.stack);
+    throw err;
   });
-  const final = await stream.finalMessage();
 
   let reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('');
 

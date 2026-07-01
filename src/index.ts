@@ -27,7 +27,9 @@ import { fileURLToPath } from 'url';
 const __dirname2 = dirname(fileURLToPath(import.meta.url));
 // ONE shared Anthropic client, created at boot (like loop.ts) — reused across requests.
 // Per-request `new Anthropic()` via dynamic import was causing "Premature close" on /banter.
-const anthropicShared = new Anthropic();
+// Native fetch (undici) — NOT the SDK's default node-fetch@2, which premature-closes
+// streams on Node 22. Same fix as loop.ts; applies to /banter + /dev/echo.
+const anthropicShared = new Anthropic({ fetch: globalThis.fetch as any });
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
