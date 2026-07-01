@@ -181,25 +181,32 @@ function Constellation({ group, pins, onPin, onOpen, query }) {
   );
 }
 
+// session cache of last-known favourites, so the shelf remounts INSTANTLY with
+// the known list instead of flashing empty while the server refetches. Lives at
+// module scope, so it survives every Roster remount (chat-back, tab-switch).
+let PINS_CACHE = [];
+
 export default function Roster({ onOpen = () => {} }) {
   const [fontsLoaded, fontError] = useFonts({
     Fraunces_400Regular, Fraunces_400Regular_Italic,
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
   });
-  // favourites come from the DB now (not a hardcoded seed) — this is why they
-  // survive tab changes: on remount we reload them from the server, not reset.
-  const [pins, setPins] = useState([]);
+  // favourites come from the DB, but seed from the session cache so the shelf
+  // shows immediately on remount (no empty flash); the fetch reconciles quietly.
+  const [pins, setPins] = useState(PINS_CACHE);
   const [query, setQuery] = useState('');
-  useEffect(() => { getPins().then(setPins); }, []);
+  useEffect(() => { getPins().then((p) => { PINS_CACHE = p; setPins(p); }); }, []);
   const togglePin = useCallback((k) => {
     // optimistic flip for instant feedback; persist the explicit new state
-    // (idempotent set, so even a retry can't desync). roll back if the write fails.
+    // (idempotent set, so even a retry can't desync). server truth reconciles after.
     setPins((cur) => {
       const willPin = !cur.includes(k);
+      const optimistic = willPin ? [k, ...cur] : cur.filter((x) => x !== k);
+      PINS_CACHE = optimistic;                          // cache the intent immediately
       togglePinApi(k, willPin).then((serverPins) => {
-        if (serverPins) setPins(serverPins);            // reconcile with server truth
+        if (serverPins) { PINS_CACHE = serverPins; setPins(serverPins); }
       });
-      return willPin ? [k, ...cur] : cur.filter((x) => x !== k);
+      return optimistic;
     });
   }, []);
 
