@@ -130,9 +130,24 @@ function GameGlyph({ id, tone }) {
   );
 }
 
-// ── the opponent picker (appears after a game is chosen) ──
+// ── the opponent picker (appears after a game is chosen) — MULTI-SELECT ──
 function OpponentPicker({ game, onBack, onStart }) {
   const [invited, setInvited] = useState(false);
+  const [chosen, setChosen] = useState([]);   // array of opponent keys
+  // board games + card games can seat up to 3 others; verbal duels up to 3 (2v2 mixes)
+  const maxOthers = 3;
+  const toggle = (o) => {
+    setChosen((cur) => {
+      if (cur.find((c) => c.key === o.key)) return cur.filter((c) => c.key !== o.key);
+      if (cur.length >= maxOthers) return cur;   // cap
+      return [...cur, o];
+    });
+  };
+  const launch = () => {
+    const roster = chosen.map((o) => ({ ...o, ai: true }));
+    // pass first as `opp` for back-compat, full list as `roster`
+    onStart(game, chosen[0], roster);
+  };
   return (
     <View style={styles.root}>
       <LinearGradient colors={['#160F1C', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -141,24 +156,28 @@ function OpponentPicker({ game, onBack, onStart }) {
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
           <View style={{ flex: 1, marginLeft: 4 }}>
             <Text style={styles.pickKicker}>{game.name}</Text>
-            <Text style={styles.pickTitle}>who are you playing?</Text>
+            <Text style={styles.pickTitle}>who's at the table?</Text>
           </View>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-          <Text style={styles.pickNote}>each one plays like themselves. choose your trouble.</Text>
-          {OPPONENTS.map((o) => (
-            <Pressable key={o.key} style={styles.oppRow} onPress={() => onStart(game, o)}>
-              <OppFace pkey={o.key} tone={o.tone} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.oppName}>{o.name}</Text>
-                <Text style={styles.oppStyle} numberOfLines={1}>{o.style}</Text>
-              </View>
-              <Text style={styles.chipGo}>›</Text>
-            </Pressable>
-          ))}
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
+          <Text style={styles.pickNote}>pick one for a duel, or up to three for a full table. each plays like themselves.</Text>
+          {OPPONENTS.map((o) => {
+            const on = !!chosen.find((c) => c.key === o.key);
+            return (
+              <Pressable key={o.key} style={[styles.oppRow, on && styles.oppRowOn]} onPress={() => toggle(o)}>
+                <OppFace pkey={o.key} tone={o.tone} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.oppName}>{o.name}</Text>
+                  <Text style={styles.oppStyle} numberOfLines={1}>{o.style}</Text>
+                </View>
+                <View style={[styles.checkDot, on && { backgroundColor: o.tone, borderColor: o.tone }]}>
+                  {on && <Text style={styles.checkTick}>✓</Text>}
+                </View>
+              </Pressable>
+            );
+          })}
 
-          {/* invite a friend — humans welcome, ≥1 AI still holds */}
           <Pressable style={styles.inviteRow} onPress={() => setInvited(true)}>
             <View style={styles.invitePlus}><Text style={styles.invitePlusText}>+</Text></View>
             <View style={{ flex: 1, marginLeft: 12 }}>
@@ -167,6 +186,20 @@ function OpponentPicker({ game, onBack, onStart }) {
             </View>
           </Pressable>
         </ScrollView>
+
+        {/* launch bar */}
+        {chosen.length > 0 && (
+          <View style={styles.launchBar}>
+            <Text style={styles.launchCount}>
+              {chosen.length === 1 ? `1v1 · you vs ${chosen[0].name}` : `you + ${chosen.length} at the table`}
+            </Text>
+            <Pressable style={styles.launchBtn} onPress={launch}>
+              <LinearGradient colors={[C.ember, C.emberDeep]} start={{ x: 0.3, y: 0 }} end={{ x: 1, y: 1 }} style={styles.launchInner}>
+                <Text style={styles.launchText}>take your seat ›</Text>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -188,7 +221,7 @@ export default function Arena({ onBack = () => {}, onStartGame = () => {} }) {
   const [picked, setPicked] = useState(null);
 
   if (picked) {
-    return <OpponentPicker game={picked} onBack={() => setPicked(null)} onStart={(g, o) => onStartGame(g, o)} />;
+    return <OpponentPicker game={picked} onBack={() => setPicked(null)} onStart={(g, o, roster) => onStartGame(g, o, roster)} />;
   }
 
   return (
@@ -242,6 +275,14 @@ const styles = StyleSheet.create({
   pickKicker: { fontFamily: FONTS.body, color: C.accentSoft, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
   pickTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 26, marginTop: 1 },
   pickNote: { fontFamily: FONTS.displayItalic, color: C.muted, fontSize: 14, paddingHorizontal: 24, marginTop: 8, marginBottom: 14 },
+  oppRowOn: { backgroundColor: 'rgba(243,168,95,0.08)' },
+  checkDot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  checkTick: { color: '#3A1505', fontSize: 13, fontWeight: '700' },
+  launchBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, backgroundColor: 'rgba(14,9,18,0.95)', borderTopWidth: 1, borderTopColor: 'rgba(243,168,95,0.15)' },
+  launchCount: { fontFamily: FONTS.displayItalic, color: C.accentSoft, fontSize: 14, textAlign: 'center', marginBottom: 10 },
+  launchBtn: { borderRadius: 16, overflow: 'hidden' },
+  launchInner: { paddingVertical: 15, alignItems: 'center' },
+  launchText: { fontFamily: FONTS.semibold, color: '#3A1505', fontSize: 16, letterSpacing: 0.4 },
   oppRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 9 },
   oppFace: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#1a121f' },
   oppName: { fontFamily: FONTS.medium, color: C.cream, fontSize: 16 },

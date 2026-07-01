@@ -17,6 +17,9 @@ import Play from './Play';
 import Arena from './Arena';
 import GameTable from './GameTable';
 import SkiaLudo from './SkiaLudo';
+import SkiaCards from './SkiaCards';
+import MindDuel from './MindDuel';
+import Ludo from './Ludo';
 import Rooms from './Rooms';
 import RoomChat from './RoomChat';
 import Desk from './Desk';
@@ -41,12 +44,17 @@ function PlayWorld() {
   const [match, setMatch] = React.useState(null);
   if (mode === 'game' && match) {
     const gid = match.game?.id;
-    if (gid === 'ludo')  return <SkiaLudo game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
-    if (gid === 'poker') return <SkiaLudo game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    const cardGames = ['blackjack', 'poker', 'teenpatti', 'rummy', 'bluff'];
+    const boardGames = ['ludo', 'snakes', 'chess', 'carrom'];
+    const mindGames = ['debate', 'trivia', 'twenty', 'wyr'];
+    if (gid === 'ludo')           return <Ludo      game={match.game} opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
+    if (cardGames.includes(gid))  return <SkiaCards game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    if (boardGames.includes(gid)) return <SkiaLudo  game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    if (mindGames.includes(gid))  return <MindDuel  game={match.game} opponent={match.opp} teammate={match.roster && match.roster[1]} onExit={() => setMode('arena')} />;
     return <GameTable game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
   }
   if (mode === 'arena') {
-    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp) => { setMatch({ game, opp }); setMode('game'); }} />;
+    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp, roster) => { setMatch({ game, opp, roster }); setMode('game'); }} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); }} />;
 }
