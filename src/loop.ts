@@ -158,7 +158,18 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   const streamArgs: any = { model: MODEL, max_tokens: 1024, system, messages };
   if (tools.length) streamArgs.tools = tools;
   const stream = anthropic.messages.stream(streamArgs);
-  stream.on('text', (d) => input.onToken?.(d));
+  let __chars = 0;
+  stream.on('text', (d) => { __chars += d.length; input.onToken?.(d); });
+  stream.on('error', (err: any) => {
+    // DIAGNOSTIC (no behavior change): a /chat stream dying mid-flight ("Premature close")
+    // was never logged before — the error was swallowed into the SSE and lost. Log the real
+    // reason + context so Railway shows WHERE/WHY: how far it got, which persona, web or not.
+    console.error('[chat/loop] stream error',
+      'persona=', t?.persona_key, 'web=', !!persona?.webEnabled, 'streamedChars=', __chars,
+      'name=', err?.name, 'code=', err?.code, 'msg=', err?.message);
+    if (err?.cause) console.error('[chat/loop] cause=', err.cause);
+    if (err?.stack) console.error(err.stack);
+  });
   const final = await stream.finalMessage();
 
   let reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('');

@@ -1116,6 +1116,11 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       res.end();
     }
   } catch (e: any) {
+    // DIAGNOSTIC: the reason "Premature close" was never diagnosable is THIS — the error was
+    // written into the SSE and never logged, so Railway logs were empty on it. Log it fully.
+    console.error('[chat] handler error', 'name=', e?.name, 'code=', e?.code, 'msg=', e?.message);
+    if (e?.cause) console.error('[chat] cause=', e.cause);
+    if (e?.stack) console.error(e.stack);
     res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
     res.end();
   }
