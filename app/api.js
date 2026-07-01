@@ -330,3 +330,8 @@ export async function getNotes() {
 export async function deleteNote(kind, id) {
   try { return await authedJSON('DELETE', `/notes/${kind}/${id}`); } catch (e) { return null; }
 }
+
+// ── clear a thread's history: the fix for a poisoned chat (spam loop, fixation) ──
+export async function clearThread(threadId) {
+  try { return await authedJSON('POST', '/thread/clear', { threadId }); } catch (e) { return null; }
+}

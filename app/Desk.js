@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote } from './api';
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 
@@ -89,8 +89,9 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const shownRef = useRef('');
   const streamDoneRef = useRef(false);
   const pacingRef = useRef(false);
+  const atBottomRef = useRef(true);
 
-  const scrollDown = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+  const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
 
   const refreshDesk = async () => {
     const [th, tk, nt] = await Promise.all([listThreads(), listTasks(), getNotes()]);
@@ -127,17 +128,17 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
     const shown = shownRef.current;
     if (shown.length < target.length) {
       const backlog = target.length - shown.length;
-      const step = backlog > 80 ? Math.ceil(backlog / 50) : 1;
+      const step = backlog > 140 ? Math.ceil(backlog / 90) : 1;
       const next = target.slice(0, shown.length + step);
       shownRef.current = next;
       setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: next, typing: true } : m)));
       scrollDown();
       const last = next[next.length - 1];
-      let delay = 24;
-      if ('.!?…'.includes(last)) delay = 300;
-      else if (last === '\n') delay = 220;
-      else if (',;:—'.includes(last)) delay = 130;
-      delay += Math.random() * 18;
+      let delay = 42;
+      if ('.!?…'.includes(last)) delay = 360;
+      else if (last === '\n') delay = 260;
+      else if (',;:—'.includes(last)) delay = 180;
+      delay += Math.random() * 22;
       setTimeout(() => revealTick(zId, finalize), delay);
     } else if (streamDoneRef.current) {
       pacingRef.current = false;
@@ -159,6 +160,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
     if (override == null) setDraft('');
     const youMsg = { id: Date.now(), who: 'you', text };
     const zId = Date.now() + 1;
+    atBottomRef.current = true;
     setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true, routes: null }]);
     scrollDown();
 
@@ -252,7 +254,12 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
             ) : (
               <ScrollView style={{ maxHeight: 240 }}>
                 {facts.map((f) => (
-                  <Text key={'f' + f.id} style={styles.factTxt}>· {f.value}</Text>
+                  <View key={'f' + f.id} style={styles.factRow}>
+                    <Text style={styles.factTxt}>· {f.value}</Text>
+                    <Pressable hitSlop={8} onPress={async () => { setFacts((cur) => cur.filter((x) => x.id !== f.id)); await deleteNote('fact', f.id); }}>
+                      <Text style={styles.factX}>✕</Text>
+                    </Pressable>
+                  </View>
                 ))}
                 {letters.map((l) => (
                   <Pressable key={'l' + l.id} style={styles.letter} onPress={onOpenLetter}>
@@ -266,7 +273,12 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
         )}
 
         {/* the conversation with the concierge */}
-        <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingVertical: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingVertical: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            atBottomRef.current = (contentSize.height - (contentOffset.y + layoutMeasurement.height)) < 120;
+          }}>
           {messages.map((m) => (
             <View key={m.id} style={{ marginBottom: 12 }}>
               <View style={[styles.bubbleWrap, m.who === 'you' ? styles.youWrap : styles.themWrap]}>
@@ -348,7 +360,9 @@ const styles = StyleSheet.create({
   checkMark: { color: C.ember, fontSize: 12, fontWeight: '700' },
   taskTxt: { fontFamily: FONTS.body, color: C.cream, fontSize: 15, flex: 1 },
   taskDone: { color: C.faint, textDecorationLine: 'line-through' },
-  factTxt: { fontFamily: FONTS.body, color: C.muted, fontSize: 13.5, paddingVertical: 5, lineHeight: 20 },
+  factTxt: { fontFamily: FONTS.body, color: C.muted, fontSize: 13.5, paddingVertical: 5, lineHeight: 20, flex: 1 },
+  factRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  factX: { fontFamily: FONTS.body, color: C.faint, fontSize: 13, paddingHorizontal: 4 },
   letter: { marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: 'rgba(243,168,95,0.06)', borderWidth: 1, borderColor: 'rgba(243,168,95,0.14)' },
   letterKicker: { fontFamily: FONTS.body, color: C.ember, fontSize: 11, letterSpacing: 0.5, marginBottom: 4 },
   letterBody: { fontFamily: FONTS.displayItalic, color: C.cream, fontSize: 14, lineHeight: 21 },

@@ -7,7 +7,7 @@
 //  Self-contained on purpose. Mock conversation. Judge fonts/glow on the APK.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, Image, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, Image, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -19,7 +19,7 @@ import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
 import RichText from './RichText';
-import { loadSession, openThread, streamChat } from './api';
+import { loadSession, openThread, streamChat, clearThread } from './api';
 
 // ── locked palette ───────────────────────────────────────────────────────
 const C = {
@@ -208,7 +208,7 @@ function MiniDP({ uri, size = 36 }) {
   );
 }
 
-function TopBar({ onCall, onBack }) {
+function TopBar({ onCall, onBack, onClear }) {
   return (
     <View style={styles.topbar}>
       <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
@@ -219,11 +219,18 @@ function TopBar({ onCall, onBack }) {
           <Text style={styles.topStatus} numberOfLines={1}>{PERSONAS[PERSONA_KEY].name}</Text>
         </View>
       </View>
-      <Pressable hitSlop={10} style={styles.callBtn} onPress={onCall}>
-        <Svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <Path d="M15 10l4.5-3v10L15 14M4 7h9a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z" stroke={C.accentSoft} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"/>
-        </Svg>
-      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <Pressable hitSlop={10} onPress={onClear}>
+          <Svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+            <Path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12" stroke={C.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </Svg>
+        </Pressable>
+        <Pressable hitSlop={10} style={styles.callBtn} onPress={onCall}>
+          <Svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <Path d="M15 10l4.5-3v10L15 14M4 7h9a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z" stroke={C.accentSoft} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"/>
+          </Svg>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -324,12 +331,34 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const shownRef = useRef('');      // what's currently on screen
   const streamDoneRef = useRef(false);
   const pacingRef = useRef(false);
+  // only auto-scroll while the reader is already near the bottom. if they scroll up
+  // to read the reply, we stop yanking them back down.
+  const atBottomRef = useRef(true);
 
   useEffect(() => {
     loadSession().then(() => openThread(PERSONA_KEY, THREAD_CFG.name)).then((id) => id && setThreadId(id));
   }, []);
 
-  const scrollDown = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+  const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
+
+  // wipe this thread's history — the fix when a chat gets poisoned (a spam loop stuck
+  // in context, a persona fixating on stale messages). server clears it; we reset clean.
+  const doClear = () => {
+    Alert.alert(
+      'clear this chat?',
+      'this wipes the whole conversation and starts fresh. it can’t be undone.',
+      [
+        { text: 'cancel', style: 'cancel' },
+        { text: 'clear', style: 'destructive', onPress: async () => {
+          pacingRef.current = false;
+          if (threadId) await clearThread(threadId);
+          setMessages([]);
+          setDraft('');
+          sendingRef.current = false; setSending(false);
+        } },
+      ],
+    );
+  };
 
   // Reveal the buffered reply toward the received text at a human, spoken pace.
   // One char at a time normally, with a beat at sentence-ends and a breath at commas;
@@ -341,17 +370,17 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
     const shown = shownRef.current;
     if (shown.length < target.length) {
       const backlog = target.length - shown.length;
-      const step = backlog > 80 ? Math.ceil(backlog / 50) : 1; // catch up on bursts, gently
+      const step = backlog > 140 ? Math.ceil(backlog / 90) : 1; // catch up on bursts, gently
       const next = target.slice(0, shown.length + step);
       shownRef.current = next;
       setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: next, typing: true } : m)));
       scrollDown();
       const last = next[next.length - 1];
-      let delay = 24;                                  // base cadence per step
-      if ('.!?…'.includes(last)) delay = 300;          // a beat at the end of a thought
-      else if (last === '\n') delay = 220;             // pause between lines
-      else if (',;:—'.includes(last)) delay = 130;     // a small breath
-      delay += Math.random() * 18;                     // organic jitter
+      let delay = 42;                                  // base cadence per char (slower = calmer, more spoken)
+      if ('.!?…'.includes(last)) delay = 360;          // a beat at the end of a thought
+      else if (last === '\n') delay = 260;             // pause between lines
+      else if (',;:—'.includes(last)) delay = 180;     // a small breath
+      delay += Math.random() * 22;                     // organic jitter
       setTimeout(() => revealTick(zId, finalize), delay);
     } else if (streamDoneRef.current) {
       pacingRef.current = false;
@@ -375,6 +404,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
     setDraft('');
     const youMsg = { id: Date.now(), who: 'you', text };
     const zId = Date.now() + 1;
+    atBottomRef.current = true; // a fresh send always brings the exchange into view
     setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true }]);
     scrollDown();
 
@@ -412,13 +442,18 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
         <Atmosphere />
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
           <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-            <TopBar onCall={() => setInCall(true)} onBack={onBack} />
+            <TopBar onCall={() => setInCall(true)} onBack={onBack} onClear={doClear} />
             <View style={styles.stage}>
               <Presence size={96} />
               <Text style={styles.stageName}>{THREAD_CFG.name}</Text>
               <Text style={styles.stageSub}>{THREAD_CFG.desc}</Text>
             </View>
-            <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+              scrollEventThrottle={16}
+              onScroll={(e) => {
+                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+                atBottomRef.current = (contentSize.height - (contentOffset.y + layoutMeasurement.height)) < 120;
+              }}>
               {messages.length === 0 ? (
                 <Text style={styles.emptyHint}>say hello to {THREAD_CFG.name}.</Text>
               ) : (
