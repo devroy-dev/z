@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing } from 'react-native-reanimated';
 import { C, FONTS } from './theme';
-import { loadSession, openThread, streamChat } from './api';
+import { loadSession, isLoggedIn, openThread, streamChat } from './api';
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -102,6 +102,8 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   const [flying, setFlying] = useState(null);
   const [activeColor, setActiveColor] = useState('R');
   const [turn, setTurn] = useState('you');
+  const [turnNonce, setTurnNonce] = useState(0);
+  const goTurn = (who) => { setTurn(who); setTurnNonce((n) => n + 1); };
   const [phase, setPhase] = useState('play');
   const [pendingWild, setPendingWild] = useState(null);
   const [winner, setWinner] = useState(null);
@@ -119,10 +121,19 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   useEffect(() => {
     (async () => {
       await loadSession();
-      const id = await openThread(opp.key, `uno with ${opp.name}`);
-      threadRef.current = id;
-      setEngineReady(!!id);
-      if (!id) pushFeed({ who: 'sys', text: `(couldn't reach ${opp.name} — banter offline, game still plays)` });
+      // diagnostic: surface WHY the thread fails instead of silent "offline"
+      try {
+        const loggedIn = await isLoggedIn();
+        if (!loggedIn) { pushFeed({ who: 'sys', text: `(not logged in — banter needs you signed in)` }); setEngineReady(false); return; }
+        const id = await openThread(opp.key, `uno with ${opp.name}`);
+        threadRef.current = id;
+        setEngineReady(!!id);
+        if (!id) pushFeed({ who: 'sys', text: `(thread didn't open for ${opp.key} — banter offline)` });
+        else pushFeed({ who: 'sys', text: `(${opp.name} is here — talk to them)` });
+      } catch (e) {
+        pushFeed({ who: 'sys', text: `(banter error: ${String(e).slice(0, 40)})` });
+        setEngineReady(false);
+      }
     })();
     dealNew();
   }, []);
@@ -145,7 +156,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
     let first = d.shift();
     while (first.c === 'W' || ['skip', 'rev', 'd2'].includes(first.v)) { d.push(first); first = d.shift(); }
     setYou(y); setOppHand(o); setDiscard(first); setActiveColor(first.c);
-    setDeck(d); setTurn('you'); setPhase('play'); setWinner(null); setBanter(''); setCalledUno(false); setFlying(null);
+    setDeck(d); goTurn('you'); setPhase('play'); setWinner(null); setBanter(''); setCalledUno(false); setFlying(null);
     setFeed([{ who: 'sys', text: `dealt 7 each. match ${COLOR_NAME[first.c]} or ${label(first)}.` }]);
   };
 
@@ -188,7 +199,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
     else if (card.v === 'skip') personaReact('The user just skipped your turn.');
     else if (newHand.length === 1) personaReact('The user is down to their last card — about to win. React.');
 
-    setTimeout(() => setTurn(skip ? 'you' : 'opp'), 380);
+    setTimeout(() => goTurn(skip ? 'you' : 'opp'), 380);
   };
 
   const pickWildColor = (col) => {
@@ -201,7 +212,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
     if (turn !== 'you' || phase !== 'play') return;
     drawCards('you', 1);
     pushFeed({ who: 'sys', text: `you drew.` });
-    setTimeout(() => setTurn('opp'), 350);
+    setTimeout(() => goTurn('opp'), 350);
   };
 
   const callUno = () => { setCalledUno(true); pushFeed({ who: 'you', text: 'UNO!' }); personaReact('The user just called "UNO!" — they have one card left. React.'); };
@@ -214,7 +225,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
         const idxs = hand.map((c, i) => canPlay(c, discard, activeColor) ? i : -1).filter(i => i >= 0);
         if (idxs.length === 0) {
           drawCards('opp', 1, () => pushFeed({ who: 'sys', text: `${opp.name} drew.` }));
-          setTimeout(() => setTurn('you'), 500);
+          setTimeout(() => goTurn('you'), 500);
           return hand;
         }
         const pick = idxs[Math.floor(Math.random() * idxs.length)];
@@ -236,13 +247,13 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
 
         setTimeout(() => {
           if (newHand.length === 0) { setWinner('opp'); setPhase('over'); }
-          else setTurn(skip ? 'opp' : 'you');
+          else goTurn(skip ? 'opp' : 'you');
         }, 400);
         return newHand;
       });
     }, beat);
     return () => clearTimeout(t);
-  }, [turn, phase]);
+  }, [turnNonce, phase]);
 
   const sendChat = () => {
     const t = draft.trim(); if (!t) return;
