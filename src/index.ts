@@ -459,6 +459,14 @@ app.post('/banter', async (req, res) => {
       system,
       messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
     });
+    // Drain the stream before awaiting the final message — this mirrors the WORKING
+    // /chat path in loop.ts, which attaches `stream.on('text', ...)`. Line-by-line, the
+    // only difference between working /chat and broken /banter was that /banter awaited
+    // finalMessage() with NO stream consumer attached; an un-drained MessageStream is a
+    // known trigger for "Premature close" on this host. Attaching a consumer keeps the
+    // SSE socket flowing. (Verify on the deployed engine before trusting — see curl note.)
+    stream.on('text', () => {});
+    stream.on('error', () => {}); // don't let a stream 'error' event go unhandled
     const final = await stream.finalMessage();
     const line = final.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
     res.json({ line });
