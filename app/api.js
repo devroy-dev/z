@@ -286,3 +286,47 @@ export async function streamChat({ threadId, message, image, persona, onToken, o
     onError && onError('(no connection — check your network)');
   }
 }
+
+// ── authed JSON helper: 401 → refresh once → retry (mirrors the chat paths) ──
+async function authedJSON(method, path, body) {
+  await loadSession();
+  const call = () => fetch(`${API_BASE}${path}`, {
+    method,
+    headers: headers(),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let r = await call();
+  if (r.status === 401 && (await refreshSession())) r = await call();
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `${method} ${path} failed`);
+  return j;
+}
+
+// ── the roster: the user's personas with THEIR chosen name + dp (custom over default) ──
+// GET /threads → [{ id, persona_key, companion_name, avatar_url, accent, last_active }]
+export async function listThreads() {
+  try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
+}
+
+// ── tasks: the concierge's list (server also adds/completes these from [[TASK_*]] tags) ──
+export async function listTasks() {
+  try { const j = await authedJSON('GET', '/tasks'); return j.tasks || []; } catch (e) { return []; }
+}
+export async function addTask(title, extra = {}) {
+  try { return await authedJSON('POST', '/tasks', { title, ...extra }); } catch (e) { return null; }
+}
+export async function setTaskStatus(id, status) {
+  try { return await authedJSON('PATCH', `/tasks/${id}`, { status }); } catch (e) { return null; }
+}
+export async function deleteTask(id) {
+  try { return await authedJSON('DELETE', `/tasks/${id}`); } catch (e) { return null; }
+}
+
+// ── what Z remembers: durable facts (z.memory) + the overseer's letters (z.user_notes) ──
+// GET /notes → { facts: [{id,key,value,created_at}], notes: [{id,body,created_at}] }
+export async function getNotes() {
+  try { return await authedJSON('GET', '/notes'); } catch (e) { return { facts: [], notes: [] }; }
+}
+export async function deleteNote(kind, id) {
+  try { return await authedJSON('DELETE', `/notes/${kind}/${id}`); } catch (e) { return null; }
+}

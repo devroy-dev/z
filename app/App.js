@@ -27,17 +27,18 @@ import { C } from './theme';
 
 // the built worlds, by tab id. (desk/rooms/arena/you are stubs for now.)
 const SCREENS = {
-  gathering: () => <GatheringWorld />,
-  desk:  () => <DeskWorld />,
-  rooms: () => <RoomsWorld />,
-  play:  () => <PlayWorld />,
+  gathering: (p) => <GatheringWorld {...p} />,
+  desk:  (p) => <DeskWorld {...p} />,
+  rooms: (p) => <RoomsWorld {...p} />,
+  play:  (p) => <PlayWorld {...p} />,
   arena: () => <WorldStub kicker="compete" title="Arena" line="games with friends — and always one AI. coming alive next." />,
   stage: () => <WorldStub kicker="rehearse" title="Stage" line="step into the scene. coming alive next." />,
 };
 
-function PlayWorld() {
+function PlayWorld({ navigate, target }) {
   const [mode, setMode] = React.useState('choose'); // choose | arena | game
   const [match, setMatch] = React.useState(null);
+  React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (mode === 'game' && match) {
     if (match.game?.id === 'uno') return <Uno game={match.game} opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
@@ -49,14 +50,15 @@ function PlayWorld() {
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); }} />;
 }
 
-function DeskWorld({ onLogout }) {
+function DeskWorld({ navigate, onLogout }) {
   const [openYou, setOpenYou] = React.useState(false);
   if (openYou) return <You onBack={() => setOpenYou(false)} onLogout={onLogout} />;
-  return <Desk onOpenYou={() => setOpenYou(true)} onRoute={() => {}} onOpenLetter={() => {}} />;
+  return <Desk onOpenYou={() => setOpenYou(true)} onRoute={navigate || (() => {})} onOpenLetter={() => {}} />;
 }
 
-function GatheringWorld() {
+function GatheringWorld({ navigate, target }) {
   const [openChat, setOpenChat] = React.useState(null); // persona key or null
+  React.useEffect(() => { if (target?.persona) setOpenChat(target.persona); }, [target]);
   if (openChat) return <Chat personaKey={openChat} onBack={() => setOpenChat(null)} />;
   return <Roster onOpen={(pkey) => setOpenChat(pkey)} />;
 }
@@ -91,7 +93,7 @@ export default function App() {
 
   const doLogout = async () => { await logout(); setAuthed(false); };
   // desk hosts the profile, so it carries the logout handler up to the auth gate
-  const screens = { ...SCREENS, desk: () => <DeskWorld onLogout={doLogout} /> };
+  const screens = { ...SCREENS, desk: (p) => <DeskWorld {...p} onLogout={doLogout} /> };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

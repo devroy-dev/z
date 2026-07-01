@@ -88,26 +88,64 @@ export function WorldStub({ title, kicker, line }) {
   );
 }
 
-// ── the shell: holds the active world + nav + the Quiet Room gesture ──
+// ── the shell: holds the active world + nav + cross-app navigation ──
 export default function Nav({ screens }) {
-  const [active, setActive] = useState('gathering');
-  const insets = useSafeAreaInsets();
+  const [active, setActive] = useState('desk');   // the Front Desk is home
+  const [target, setTarget] = useState(null);     // deep-link for the active tab (e.g. open a persona)
+  const [overlay, setOverlay] = useState(null);   // full-screen, non-tab destinations (quiet/stage/journal)
 
-  const Active = screens[active] || (() => <WorldStub kicker="soon" title={active} line="coming alive next." />);
+  // the one navigator the Front Desk (and anyone) calls to move around the app.
+  // dest can be a tab id string, or { tab, ...params } to deep-link into that world.
+  const navigate = (dest) => {
+    if (!dest) return;
+    const tab = typeof dest === 'string' ? dest : dest.tab;
+    if (tab === 'quiet' || tab === 'stage' || tab === 'journal') {
+      setOverlay(typeof dest === 'string' ? { tab } : dest);
+      return;
+    }
+    if (TABS.some((t) => t.id === tab)) {
+      setActive(tab);
+      setTarget(typeof dest === 'string' ? null : dest);
+    }
+  };
+
+  if (overlay) {
+    const titles = { quiet: 'The Quiet Room', stage: 'The Stage', journal: 'The Journal' };
+    const lines = {
+      quiet: 'a moonlit room where Z just listens. opening next.',
+      stage: 'step into the scene. coming alive soon.',
+      journal: 'a private place to set it down. coming alive soon.',
+    };
+    return (
+      <View style={styles.root}>
+        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+          <Pressable style={styles.overlayBack} onPress={() => setOverlay(null)} hitSlop={12}>
+            <Text style={styles.overlayBackTxt}>‹ back</Text>
+          </Pressable>
+          <WorldStub kicker="soon" title={titles[overlay.tab] || overlay.tab} line={lines[overlay.tab] || 'coming alive next.'} />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  const factory = screens[active];
+  const content = factory
+    ? factory({ navigate, target })
+    : <WorldStub kicker="soon" title={active} line="coming alive next." />;
 
   return (
     <View style={styles.root}>
-      <View style={{ flex: 1 }}>
-        <Active />
-      </View>
-
-      <BottomNav active={active} onChange={setActive} />
+      <View style={{ flex: 1 }}>{content}</View>
+      <BottomNav active={active} onChange={(tab) => { setActive(tab); setTarget(null); setOverlay(null); }} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.void },
+
+  overlayBack: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  overlayBackTxt: { fontFamily: FONTS.body, color: C.muted, fontSize: 15 },
 
   navWrap: { backgroundColor: 'transparent' },
   nav: {
