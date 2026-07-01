@@ -127,10 +127,10 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   }, []);
 
   const personaReact = useCallback(async (situation) => {
-    setBanter('');
     const prompt = `[We're playing UNO together, casually. ${situation} Reply with ONE short spoken line, in your voice, like a real opponent at the table. No narration.]`;
-    const line = await banter(opp.key, prompt);
+    const { line, diag } = await banter(opp.key, prompt);
     if (line) pushFeed({ who: 'opp', text: `${opp.name}: ${line}` });
+    else if (diag) pushFeed({ who: 'sys', text: `DIAG ${diag}` });
   }, [opp.key, opp.name]);
 
   const dealNew = () => {
@@ -241,8 +241,9 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   const sendChat = async () => {
     const t = draft.trim(); if (!t) return;
     setDraft(''); pushFeed({ who: 'you', text: t });
-    const line = await banter(opp.key, `[During our UNO game, I say to you:] ${t}`);
+    const { line, diag } = await banter(opp.key, `[During our UNO game, I say to you:] ${t}`);
     if (line) pushFeed({ who: 'opp', text: `${opp.name}: ${line}` });
+    else if (diag) pushFeed({ who: 'sys', text: `DIAG ${diag}` });
   };
 
   const showColor = discard ? (discard.c === 'W' ? activeColor : discard.c) : 'R';

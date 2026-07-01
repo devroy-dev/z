@@ -44,10 +44,12 @@ export async function banter(persona, prompt) {
       headers: headers(),
       body: JSON.stringify({ persona, prompt }),
     });
-    if (!r.ok) return null;
-    const j = await r.json().catch(() => ({}));
-    return (j.line || '').trim() || null;
-  } catch (e) { return null; }
+    const bodyText = await r.text().catch(() => '(no body)');
+    if (!r.ok) return { line: null, diag: `/banter → ${r.status}: ${bodyText.slice(0, 100)}` };
+    let j = {}; try { j = JSON.parse(bodyText); } catch (_) {}
+    const line = (j.line || '').trim();
+    return { line: line || null, diag: line ? null : `/banter → 200 but no line: ${bodyText.slice(0, 80)}` };
+  } catch (e) { return { line: null, diag: `/banter network error: ${String(e).slice(0, 70)}` }; }
 }
 
 // ---- AUTH: phone → OTP → token (the real flow, from the PWA) ----
