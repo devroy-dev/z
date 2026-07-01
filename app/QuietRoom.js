@@ -6,7 +6,7 @@
 //  The gesture IS the meaning — you consciously call the quiet.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse } from 'react-native-svg';
@@ -59,6 +59,17 @@ export function QuietPull({ onOpen }) {
 export function QuietRoom({ onClose }) {
   const [arrival] = useState(() => ARRIVALS[Math.floor(Math.random() * ARRIVALS.length)]);
   const [lines, setLines] = useState([]); // {who:'you'|'z', text}
+  const [draft, setDraft] = useState('');
+  const say = () => {
+    const t = draft.trim();
+    if (!t) return;
+    setDraft('');
+    setLines((cur) => [...cur, { who: 'you', text: t }]);
+    // Z receives it quietly — a slow, gentle acknowledgement (scripted stand-in)
+    setTimeout(() => {
+      setLines((cur) => [...cur, { who: 'z', text: 'i heard that. it can just sit here with us for a while.' }]);
+    }, 1400);
+  };
 
   // the single pale presence — breathing very slowly, slower than anywhere else
   const breath = useSharedValue(0.7);
@@ -109,16 +120,25 @@ export function QuietRoom({ onClose }) {
           </Animated.View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Animated.Text style={[styles.arrival, arrivalStyle]}>{arrival}</Animated.Text>
           {lines.map((l, i) => (
             <Text key={i} style={[styles.line, l.who === 'you' ? styles.lineYou : styles.lineZ]}>{l.text}</Text>
           ))}
         </ScrollView>
 
-        {/* a bare input — no send button shouting, just a place to set words down */}
+        {/* a bare input — a real place to set words down, no send button shouting */}
         <View style={styles.inputRow}>
-          <Text style={styles.inputPh}>say whatever you need to…</Text>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            onSubmitEditing={say}
+            placeholder="say whatever you need to…"
+            placeholderTextColor="rgba(200,200,210,0.35)"
+            style={styles.input}
+            returnKeyType="done"
+            multiline
+          />
         </View>
       </SafeAreaView>
     </View>
@@ -145,6 +165,6 @@ const styles = StyleSheet.create({
   lineYou: { color: 'rgba(240,240,244,0.92)' },
   lineZ: { color: 'rgba(190,196,208,0.78)', fontFamily: FONTS.displayItalic },
 
-  inputRow: { paddingHorizontal: 30, paddingVertical: 18, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
-  inputPh: { fontFamily: FONTS.light, color: 'rgba(200,200,210,0.3)', fontSize: 15, textAlign: 'center' },
+  inputRow: { paddingHorizontal: 30, paddingVertical: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
+  input: { fontFamily: FONTS.light, color: 'rgba(235,235,240,0.9)', fontSize: 15, textAlign: 'center', maxHeight: 90, paddingVertical: 6 },
 });

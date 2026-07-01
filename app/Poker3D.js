@@ -28,6 +28,11 @@ export default function Poker3D({ game, opponent, onExit = () => {} }) {
   const onContextCreate = async (gl) => {
     try {
     const { drawingBufferWidth: w, drawingBufferHeight: h } = gl;
+    // three r163+ requires a WebGL2 context. expo-gl provides one, but three needs
+    // to recognize it. Tag the context so three's WebGL2 check passes.
+    if (typeof WebGL2RenderingContext !== 'undefined' && !(gl instanceof WebGL2RenderingContext)) {
+      try { Object.setPrototypeOf(gl, WebGL2RenderingContext.prototype); } catch (e) {}
+    }
     const renderer = new Renderer({ gl });
     renderer.setSize(w, h);
     renderer.setClearColor(0x0a0710, 1);

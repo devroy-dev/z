@@ -65,7 +65,7 @@ export default function You({ onBack = () => {} }) {
           {/* WHAT Z REMEMBERS — the heart */}
           <View style={styles.memHead}>
             <Text style={styles.memTitle}>what Z remembers</Text>
-            <Text style={styles.memSub}>everything here is yours to keep — or to make me forget.</Text>
+            <Text style={styles.memSub}>everything i've held onto, so we can pick up where we left off. you can't change it — but you can make me forget any of it, anytime.</Text>
           </View>
 
           {(facts.length > 0 || notes.length > 0) ? (

@@ -99,16 +99,16 @@ export default function Nav({ screens }) {
 
   return (
     <View style={styles.root}>
-      {/* quiet-room pull tab — sits BELOW the status bar (full-bleed safe) */}
-      <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, zIndex: 20 }}>
-        <QuietPull onOpen={() => setQuietOpen(true)} />
-      </View>
-
       <View style={{ flex: 1 }}>
         <Active />
       </View>
 
       <BottomNav active={active} onChange={setActive} />
+
+      {/* quiet-room pull tab — thin overlay at the very top, doesn't take layout space */}
+      <View pointerEvents="box-none" style={{ position: 'absolute', top: insets.top, left: 0, right: 0 }}>
+        <QuietPull onOpen={() => setQuietOpen(true)} />
+      </View>
 
       {/* the quiet room, when called — a curtain drawn over everything */}
       {quietOpen && <QuietRoom onClose={() => setQuietOpen(false)} />}
