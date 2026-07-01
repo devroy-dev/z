@@ -16,8 +16,7 @@ import Chat from './Chat';
 import Play from './Play';
 import Arena from './Arena';
 import GameTable from './GameTable';
-import Ludo3D from './Ludo3D';
-import Poker3D from './Poker3D';
+import SkiaLudo from './SkiaLudo';
 import Rooms from './Rooms';
 import RoomChat from './RoomChat';
 import Desk from './Desk';
@@ -42,8 +41,8 @@ function PlayWorld() {
   const [match, setMatch] = React.useState(null);
   if (mode === 'game' && match) {
     const gid = match.game?.id;
-    if (gid === 'ludo')  return <Ludo3D  game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
-    if (gid === 'poker') return <Poker3D game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    if (gid === 'ludo')  return <SkiaLudo game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    if (gid === 'poker') return <SkiaLudo game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
     return <GameTable game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
   }
   if (mode === 'arena') {
