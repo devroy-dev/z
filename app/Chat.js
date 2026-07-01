@@ -320,19 +320,23 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
 
   const scrollDown = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
 
-  const doSend = () => {
+  const doSend = async () => {
     const text = draft.trim();
     if (!text || sending) return;
-    if (!threadId) { return; } // thread still opening; ignore until ready
-    setDraft('');
     setSending(true);
+    // resolve the thread if it isn't ready yet (e.g. after a stale-token refresh)
+    // so the send never silently does nothing
+    let tid = threadId;
+    if (!tid) { tid = await openThread(PERSONA_KEY, THREAD_CFG.name); if (tid) setThreadId(tid); }
+    if (!tid) { setSending(false); return; }
+    setDraft('');
     const youMsg = { id: Date.now(), who: 'you', text };
     const zId = Date.now() + 1;
     setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true }]);
     scrollDown();
 
     streamChat({
-      threadId,
+      threadId: tid,
       message: text,
       persona: PERSONA_KEY,
       onToken: (acc) => {

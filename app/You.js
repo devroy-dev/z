@@ -38,7 +38,7 @@ function MemoryCard({ item, isFact, onForget }) {
   );
 }
 
-export default function You({ onBack = () => {} }) {
+export default function You({ onBack = () => {}, onLogout = () => {} }) {
   const [facts, setFacts] = useState(SEED_FACTS);
   const [notes, setNotes] = useState(SEED_NOTES);
   const forgetFact = (id) => setTimeout(() => setFacts((f) => f.filter((x) => x.id !== id)), 220);
@@ -83,7 +83,7 @@ export default function You({ onBack = () => {} }) {
           {/* settings, quiet at the bottom */}
           <Text style={[styles.sectionLabel, { marginTop: 28 }]}>settings</Text>
           {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
-            <Pressable key={s} style={styles.settingRow}>
+            <Pressable key={s} style={styles.settingRow} onPress={s === 'sign out' ? onLogout : undefined}>
               <Text style={[styles.settingText, s === 'sign out' && { color: '#E0A0A0' }]}>{s}</Text>
               <Text style={styles.settingChev}>›</Text>
             </Pressable>

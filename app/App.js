@@ -21,7 +21,7 @@ import RoomChat from './RoomChat';
 import Desk from './Desk';
 import You from './You';
 import Door from './Door';
-import { isLoggedIn, refreshSession } from './api';
+import { isLoggedIn, refreshSession, logout } from './api';
 import PublicRoom from './PublicRoom';
 import { C } from './theme';
 
@@ -49,9 +49,9 @@ function PlayWorld() {
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); }} />;
 }
 
-function DeskWorld() {
+function DeskWorld({ onLogout }) {
   const [openYou, setOpenYou] = React.useState(false);
-  if (openYou) return <You onBack={() => setOpenYou(false)} />;
+  if (openYou) return <You onBack={() => setOpenYou(false)} onLogout={onLogout} />;
   return <Desk onOpenYou={() => setOpenYou(true)} onRoute={() => {}} onOpenLetter={() => {}} />;
 }
 
@@ -89,6 +89,10 @@ export default function App() {
 
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
 
+  const doLogout = async () => { await logout(); setAuthed(false); };
+  // desk hosts the profile, so it carries the logout handler up to the auth gate
+  const screens = { ...SCREENS, desk: () => <DeskWorld onLogout={doLogout} /> };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -96,7 +100,7 @@ export default function App() {
         {authed === null ? (
           <View style={{ flex: 1, backgroundColor: C.void }} />
         ) : authed ? (
-          <Nav screens={SCREENS} />
+          <Nav screens={screens} />
         ) : (
           <Door onEnter={() => setAuthed(true)} />
         )}

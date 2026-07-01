@@ -196,12 +196,16 @@ export async function logout() {
 // ---- open (or create) the thread for a persona → returns the real thread id ----
 export async function openThread(personaKey, name) {
   await loadSession();
+  const call = () => fetch(`${API_BASE}/threads`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ personaKey, name: name || personaKey }),
+  });
   try {
-    const r = await fetch(`${API_BASE}/threads`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ personaKey, name: name || personaKey }),
-    });
+    let r = await call();
+    // stale token → refresh once and retry. Without this the thread never resolves
+    // and every send silently no-ops (the "dead send button" bug).
+    if (r.status === 401 && (await refreshSession())) r = await call();
     const j = await r.json().catch(() => ({}));
     const id = j.id || j.thread_id || null;
     if (id) return id;
@@ -214,11 +218,14 @@ export async function openThread(personaKey, name) {
 export async function streamChat({ threadId, message, image, persona, onToken, onRoutes, onDone, onError }) {
   await loadSession();
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
+    const doFetch = () => fetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ threadId, message, image, persona }),
     });
+    let res = await doFetch();
+    // stale token → refresh once and retry (else chat silently fails on expiry)
+    if (res.status === 401 && (await refreshSession())) res = await doFetch();
 
     if (!res.ok) {
       let msg = '(z went quiet — try again)';
