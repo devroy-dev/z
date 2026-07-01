@@ -442,26 +442,22 @@ app.post('/banter', async (req, res) => {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const staticPrefix = buildStaticPrefix(p.defaultName, null, [p.codex as any], null);
 
-    // The non-streaming create() intermittently hits "Premature close" on this host.
-    // Use the plain-string system form (like memory/overseer, which work) and retry
-    // a couple of times on transient connection drops before giving up.
-    const doCall = async () => {
-      const anthropic = new Anthropic({ maxRetries: 3 });
-      const msg = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 60,
-        system: staticPrefix,
-        messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
-      });
-      return msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
-    };
-
-    let line = '', lastErr: any = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try { line = await doCall(); if (line) break; }
-      catch (e: any) { lastErr = e; await new Promise(r => setTimeout(r, 300 * (attempt + 1))); }
+    // STREAM server-side (like /chat, which works) and collect into one line.
+    // The non-streaming create() hits "Premature close" on this host with a large
+    // system prompt; streaming keeps the connection alive and avoids it.
+    const anthropic = new Anthropic({ maxRetries: 2 });
+    const stream = anthropic.messages.stream({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 60,
+      system: staticPrefix,
+      messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
+    });
+    let line = '';
+    for await (const ev of stream) {
+      if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
+        line += ev.delta.text;
+      }
     }
-    if (!line && lastErr) throw lastErr;
-    res.json({ line });
+    res.json({ line: line.trim() });
   } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
 });
 
