@@ -72,6 +72,59 @@ export async function verifyOtp(phone, code) {
   }
 }
 
+// first-timers set a 4-digit PIN after OTP (uses the Bearer token just obtained)
+export async function setPin(pin) {
+  try {
+    const r = await fetch(`${API_BASE}/auth/pin/set`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ pin }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, error: j.error || 'could not save pin' };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: 'no connection. try again.' };
+  }
+}
+
+// returning user on a known device unlocks with PIN — no OTP
+export async function verifyPin(pin) {
+  let userId = null, rt = null;
+  try {
+    userId = await AsyncStorage.getItem('z_real_uid');
+    rt = await AsyncStorage.getItem('z_refresh');
+  } catch (e) {}
+  try {
+    const r = await fetch(`${API_BASE}/auth/pin/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, pin, refreshToken: rt }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j.needOtp) return { ok: false, needOtp: true };
+    if (!r.ok || !j.token) return { ok: false, error: j.error || 'wrong pin' };
+    _token = j.token;
+    try {
+      await AsyncStorage.setItem('z_token', j.token);
+      if (j.refreshToken) await AsyncStorage.setItem('z_refresh', j.refreshToken);
+      if (j.expiresIn) await AsyncStorage.setItem('z_exp', String(Date.now() + j.expiresIn * 1000));
+    } catch (e) {}
+    return { ok: true, hasName: !!j.hasName };
+  } catch (e) {
+    return { ok: false, error: 'no connection. try again.' };
+  }
+}
+
+// does this device remember an account (so we can show PIN unlock, not OTP)?
+export async function knownDevice() {
+  try {
+    const uid = await AsyncStorage.getItem('z_real_uid');
+    const rt = await AsyncStorage.getItem('z_refresh');
+    return !!(uid && rt);
+  } catch (e) { return false; }
+}
+
 export async function refreshSession() {
   let rt = null;
   try { rt = await AsyncStorage.getItem('z_refresh'); } catch (e) {}

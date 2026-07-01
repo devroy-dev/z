@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { C, FONTS } from './theme';
-import { sendOtp, verifyOtp, setMe } from './api';
+import { sendOtp, verifyOtp, setMe, setPin, verifyPin, knownDevice } from './api';
 
 function Ember() {
   const b = useSharedValue(0.6);
@@ -34,14 +34,20 @@ function Ember() {
 }
 
 export default function Door({ onEnter = () => {} }) {
-  const [phase, setPhase] = useState('phone'); // phone | otp
+  const [phase, setPhase] = useState('phone'); // phone | otp | setpin | pin
   const [cc, setCc] = useState('+91');
   const [num, setNum] = useState('');
   const [code, setCode] = useState('');
+  const [pinVal, setPinVal] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
 
   const phone = cc + num.replace(/[^0-9]/g, '');
+
+  // returning user on a known device? show the PIN unlock instead of phone+OTP
+  useEffect(() => {
+    (async () => { if (await knownDevice()) setPhase('pin'); })();
+  }, []);
 
   const doSend = async () => {
     if (num.replace(/[^0-9]/g, '').length < 6) { setNote('that number looks too short.'); return; }
@@ -59,10 +65,33 @@ export default function Door({ onEnter = () => {} }) {
     const r = await verifyOtp(phone, c);
     setBusy(false);
     if (!r.ok) { setNote(r.error); return; }
-    // set a soft default name if first-timer (can refine in profile later)
     if (!r.hasName) { try { await setMe('friend'); } catch (e) {} }
+    // first-timers set a PIN so next time is a quick unlock (no OTP)
+    if (!r.hasPin) { setNote(''); setPinVal(''); setPhase('setpin'); return; }
     onEnter();
   };
+
+  const doSetPin = async () => {
+    const p = pinVal.replace(/[^0-9]/g, '');
+    if (p.length !== 4) { setNote('4 digits.'); return; }
+    setBusy(true); setNote('saving…');
+    const r = await setPin(p);
+    setBusy(false);
+    if (!r.ok) { setNote(r.error); return; }
+    onEnter();
+  };
+
+  const doUnlock = async () => {
+    const p = pinVal.replace(/[^0-9]/g, '');
+    if (p.length !== 4) { setNote('4 digits.'); return; }
+    setBusy(true); setNote('checking…');
+    const r = await verifyPin(p);
+    setBusy(false);
+    if (r.needOtp) { setNote("let's verify with a code."); setPhase('phone'); return; }
+    if (!r.ok) { setNote(r.error); return; }
+    onEnter();
+  };
+
 
   return (
     <View style={styles.root}>
@@ -74,7 +103,7 @@ export default function Door({ onEnter = () => {} }) {
             <Text style={styles.mark}>callme<Text style={styles.z}>Z</Text></Text>
             <Text style={styles.tag}>Anonymously <Text style={styles.tagI}>Yours</Text></Text>
 
-            {phase === 'phone' ? (
+            {phase === 'phone' && (
               <View style={styles.form}>
                 <Text style={styles.prompt}>your number, and i'll send a code.</Text>
                 <View style={styles.phoneRow}>
@@ -91,7 +120,9 @@ export default function Door({ onEnter = () => {} }) {
                   </LinearGradient>
                 </Pressable>
               </View>
-            ) : (
+            )}
+
+            {phase === 'otp' && (
               <View style={styles.form}>
                 <Text style={styles.prompt}>sent to {phone}.</Text>
                 <TextInput
@@ -106,6 +137,41 @@ export default function Door({ onEnter = () => {} }) {
                 </Pressable>
                 <Pressable onPress={() => { setPhase('phone'); setNote(''); setCode(''); }}>
                   <Text style={styles.back}>‹ different number</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {phase === 'setpin' && (
+              <View style={styles.form}>
+                <Text style={styles.prompt}>set a 4-digit pin, so next time is quick.</Text>
+                <TextInput
+                  value={pinVal} onChangeText={setPinVal} style={[styles.input, styles.otp]}
+                  placeholder="• • • •" placeholderTextColor={C.faint}
+                  keyboardType="number-pad" onSubmitEditing={doSetPin} returnKeyType="go" autoFocus maxLength={4} secureTextEntry
+                />
+                <Pressable style={styles.cta} onPress={doSetPin} disabled={busy}>
+                  <LinearGradient colors={[C.ember, C.emberDeep]} start={{ x: 0.3, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaInner}>
+                    {busy ? <ActivityIndicator color="#3A1505" /> : <Text style={styles.ctaText}>set pin & enter</Text>}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            )}
+
+            {phase === 'pin' && (
+              <View style={styles.form}>
+                <Text style={styles.prompt}>welcome back. your pin.</Text>
+                <TextInput
+                  value={pinVal} onChangeText={setPinVal} style={[styles.input, styles.otp]}
+                  placeholder="• • • •" placeholderTextColor={C.faint}
+                  keyboardType="number-pad" onSubmitEditing={doUnlock} returnKeyType="go" autoFocus maxLength={4} secureTextEntry
+                />
+                <Pressable style={styles.cta} onPress={doUnlock} disabled={busy}>
+                  <LinearGradient colors={[C.ember, C.emberDeep]} start={{ x: 0.3, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaInner}>
+                    {busy ? <ActivityIndicator color="#3A1505" /> : <Text style={styles.ctaText}>unlock</Text>}
+                  </LinearGradient>
+                </Pressable>
+                <Pressable onPress={() => { setPhase('phone'); setNote(''); setPinVal(''); }}>
+                  <Text style={styles.back}>use a different number</Text>
                 </Pressable>
               </View>
             )}
