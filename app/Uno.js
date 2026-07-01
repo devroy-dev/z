@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing } from 'react-native-reanimated';
 import { C, FONTS } from './theme';
-import { loadSession, isLoggedIn, openThread, streamChat } from './api';
+import { loadSession, banter } from './api';
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -113,7 +113,6 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   const [okFace, setOkFace] = useState(true);
   const [banter, setBanter] = useState('');
   const [engineReady, setEngineReady] = useState(false);
-  const threadRef = useRef(null);
   const feedRef = useRef(null);
 
   const pushFeed = (l) => { setFeed(f => [...f, l]); setTimeout(() => feedRef.current?.scrollToEnd({ animated: true }), 60); };
@@ -121,33 +120,17 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   useEffect(() => {
     (async () => {
       await loadSession();
-      // diagnostic: surface WHY the thread fails instead of silent "offline"
-      try {
-        const loggedIn = await isLoggedIn();
-        if (!loggedIn) { pushFeed({ who: 'sys', text: `(not logged in — banter needs you signed in)` }); setEngineReady(false); return; }
-        const id = await openThread(opp.key, `uno with ${opp.name}`);
-        threadRef.current = id;
-        setEngineReady(!!id);
-        if (!id) pushFeed({ who: 'sys', text: `(thread didn't open for ${opp.key} — banter offline)` });
-        else pushFeed({ who: 'sys', text: `(${opp.name} is here — talk to them)` });
-      } catch (e) {
-        pushFeed({ who: 'sys', text: `(banter error: ${String(e).slice(0, 40)})` });
-        setEngineReady(false);
-      }
+      // no thread needed — /banter is stateless. just confirm we can reach it.
+      setEngineReady(true);
     })();
     dealNew();
   }, []);
 
-  const personaReact = useCallback((situation) => {
-    if (!threadRef.current) return;
+  const personaReact = useCallback(async (situation) => {
     setBanter('');
-    const hidden = `[We are playing UNO together, casually. ${situation} Reply with ONE short spoken line, in your voice, like a real opponent at the table. No narration, no asterisks.]`;
-    streamChat({
-      threadId: threadRef.current, persona: opp.key, message: hidden,
-      onToken: (acc) => setBanter(acc),
-      onDone: (final) => { const t = (final || '').trim(); if (t) pushFeed({ who: 'opp', text: `${opp.name}: ${t}` }); setBanter(''); },
-      onError: () => setBanter(''),
-    });
+    const prompt = `[We're playing UNO together, casually. ${situation} Reply with ONE short spoken line, in your voice, like a real opponent at the table. No narration.]`;
+    const line = await banter(opp.key, prompt);
+    if (line) pushFeed({ who: 'opp', text: `${opp.name}: ${line}` });
   }, [opp.key, opp.name]);
 
   const dealNew = () => {
@@ -255,18 +238,11 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
     return () => clearTimeout(t);
   }, [turnNonce, phase]);
 
-  const sendChat = () => {
+  const sendChat = async () => {
     const t = draft.trim(); if (!t) return;
     setDraft(''); pushFeed({ who: 'you', text: t });
-    if (!threadRef.current) { pushFeed({ who: 'sys', text: `(${opp.name} is offline — no reply)` }); return; }
-    setBanter('');
-    streamChat({
-      threadId: threadRef.current, persona: opp.key,
-      message: `[During our UNO game, I say to you:] ${t}`,
-      onToken: (acc) => setBanter(acc),
-      onDone: (final) => { const r = (final || '').trim(); if (r) pushFeed({ who: 'opp', text: `${opp.name}: ${r}` }); setBanter(''); },
-      onError: () => setBanter(''),
-    });
+    const line = await banter(opp.key, `[During our UNO game, I say to you:] ${t}`);
+    if (line) pushFeed({ who: 'opp', text: `${opp.name}: ${line}` });
   };
 
   const showColor = discard ? (discard.c === 'W' ? activeColor : discard.c) : 'R';

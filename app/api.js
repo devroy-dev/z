@@ -32,6 +32,23 @@ function headers() {
   if (_token) h['Authorization'] = 'Bearer ' + _token;
   return h;
 }
+export function rawHeaders() { return headers(); }
+
+// ---- in-game persona banter: the RIGHT endpoint (no thread needed) ----
+// POST /banter { persona, prompt } → { line }. Purpose-built for game reactions.
+export async function banter(persona, prompt) {
+  await loadSession();
+  try {
+    const r = await fetch(`${API_BASE}/banter`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ persona, prompt }),
+    });
+    if (!r.ok) return null;
+    const j = await r.json().catch(() => ({}));
+    return (j.line || '').trim() || null;
+  } catch (e) { return null; }
+}
 
 // ---- AUTH: phone → OTP → token (the real flow, from the PWA) ----
 export async function sendOtp(phone) {
