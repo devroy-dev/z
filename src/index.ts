@@ -452,13 +452,15 @@ app.post('/banter', async (req, res) => {
     const memoryBlock = await readMemoryBlock(user.id);
     const system: any[] = [{ type: 'text', text: staticPrefix }];
     if (memoryBlock && memoryBlock.trim()) system.push({ type: 'text', text: memoryBlock });
-    // use the shared module-level client (created once at boot) — NOT a per-request client.
-    const msg = await anthropicShared.messages.create({
+    // mirror the WORKING chat call exactly: stream + finalMessage (non-streaming create
+    // dies with "Premature close" on this host; the streaming read survives).
+    const stream = anthropicShared.messages.stream({
       model: 'claude-haiku-4-5-20251001', max_tokens: 60,
       system,
       messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
     });
-    const line = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    const final = await stream.finalMessage();
+    const line = final.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
     res.json({ line });
   } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
 });
