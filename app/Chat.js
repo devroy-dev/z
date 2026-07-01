@@ -18,6 +18,7 @@ import Animated, {
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
+import RichText from './RichText';
 import { loadSession, openThread, streamChat } from './api';
 
 // ── locked palette ───────────────────────────────────────────────────────
@@ -245,9 +246,17 @@ function Bubble({ m }) {
           </LinearGradient>
         ) : (
           <BlurView intensity={20} tint="dark" style={[styles.bubble, styles.bubbleThem]}>
-            <Text style={[styles.bubbleText, m.moment && styles.moment]}>
-              {m.typing && !m.text ? '…' : m.text}
-            </Text>
+            {m.typing && !m.text ? (
+              <Text style={styles.bubbleText}>…</Text>
+            ) : m.moment ? (
+              <Text style={[styles.bubbleText, styles.moment]}>{m.text}</Text>
+            ) : m.typing ? (
+              // still streaming — plain text (fast; markdown renders once it settles)
+              <Text style={styles.bubbleText}>{m.text}</Text>
+            ) : (
+              // settled reply — render the engine's markdown, Lamplight-styled
+              <RichText text={m.text} />
+            )}
           </BlurView>
         )}
         {m.time ? (
