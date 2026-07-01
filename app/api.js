@@ -323,6 +323,24 @@ export async function renameThread(threadId, name) {
   try { return await authedJSON('PATCH', `/threads/${threadId}`, { name }); } catch (e) { return null; }
 }
 
+// like openThread, but keeps the thread's saved identity (custom name / avatar)
+// instead of discarding it — so a chat can show the name YOU gave, not the default.
+export async function openThreadInfo(personaKey, name) {
+  await loadSession();
+  const call = () => fetch(`${API_BASE}/threads`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ personaKey, name: name || personaKey }),
+  });
+  try {
+    let r = await call();
+    if (r.status === 401 && (await refreshSession())) r = await call();
+    const j = await r.json().catch(() => ({}));
+    const id = j.id || j.thread_id || null;
+    if (id) return { id, name: j.companion_name || null, avatar: j.avatar_url || null };
+  } catch (e) {}
+  return null;
+}
+
 // ── tasks: the concierge's list (server also adds/completes these from [[TASK_*]] tags) ──
 export async function listTasks() {
   try { const j = await authedJSON('GET', '/tasks'); return j.tasks || []; } catch (e) { return []; }

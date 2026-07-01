@@ -16,7 +16,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg'
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
-import { loadSession, openThread, streamChat, clearThread } from './api';
+import { loadSession, openThreadInfo, streamChat, clearThread, renameThread } from './api';
 
 // ── NIGHTFALL palette ──
 const N = {
@@ -91,6 +91,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const [draft, setDraft] = useState('');
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
+  // the name YOU gave this companion (defaults to the persona name until renamed)
+  const [cname, setCname] = useState(P.name);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(P.name);
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
@@ -101,8 +105,22 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const atBottomRef = useRef(true);
 
   useEffect(() => {
-    loadSession().then(() => openThread(KEY, P.name)).then((id) => id && setThreadId(id));
+    setCname(P.name); setNameDraft(P.name); setEditingName(false);
+    loadSession().then(() => openThreadInfo(KEY, P.name)).then((info) => {
+      if (!info) return;
+      setThreadId(info.id);
+      if (info.name) { setCname(info.name); setNameDraft(info.name); }
+    });
   }, [KEY]);
+
+  // commit a rename: persist to the thread, update what's shown. empty or unchanged = no-op.
+  const commitName = async () => {
+    const nn = nameDraft.trim();
+    setEditingName(false);
+    if (!nn || nn === cname) { setNameDraft(cname); return; }
+    setCname(nn);
+    if (threadId) await renameThread(threadId, nn);
+  };
 
   const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
 
@@ -155,7 +173,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
     sendingRef.current = true;
     setSending(true);
     let tid = threadId;
-    if (!tid) { tid = await openThread(KEY, P.name); if (tid) setThreadId(tid); }
+    if (!tid) { const info = await openThreadInfo(KEY, P.name); tid = info?.id || null; if (tid) setThreadId(tid); }
     if (!tid) { sendingRef.current = false; setSending(false); return; }
     setDraft('');
     const youMsg = { id: Date.now(), who: 'you', text };
@@ -186,7 +204,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   };
 
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: N.night }} />;
-  if (inCall) return <VideoCall persona={{ key: KEY, name: P.name }} onEnd={() => setInCall(false)} />;
+  if (inCall) return <VideoCall persona={{ key: KEY, name: cname }} onEnd={() => setInCall(false)} />;
 
   const empty = messages.length === 0;
 
@@ -204,9 +222,26 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
             <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
             <View style={styles.topWho}>
               <MiniDP uri={dp} rgb={rgb} />
-              <View style={{ marginLeft: 11 }}>
-                <Text style={styles.topName}>{P.name}</Text>
-                <Text style={styles.topStatus}>tap to rename</Text>
+              <View style={{ marginLeft: 11, flex: 1 }}>
+                {editingName ? (
+                  <TextInput
+                    value={nameDraft}
+                    onChangeText={setNameDraft}
+                    onSubmitEditing={commitName}
+                    onBlur={commitName}
+                    autoFocus
+                    returnKeyType="done"
+                    placeholder={P.name}
+                    placeholderTextColor={N.moonFaint}
+                    style={styles.nameEdit}
+                    maxLength={40}
+                  />
+                ) : (
+                  <Pressable hitSlop={6} onPress={() => { setNameDraft(cname); setEditingName(true); }}>
+                    <Text style={styles.topName} numberOfLines={1}>{cname}</Text>
+                    <Text style={styles.topStatus}>tap to rename</Text>
+                  </Pressable>
+                )}
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -240,7 +275,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
                 <View style={[styles.epFace, { borderColor: `rgba(${rgb},0.5)`, shadowColor: `rgb(${rgb})` }]}>
                   <Image source={{ uri: dp }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
                 </View>
-                <Text style={styles.epName}>{P.name}</Text>
+                <Text style={styles.epName}>{cname}</Text>
                 <Text style={styles.epLine}>{P.desc}</Text>
               </View>
             ) : (
@@ -262,7 +297,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
-                placeholder={`message ${P.name}…`}
+                placeholder={`message ${cname}…`}
                 placeholderTextColor={N.moonFaint}
                 style={[styles.input, { maxHeight: 120 }]}
                 multiline
@@ -294,6 +329,7 @@ const styles = StyleSheet.create({
   topWho: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   miniWrap: { overflow: 'hidden', borderWidth: 1.5 },
   topName: { fontFamily: 'Fraunces_400Regular', color: N.moon, fontSize: 18, lineHeight: 21 },
+  nameEdit: { fontFamily: 'Fraunces_400Regular', color: N.moon, fontSize: 18, paddingVertical: 2, borderBottomWidth: 1, borderBottomColor: N.candle, minWidth: 120 },
   topStatus: { fontFamily: 'Figtree_400Regular', color: N.moonFaint, fontSize: 10.5, letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 1 },
   callBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.02)' },
 
