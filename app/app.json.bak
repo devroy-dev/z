@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
@@ -16,8 +16,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.devroy.dr3.app",
-      "edgeToEdgeEnabled": true
+      "package": "com.devroy.dr3.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -27,11 +26,6 @@
         "projectId": "bd44ffeb-cc65-415f-969e-ffdf8dfff068"
       }
     },
-    "owner": "devroy.dr3",
-    "androidStatusBar": {
-      "translucent": true,
-      "backgroundColor": "#00000000",
-      "barStyle": "light-content"
-    }
+    "owner": "devroy.dr3"
   }
 }

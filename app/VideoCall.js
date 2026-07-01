@@ -4,9 +4,16 @@
 //  shown. Intimate/cinematic/dark — never clinical. Captions flow (voice via
 //  Sarvam, wired later). Minimal fading controls.
 //
-//  ⚠️ ANIMATE_CUSTOM_FACES is a DEV-ONLY test flag. Curated faces may animate;
-//  arbitrary USER UPLOADS must NOT be animated in any store/public build
-//  (deepfake + app-store policy). Keep false for any build that leaves device.
+//  ⚠️ TALKING-HEAD POLICY (see bible §16/§16b):
+//    ✅ curated personas (ours) — animate.
+//    ✅ historical figures (public-domain, long-dead: Napoleon, Gandhi…) — animate.
+//       This is the safe lane to build/showcase the talking-head properly.
+//    ⛔ real LIVING people (user uploads of an ex, politician, celeb, anyone
+//       identifiable & alive) — HARD BLOCK before launch. = deepfake; store-banned.
+//       Living-person custom photos fall back to the breathing-PRESENCE call.
+//    ANIMATE_CUSTOM_FACES below is a PRIVATE on-device test flag only; must be
+//    false in any build that leaves the device. Replace with the tiered check
+//    (curated+historical animate; living-person blocked) before launch.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
@@ -17,7 +24,10 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg'
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing } from 'react-native-reanimated';
 import { C, FONTS } from './theme';
 
-// ⚠️ DEV ONLY — must be false for any store/public build. See bible §16.
+// ⚠️ DEV ONLY — private on-device testing. MUST be false for any build that
+// leaves the device. Before launch, replace with the tiered policy (curated +
+// historical figures animate; identifiable living people HARD-BLOCKED -> presence
+// fallback). See bible §16b.
 const ANIMATE_CUSTOM_FACES = true;
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
@@ -119,7 +129,7 @@ export default function VideoCall({ persona, onEnd = () => {} }) {
 
           {/* dev marker: when a custom face is animated, surface it (so we never forget) */}
           {isCustom && ANIMATE_CUSTOM_FACES && (
-            <View style={styles.devTag}><Text style={styles.devTagText}>dev: animating custom face</Text></View>
+            <View style={styles.devTag}><Text style={styles.devTagText}>dev only · block living people before launch</Text></View>
           )}
         </View>
 

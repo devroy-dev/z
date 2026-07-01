@@ -11,8 +11,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse } from 'react-native-svg';
 import Animated, {
-  useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing,
+  useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing, runOnJS,
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { C, FONTS } from './theme';
 
 const ARRIVALS = [
@@ -25,15 +26,32 @@ const ARRIVALS = [
 // ── the pull tab at the top of the app: a faint seam you draw down ──
 export function QuietPull({ onOpen }) {
   const g = useSharedValue(0.3);
+  const drag = useSharedValue(0);
   useEffect(() => {
     g.value = withRepeat(withTiming(0.6, { duration: 3800, easing: Easing.inOut(Easing.ease) }), -1, true);
   }, []);
-  const st = useAnimatedStyle(() => ({ opacity: g.value }));
+
+  // a real PULL-DOWN: drag the handle down past a threshold to call the quiet.
+  const pan = Gesture.Pan()
+    .onUpdate((e) => { drag.value = Math.max(0, Math.min(e.translationY, 140)); })
+    .onEnd((e) => {
+      if (e.translationY > 70) { runOnJS(onOpen)(); }
+      drag.value = withTiming(0, { duration: 220 });
+    });
+
+  const handleSt = useAnimatedStyle(() => ({
+    opacity: g.value + drag.value / 200,
+    transform: [{ translateY: drag.value * 0.5 }, { scaleX: 1 + drag.value / 300 }],
+  }));
+  const hintSt = useAnimatedStyle(() => ({ opacity: Math.min(0.9, g.value + drag.value / 100), transform: [{ translateY: drag.value * 0.4 }] }));
+
   return (
-    <Pressable onPress={onOpen} style={styles.pull} hitSlop={14}>
-      <Animated.View style={[styles.pullHandle, st]} />
-      <Animated.Text style={[styles.pullHint, st]}>pull into the quiet</Animated.Text>
-    </Pressable>
+    <GestureDetector gesture={pan}>
+      <Animated.View style={styles.pull}>
+        <Animated.View style={[styles.pullHandle, handleSt]} />
+        <Animated.Text style={[styles.pullHint, hintSt]}>pull down into the quiet</Animated.Text>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -109,7 +127,7 @@ export function QuietRoom({ onClose }) {
 
 const styles = StyleSheet.create({
   // pull tab
-  pull: { alignItems: 'center', paddingTop: 6, paddingBottom: 2 },
+  pull: { alignItems: 'center', paddingTop: 8, paddingBottom: 10 },
   pullHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: '#8A8FA0' },
   pullHint: { fontFamily: FONTS.displayItalic, color: '#6A7080', fontSize: 11, marginTop: 4, letterSpacing: 0.4 },
 

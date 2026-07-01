@@ -191,7 +191,7 @@ export default function Roster({ onOpen = () => {} }) {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.rootBg}>
-        <StatusBar barStyle="light-content" />
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
         <LinearGradient colors={['#150C1C', '#0E0912', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={styles.header}>

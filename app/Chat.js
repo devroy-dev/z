@@ -290,7 +290,7 @@ export default function Chat({ onBack = () => {} }) {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.root}>
-        <StatusBar barStyle="light-content" />
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
         <Atmosphere />
         <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
           <TopBar onCall={() => setInCall(true)} onBack={onBack} />

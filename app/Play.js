@@ -53,7 +53,7 @@ export default function Play({ onEnter = () => {} }) {
         <View style={styles.header}>
           <Text style={styles.kicker}>together, at play</Text>
           <Text style={styles.title}>the play</Text>
-          <Text style={styles.intro}>two ways in. compete across a board, or step into a scene and find out how you'd really handle it.</Text>
+          <Text style={styles.intro}>two ways in. compete across a board, or step into a scene and live out the fantasy.</Text>
         </View>
 
         <View style={styles.doors}>
@@ -69,8 +69,8 @@ export default function Play({ onEnter = () => {} }) {
             }
           />
           <Door
-            tone="#C99BE8" kicker="rehearse" title="Stage" delay={600}
-            line="a courtroom, a geopolitical standoff, a whodunnit, today's headlines — step in and find out how you'd really handle it."
+            tone="#C99BE8" kicker="live it out" title="Stage" delay={600}
+            line="a courtroom, a geopolitical standoff, a whodunnit, today's headlines — step in and live it out."
             onPress={() => onEnter('stage')}
             glyph={
               <Svg width="34" height="34" viewBox="0 0 24 24">

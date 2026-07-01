@@ -5,6 +5,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'react-native';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
@@ -13,21 +14,47 @@ import Nav, { WorldStub } from './Nav';
 import Roster from './Roster';
 import Chat from './Chat';
 import Play from './Play';
+import Arena from './Arena';
+import GameTable from './GameTable';
+import Ludo3D from './Ludo3D';
+import Poker3D from './Poker3D';
 import Rooms from './Rooms';
 import RoomChat from './RoomChat';
+import Desk from './Desk';
+import You from './You';
 import PublicRoom from './PublicRoom';
 import { C } from './theme';
 
 // the built worlds, by tab id. (desk/rooms/arena/you are stubs for now.)
 const SCREENS = {
   gathering: () => <GatheringWorld />,
-  desk:  () => <WorldStub kicker="the lobby" title="Front Desk" line="your concierge — reads your mood, walks you in. coming alive next." />,
+  desk:  () => <DeskWorld />,
   rooms: () => <RoomsWorld />,
-  play:  () => <Play onEnter={() => {}} />,
+  play:  () => <PlayWorld />,
   arena: () => <WorldStub kicker="compete" title="Arena" line="games with friends — and always one AI. coming alive next." />,
   stage: () => <WorldStub kicker="rehearse" title="Stage" line="step into the scene. coming alive next." />,
-  you:   () => <WorldStub kicker="your space" title="You" line="your name, your people, your settings. coming alive next." />,
 };
+
+function PlayWorld() {
+  const [mode, setMode] = React.useState('choose'); // choose | arena | game
+  const [match, setMatch] = React.useState(null);
+  if (mode === 'game' && match) {
+    const gid = match.game?.id;
+    if (gid === 'ludo')  return <Ludo3D  game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    if (gid === 'poker') return <Poker3D game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    return <GameTable game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+  }
+  if (mode === 'arena') {
+    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp) => { setMatch({ game, opp }); setMode('game'); }} />;
+  }
+  return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); }} />;
+}
+
+function DeskWorld() {
+  const [openYou, setOpenYou] = React.useState(false);
+  if (openYou) return <You onBack={() => setOpenYou(false)} />;
+  return <Desk onOpenYou={() => setOpenYou(true)} onRoute={() => {}} onOpenLetter={() => {}} />;
+}
 
 function GatheringWorld() {
   const [openChat, setOpenChat] = React.useState(false);
@@ -54,9 +81,11 @@ export default function App() {
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="light-content" />
-      <Nav screens={SCREENS} />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <Nav screens={SCREENS} />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

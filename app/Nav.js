@@ -17,7 +17,6 @@ const TABS = [
   { id: 'gathering', label: 'Gathering' },
   { id: 'rooms',     label: 'Rooms' },
   { id: 'play',      label: 'Play' },
-  { id: 'you',       label: 'You' },
 ];
 
 // ── minimal line icons (premium, not emoji) ──
@@ -27,17 +26,27 @@ function Icon({ id, active }) {
   const common = { stroke: s, strokeWidth: w, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
   return (
     <Svg width="24" height="24" viewBox="0 0 24 24">
-      {id === 'desk' && <Path d="M4 11l8-6 8 6M6 10v9h12v-9" {...common} />}
+      {/* Desk = concierge BELL (someone's here to route you) */}
+      {id === 'desk' && <>
+        <Path d="M4 17h16M12 6a6 6 0 016 6v5H6v-5a6 6 0 016-6z" {...common} />
+        <Path d="M12 6V4M11 4h2" {...common} />
+      </>}
+      {/* Gathering = a small constellation of people (a group) */}
       {id === 'gathering' && <>
-        <Circle cx="8" cy="9" r="3" {...common} /><Circle cx="16.5" cy="10.5" r="2.3" {...common} />
-        <Path d="M3 19c0-2.8 2.2-5 5-5s5 2.2 5 5M13.5 19c.2-2 1.8-3.6 3.8-3.6" {...common} />
+        <Circle cx="7" cy="8" r="2.4" {...common} /><Circle cx="16.5" cy="7" r="2.4" {...common} /><Circle cx="12" cy="15" r="2.6" {...common} />
       </>}
+      {/* Rooms = overlapping speech bubbles (a conversation together) */}
       {id === 'rooms' && <>
-        <Circle cx="9" cy="10" r="2.2" {...common} /><Circle cx="15" cy="10" r="2.2" {...common} />
-        <Path d="M5 18c0-2.2 1.8-4 4-4M15 14c2.2 0 4 1.8 4 4M9.5 17h5" {...common} />
+        <Path d="M3 8a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8l-3 2.5V14H5a2 2 0 01-2-2z" {...common} />
+        <Path d="M16 9h3a2 2 0 012 2v3a2 2 0 01-2 2v2l-2.5-2H14" {...common} />
       </>}
-      {id === 'play' && <Path d="M12 3l2.5 5 5.5.8-4 3.9.95 5.5L12 16.5 7.1 18.1 8 12.6l-4-3.9 5.5-.8z" {...common} />}
-      {id === 'you' && <><Circle cx="12" cy="8" r="3.4" {...common} /><Path d="M5.5 19c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" {...common} /></>}
+      {/* Play = a game controller (unmistakably games) */}
+      {id === 'play' && <>
+        <Path d="M7 8h10a4 4 0 014 4v1a3 3 0 01-5.2 2H8.2A3 3 0 013 13v-1a4 4 0 014-4z" {...common} />
+        <Path d="M7.5 11v2M6.5 12h2M16 11.5h.01M18 13h.01" {...common} />
+      </>}
+      {/* You = single head + shoulders */}
+      {id === 'you' && <><Circle cx="12" cy="8" r="3.2" {...common} /><Path d="M6 19c0-3.3 2.7-6 6-6s6 2.7 6 6" {...common} /></>}
     </Svg>
   );
 }
