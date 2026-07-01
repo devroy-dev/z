@@ -18,7 +18,7 @@ import Animated, {
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
-import { ensureIdentity, openThread, streamChat } from './api';
+import { loadSession, openThread, streamChat } from './api';
 
 // ── locked palette ───────────────────────────────────────────────────────
 const C = {
@@ -65,13 +65,14 @@ const PERSONAS = {
 };
 const faceFor = (key) => `https://callmez.app/faces/${key}.jpg`;
 
-// ── the configured thread: which persona + the user's chosen name + DP ──
-// (the user may rename to e.g. "Kabir"; the description below stays fixed)
-const PERSONA_KEY = 'the_brother';
-const THREAD_CFG = {
-  name: 'Kabir',                          // user's chosen name (defaults to PERSONAS[key].name)
-  dp: faceFor(PERSONA_KEY),               // user's chosen DP (defaults to the persona face)
-  desc: PERSONAS[PERSONA_KEY].desc,       // the FIXED character description
+// persona is chosen at runtime (passed in from the roster tap). These module-level
+// values are set when Chat mounts, so the sub-components below can read them.
+const DEFAULT_KEY = 'the_brother';
+let PERSONA_KEY = DEFAULT_KEY;
+let THREAD_CFG = {
+  name: PERSONAS[DEFAULT_KEY].name,
+  dp: faceFor(DEFAULT_KEY),
+  desc: PERSONAS[DEFAULT_KEY].desc,
 };
 
 const THREAD = [
@@ -283,7 +284,14 @@ function Composer() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-export default function Chat({ onBack = () => {} }) {
+export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
+  // set the module-level config from the chosen persona (so sub-components read it)
+  PERSONA_KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
+  THREAD_CFG = {
+    name: PERSONAS[PERSONA_KEY].name,
+    dp: faceFor(PERSONA_KEY),
+    desc: PERSONAS[PERSONA_KEY].desc,
+  };
   const [fontsLoaded, fontError] = useFonts({
     Fraunces_400Regular, Fraunces_400Regular_Italic,
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
@@ -293,12 +301,12 @@ export default function Chat({ onBack = () => {} }) {
   // ── live message state (starts empty; the engine drives it) ──
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
-  const [threadId, setThreadId] = useState(PERSONA_KEY);
+  const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
-    ensureIdentity().then(() => openThread(PERSONA_KEY)).then((id) => id && setThreadId(id));
+    loadSession().then(() => openThread(PERSONA_KEY, THREAD_CFG.name)).then((id) => id && setThreadId(id));
   }, []);
 
   const scrollDown = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
@@ -306,6 +314,7 @@ export default function Chat({ onBack = () => {} }) {
   const doSend = () => {
     const text = draft.trim();
     if (!text || sending) return;
+    if (!threadId) { return; } // thread still opening; ignore until ready
     setDraft('');
     setSending(true);
     const youMsg = { id: Date.now(), who: 'you', text };

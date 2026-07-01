@@ -9,48 +9,134 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const API_BASE = 'https://z-production-c79a.up.railway.app';
 
-// ---- identity: token if logged in, else an anon uid (auto-created) ----
+// ---- identity: real token from phone auth (the live engine requires this) ----
 let _uid = null;
 let _token = null;
 
-export async function ensureIdentity() {
-  if (_token || _uid) return;
+export async function loadSession() {
   try {
     _token = await AsyncStorage.getItem('z_token');
-    _uid = await AsyncStorage.getItem('z_uid');
+    _uid = await AsyncStorage.getItem('z_real_uid');
   } catch (e) {}
-  if (!_token && !_uid) {
-    _uid = 'anon_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    try { await AsyncStorage.setItem('z_uid', _uid); } catch (e) {}
-  }
+  return { token: _token, userId: _uid };
+}
+
+export async function isLoggedIn() {
+  if (_token) return true;
+  try { _token = await AsyncStorage.getItem('z_token'); } catch (e) {}
+  return !!_token;
 }
 
 function headers() {
   const h = { 'Content-Type': 'application/json' };
   if (_token) h['Authorization'] = 'Bearer ' + _token;
-  else if (_uid) h['x-z-user'] = _uid;
   return h;
 }
 
-// ---- open (or fetch) the thread for a persona ----
-export async function openThread(personaKey) {
-  await ensureIdentity();
+// ---- AUTH: phone → OTP → token (the real flow, from the PWA) ----
+export async function sendOtp(phone) {
   try {
-    const r = await fetch(`${API_BASE}/threads`, { headers: headers() });
-    if (r.ok) {
-      const list = await r.json();
-      const existing = Array.isArray(list) ? list.find((t) => t.persona === personaKey || t.key === personaKey) : null;
-      if (existing && existing.id) return existing.id;
+    const r = await fetch(`${API_BASE}/auth/otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, error: j.error || "couldn't send the code. try again." };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: 'no connection. try again.' };
+  }
+}
+
+export async function verifyOtp(phone, code) {
+  try {
+    const r = await fetch(`${API_BASE}/auth/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.token) return { ok: false, error: j.error || "that code didn't work." };
+    _token = j.token;
+    _uid = j.userId || null;
+    try {
+      await AsyncStorage.setItem('z_token', j.token);
+      if (j.refreshToken) await AsyncStorage.setItem('z_refresh', j.refreshToken);
+      if (j.expiresIn) await AsyncStorage.setItem('z_exp', String(Date.now() + j.expiresIn * 1000));
+      if (j.userId) await AsyncStorage.setItem('z_real_uid', j.userId);
+    } catch (e) {}
+    return { ok: true, hasName: !!j.hasName, hasPin: !!j.hasPin };
+  } catch (e) {
+    return { ok: false, error: 'no connection. try again.' };
+  }
+}
+
+export async function refreshSession() {
+  let rt = null;
+  try { rt = await AsyncStorage.getItem('z_refresh'); } catch (e) {}
+  if (!rt) return false;
+  try {
+    const r = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j.token) {
+      _token = j.token;
+      try {
+        await AsyncStorage.setItem('z_token', j.token);
+        if (j.refreshToken) await AsyncStorage.setItem('z_refresh', j.refreshToken);
+        if (j.expiresIn) await AsyncStorage.setItem('z_exp', String(Date.now() + j.expiresIn * 1000));
+      } catch (e) {}
+      return true;
     }
   } catch (e) {}
-  // fall back: many backends create-on-first-message; return the persona key as a soft id
-  return personaKey;
+  return false;
+}
+
+// set the profile name (server wants it, esp. for rooms)
+export async function setMe(displayName) {
+  try {
+    await fetch(`${API_BASE}/me`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ displayName, region: 'IN', sex: 'na' }),
+    });
+  } catch (e) {}
+}
+
+export async function logout() {
+  _token = null; _uid = null;
+  try {
+    await AsyncStorage.removeItem('z_token');
+    await AsyncStorage.removeItem('z_refresh');
+    await AsyncStorage.removeItem('z_exp');
+    await AsyncStorage.removeItem('z_real_uid');
+  } catch (e) {}
+}
+
+// ---- open (or create) the thread for a persona → returns the real thread id ----
+export async function openThread(personaKey, name) {
+  await loadSession();
+  try {
+    const r = await fetch(`${API_BASE}/threads`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ personaKey, name: name || personaKey }),
+    });
+    const j = await r.json().catch(() => ({}));
+    const id = j.id || j.thread_id || null;
+    if (id) return id;
+  } catch (e) {}
+  return null; // no thread → chat will know not to send
 }
 
 // ---- the main event: stream a chat reply ----
 // onToken(text) fires per streamed token; onRoutes(arr), onDone(), onError(msg) optional.
 export async function streamChat({ threadId, message, image, persona, onToken, onRoutes, onDone, onError }) {
-  await ensureIdentity();
+  await loadSession();
   try {
     const res = await fetch(`${API_BASE}/chat`, {
       method: 'POST',

@@ -22,6 +22,8 @@ import Rooms from './Rooms';
 import RoomChat from './RoomChat';
 import Desk from './Desk';
 import You from './You';
+import Door from './Door';
+import { isLoggedIn, refreshSession } from './api';
 import PublicRoom from './PublicRoom';
 import { C } from './theme';
 
@@ -57,9 +59,9 @@ function DeskWorld() {
 }
 
 function GatheringWorld() {
-  const [openChat, setOpenChat] = React.useState(false);
-  if (openChat) return <Chat onBack={() => setOpenChat(false)} />;
-  return <Roster onOpen={() => setOpenChat(true)} />;
+  const [openChat, setOpenChat] = React.useState(null); // persona key or null
+  if (openChat) return <Chat personaKey={openChat} onBack={() => setOpenChat(null)} />;
+  return <Roster onOpen={(pkey) => setOpenChat(pkey)} />;
 }
 
 function RoomsWorld() {
@@ -78,13 +80,29 @@ export default function App() {
     Fraunces_400Regular, Fraunces_400Regular_Italic,
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
   });
+  const [authed, setAuthed] = React.useState(null); // null=checking, false=door, true=in
+  React.useEffect(() => {
+    (async () => {
+      if (await isLoggedIn()) { setAuthed(true); return; }
+      // try a silent refresh before showing the door
+      if (await refreshSession()) { setAuthed(true); return; }
+      setAuthed(false);
+    })();
+  }, []);
+
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-        <Nav screens={SCREENS} />
+        {authed === null ? (
+          <View style={{ flex: 1, backgroundColor: C.void }} />
+        ) : authed ? (
+          <Nav screens={SCREENS} />
+        ) : (
+          <Door onEnter={() => setAuthed(true)} />
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
