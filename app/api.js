@@ -38,17 +38,21 @@ export function rawHeaders() { return headers(); }
 // POST /banter { persona, prompt } → { line }. Purpose-built for game reactions.
 export async function banter(persona, prompt) {
   await loadSession();
+  const call = async () => fetch(`${API_BASE}/banter`, {
+    method: 'POST', headers: headers(), body: JSON.stringify({ persona, prompt }),
+  });
   try {
-    const r = await fetch(`${API_BASE}/banter`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ persona, prompt }),
-    });
+    let r = await call();
+    // if the token is stale, refresh once and retry (like the chat paths do)
+    if (r.status === 401) {
+      const refreshed = await refreshSession();
+      if (refreshed) r = await call();
+    }
     const bodyText = await r.text().catch(() => '(no body)');
     if (!r.ok) return { line: null, diag: `/banter → ${r.status}: ${bodyText.slice(0, 100)}` };
     let j = {}; try { j = JSON.parse(bodyText); } catch (_) {}
     const line = (j.line || '').trim();
-    return { line: line || null, diag: line ? null : `/banter → 200 but no line: ${bodyText.slice(0, 80)}` };
+    return { line: line || null, diag: line ? null : `/banter → 200 but no line` };
   } catch (e) { return { line: null, diag: `/banter network error: ${String(e).slice(0, 70)}` }; }
 }
 
