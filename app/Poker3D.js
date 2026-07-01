@@ -28,13 +28,19 @@ export default function Poker3D({ game, opponent, onExit = () => {} }) {
   const onContextCreate = async (gl) => {
     try {
     const { drawingBufferWidth: w, drawingBufferHeight: h } = gl;
-    // three r163+ requires a WebGL2 context. expo-gl provides one, but three needs
-    // to recognize it. Tag the context so three's WebGL2 check passes.
-    if (typeof WebGL2RenderingContext !== 'undefined' && !(gl instanceof WebGL2RenderingContext)) {
-      try { Object.setPrototypeOf(gl, WebGL2RenderingContext.prototype); } catch (e) {}
-    }
-    const renderer = new Renderer({ gl });
-    renderer.setSize(w, h);
+    // THE FIX: three r163+ dropped WebGL1 and, left alone, tries to make a WebGL1
+    // context → fails on device. expo-gl's gl IS a WebGL2 context. So we hand three
+    // a fake "canvas" whose getContext returns expo-gl's context, and force webgl2.
+    // three then uses expo-gl's WebGL2 context directly and the r163 check passes.
+    gl.canvas = gl.canvas || { width: w, height: h, style: {}, addEventListener: () => {}, removeEventListener: () => {}, getContext: () => gl };
+    const renderer = new THREE.WebGLRenderer({
+      canvas: gl.canvas,
+      context: gl,
+      antialias: true,
+      alpha: false,
+    });
+    renderer.setPixelRatio(1);
+    renderer.setSize(w, h, false);
     renderer.setClearColor(0x0a0710, 1);
 
     const scene = new THREE.Scene();
