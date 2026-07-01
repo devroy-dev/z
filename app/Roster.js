@@ -18,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
+import { getPins, togglePin as togglePinApi } from './api';
 
 const C = {
   void: '#0E0912', ground: '#07050A',
@@ -180,10 +181,21 @@ export default function Roster({ onOpen = () => {} }) {
     Fraunces_400Regular, Fraunces_400Regular_Italic,
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
   });
-  const [pins, setPins] = useState(['the_brother', 'the_healer']);
+  // favourites come from the DB now (not a hardcoded seed) — this is why they
+  // survive tab changes: on remount we reload them from the server, not reset.
+  const [pins, setPins] = useState([]);
   const [query, setQuery] = useState('');
+  useEffect(() => { getPins().then(setPins); }, []);
   const togglePin = useCallback((k) => {
-    setPins((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [k, ...cur]);
+    // optimistic flip for instant feedback; persist the explicit new state
+    // (idempotent set, so even a retry can't desync). roll back if the write fails.
+    setPins((cur) => {
+      const willPin = !cur.includes(k);
+      togglePinApi(k, willPin).then((serverPins) => {
+        if (serverPins) setPins(serverPins);            // reconcile with server truth
+      });
+      return willPin ? [k, ...cur] : cur.filter((x) => x !== k);
+    });
   }, []);
 
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;

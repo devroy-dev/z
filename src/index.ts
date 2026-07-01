@@ -633,6 +633,46 @@ app.get('/threads', async (req, res) => {
   }
 });
 
+// ── FAVOURITES: pinned personas ─────────────────────────────────────────────
+// A favourite lives on the USER as a list of persona keys (not on a thread row),
+// so you can star a persona you've never opened, and the pinned shelf survives
+// because it's read from the DB — never seeded in app state.
+app.get('/pins', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('users').select('pinned_keys').eq('id', user.id).maybeSingle();
+    res.json({ pins: ((data as any)?.pinned_keys ?? []).filter(Boolean) });
+  } catch (e: any) {
+    res.status(500).json({ error: 'pins fetch failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// toggle (or explicitly set) a favourite. body: { key, pinned? }. pinned true/false
+// sets it; omitted flips it. Newest pin goes to the front. Idempotent by design —
+// a double-fire of the same set is harmless.
+app.post('/pins', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { key, pinned } = req.body ?? {};
+    if (typeof key !== 'string' || !key) return res.status(400).json({ error: 'missing persona key' });
+    const { data } = await supabase.from('users').select('pinned_keys').eq('id', user.id).maybeSingle();
+    const cur: string[] = ((data as any)?.pinned_keys ?? []).filter(Boolean);
+    let next: string[];
+    if (pinned === false) next = cur.filter((k) => k !== key);
+    else if (pinned === true) next = cur.includes(key) ? cur : [key, ...cur];
+    else next = cur.includes(key) ? cur.filter((k) => k !== key) : [key, ...cur];
+    const { error } = await supabase.from('users').update({ pinned_keys: next }).eq('id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ pins: next });
+  } catch (e: any) {
+    res.status(500).json({ error: 'pin toggle failed: ' + (e?.message || String(e)) });
+  }
+});
+
 // one turn — SSE stream
 // ── AUTH: phone OTP (Supabase phone auth, Twilio Verify as SMS provider) ──────
 // send a one-time code to the phone number.

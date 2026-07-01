@@ -308,6 +308,21 @@ export async function listThreads() {
   try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
 }
 
+// ── favourites: pinned personas (persona keys, stored on the user) ──
+// getPins → string[] of keys. togglePin(key, pinned) sets it explicitly (idempotent);
+// returns the new full list, or null on failure so the caller can roll back.
+export async function getPins() {
+  try { const j = await authedJSON('GET', '/pins'); return j.pins || []; } catch (e) { return []; }
+}
+export async function togglePin(key, pinned) {
+  try { const j = await authedJSON('POST', '/pins', { key, pinned }); return j.pins || []; } catch (e) { return null; }
+}
+
+// ── rename a companion (writes companion_name via the existing PATCH) ──
+export async function renameThread(threadId, name) {
+  try { return await authedJSON('PATCH', `/threads/${threadId}`, { name }); } catch (e) { return null; }
+}
+
 // ── tasks: the concierge's list (server also adds/completes these from [[TASK_*]] tags) ──
 export async function listTasks() {
   try { const j = await authedJSON('GET', '/tasks'); return j.tasks || []; } catch (e) { return []; }
