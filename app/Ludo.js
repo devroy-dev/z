@@ -6,7 +6,7 @@
 //  takes a beat that characterizes them, one move at a time, tokens you can tap.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Canvas, RoundedRect, Circle, Group, Shadow, Path, Skia } from '@shopify/react-native-skia';
@@ -76,7 +76,11 @@ function tokenCell(player, pos, baseSlot) {
 const gx = (c) => (c[0] + 0.5) * CELL;
 const gy = (c) => (c[1] + 0.5) * CELL;
 
-// ─── the board rendered in Skia ───
+// ─── the board rendered in Skia — every path cell drawn, so the track is countable ───
+// safe squares in standard Ludo: each player's entry (loop index = their startIdx),
+// plus the star square 8 cells before their home entry (startIdx + 8 pattern).
+const SAFE_LOOP_IDX = [0, 8, 13, 21, 26, 34, 39, 47]; // entries + stars around the loop
+
 function Board({ tokens, players, highlight, onTapToken }) {
   return (
     <View>
@@ -93,13 +97,35 @@ function Board({ tokens, players, highlight, onTapToken }) {
             <RoundedRect x={corner[0]*CELL+1.4*CELL} y={corner[1]*CELL+1.4*CELL} width={3.2*CELL} height={3.2*CELL} r={10} color={DARK[i]} />
           </Group>
         ))}
-        {/* the cross paths (light lanes) */}
-        <RoundedRect x={6*CELL} y={0} width={3*CELL} height={BOARD} r={2} color="rgba(255,255,255,0.045)" />
-        <RoundedRect x={0} y={6*CELL} width={BOARD} height={3*CELL} r={2} color="rgba(255,255,255,0.045)" />
-        {/* colored home columns */}
+
+        {/* EVERY loop cell drawn as a visible, countable square */}
+        {TRACK.loop.map((c, idx) => {
+          // is this an entry square for some player? color it that player's color
+          const entryPlayer = TRACK.startIdx.indexOf(idx);
+          const isEntry = entryPlayer !== -1;
+          const isSafe = SAFE_LOOP_IDX.includes(idx);
+          const fill = isEntry ? COLORS[entryPlayer] : '#2a2336';
+          return (
+            <Group key={`loop${idx}`}>
+              <RoundedRect x={c[0]*CELL+2} y={c[1]*CELL+2} width={CELL-4} height={CELL-4} r={4}
+                color={fill} opacity={isEntry ? 0.85 : 0.65}>
+                <Shadow dx={0} dy={1} blur={2} color="rgba(0,0,0,0.35)" />
+              </RoundedRect>
+              {/* safe-square star marker */}
+              {isSafe && !isEntry && (
+                <Circle cx={(c[0]+0.5)*CELL} cy={(c[1]+0.5)*CELL} r={CELL*0.16} color="rgba(255,255,255,0.35)" />
+              )}
+            </Group>
+          );
+        })}
+
+        {/* colored home columns (each player's final stretch) */}
         {TRACK.homeCols.map((col, p) => col.map((c, i) => (
-          <RoundedRect key={`${p}-${i}`} x={c[0]*CELL+2} y={c[1]*CELL+2} width={CELL-4} height={CELL-4} r={4} color={COLORS[p]} opacity={0.5} />
+          <RoundedRect key={`${p}-${i}`} x={c[0]*CELL+2} y={c[1]*CELL+2} width={CELL-4} height={CELL-4} r={4} color={COLORS[p]} opacity={0.55}>
+            <Shadow dx={0} dy={1} blur={2} color="rgba(0,0,0,0.3)" />
+          </RoundedRect>
         )))}
+
         {/* center home */}
         <Group transform={[{ translateX: BOARD/2 }, { translateY: BOARD/2 }, { rotate: Math.PI/4 }]}>
           <RoundedRect x={-1.6*CELL} y={-1.6*CELL} width={3.2*CELL} height={3.2*CELL} r={8} color="#241a30">
@@ -120,7 +146,7 @@ function Board({ tokens, players, highlight, onTapToken }) {
                 <Shadow dx={0} dy={1} blur={3} color="rgba(0,0,0,0.5)" />
               </Circle>
               <Circle cx={cx - CELL*0.1} cy={cy - CELL*0.11} r={CELL*0.12} color="rgba(255,255,255,0.6)" />
-              {isHi && <Circle cx={cx} cy={cy} r={CELL*0.44} color="rgba(255,255,255,0.9)" style="stroke" strokeWidth={2.5} />}
+              {isHi && <Circle cx={cx} cy={cy} r={CELL*0.44} color="rgba(255,255,255,0.95)" style="stroke" strokeWidth={3} />}
             </Group>
           );
         })}
@@ -200,8 +226,21 @@ export default function Ludo({ game, opponent, roster, onExit = () => {} }) {
   const [phase, setPhase] = useState('roll');   // roll | move | over
   const [highlight, setHighlight] = useState([]);
   const [winner, setWinner] = useState(null);
+  const [draft, setDraft] = useState('');
   const [feed, setFeed] = useState([{ who:'sys', text: `${seats.map(s=>s.name).join(', ')} — first to bring all four home wins.` }]);
   const feedRef = useRef(null);
+
+  const sendChat = () => {
+    const t = draft.trim(); if (!t) return;
+    setDraft(''); pushFeed({ who:'you', text: t });
+    // a present opponent fires back after a beat (pacing)
+    const responders = seats.filter((s) => s.ai);
+    if (responders.length) {
+      const r = responders[Math.floor(Math.random()*responders.length)];
+      const lines = ['"talk less. roll more."', '"cute. watch the board."', '"big words, small tokens."', '"mm-hm. still losing."'];
+      setTimeout(() => pushFeed({ who:'opp', text: `${r.name}: ${lines[Math.floor(Math.random()*lines.length)]}` }), 800);
+    }
+  };
 
   const pushFeed = (l) => { setFeed(f => [...f, l]); setTimeout(() => feedRef.current?.scrollToEnd({ animated:true }), 60); };
   const homeCount = (p) => tokens.filter(t => t.player===p && t.pos>=56).length;
@@ -224,17 +263,20 @@ export default function Ludo({ game, opponent, roster, onExit = () => {} }) {
       const d = 1 + Math.floor(Math.random()*6);
       setDie(d); setRolling(false);
       pushFeed({ who:'sys', text: `${seats[p].name} rolled a ${d}.` });
-      const m = movable(p, d, tokens);
-      if (m.length === 0) {
-        pushFeed({ who:'sys', text: `${seats[p].name} has no move.` });
-        setTimeout(() => nextTurn(p, d, false), 800);
-      } else if (seats[p].ai) {
-        // AI picks a move after a beat (character)
-        const beat = seats[p].key === 'the_brainiac' ? 1400 : seats[p].key === 'the_wannabe' ? 550 : 950;
-        setTimeout(() => aiMove(p, d, m), beat);
-      } else {
-        setHighlight(m); setPhase('move');
-      }
+      // read CURRENT tokens (avoid stale closure after rapid AI turns)
+      setTokens((cur) => {
+        const m = movable(p, d, cur);
+        if (m.length === 0) {
+          pushFeed({ who:'sys', text: `${seats[p].name} has no move.` });
+          setTimeout(() => nextTurn(p, d, false), 800);
+        } else if (seats[p].ai) {
+          const beat = seats[p].key === 'the_brainiac' ? 1400 : seats[p].key === 'the_wannabe' ? 550 : 950;
+          setTimeout(() => aiMove(p, d, m, cur), beat);
+        } else {
+          setHighlight(m); setPhase('move');
+        }
+        return cur; // no mutation here, just reading
+      });
     }, 850);
   };
 
@@ -280,15 +322,13 @@ export default function Ludo({ game, opponent, roster, onExit = () => {} }) {
     return c;
   };
 
-  const aiMove = (p, d, m) => {
-    // simple strategy by character: brainiac prefers capture/home, hustler prefers furthest, others random-ish
+  const aiMove = (p, d, m, toks) => {
+    const cur = toks || tokens;
+    // simple strategy by character: brainiac/hustler advance furthest token; others random-ish
     let choice = m[0];
     const key = seats[p].key;
-    if (key === 'the_brainiac') {
-      // prefer a move that captures, else advances closest-to-home
-      choice = m.reduce((best, i) => (tokens[i].pos > tokens[best].pos ? i : best), m[0]);
-    } else if (key === 'the_wannabe') {
-      choice = m.reduce((best, i) => (tokens[i].pos > tokens[best].pos ? i : best), m[0]);
+    if (key === 'the_brainiac' || key === 'the_wannabe') {
+      choice = m.reduce((best, i) => (cur[i].pos > cur[best].pos ? i : best), m[0]);
     } else {
       choice = m[Math.floor(Math.random()*m.length)];
     }
@@ -357,9 +397,16 @@ export default function Ludo({ game, opponent, roster, onExit = () => {} }) {
 
         <ScrollView ref={feedRef} style={styles.feed} contentContainerStyle={{ paddingVertical:6 }} showsVerticalScrollIndicator={false}>
           {feed.map((f,i) => (
-            <Text key={i} style={[styles.feedLine, f.who==='opp'?styles.feedOpp:styles.feedSys]}>{f.text}</Text>
+            <Text key={i} style={[styles.feedLine, f.who==='you'?styles.feedYou:f.who==='opp'?styles.feedOpp:styles.feedSys]}>
+              {f.who==='you' ? `you: ${f.text}` : f.text}
+            </Text>
           ))}
         </ScrollView>
+        <TextInput
+          value={draft} onChangeText={setDraft} onSubmitEditing={sendChat}
+          placeholder="talk trash to the table…" placeholderTextColor={C.faint}
+          style={styles.chatInput} returnKeyType="send"
+        />
       </SafeAreaView>
     </View>
   );
@@ -388,8 +435,10 @@ const styles = StyleSheet.create({
   prompt: { fontFamily: FONTS.displayItalic, color: C.accentSoft, fontSize:15 },
   winner: { fontFamily: FONTS.display, color: C.ember, fontSize:24 },
 
-  feed: { maxHeight:120, marginTop:6, marginHorizontal:20 },
+  feed: { maxHeight:96, marginTop:6, marginHorizontal:20 },
   feedLine: { fontFamily: FONTS.body, fontSize:13, lineHeight:19, marginVertical:1.5 },
+  feedYou: { color: C.cream, textAlign:'right' },
   feedOpp: { fontFamily: FONTS.displayItalic, color: C.accentSoft },
   feedSys: { color: C.faint, textAlign:'center', fontSize:12, fontStyle:'italic' },
+  chatInput: { fontFamily: FONTS.body, color: C.cream, fontSize:14, borderWidth:1, borderColor:'rgba(243,168,95,0.2)', borderRadius:14, paddingHorizontal:14, paddingVertical:9, backgroundColor:'rgba(255,255,255,0.03)', marginHorizontal:18, marginVertical:8 },
 });
