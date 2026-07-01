@@ -5,7 +5,7 @@
 //  chat. Letters (Z writes to you) surface here too. Your profile: corner avatar.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -126,6 +126,7 @@ export default function Desk({ onRoute = () => {}, onOpenYou = () => {}, onOpenL
   return (
     <View style={styles.root}>
       <LinearGradient colors={['#1A1020', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         {/* header: concierge presence + your profile corner */}
         <View style={styles.header}>
@@ -164,6 +165,7 @@ export default function Desk({ onRoute = () => {}, onOpenYou = () => {}, onOpenL
           </Pressable>
         </View>
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

@@ -362,7 +362,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
       <View style={styles.root}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
         <Atmosphere />
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
           <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
             <TopBar onCall={() => setInCall(true)} onBack={onBack} />
             <View style={styles.stage}>
@@ -382,13 +382,13 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
                 <TextInput
                   value={draft}
                   onChangeText={setDraft}
-                  onSubmitEditing={doSend}
                   placeholder={`message ${THREAD_CFG.name}…`}
                   placeholderTextColor={C.faint}
-                  style={styles.input}
-                  returnKeyType="send"
+                  style={[styles.input, { maxHeight: 120 }]}
+                  multiline
                   editable={!sending}
                 />
+                {/* Enter inserts a newline (multiline); send is the ember button only */}
               </BlurView>
               <Pressable style={styles.send} onPress={doSend}>
                 <Svg width="48" height="48" viewBox="0 0 48 48">
