@@ -105,10 +105,13 @@ export default function Nav({ screens }) {
 
       <BottomNav active={active} onChange={setActive} />
 
-      {/* quiet-room pull tab — thin overlay at the very top, doesn't take layout space */}
-      <View pointerEvents="box-none" style={{ position: 'absolute', top: insets.top, left: 0, right: 0 }}>
-        <QuietPull onOpen={() => setQuietOpen(true)} />
-      </View>
+      {/* quiet-room pull tab — ONLY on the Desk (home), a subtle top-edge affordance.
+          Not plastered over chat/arena/etc. where it read as a bug. */}
+      {active === 'desk' && (
+        <View pointerEvents="box-none" style={{ position: 'absolute', top: insets.top, left: 0, right: 0 }}>
+          <QuietPull onOpen={() => setQuietOpen(true)} />
+        </View>
+      )}
 
       {/* the quiet room, when called — a curtain drawn over everything */}
       {quietOpen && <QuietRoom onClose={() => setQuietOpen(false)} />}

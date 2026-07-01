@@ -33,6 +33,7 @@ export function QuietPull({ onOpen }) {
 
   // a real PULL-DOWN: drag the handle down past a threshold to call the quiet.
   const pan = Gesture.Pan()
+    .activeOffsetY(8)
     .onUpdate((e) => { drag.value = Math.max(0, Math.min(e.translationY, 140)); })
     .onEnd((e) => {
       if (e.translationY > 50) { runOnJS(onOpen)(); }
@@ -43,7 +44,7 @@ export function QuietPull({ onOpen }) {
     opacity: g.value + drag.value / 200,
     transform: [{ translateY: drag.value * 0.5 }, { scaleX: 1 + drag.value / 300 }],
   }));
-  const hintSt = useAnimatedStyle(() => ({ opacity: Math.min(0.9, g.value + drag.value / 100), transform: [{ translateY: drag.value * 0.4 }] }));
+  const hintSt = useAnimatedStyle(() => ({ opacity: Math.min(0.85, drag.value / 60), transform: [{ translateY: drag.value * 0.4 }] }));
 
   return (
     <GestureDetector gesture={pan}>
@@ -81,11 +82,12 @@ export function QuietRoom({ onClose }) {
   const presenceStyle = useAnimatedStyle(() => ({ opacity: 0.4 + breath.value * 0.4, transform: [{ scale: 0.96 + breath.value * 0.08 }] }));
   const arrivalStyle = useAnimatedStyle(() => ({ opacity: arrive.value }));
 
+  // the room: warm-dark depth + one slow pale breath, words as lines
   return (
     <View style={styles.curtain}>
       {/* warm-dark depth, not dead black — a hint of blue-grey at the edges */}
       <LinearGradient colors={['#0B0D12', '#08080C', '#060608']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
-      <View style={styles.edgeWash}>
+      <View style={styles.edgeWash} pointerEvents="none">
         <Svg width="100%" height="100%">
           <Defs>
             <RadialGradient id="moon" cx="50%" cy="34%" r="60%">
@@ -149,7 +151,7 @@ export function QuietRoom({ onClose }) {
 
 const styles = StyleSheet.create({
   // pull tab
-  pull: { alignItems: 'center', paddingTop: 8, paddingBottom: 10 },
+  pull: { alignItems: 'center', paddingTop: 8, paddingBottom: 22 },
   pullHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: '#8A8FA0' },
   pullHint: { fontFamily: FONTS.displayItalic, color: '#6A7080', fontSize: 11, marginTop: 4, letterSpacing: 0.4 },
 
