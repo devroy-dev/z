@@ -4,4 +4,5 @@ dist/
 .env.*
 *.log
 *.zip
-*.zip
+deploy/
+writer.py
