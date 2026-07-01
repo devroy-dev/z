@@ -15,6 +15,7 @@ import Roster from './Roster';
 import Chat from './Chat';
 import Play from './Play';
 import Arena from './Arena';
+import Uno from './Uno';
 import Rooms from './Rooms';
 import RoomChat from './RoomChat';
 import Desk from './Desk';
@@ -35,11 +36,15 @@ const SCREENS = {
 };
 
 function PlayWorld() {
-  const [mode, setMode] = React.useState('choose'); // choose | arena
-  // Games are being rebuilt one at a time, each verified on device before the next.
-  // Until a game is confirmed working, the Arena shows an honest coming-soon.
+  const [mode, setMode] = React.useState('choose'); // choose | arena | game
+  const [match, setMatch] = React.useState(null);
+  // Games rebuilt one at a time, each verified on device. UNO is the first real one.
+  if (mode === 'game' && match) {
+    if (match.game?.id === 'uno') return <Uno game={match.game} opponent={match.opp} onExit={() => setMode('arena')} />;
+    setMode('arena'); return null; // other games not built yet
+  }
   if (mode === 'arena') {
-    return <Arena onBack={() => setMode('choose')} onStartGame={() => {}} />;
+    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp) => { setMatch({ game, opp }); setMode('game'); }} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); }} />;
 }
