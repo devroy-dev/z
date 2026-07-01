@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { C, FONTS } from './theme';
 import { QuietRoom, QuietPull } from './QuietRoom';
@@ -93,13 +93,16 @@ export function WorldStub({ title, kicker, line }) {
 export default function Nav({ screens }) {
   const [active, setActive] = useState('gathering');
   const [quietOpen, setQuietOpen] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const Active = screens[active] || (() => <WorldStub kicker="soon" title={active} line="coming alive next." />);
 
   return (
     <View style={styles.root}>
-      {/* the quiet-room pull tab at the very top — the gesture lives here */}
-      <QuietPull onOpen={() => setQuietOpen(true)} />
+      {/* quiet-room pull tab — sits BELOW the status bar (full-bleed safe) */}
+      <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, zIndex: 20 }}>
+        <QuietPull onOpen={() => setQuietOpen(true)} />
+      </View>
 
       <View style={{ flex: 1 }}>
         <Active />

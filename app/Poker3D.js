@@ -8,8 +8,13 @@ import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GLView } from 'expo-gl';
+import * as ExpoTHREE from 'expo-three';
 import { Renderer } from 'expo-three';
-import * as THREE from 'three';
+import * as THREEmodule from 'three';
+// expo-three needs the SAME global THREE instance it mutates (side-effects);
+// wiring it explicitly avoids the silent black-screen. See expo-three README.
+global.THREE = global.THREE || THREEmodule;
+const THREE = global.THREE;
 import { C, FONTS } from './theme';
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
@@ -21,6 +26,7 @@ export default function Poker3D({ game, opponent, onExit = () => {} }) {
   const dealRef = useRef(null);
 
   const onContextCreate = async (gl) => {
+    try {
     const { drawingBufferWidth: w, drawingBufferHeight: h } = gl;
     const renderer = new Renderer({ gl });
     renderer.setSize(w, h);
@@ -100,6 +106,10 @@ export default function Poker3D({ game, opponent, onExit = () => {} }) {
     };
     render();
     setTimeout(() => { setPhase('your-move'); setBanter(`${opp.name}: "your move. don't take all night."`); }, 1600);
+    } catch (err) {
+      setBanter('3D error: ' + (err?.message || String(err)));
+      console.error('Poker3D GL error', err);
+    }
   };
 
   return (
