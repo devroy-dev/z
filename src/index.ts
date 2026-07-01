@@ -7,11 +7,13 @@ import { buildStaticPrefix } from './content.js';
 //   GET  /healthz          liveness
 import express from 'express';
 import cors from 'cors';
+import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
+import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
 import { supabase } from './db.js';
 
@@ -23,6 +25,9 @@ app.use(express.json({ limit: '256kb' }));
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 const __dirname2 = dirname(fileURLToPath(import.meta.url));
+// ONE shared Anthropic client, created at boot (like loop.ts) — reused across requests.
+// Per-request `new Anthropic()` via dynamic import was causing "Premature close" on /banter.
+const anthropicShared = new Anthropic();
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
@@ -436,28 +441,25 @@ app.post('/banter', async (req, res) => {
   try {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
     const { persona, prompt } = req.body ?? {};
     const p = personaByKey(persona);
     if (!p || !prompt) return res.status(400).json({ error: 'persona and prompt required' });
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const staticPrefix = buildStaticPrefix(p.defaultName, null, [p.codex as any], null);
-
-    // STREAM server-side (like /chat, which works) and collect into one line.
-    // The non-streaming create() hits "Premature close" on this host with a large
-    // system prompt; streaming keeps the connection alive and avoids it.
-    const anthropic = new Anthropic({ maxRetries: 2 });
-    const stream = anthropic.messages.stream({
+    // The personas are facets of Z — they share the SAME memory of the user that Z has.
+    // Load the shared memory block (exactly like the chat loop) so the game persona
+    // knows this person, not a stranger.
+    const memoryBlock = await readMemoryBlock(user.id);
+    const system: any[] = [{ type: 'text', text: staticPrefix }];
+    if (memoryBlock && memoryBlock.trim()) system.push({ type: 'text', text: memoryBlock });
+    // use the shared module-level client (created once at boot) — NOT a per-request client.
+    const msg = await anthropicShared.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 60,
-      system: staticPrefix,
+      system,
       messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
     });
-    let line = '';
-    for await (const ev of stream) {
-      if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
-        line += ev.delta.text;
-      }
-    }
-    res.json({ line: line.trim() });
+    const line = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    res.json({ line });
   } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
 });
 
@@ -493,11 +495,9 @@ app.post('/dev/echo', async (req, res) => {
     }
     if (serious) dyn += `\n\n[SERIOUS MODE IS ON. Set the bits and deflection aside; be warm, grounded, careful. If real danger shows, steer to real human help.]`;
 
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic();
     const system: any[] = [{ type: 'text', text: staticPrefix }];
     if (dyn) system.push({ type: 'text', text: dyn });
-    const msg = await anthropic.messages.create({
+    const msg = await anthropicShared.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 1024,
       system,
       messages: [{ role: 'user', content: String(message).slice(0, 2000) }],
