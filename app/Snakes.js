@@ -144,25 +144,64 @@ export default function Snakes({ game, opponent, roster, onExit = () => {} }) {
       const d = 1 + Math.floor(Math.random()*6);
       setDie(d); setRolling(false);
       pushFeed({ who:'sys', text:`${seats[p].name} rolled a ${d}.` });
+
+      // figure the start and how many single steps to walk (with bounce at 100)
       setPositions((cur) => {
-        const arr = [...cur];
-        let np = arr[p] + d;
-        if (np > 100) { pushFeed({ who:'sys', text:`${seats[p].name} overshoots — bounces back.` }); np = 100 - (np - 100); }
-        arr[p] = np;
-        // resolve snake/ladder after a beat
-        setTimeout(() => {
-          setPositions((cur2) => {
-            const a2 = [...cur2];
-            if (LADDERS[a2[p]]) { pushFeed({ who:'sys', text:`${seats[p].name} climbs a ladder to ${LADDERS[a2[p]]}!` }); a2[p] = LADDERS[a2[p]]; }
-            else if (SNAKES[a2[p]]) { pushFeed({ who:'sys', text:`a snake! ${seats[p].name} slides to ${SNAKES[a2[p]]}.` }); a2[p] = SNAKES[a2[p]]; }
-            if (a2[p] === 100) { setWinner(p); pushFeed({ who:'sys', text:`${seats[p].name} reached 100 — winner!` }); }
-            else setTimeout(() => { const nx = d===6 ? p : nextActive(p); setTurn(nx); setBusy(false); }, 700);
-            return a2;
-          });
-        }, 650);
-        return arr;
+        const start = cur[p];
+        let target = start + d;
+        let bounce = false;
+        if (target > 100) { target = 100 - (target - 100); bounce = true; }
+        // walk one cell at a time from start → target
+        let step = start;
+        const dir = target >= start ? 1 : -1;         // bounce walks backward from 100
+        const walkTo100 = Math.min(start + d, 100);
+        // We animate: first climb up to min(start+d,100), then (if bounce) step back down.
+        const sequence = [];
+        for (let s = start + 1; s <= walkTo100; s++) sequence.push(s);
+        if (bounce) for (let s = 99; s >= target; s--) sequence.push(s);
+
+        let i = 0;
+        const hop = () => {
+          if (i >= sequence.length) {
+            // landed — resolve snake/ladder
+            setPositions((c2) => {
+              const a2 = [...c2];
+              const landed = a2[p];
+              if (LADDERS[landed]) { pushFeed({ who:'sys', text:`${seats[p].name} climbs a ladder to ${LADDERS[landed]}!` }); slideTo(p, landed, LADDERS[landed], d); return a2; }
+              if (SNAKES[landed]) { pushFeed({ who:'sys', text:`a snake! ${seats[p].name} slides to ${SNAKES[landed]}.` }); slideTo(p, landed, SNAKES[landed], d); return a2; }
+              if (landed === 100) { setWinner(p); pushFeed({ who:'sys', text:`${seats[p].name} reached 100 — winner!` }); }
+              else setTimeout(() => { const nx = d===6 ? p : nextActive(p); setTurn(nx); setBusy(false); }, 600);
+              return a2;
+            });
+            return;
+          }
+          setPositions((c2) => { const a2 = [...c2]; a2[p] = sequence[i]; return a2; });
+          i++;
+          setTimeout(hop, 180); // one box every 180ms — you SEE it travel
+        };
+        if (bounce) setTimeout(() => pushFeed({ who:'sys', text:`${seats[p].name} overshoots — bounces back.` }), sequence.length * 180 * 0.6);
+        setTimeout(hop, 200);
+        return cur; // start unchanged; hop() drives the walk
       });
     }, 800);
+  };
+
+  // slide down a snake / up a ladder as a quick glide (a few interpolated steps)
+  const slideTo = (p, from, to, d) => {
+    const dir = to > from ? 1 : -1;
+    const cells = [];
+    for (let s = from + dir; dir > 0 ? s <= to : s >= to; s += dir) cells.push(s);
+    let i = 0;
+    const glide = () => {
+      if (i >= cells.length) {
+        if (to === 100) { setWinner(p); pushFeed({ who:'sys', text:`${seats[p].name} reached 100 — winner!` }); return; }
+        setTimeout(() => { const nx = d===6 ? p : nextActive(p); setTurn(nx); setBusy(false); }, 500);
+        return;
+      }
+      setPositions((c2) => { const a2 = [...c2]; a2[p] = cells[i]; return a2; });
+      i++; setTimeout(glide, 90); // snakes/ladders glide a bit faster than walking
+    };
+    setTimeout(glide, 250);
   };
 
   useEffect(() => {

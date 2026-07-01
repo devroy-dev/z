@@ -280,35 +280,53 @@ export default function Ludo({ game, opponent, roster, onExit = () => {} }) {
     }, 850);
   };
 
-  // apply a move: token index ti advances by d. handle capture + home.
+  // apply a move: token index ti advances by d, STEPPING one cell at a time.
   const applyMove = (ti, d, p) => {
-    setTokens(prev => {
-      const next = prev.map(t => ({ ...t }));
-      const t = next[ti];
-      if (t.pos < 0) t.pos = 0;            // leave base onto start
-      else t.pos = t.pos + d;
-      // capture: any opponent token on the same loop cell (not safe, not in base/home)
-      if (t.pos <= 50) {
-        const myCell = tokenCell(t.player, t.pos, t.slot).join(',');
-        next.forEach((o, oi) => {
-          if (o.player !== t.player && o.pos >= 0 && o.pos <= 50) {
-            if (tokenCell(o.player, o.pos, o.slot).join(',') === myCell) {
-              o.pos = -1; // sent home
-              pushFeed({ who:'sys', text: `${seats[t.player].name} sent ${seats[o.player].name}'s token home!` });
-            }
-          }
-        });
-      }
-      return next;
-    });
     setHighlight([]);
-    // check win after state settles
-    setTimeout(() => {
-      const hc = tokens.filter(t => t.player===p).reduce((a,t)=> a + ((t===tokens[ti] ? (t.pos<0? d : t.pos+d) : t.pos) >=56 ?1:0),0);
-      const realHome = homeCountAfter(p, ti, d);
-      if (realHome >= 4) { setWinner(p); setPhase('over'); pushFeed({ who:'sys', text: `${seats[p].name} brought all four home — winner!` }); return; }
-      nextTurn(p, d, true);
-    }, 260);
+    setPhase('animating');
+    // determine start pos and the sequence of single-step positions
+    setTokens((cur) => {
+      const startPos = cur[ti].pos;
+      const fromBase = startPos < 0;
+      // if leaving base: single hop onto start cell (pos 0). else walk d cells.
+      const steps = [];
+      if (fromBase) {
+        steps.push(0);
+      } else {
+        for (let s = 1; s <= d; s++) if (startPos + s <= 56) steps.push(startPos + s);
+      }
+      let i = 0;
+      const hop = () => {
+        if (i >= steps.length) {
+          // landed — resolve capture + win at final cell
+          setTokens((c2) => {
+            const next = c2.map(t => ({ ...t }));
+            const t = next[ti];
+            if (t.pos >= 0 && t.pos <= 50) {
+              const myCell = tokenCell(t.player, t.pos, t.slot).join(',');
+              next.forEach((o) => {
+                if (o.player !== t.player && o.pos >= 0 && o.pos <= 50) {
+                  if (tokenCell(o.player, o.pos, o.slot).join(',') === myCell) {
+                    o.pos = -1;
+                    pushFeed({ who:'sys', text: `${seats[t.player].name} sent ${seats[o.player].name}'s token home!` });
+                  }
+                }
+              });
+            }
+            const homeN = next.filter(x => x.player === p && x.pos >= 56).length;
+            if (homeN >= 4) { setWinner(p); setPhase('over'); pushFeed({ who:'sys', text: `${seats[p].name} brought all four home — winner!` }); }
+            else setTimeout(() => nextTurn(p, d, true), 200);
+            return next;
+          });
+          return;
+        }
+        setTokens((c2) => { const n = c2.map(t => ({ ...t })); n[ti].pos = steps[i]; return n; });
+        i++;
+        setTimeout(hop, 190); // one cell every 190ms — the token WALKS the track
+      };
+      setTimeout(hop, 120);
+      return cur; // unchanged; hop() drives it
+    });
   };
 
   const homeCountAfter = (p, ti, d) => {
