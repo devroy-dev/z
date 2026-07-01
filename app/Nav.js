@@ -1,16 +1,21 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — the app spine: bottom navigation + the Quiet Room pull-down.
-//  Five worlds: Front Desk (home) · Gathering · Rooms · Arena · You.
-//  The Quiet Room is NOT a tab — it's a deliberate pull-down gesture from
-//  anywhere (drawing the curtain closed). Built in §13 style: designed calm.
+//  yourZ — the app spine: bottom navigation + cross-app navigation.
+//  Four worlds: Front Desk (home) · Gathering · Rooms · Play.
+//  NIGHTFALL nav: solid moonlit-black bar, custom icons, candle-lit active.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
-import { C, FONTS } from './theme';
+import { FONTS } from './theme';
 
-// ── the five worlds ──
+const N = {
+  night: '#0B0A0F', night2: '#100E15',
+  moon: '#E9E8F0', moonDim: 'rgba(233,232,240,0.56)',
+  navIdle: 'rgba(233,232,240,0.40)', silver: '#9E9DB0',
+  candle: '#E7B07A', candleHot: '#F3CFA3',
+};
+
 const TABS = [
   { id: 'desk',      label: 'Desk' },
   { id: 'gathering', label: 'Gathering' },
@@ -18,53 +23,61 @@ const TABS = [
   { id: 'play',      label: 'Play' },
 ];
 
-// ── minimal line icons (premium, not emoji) ──
+// ── custom Nightfall icons — clean shapes, candle when active ──
 function Icon({ id, active }) {
-  const s = active ? C.ember : C.faint;
-  const w = 1.7;
-  const common = { stroke: s, strokeWidth: w, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const s = active ? N.candle : N.navIdle;
+  const common = { stroke: s, strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
   return (
-    <Svg width="24" height="24" viewBox="0 0 24 24">
-      {/* Desk = concierge BELL (someone's here to route you) */}
+    <Svg width="25" height="25" viewBox="0 0 24 24">
+      {/* Desk = the concierge bell (someone's here, at the door) */}
       {id === 'desk' && <>
-        <Path d="M4 17h16M12 6a6 6 0 016 6v5H6v-5a6 6 0 016-6z" {...common} />
-        <Path d="M12 6V4M11 4h2" {...common} />
+        <Path d="M5.5 17.5h13" {...common} />
+        <Path d="M7 17.5v-4a5 5 0 0 1 10 0v4" {...common} />
+        <Path d="M12 8.5V6.9M10.9 6.9h2.2" {...common} />
+        {active && <Circle cx="12" cy="20" r="1.1" fill={N.candle} />}
       </>}
-      {/* Gathering = a small constellation of people (a group) */}
+      {/* Gathering = a cluster of people (your people) */}
       {id === 'gathering' && <>
-        <Circle cx="7" cy="8" r="2.4" {...common} /><Circle cx="16.5" cy="7" r="2.4" {...common} /><Circle cx="12" cy="15" r="2.6" {...common} />
+        <Circle cx="8" cy="9" r="2.3" {...common} />
+        <Circle cx="16" cy="9" r="2.3" {...common} />
+        <Path d="M4 17.5c0-2.2 1.8-3.8 4-3.8s4 1.6 4 3.8" {...common} />
+        <Path d="M12 17.5c0-2.2 1.8-3.8 4-3.8s4 1.6 4 3.8" {...common} />
       </>}
-      {/* Rooms = overlapping speech bubbles (a conversation together) */}
+      {/* Rooms = overlapping speech bubbles (together) */}
       {id === 'rooms' && <>
-        <Path d="M3 8a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8l-3 2.5V14H5a2 2 0 01-2-2z" {...common} />
-        <Path d="M16 9h3a2 2 0 012 2v3a2 2 0 01-2 2v2l-2.5-2H14" {...common} />
+        <Path d="M3.5 8A1.6 1.6 0 0 1 5.1 6.4h6.8A1.6 1.6 0 0 1 13.5 8v3.2a1.6 1.6 0 0 1-1.6 1.6H7l-3 2.3v-2.3A1.6 1.6 0 0 1 3.5 11.2z" {...common} />
+        <Path d="M15.4 9.4h3.5A1.6 1.6 0 0 1 20.5 11v3.2a1.6 1.6 0 0 1-1.6 1.6v2l-2.6-2h-2.1" {...common} />
       </>}
-      {/* Play = a game controller (unmistakably games) */}
+      {/* Play = a game controller */}
       {id === 'play' && <>
-        <Path d="M7 8h10a4 4 0 014 4v1a3 3 0 01-5.2 2H8.2A3 3 0 013 13v-1a4 4 0 014-4z" {...common} />
-        <Path d="M7.5 11v2M6.5 12h2M16 11.5h.01M18 13h.01" {...common} />
+        <Path d="M7.5 8.5h9a4 4 0 0 1 4 4a2.6 2.6 0 0 1-4.7 1.5l-.5-.7H8.7l-.5.7A2.6 2.6 0 0 1 3.5 12.5a4 4 0 0 1 4-4z" {...common} />
+        <Path d="M7 11.2v2M6 12.2h2" {...common} />
+        <Circle cx="15.8" cy="11.6" r="0.75" fill={s} />
+        <Circle cx="17.4" cy="13.1" r="0.75" fill={s} />
       </>}
       {/* You = single head + shoulders */}
-      {id === 'you' && <><Circle cx="12" cy="8" r="3.2" {...common} /><Path d="M6 19c0-3.3 2.7-6 6-6s6 2.7 6 6" {...common} /></>}
+      {id === 'you' && <>
+        <Circle cx="12" cy="8" r="3.2" {...common} />
+        <Path d="M6 19c0-3.3 2.7-6 6-6s6 2.7 6 6" {...common} />
+      </>}
     </Svg>
   );
 }
 
 function BottomNav({ active, onChange }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.navWrap}>
-      <View style={styles.nav}>
-        {TABS.map((t) => {
-          const on = active === t.id;
-          return (
-            <Pressable key={t.id} style={styles.tab} onPress={() => onChange(t.id)} hitSlop={6}>
-              {on && <View style={styles.tabGlow} />}
-              <Icon id={t.id} active={on} />
-              <Text style={[styles.tabLabel, on && { color: C.ember }]}>{t.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+    <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      {TABS.map((t) => {
+        const on = active === t.id;
+        return (
+          <Pressable key={t.id} style={styles.tab} onPress={() => onChange(t.id)} hitSlop={6}>
+            {on && <View style={styles.tabGlow} />}
+            <Icon id={t.id} active={on} />
+            <Text style={[styles.tabLabel, on && { color: N.candle }]}>{t.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -75,10 +88,10 @@ export function WorldStub({ title, kicker, line }) {
     <View style={styles.stub}>
       <View style={styles.stubOrb}>
         <Svg width="70" height="70" viewBox="0 0 70 70">
-          <Defs><RadialGradient id="stubOrb" cx="38%" cy="33%" r="70%">
-            <Stop offset="0%" stopColor="#FFE6C4" /><Stop offset="40%" stopColor={C.ember} /><Stop offset="100%" stopColor={C.emberDeep} />
+          <Defs><RadialGradient id="stubOrb" cx="42%" cy="38%" r="64%">
+            <Stop offset="0%" stopColor={N.candleHot} /><Stop offset="46%" stopColor={N.candle} /><Stop offset="100%" stopColor="#8a5a30" />
           </RadialGradient></Defs>
-          <Circle cx="35" cy="35" r="22" fill="url(#stubOrb)" opacity="0.5" />
+          <Circle cx="35" cy="35" r="20" fill="url(#stubOrb)" opacity="0.55" />
         </Svg>
       </View>
       <Text style={styles.stubKicker}>{kicker}</Text>
@@ -91,11 +104,9 @@ export function WorldStub({ title, kicker, line }) {
 // ── the shell: holds the active world + nav + cross-app navigation ──
 export default function Nav({ screens }) {
   const [active, setActive] = useState('desk');   // the Front Desk is home
-  const [target, setTarget] = useState(null);     // deep-link for the active tab (e.g. open a persona)
-  const [overlay, setOverlay] = useState(null);   // full-screen, non-tab destinations (quiet/stage/journal)
+  const [target, setTarget] = useState(null);     // deep-link for the active tab
+  const [overlay, setOverlay] = useState(null);   // full-screen, non-tab destinations
 
-  // the one navigator the Front Desk (and anyone) calls to move around the app.
-  // dest can be a tab id string, or { tab, ...params } to deep-link into that world.
   const navigate = (dest) => {
     if (!dest) return;
     const tab = typeof dest === 'string' ? dest : dest.tab;
@@ -142,28 +153,27 @@ export default function Nav({ screens }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.void },
+  root: { flex: 1, backgroundColor: N.night },
 
   overlayBack: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  overlayBackTxt: { fontFamily: FONTS.body, color: C.muted, fontSize: 15 },
+  overlayBackTxt: { fontFamily: FONTS.body, color: N.moonDim, fontSize: 15 },
 
-  navWrap: { backgroundColor: 'transparent' },
   nav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    paddingTop: 10, paddingBottom: 26, paddingHorizontal: 8,
-    backgroundColor: 'rgba(10,7,16,0.92)',
-    borderTopWidth: 1, borderTopColor: 'rgba(243,168,95,0.10)',
+    paddingTop: 12, paddingHorizontal: 8,
+    backgroundColor: N.night,                       // fully opaque — nothing bleeds through
+    borderTopWidth: 1, borderTopColor: 'rgba(233,232,240,0.07)',
   },
   tab: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, minWidth: 56 },
   tabGlow: {
-    position: 'absolute', top: -2, width: 34, height: 34, borderRadius: 17,
-    backgroundColor: C.ember, opacity: 0.12,
+    position: 'absolute', top: -3, width: 38, height: 38, borderRadius: 19,
+    backgroundColor: N.candle, opacity: 0.13,
   },
-  tabLabel: { fontFamily: FONTS.body, fontSize: 10.5, color: C.faint, marginTop: 3, letterSpacing: 0.3 },
+  tabLabel: { fontFamily: FONTS.body, fontSize: 10.5, color: N.navIdle, marginTop: 4, letterSpacing: 0.3 },
 
   stub: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
   stubOrb: { marginBottom: 20, opacity: 0.9 },
-  stubKicker: { fontFamily: FONTS.body, color: C.faint, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
-  stubTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 30, marginTop: 4, textTransform: 'capitalize' },
-  stubLine: { fontFamily: FONTS.displayItalic, color: C.muted, fontSize: 14, marginTop: 10, textAlign: 'center' },
+  stubKicker: { fontFamily: FONTS.body, color: N.navIdle, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
+  stubTitle: { fontFamily: FONTS.display, color: N.moon, fontSize: 30, marginTop: 4, textTransform: 'capitalize' },
+  stubLine: { fontFamily: FONTS.displayItalic, color: N.moonDim, fontSize: 14, marginTop: 10, textAlign: 'center' },
 });
