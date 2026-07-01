@@ -111,7 +111,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   const [draft, setDraft] = useState('');
   const [feed, setFeed] = useState([]);
   const [okFace, setOkFace] = useState(true);
-  const [banter, setBanter] = useState('');
+  const [liveBanter, setLiveBanter] = useState('');
   const [engineReady, setEngineReady] = useState(false);
   const feedRef = useRef(null);
 
@@ -126,8 +126,12 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
     dealNew();
   }, []);
 
+  // the SPIRIT the persona plays in — soul-prompting, not scripted words.
+  // We tell them HOW to be at the table; the actual words stay theirs.
+  const SPIRIT = `You are playing UNO against the user — as YOURSELF, fully in character. Be sporting but genuinely competitive. Instigate and provoke to make them lose focus. Gloat when you're winning. Answer with your own wit. When you're losing, don't hide it — say what you actually feel. Never break character, never narrate, no asterisks. Just one short spoken line, like a real opponent talking across the table.`;
+
   const personaReact = useCallback(async (situation) => {
-    const prompt = `[We're playing UNO together, casually. ${situation} Reply with ONE short spoken line, in your voice, like a real opponent at the table. No narration.]`;
+    const prompt = `${SPIRIT}\n\nWhat just happened: ${situation}\nYour line:`;
     const { line, diag } = await banter(opp.key, prompt);
     if (line) pushFeed({ who: 'opp', text: `${opp.name}: ${line}` });
     else if (diag) pushFeed({ who: 'sys', text: `DIAG ${diag}` });
@@ -139,7 +143,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
     let first = d.shift();
     while (first.c === 'W' || ['skip', 'rev', 'd2'].includes(first.v)) { d.push(first); first = d.shift(); }
     setYou(y); setOppHand(o); setDiscard(first); setActiveColor(first.c);
-    setDeck(d); goTurn('you'); setPhase('play'); setWinner(null); setBanter(''); setCalledUno(false); setFlying(null);
+    setDeck(d); goTurn('you'); setPhase('play'); setWinner(null); setLiveBanter(''); setCalledUno(false); setFlying(null);
     setFeed([{ who: 'sys', text: `dealt 7 each. match ${COLOR_NAME[first.c]} or ${label(first)}.` }]);
   };
 
@@ -241,7 +245,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
   const sendChat = async () => {
     const t = draft.trim(); if (!t) return;
     setDraft(''); pushFeed({ who: 'you', text: t });
-    const { line, diag } = await banter(opp.key, `[During our UNO game, I say to you:] ${t}`);
+    const { line, diag } = await banter(opp.key, `${SPIRIT}\n\nThe user just said to you: "${t}"\nYour line back:`);
     if (line) pushFeed({ who: 'opp', text: `${opp.name}: ${line}` });
     else if (diag) pushFeed({ who: 'sys', text: `DIAG ${diag}` });
   };
@@ -276,7 +280,7 @@ export default function Uno({ game, opponent, onExit = () => {} }) {
         </View>
 
         <View style={styles.banterWrap}>
-          {banter ? <Text style={styles.banter}>{banter}</Text> :
+          {liveBanter ? <Text style={styles.banter}>{liveBanter}</Text> :
            turn === 'opp' && engineReady ? <Text style={styles.banterDots}>· · ·</Text> : null}
         </View>
 

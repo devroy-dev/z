@@ -440,14 +440,27 @@ app.post('/banter', async (req, res) => {
     const p = personaByKey(persona);
     if (!p || !prompt) return res.status(400).json({ error: 'persona and prompt required' });
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic();
     const staticPrefix = buildStaticPrefix(p.defaultName, null, [p.codex as any], null);
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 60,
-      system: [{ type: 'text', text: staticPrefix }],
-      messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
-    });
-    const line = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+
+    // The non-streaming create() intermittently hits "Premature close" on this host.
+    // Use the plain-string system form (like memory/overseer, which work) and retry
+    // a couple of times on transient connection drops before giving up.
+    const doCall = async () => {
+      const anthropic = new Anthropic({ maxRetries: 3 });
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 60,
+        system: staticPrefix,
+        messages: [{ role: 'user', content: String(prompt).slice(0, 600) }],
+      });
+      return msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    };
+
+    let line = '', lastErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { line = await doCall(); if (line) break; }
+      catch (e: any) { lastErr = e; await new Promise(r => setTimeout(r, 300 * (attempt + 1))); }
+    }
+    if (!line && lastErr) throw lastErr;
     res.json({ line });
   } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
 });
