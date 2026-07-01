@@ -1,74 +1,153 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — THE FRONT DESK (the landing page).
-//  The lobby of callmeZ: Z at the desk, talking. The real concierge persona
-//  (the_front_desk) — holds your list, remembers what matters, and knows every
-//  room of the house. Its replies can surface tappable route chips that carry
-//  you into a persona (Gathering), the Arena, the Stage, the journal, or the
-//  quiet room. Names + faces come from what YOU named each persona.
+//  yourZ — THE FRONT DESK (the landing page) · NIGHTFALL
+//  Z at the door of the house — the guide, the engine, the soul. She holds
+//  your list, remembers what matters, and moves you to the right room. Her
+//  presence is the breathing candle (glow, never a fill); the world is moon-
+//  light. Her replies surface DOOR-CARDS that walk you into a persona, the
+//  Arena, the Stage, the journal, or inward to the quiet room.
+//  World = moonlight. Presence = candlelight. Each door lit by its own aura.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, KeyboardAvoidingView, Platform, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
-import { C, FONTS } from './theme';
+import { FONTS } from './theme';
 import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote } from './api';
+
+// ── NIGHTFALL palette (local to the Front Desk until the full repaint) ──
+const N = {
+  night:     '#0B0A0F',
+  night2:    '#100E15',
+  moon:      '#E9E8F0',
+  moonDim:   'rgba(233,232,240,0.56)',
+  moonFaint: 'rgba(233,232,240,0.30)',
+  silver:    '#9E9DB0',
+  hair:      'rgba(233,232,240,0.10)',
+  hairSoft:  'rgba(233,232,240,0.055)',
+  candle:    '#E7B07A',
+  candleHot: '#F3CFA3',
+  candleGlow:'rgba(231,176,122,0.45)',
+};
+const aura = (rgb, a) => `rgba(${rgb},${a})`;
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 
-// default persona names — the fallback when the user hasn't renamed one yet.
-// (custom names + faces come from GET /threads, resolved in nameFor/dpFor below.)
-const DEFAULT_NAMES = {
-  the_brother: 'the brother', the_cousin: 'the awkward cousin', the_wingman: 'the wingman',
-  the_colleague: 'the colleague', the_comic: 'the comic', the_screen_junkie: 'the screen junkie',
-  the_healer: 'the healer', the_stranger: 'the stranger', the_guru: 'the guru', the_hippie: 'the hippie',
-  the_mentor: 'the motivator', the_oracle: 'the oracle', the_addict: 'the rehab',
-  the_self_obsessed: 'the guardian angel', the_brainiac: 'the brainiac', the_philosopher: 'the philosopher',
-  the_cosmologist: 'the cosmologist', the_historian: 'the historian', the_leader_opp: 'the leader of opposition',
-  the_cynic: 'the cynic', the_crush: 'the crush', the_hottie: 'the hottie', the_diva: 'the diva',
-  the_wannabe: 'the wannabe hustler', the_orator: 'the orator', the_media_manager: 'the media manager',
-  the_teacher: 'the professor', the_economist: 'the economist',
+// full persona registry — name · tagline · aura rgb (from the PWA, the source of truth)
+const PERSONA_META = {
+  the_wingman:{name:'the wingman',desc:"aka the dating coach. let's get you some action.",rgb:'74,134,255'},
+  the_hottie:{name:'the hottie',desc:"i bet i'll sweep you off your feet.",rgb:'255,120,140'},
+  the_comic:{name:'the comic',desc:"knock knock.",rgb:'240,180,70'},
+  the_crush:{name:'the crush',desc:"summon the courage and try your luck.",rgb:'255,140,170'},
+  the_screen_junkie:{name:'the screen junkie',desc:"endless suggestions, countless screen time.",rgb:'120,150,230'},
+  the_guru:{name:'the guru',desc:"there is one god and his name is knowledge.",rgb:'230,190,90'},
+  the_oracle:{name:'the oracle',desc:"because we all have a google friend.",rgb:'110,200,200'},
+  the_philosopher:{name:'the philosopher',desc:"we're all going to die. let's figure out why we lived.",rgb:'180,160,210'},
+  the_cynic:{name:'the cynic',desc:"everything's a disaster. wonderful, isn't it?",rgb:'150,150,150'},
+  the_historian:{name:'the historian',desc:"everything happening now has happened before. let me show you.",rgb:'200,160,110'},
+  the_cosmologist:{name:'the cosmologist',desc:"you're made of stardust, worried about a text. let's zoom out.",rgb:'120,140,230'},
+  the_media_manager:{name:'the media manager',desc:"your brand is a story. let's tell it right.",rgb:'230,140,170'},
+  the_teacher:{name:'the professor',desc:"you're not bad at it. it was explained badly. let's fix that.",rgb:'120,190,170'},
+  the_orator:{name:'the orator',desc:"your words control your future, your speech controls life.",rgb:'210,150,90'},
+  the_economist:{name:'the economist',desc:"markets, money, and why your rent keeps rising.",rgb:'110,170,140'},
+  the_wannabe:{name:'the wannabe hustler',desc:"place your bets — the house is HOT tonight.",rgb:'235,180,90'},
+  the_leader_opp:{name:'the leader of opposition',desc:"whatever side you're on, i'm on the other. facts not opinions.",rgb:'200,120,110'},
+  the_brother:{name:'the brother',desc:"love them, hate them, can't live without them. let's talk family.",rgb:'200,120,80'},
+  the_healer:{name:'the healer',desc:"love once and you know what love is. love twice and you know what life is.",rgb:'124,92,220'},
+  the_colleague:{name:'the colleague',desc:"every office is a battlefield. let's get you through yours.",rgb:'190,160,110'},
+  the_mentor:{name:'the motivator',desc:"i'll push you when you can't push yourself.",rgb:'230,190,110'},
+  the_stranger:{name:'the loyal friend',desc:"trust me with your life — i'll guard your secrets with mine.",rgb:'110,150,160'},
+  the_brainiac:{name:'the brainiac',desc:"i'll take the other side just to watch you get sharper.",rgb:'90,200,230'},
+  the_addict:{name:'the rehab',desc:"i've been where you are. let's get you out — one day at a time.",rgb:'80,220,180'},
+  the_self_obsessed:{name:'the guardian angel',desc:"the world can be cruel. i'm in your corner.",rgb:'235,165,185'},
+  the_hippie:{name:'the hippie',desc:"the rat race has a prize, man — a slightly richer rat. come breathe.",rgb:'120,170,120'},
+  the_diva:{name:'the diva',desc:"taste isn't about money — it's knowing exactly who you are.",rgb:'210,90,150'},
+  the_cousin:{name:'the awkward cousin',desc:"oh — hey. you go first, it's fine.",rgb:'150,160,190'},
 };
-// the special rooms (not personas) — their own labels + emblems
+// the special rooms (not personas) — their own emblem + one-line
 const SPECIALS = {
-  the_stage:   { label: 'the Stage',   glyph: '🎭' },
-  the_arena:   { label: 'the Arena',   glyph: '⚔' },
-  the_journal: { label: 'the journal', glyph: '✎' },
-  z_serious:   { label: 'the quiet room', glyph: '◐' },
+  z_serious:   { label: 'the quiet room', line: 'just us. somewhere quieter.', inward: true },
+  the_stage:   { label: 'the stage',   line: 'step into a scene. live it out.' },
+  the_arena:   { label: 'the arena',   line: 'a game. beat the scroll.' },
+  the_journal: { label: 'the journal', line: 'say it out. no one listening but me.' },
 };
-const prettify = (k) => (k || '').replace(/^the_/, 'the ').replace(/^mr_/, 'mr ').replace(/_/g, ' ');
+const nameFallback = (k) => (PERSONA_META[k] && PERSONA_META[k].name) || (k || '').replace(/^the_/, 'the ').replace(/_/g, ' ');
 
 function greetingFor() {
   const h = new Date().getHours();
-  if (h < 5) return 'still up? i’m here.';
-  if (h < 12) return 'morning. good to see you.';
-  if (h < 17) return 'hey — good to see you back.';
-  if (h < 22) return 'evening. glad you came by.';
-  return 'late one. i’m glad you’re here.';
+  if (h < 5)  return 'still up. good — the best rooms open after dark.';
+  if (h < 12) return 'morning. the day’s yours — let’s aim it somewhere.';
+  if (h < 17) return 'there you are. good timing.';
+  if (h < 22) return 'evening. the house is warm — come in.';
+  return 'late one. perfect. i do my best work at this hour.';
 }
 
-// the concierge presence — a warm bell at the desk
-function DeskBell({ size = 44 }) {
+// ── Z's presence — the breathing candle (glow only, never a fill) ──
+function Orb({ size = 62 }) {
+  const s = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(s, { toValue: 1, duration: 2750, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(s, { toValue: 0, duration: 2750, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  const scale = s.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] });
+  const halo = size * 2.6;
   return (
-    <Svg width={size} height={size} viewBox="0 0 48 48">
-      <Defs><RadialGradient id="bell" cx="40%" cy="32%" r="72%">
-        <Stop offset="0%" stopColor="#FFE6C4" /><Stop offset="42%" stopColor={C.ember} /><Stop offset="100%" stopColor={C.emberDeep} />
-      </RadialGradient></Defs>
-      <Circle cx="24" cy="24" r="23" fill="url(#bell)" opacity="0.16" />
-      <Path d="M14 30h20M24 13a8 8 0 018 8v9H16v-9a8 8 0 018-8z" stroke={C.ember} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M24 13v-2M22.5 11h3" stroke={C.ember} strokeWidth="1.8" fill="none" strokeLinecap="round" />
-    </Svg>
+    <Animated.View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', transform: [{ scale }] }}>
+      <Svg width={halo} height={halo} viewBox="0 0 100 100" style={{ position: 'absolute' }}>
+        <Defs><RadialGradient id="orbHalo" cx="50%" cy="50%" r="50%">
+          <Stop offset="0%" stopColor={N.candle} stopOpacity="0.42" />
+          <Stop offset="38%" stopColor={N.candle} stopOpacity="0.12" />
+          <Stop offset="100%" stopColor={N.candle} stopOpacity="0" />
+        </RadialGradient></Defs>
+        <Circle cx="50" cy="50" r="50" fill="url(#orbHalo)" />
+      </Svg>
+      <Svg width={size} height={size} viewBox="0 0 48 48">
+        <Defs><RadialGradient id="orbCore" cx="42%" cy="38%" r="64%">
+          <Stop offset="0%" stopColor={N.candleHot} /><Stop offset="46%" stopColor={N.candle} /><Stop offset="100%" stopColor="#8a5a30" />
+        </RadialGradient></Defs>
+        <Circle cx="24" cy="24" r="15" fill="url(#orbCore)" />
+      </Svg>
+    </Animated.View>
   );
 }
 
-function Avatar({ pkey, uri, size = 28 }) {
+function Avatar({ pkey, uri, size = 46, rgb }) {
   const [ok, setOk] = useState(true);
   const src = uri || faceFor(pkey);
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: N.night2,
+      borderWidth: 1.5, borderColor: rgb ? aura(rgb, 0.5) : N.hair }}>
       {ok ? <Image source={{ uri: src }} resizeMode="cover" style={{ width: '100%', height: '100%' }} onError={() => setOk(false)} /> : null}
     </View>
+  );
+}
+
+// ── a DOOR — the route card. outward = persona aura; inward = candlelight (Z) ──
+function DoorCard({ dkey, name, uri, onPress }) {
+  const sp = SPECIALS[dkey];
+  const inward = sp && sp.inward;
+  const meta = PERSONA_META[dkey];
+  const rgb = meta ? meta.rgb : null;
+  const label = sp ? sp.label : (name || nameFallback(dkey));
+  const line = sp ? sp.line : (meta ? meta.desc : '');
+  const washCol = inward ? N.candleGlow : (rgb ? aura(rgb, 0.20) : N.hair);
+  const goCol = inward ? N.candle : (rgb ? aura(rgb, 0.8) : N.moonFaint);
+  return (
+    <Pressable onPress={onPress} style={[styles.door, { borderColor: inward ? 'rgba(231,176,122,0.24)' : N.hair }]}>
+      <LinearGradient colors={[washCol, 'transparent']} start={{ x: 0, y: 0.5 }} end={{ x: 0.7, y: 0.5 }} style={StyleSheet.absoluteFill} />
+      {inward
+        ? <View style={styles.flame}><Svg width={46} height={46} viewBox="0 0 48 48"><Defs><RadialGradient id={'fl' + dkey} cx="44%" cy="40%" r="60%"><Stop offset="0%" stopColor={N.candleHot} /><Stop offset="46%" stopColor={N.candle} /><Stop offset="100%" stopColor="#7a4f2b" /></RadialGradient></Defs><Circle cx="24" cy="24" r="15" fill={`url(#fl${dkey})`} /></Svg></View>
+        : <Avatar pkey={dkey} uri={uri} size={46} rgb={rgb} />}
+      <View style={styles.dMeta}>
+        <Text style={styles.dName}>{label}</Text>
+        {line ? <Text style={styles.dFor} numberOfLines={1}>{line}</Text> : null}
+      </View>
+      <Text style={[styles.dGo, { color: goCol }]}>→</Text>
+    </Pressable>
   );
 }
 
@@ -96,7 +175,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const refreshDesk = async () => {
     const [th, tk, nt] = await Promise.all([listThreads(), listTasks(), getNotes()]);
     const map = {};
-    (th || []).forEach((t) => { map[t.persona_key] = { name: t.companion_name || DEFAULT_NAMES[t.persona_key], dp: t.avatar_url || null }; });
+    (th || []).forEach((t) => { map[t.persona_key] = { name: t.companion_name || nameFallback(t.persona_key), dp: t.avatar_url || null }; });
     setRoster(map);
     setTasks(tk || []);
     setFacts((nt && nt.facts) || []);
@@ -110,7 +189,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
     refreshDesk();
   }, []);
 
-  const nameFor = (key) => (roster[key] && roster[key].name) || DEFAULT_NAMES[key] || prettify(key);
+  const nameFor = (key) => (roster[key] && roster[key].name) || nameFallback(key);
   const dpFor = (key) => (roster[key] && roster[key].dp) || faceFor(key);
 
   // where each route key takes you
@@ -199,44 +278,47 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#1A1020', '#0E0912', C.void]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={[N.night, N.night, '#08070B']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      {/* light falling from the top */}
+      <LinearGradient colors={['rgba(231,176,122,0.055)', 'transparent']} locations={[0, 1]} style={styles.lightfall} pointerEvents="none" />
+
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
-        {/* header: the desk + your profile corner */}
+        {/* header: the presence + your corner */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <DeskBell size={40} />
-            <View style={{ marginLeft: 10 }}>
+            <Orb size={40} />
+            <View style={{ marginLeft: 12 }}>
               <Text style={styles.deskTitle}>the front desk</Text>
               <Text style={styles.deskSub}>set it down — i’ve got it.</Text>
             </View>
           </View>
-          <Pressable onPress={onOpenYou} hitSlop={10} style={styles.profile}>
+          <Pressable onPress={onOpenYou} hitSlop={10}>
             <View style={styles.profileRing}><Text style={styles.profileGlyph}>you</Text></View>
           </Pressable>
         </View>
 
-        {/* the lobby strip: your list · what Z remembers · the quiet room */}
+        {/* the lobby strip */}
         <View style={styles.strip}>
           <Pressable style={[styles.stripBtn, panel === 'list' && styles.stripOn]} onPress={() => setPanel(panel === 'list' ? null : 'list')}>
-            <Text style={styles.stripTxt}>your list{openTasks.length ? ` · ${openTasks.length}` : ''}</Text>
+            <Text style={[styles.stripTxt, panel === 'list' && styles.stripTxtOn]}>your list{openTasks.length ? ` · ${openTasks.length}` : ''}</Text>
           </Pressable>
           <Pressable style={[styles.stripBtn, panel === 'remember' && styles.stripOn]} onPress={() => setPanel(panel === 'remember' ? null : 'remember')}>
-            <Text style={styles.stripTxt}>what Z remembers</Text>
+            <Text style={[styles.stripTxt, panel === 'remember' && styles.stripTxtOn]}>what Z remembers</Text>
           </Pressable>
           <Pressable style={styles.stripBtn} onPress={() => routeTo('z_serious')}>
-            <Text style={[styles.stripTxt, { color: C.ember }]}>◐ quiet room</Text>
+            <Text style={[styles.stripTxt, { color: N.candle }]}>◐ quiet room</Text>
           </Pressable>
         </View>
 
-        {/* expandable panels */}
+        {/* panels */}
         {panel === 'list' && (
           <View style={styles.panel}>
             {openTasks.length === 0 && tasks.length === 0 ? (
-              <Text style={styles.panelEmpty}>nothing on your list. mention something and i’ll keep it.</Text>
+              <Text style={styles.panelEmpty}>nothing on your plate right now. tell me something and i’ll hold it.</Text>
             ) : (
-              <ScrollView style={{ maxHeight: 200 }}>
+              <ScrollView style={{ maxHeight: 220 }}>
                 {tasks.map((t) => (
                   <Pressable key={t.id} style={styles.taskRow} onPress={() => toggleTask(t)}>
                     <View style={[styles.check, t.status === 'done' && styles.checkOn]}>{t.status === 'done' ? <Text style={styles.checkMark}>✓</Text> : null}</View>
@@ -250,14 +332,17 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
         {panel === 'remember' && (
           <View style={styles.panel}>
             {facts.length === 0 && letters.length === 0 ? (
-              <Text style={styles.panelEmpty}>nothing yet. the more we talk, the more i’ll remember.</Text>
+              <Text style={styles.panelEmpty}>nothing yet. the more we talk, the more i’ll keep.</Text>
             ) : (
-              <ScrollView style={{ maxHeight: 240 }}>
+              <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
                 {facts.map((f) => (
-                  <View key={'f' + f.id} style={styles.factRow}>
-                    <Text style={styles.factTxt}>· {f.value}</Text>
+                  <View key={'f' + f.id} style={styles.kept}>
+                    <View style={styles.keptDot} />
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.keptBody}>{f.value}</Text>
+                    </View>
                     <Pressable hitSlop={8} onPress={async () => { setFacts((cur) => cur.filter((x) => x.id !== f.id)); await deleteNote('fact', f.id); }}>
-                      <Text style={styles.factX}>✕</Text>
+                      <Text style={styles.keptForget}>forget</Text>
                     </Pressable>
                   </View>
                 ))}
@@ -272,60 +357,56 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
           </View>
         )}
 
-        {/* the conversation with the concierge */}
-        <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingVertical: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+        {/* the conversation — Z floats in serif (the house speaks); you in a candle bubble */}
+        <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingVertical: 16, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
           onScroll={(e) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
             atBottomRef.current = (contentSize.height - (contentOffset.y + layoutMeasurement.height)) < 120;
           }}>
           {messages.map((m) => (
-            <View key={m.id} style={{ marginBottom: 12 }}>
-              <View style={[styles.bubbleWrap, m.who === 'you' ? styles.youWrap : styles.themWrap]}>
-                <Text style={m.who === 'you' ? styles.youText : styles.themText}>{m.text || (m.typing ? '…' : '')}</Text>
-              </View>
+            <View key={m.id} style={{ marginBottom: 16 }}>
+              {m.who === 'you' ? (
+                <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
+              ) : (
+                <Text style={styles.themText}>{m.text || (m.typing ? '…' : '')}</Text>
+              )}
               {m.routes && m.routes.length > 0 && (
-                <View style={styles.chips}>
-                  {m.routes.map((key) => {
-                    const sp = SPECIALS[key];
-                    return (
-                      <Pressable key={key} style={styles.chip} onPress={() => routeTo(key)}>
-                        {sp ? <Text style={styles.chipGlyph}>{sp.glyph}</Text> : <Avatar pkey={key} uri={dpFor(key)} size={20} />}
-                        <Text style={styles.chipTxt}>{sp ? sp.label : nameFor(key)}</Text>
-                      </Pressable>
-                    );
-                  })}
+                <View style={styles.doors}>
+                  {m.routes.map((key) => (
+                    <DoorCard key={key} dkey={key} name={nameFor(key)} uri={dpFor(key)} onPress={() => routeTo(key)} />
+                  ))}
                 </View>
               )}
             </View>
           ))}
           {messages.length <= 1 && (
-            <Pressable style={styles.moodChip} onPress={() => send('help me figure out what i’m in the mood for tonight')}>
+            <Pressable style={styles.moodChip} onPress={() => send('what should i get into tonight?')}>
               <Text style={styles.moodTxt}>✦ what am i in the mood for?</Text>
             </Pressable>
           )}
         </ScrollView>
 
-        {/* composer */}
+        {/* composer — hairline field, candle send */}
         <View style={styles.composer}>
-          <BlurView intensity={24} tint="dark" style={styles.field}>
+          <View style={styles.field}>
             <TextInput
               value={draft}
               onChangeText={setDraft}
               placeholder="tell the desk what you need…"
-              placeholderTextColor={C.faint}
+              placeholderTextColor={N.moonFaint}
               style={[styles.input, { maxHeight: 120 }]}
               multiline
               editable={!sending}
             />
-          </BlurView>
+          </View>
           <Pressable style={styles.send} onPress={() => send()}>
-            <Svg width="46" height="46" viewBox="0 0 48 48">
-              <Defs><RadialGradient id="deskSend" cx="40%" cy="34%" r="70%">
-                <Stop offset="0%" stopColor="#FFD9AE" /><Stop offset="42%" stopColor={C.ember} /><Stop offset="100%" stopColor={C.emberDeep} />
+            <Svg width="48" height="48" viewBox="0 0 48 48">
+              <Defs><RadialGradient id="deskSend" cx="42%" cy="36%" r="66%">
+                <Stop offset="0%" stopColor={N.candleHot} /><Stop offset="52%" stopColor={N.candle} /><Stop offset="100%" stopColor="#c88a4f" />
               </RadialGradient></Defs>
-              <Circle cx="24" cy="24" r="23" fill="url(#deskSend)" />
-              <Path d="M16 24 L32 17 L27 32 L23.5 25.5 Z" fill="#3A1505" />
+              <Circle cx="24" cy="24" r="18" fill="url(#deskSend)" />
+              <Path d="M17 24 L31 18 L26.5 31 L23 25.5 Z" fill="#2a1c10" />
             </Svg>
           </Pressable>
         </View>
@@ -337,53 +418,60 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.void },
+  root: { flex: 1, backgroundColor: N.night },
+  lightfall: { position: 'absolute', top: 0, left: 0, right: 0, height: '42%' },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  deskTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 20 },
-  deskSub: { fontFamily: FONTS.displayItalic, color: C.muted, fontSize: 12.5, marginTop: 1 },
-  profile: {},
-  profileRing: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(243,168,95,0.3)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.03)' },
-  profileGlyph: { fontFamily: FONTS.body, color: C.muted, fontSize: 11 },
+  deskTitle: { fontFamily: FONTS.display, color: N.moon, fontSize: 21 },
+  deskSub: { fontFamily: FONTS.displayItalic, color: N.moonDim, fontSize: 12.5, marginTop: 1 },
+  profileRing: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: N.hair, alignItems: 'center', justifyContent: 'center', backgroundColor: N.night2 },
+  profileGlyph: { fontFamily: FONTS.body, color: N.silver, fontSize: 11 },
 
   strip: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
-  stripBtn: { flex: 1, paddingVertical: 9, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.03)', alignItems: 'center' },
-  stripOn: { borderColor: 'rgba(243,168,95,0.4)', backgroundColor: 'rgba(243,168,95,0.08)' },
-  stripTxt: { fontFamily: FONTS.body, color: C.muted, fontSize: 12 },
+  stripBtn: { flex: 1, paddingVertical: 10, borderRadius: 100, borderWidth: 1, borderColor: N.hair, backgroundColor: N.hairSoft, alignItems: 'center' },
+  stripOn: { borderColor: 'rgba(231,176,122,0.32)', backgroundColor: 'rgba(231,176,122,0.07)' },
+  stripTxt: { fontFamily: FONTS.body, color: N.silver, fontSize: 12 },
+  stripTxtOn: { color: N.moon },
 
-  panel: { marginHorizontal: 16, marginBottom: 6, padding: 14, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  panelEmpty: { fontFamily: FONTS.displayItalic, color: C.faint, fontSize: 13 },
-  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9 },
-  check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.4, borderColor: C.faint, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { borderColor: C.ember, backgroundColor: 'rgba(243,168,95,0.18)' },
-  checkMark: { color: C.ember, fontSize: 12, fontWeight: '700' },
-  taskTxt: { fontFamily: FONTS.body, color: C.cream, fontSize: 15, flex: 1 },
-  taskDone: { color: C.faint, textDecorationLine: 'line-through' },
-  factTxt: { fontFamily: FONTS.body, color: C.muted, fontSize: 13.5, paddingVertical: 5, lineHeight: 20, flex: 1 },
-  factRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  factX: { fontFamily: FONTS.body, color: C.faint, fontSize: 13, paddingHorizontal: 4 },
-  letter: { marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: 'rgba(243,168,95,0.06)', borderWidth: 1, borderColor: 'rgba(243,168,95,0.14)' },
-  letterKicker: { fontFamily: FONTS.body, color: C.ember, fontSize: 11, letterSpacing: 0.5, marginBottom: 4 },
-  letterBody: { fontFamily: FONTS.displayItalic, color: C.cream, fontSize: 14, lineHeight: 21 },
+  panel: { marginHorizontal: 16, marginBottom: 6, padding: 14, borderRadius: 18, backgroundColor: N.night2, borderWidth: 1, borderColor: N.hair },
+  panelEmpty: { fontFamily: FONTS.displayItalic, color: N.moonDim, fontSize: 14, lineHeight: 21 },
 
-  convo: { flex: 1, paddingHorizontal: 18 },
-  bubbleWrap: { maxWidth: '86%', paddingHorizontal: 15, paddingVertical: 11, borderRadius: 20 },
-  themWrap: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.05)', borderTopLeftRadius: 6 },
-  youWrap: { alignSelf: 'flex-end', backgroundColor: 'rgba(243,168,95,0.14)', borderTopRightRadius: 6 },
-  themText: { fontFamily: FONTS.body, color: '#F1E7DC', fontSize: 15, lineHeight: 22 },
-  youText: { fontFamily: FONTS.body, color: C.cream, fontSize: 15, lineHeight: 22 },
+  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.4, borderColor: N.moonFaint, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
+  checkOn: { borderColor: N.candle, backgroundColor: 'rgba(231,176,122,0.18)' },
+  checkMark: { color: N.candle, fontSize: 12, fontWeight: '700' },
+  taskTxt: { fontFamily: FONTS.body, color: N.moon, fontSize: 15, flex: 1 },
+  taskDone: { color: N.moonFaint, textDecorationLine: 'line-through' },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 4 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(243,168,95,0.28)', backgroundColor: 'rgba(255,255,255,0.03)' },
-  chipGlyph: { fontSize: 14 },
-  chipTxt: { fontFamily: FONTS.body, color: C.cream, fontSize: 13 },
+  // kept-objects — the memory as things she treasures
+  kept: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: N.hairSoft },
+  keptDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: N.candle, marginTop: 7 },
+  keptBody: { fontFamily: FONTS.body, color: N.moon, fontSize: 15, lineHeight: 21, fontWeight: '300' },
+  keptForget: { fontFamily: FONTS.body, color: N.moonFaint, fontSize: 11, marginTop: 4 },
+  letter: { marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: 'rgba(231,176,122,0.05)', borderWidth: 1, borderColor: 'rgba(231,176,122,0.14)' },
+  letterKicker: { fontFamily: FONTS.body, color: N.candle, fontSize: 10.5, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 5 },
+  letterBody: { fontFamily: FONTS.displayItalic, color: N.moon, fontSize: 15, lineHeight: 22 },
 
-  moodChip: { alignSelf: 'flex-start', marginTop: 4, marginLeft: 4, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(243,168,95,0.28)', backgroundColor: 'rgba(243,168,95,0.06)' },
-  moodTxt: { fontFamily: FONTS.body, color: C.ember, fontSize: 13.5 },
+  convo: { flex: 1, paddingHorizontal: 20 },
+  themText: { fontFamily: FONTS.displayItalic, color: N.moon, fontSize: 19, lineHeight: 28, letterSpacing: 0.1 },
+  youWrap: { alignSelf: 'flex-end', maxWidth: '82%', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 18, borderTopRightRadius: 6, backgroundColor: 'rgba(231,176,122,0.10)', borderWidth: 1, borderColor: 'rgba(231,176,122,0.14)' },
+  youText: { fontFamily: FONTS.body, color: N.moon, fontSize: 15, lineHeight: 22 },
 
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
-  field: { flex: 1, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  input: { fontFamily: FONTS.body, color: C.cream, fontSize: 15, paddingHorizontal: 16, paddingVertical: 12 },
-  send: { width: 46, height: 46 },
+  // door-cards
+  doors: { marginTop: 16, gap: 10 },
+  door: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13, paddingHorizontal: 15, borderRadius: 17, borderWidth: 1, overflow: 'hidden', backgroundColor: N.night2 },
+  flame: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
+  dMeta: { flex: 1, minWidth: 0 },
+  dName: { fontFamily: FONTS.display, color: N.moon, fontSize: 18 },
+  dFor: { fontFamily: FONTS.displayItalic, color: N.moonDim, fontSize: 12.5, marginTop: 2 },
+  dGo: { fontSize: 19, fontFamily: FONTS.body },
+
+  moodChip: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(231,176,122,0.28)', backgroundColor: 'rgba(231,176,122,0.05)' },
+  moodTxt: { fontFamily: FONTS.body, color: N.candle, fontSize: 13.5 },
+
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+  field: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },
+  input: { fontFamily: FONTS.body, color: N.moon, fontSize: 15, paddingHorizontal: 18, paddingVertical: 13 },
+  send: { width: 48, height: 48 },
 });
