@@ -16,6 +16,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg'
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
+import Grain from './Grain';
 import * as ImagePicker from 'expo-image-picker';
 import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar } from './api';
 
@@ -242,6 +243,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       {/* the room's own light — this persona's aura, falling from the top */}
       <LinearGradient colors={[`rgba(${rgb},0.17)`, `rgba(${rgb},0.05)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <Grain />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>

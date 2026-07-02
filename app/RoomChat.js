@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { subscribeRoom, unsubscribe } from './realtime';
+import Grain from './Grain';
 import { streamChat, getRoomMembers, getRoomMessages, inviteToRoom, API_BASE } from './api';
 
 const N = {
@@ -248,6 +249,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
   return (
     <View style={styles.root}>
       <LinearGradient colors={[`rgba(${rgbOf(personas[0])},0.14)`, `rgba(${rgbOf(personas[0])},0.04)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>

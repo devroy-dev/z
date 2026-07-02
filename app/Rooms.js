@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { getRoomSuggestions, listRooms, createRoom } from './api';
+import Grain from './Grain';
 
 const N = {
   night: '#0B0A0F', night2: '#100E15',
@@ -134,6 +135,7 @@ export default function Rooms({ onOpen = () => {} }) {
   return (
     <View style={styles.root}>
       <LinearGradient colors={[`rgba(231,176,122,0.10)`, `rgba(231,176,122,0.03)`, N.night]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.kicker}>together</Text>

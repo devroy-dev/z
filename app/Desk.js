@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
 import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote } from './api';
+import Grain from './Grain';
 
 // ── NIGHTFALL palette (local to the Front Desk until the full repaint) ──
 const N = {
@@ -281,6 +282,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
       <LinearGradient colors={[N.night, N.night, '#08070B']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       {/* light falling from the top */}
       <LinearGradient colors={['rgba(231,176,122,0.055)', 'transparent']} locations={[0, 1]} style={styles.lightfall} pointerEvents="none" />
+      <Grain />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
