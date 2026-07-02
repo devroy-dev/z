@@ -5,18 +5,20 @@ import reactPlugin from 'eslint-plugin-react';
 
 const eslint = new ESLint({
   overrideConfigFile: true,
-  overrideConfig: [{
+  overrideConfig: [
+  { ignores: ['metro.config.js', 'babel.config.js', 'node_modules/**', 'dist/**'] },
+{
     files: ['**/*.js'],
     plugins: { react: reactPlugin },
     languageOptions: {
       ecmaVersion: 2022, sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
-      globals: { require: 'readonly', console: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly', process: 'readonly', Math: 'readonly', JSON: 'readonly', Date: 'readonly', Promise: 'readonly' },
+      globals: { require: 'readonly', console: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly', process: 'readonly', Math: 'readonly', JSON: 'readonly', Date: 'readonly', Promise: 'readonly', fetch: 'readonly', module: 'writable', global: 'readonly', __dirname: 'readonly', FormData: 'readonly', Blob: 'readonly', URL: 'readonly', AbortController: 'readonly', TextDecoder: 'readonly', TextEncoder: 'readonly', WebSocket: 'readonly', navigator: 'readonly', alert: 'readonly' },
     },
     rules: { 'no-undef': 'error', 'react/jsx-no-undef': 'error' },
   }],
 });
-const results = await eslint.lintFiles(['games/**/*.js', 'stage/**/*.js']);
+const results = await eslint.lintFiles(['*.js', 'games/**/*.js', 'stage/**/*.js']);
 let bad = 0;
 for (const r of results) for (const m of r.messages) {
   if (m.ruleId === 'no-undef' || m.ruleId === 'react/jsx-no-undef') {

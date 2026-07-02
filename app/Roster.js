@@ -126,11 +126,10 @@ function PresenceRow({ pkey, tone, pinned, onPin, onOpen, names = {}, states = {
       <Presence pkey={pkey} tone={tone} size={56} />
       <View style={styles.rowText}>
         <Text style={styles.rowName}>{shownName}</Text>
+        <Text style={styles.rowDesc} numberOfLines={1}>{p.desc}</Text>
         {states[pkey] ? (
-          <Text style={styles.rowStatus} numberOfLines={2}>{states[pkey].status_line}</Text>
-        ) : (
-          <Text style={styles.rowDesc} numberOfLines={1}>{p.desc}</Text>
-        )}
+          <Text style={styles.rowStatus} numberOfLines={2}>“{states[pkey].status_line}”</Text>
+        ) : null}
       </View>
       <Pressable hitSlop={12} onPress={() => onPin(pkey)} style={styles.pinHit}>
         <Text style={[styles.pin, pinned && { color: tone, opacity: 1 }]}>{pinned ? '★' : '☆'}</Text>
@@ -163,7 +162,7 @@ function PinnedShelf({ pins, onOpen, onPin, names = {} }) {
 }
 
 // ── a constellation (group) ──
-function Constellation({ group, pins, onPin, onOpen, query, names = {} }) {
+function Constellation({ group, pins, onPin, onOpen, query, names = {}, states = {} }) {
   const q = (query || '').trim().toLowerCase();
   const matches = (k) => {
     if (!q) return true;
@@ -264,7 +263,7 @@ export default function Roster({ onOpen = () => {} }) {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled">
             {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} names={names} />}
             {GROUPS.map((g) => (
-              <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} />
+              <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} states={states} />
             ))}
           </ScrollView>
         </SafeAreaView>
@@ -302,7 +301,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 18 },
   rowText: { flex: 1, marginLeft: 12 },
   rowName: { fontFamily: 'Figtree_500Medium', color: C.cream, fontSize: 15.5 },
-  rowStatus: { fontFamily: FONTS.displayItalic, color: 'rgba(231,215,199,0.62)', fontSize: 12.5, lineHeight: 17, marginTop: 2 },
+  rowStatus: { fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(231,215,199,0.62)', fontSize: 12.5, lineHeight: 17, marginTop: 2 },
   rowDesc: { fontFamily: 'Figtree_300Light', color: C.muted, fontSize: 12.5, marginTop: 2 },
   pinHit: { paddingHorizontal: 8, paddingVertical: 6 },
   pin: { fontSize: 18, color: C.faint, opacity: 0.6 },
