@@ -97,32 +97,45 @@ export const pusoyAdapter = {
 };
 
 // ── HOLD'EM: a continuous table; hands roll on via {type:'deal'} ──
+// the engine's must-act tracker is a Set, which JSON storage flattens to {};
+// every entry point rehydrates it, every exit stores it as an array.
+const pkHydrate = (state: any) => {
+  const n = state.g?.need;
+  if (n && !(n instanceof Set)) state.g.need = new Set(Array.isArray(n) ? n : []);
+  return state;
+};
+const pkDehydrate = (state: any) => {
+  if (state.g?.need instanceof Set) state.g.need = [...state.g.need];
+  return state;
+};
 export const pokerAdapter = {
   minSeats: 2, maxSeats: 6,
   create(seats: any[]) {
     const stacks = seats.map(() => 2000);
     const g = PK.newHand(stacks, 0);
-    return { kind: 'poker', dealer: 0, stacks, g };
+    return pkDehydrate({ kind: 'poker', dealer: 0, stacks, g });
   },
   move(state: any, seat: number, mv: any) {
+    pkHydrate(state);
     if (mv.type === 'deal') {
       if (state.g.street !== 'over') throw new Error('hand in play');
       state.stacks = state.g.stacks.map((s: number) => (s < 40 ? 2000 : s));   // house fronts the broke
       state.dealer = (state.dealer + 1) % state.stacks.length;
       state.g = PK.newHand(state.stacks, state.dealer);
-      return state;
+      return pkDehydrate(state);
     }
     if (state.g.street === 'over') throw new Error('hand over — deal');
     const map: any = { fold: { type: 'fold' }, check: { type: 'check' }, call: { type: 'call' } };
     const action = map[mv.type] || (mv.type === 'bet' || mv.type === 'raise' ? { type: mv.type, to: mv.to | 0 } : null);
     if (!action) throw new Error('unknown move');
     PK.act(state.g, action);
-    return state;
+    return pkDehydrate(state);
   },
   ai(state: any, seat: number, seats: any[]) {
+    pkHydrate(state);
     const choice = PKai.chooseAction(state.g, seat, styleFor(seats, seat));
     PK.act(state.g, choice);
-    return state;
+    return pkDehydrate(state);
   },
   view(state: any, seat: number) {
     const g = state.g;

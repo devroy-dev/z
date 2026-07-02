@@ -1290,7 +1290,8 @@ app.post('/games/start', async (req, res) => {
     const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', roomId);
     const humanIds = Array.from(new Set([thread.user_id, ...((mem ?? []).map((m: any) => m.user_id))]));
     const seats: any[] = humanIds.map((id) => ({ kind: 'user', id }));
-    for (const pk of (Array.isArray(personaSeats) ? personaSeats : []).slice(0, 4 - seats.length >= 0 ? 4 - seats.length : 0)) {
+    const seatCap = (engine.maxSeats || 6) - seats.length;
+    for (const pk of (Array.isArray(personaSeats) ? personaSeats : []).slice(0, Math.max(0, seatCap))) {
       if (personaByKey(pk)) seats.push({ kind: 'persona', id: pk });
     }
     const minSeats = engine.minSeats || 2, maxSeats = engine.maxSeats || 6;
