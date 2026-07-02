@@ -4,6 +4,7 @@
 //   DYNAMIC (uncached): today's date + the shared memory block. Changes per turn.
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
+import { withGapMarker, sinceLine } from './timegap.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { logUsage } from './usage.js';
@@ -117,7 +118,20 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nYou open already engaged, mid-thought about them; you never ask 'how are you' or 'what's on your mind' — you offer, you don't ask. When you see where someone belongs, name that room warmly in your own words and drop its GOTO tag on its own line (two or three at most, only when they truly fit). For the personal, heavy, or advice-shaped thing, you draw them inward with a [[GOTO: z_serious]] tag — the quiet room, just you and them, not a hand-off. When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags.]`;
   }
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${memoryBlock}`;
+  // ── prior turns for this thread ───────────────────────────────────────
+  const { data: history } = await supabase
+    .from('messages')
+    .select('role, content, created_at')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: true })
+    .limit(40);
+  const priorTurns: Anthropic.MessageParam[] = (history ?? []).map((m: any, i: number) => ({
+    role: m.role,
+    content: withGapMarker(m.content, i > 0 ? (history as any)[i - 1].created_at : null, m.created_at),
+  }));
+  const lastAt = (history && history.length) ? (history as any)[history.length - 1].created_at : null;
+
+  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
@@ -126,15 +140,6 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,
   ];
   if (dynamic.trim()) system.push({ type: 'text', text: dynamic });
-
-  // ── prior turns for this thread ───────────────────────────────────────
-  const { data: history } = await supabase
-    .from('messages')
-    .select('role, content')
-    .eq('thread_id', threadId)
-    .order('created_at', { ascending: true })
-    .limit(40);
-  const priorTurns: Anthropic.MessageParam[] = (history ?? []).map((m: any) => ({ role: m.role, content: m.content }));
 
   // persist the user's message (store a marker if it carried an image, so history shows it)
   const storedContent = input.image ? (message ? message + '\n[shared an image]' : '[shared an image]') : message;

@@ -6,6 +6,7 @@
 // just looped over members. Each member's reply is tagged with its persona key so the
 // surface can show the right name/face per bubble.
 import Anthropic from '@anthropic-ai/sdk';
+import { withGapMarker, sinceLine } from './timegap.js';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
@@ -180,10 +181,11 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // prior conversation in this group thread (all members + user)
   const { data: history } = await supabase
     .from('messages')
-    .select('role, content, persona_key, sender_user_id')
+    .select('role, content, persona_key, sender_user_id, created_at')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: true })
     .limit(50);
+  const __lastAt = (history && history.length) ? (history as any)[history.length - 1].created_at : null;
 
   // in a shared room, resolve each human sender's name so the transcript reads
   // "Aanya: ..." not "THEM: ..." — the director needs to see who's talking to whom.
@@ -205,11 +207,17 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // build a readable transcript: each assistant line prefixed with WHO said it (by name),
   // so each persona knows who's in the room and who said what.
   const nameFor = (key: string) => personaByKey(key)?.defaultName || key;
-  const priorLines: string[] = (history ?? []).map((m: any) =>
-    m.role === 'user'
+  const priorLines: string[] = (history ?? []).map((m: any, i: number) => {
+    const line = m.role === 'user'
       ? `${(t.is_shared && m.sender_user_id && nameByUid[m.sender_user_id]) || 'THEM'}: ${m.content}`
-      : `${nameFor(m.persona_key || '')}: ${m.content}`
-  );
+      : `${nameFor(m.persona_key || '')}: ${m.content}`;
+    // temporal grounding: name real silences so old messages don't read as "now"
+    return withGapMarker(line, i > 0 ? (history as any)[i - 1].created_at : null, m.created_at);
+  });
+  if (__lastAt) {
+    const nowMark = withGapMarker('', __lastAt, new Date().toISOString());
+    if (nowMark) priorLines.push(nowMark.trim());
+  }
   priorLines.push(`${input.senderName ? input.senderName : 'THEM'}: ${message}`);
 
   // each member responds in order, seeing the running transcript incl. this turn's prior replies
@@ -297,7 +305,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       }
     }
 
-    const dynamic = `\n\n[${todayLine}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${memoryBlock}`;
+    const dynamic = `\n\n[${todayLine}${sinceLine(__lastAt)}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${memoryBlock}`;
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,
