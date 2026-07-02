@@ -323,6 +323,24 @@ export async function renameThread(threadId, name) {
   try { return await authedJSON('PATCH', `/threads/${threadId}`, { name }); } catch (e) { return null; }
 }
 
+// ── ROOMS ──
+// daily, web-informed suggestions (topic + why + 3 personas), cached server-side.
+export async function getRoomSuggestions() {
+  try { const j = await authedJSON('GET', '/rooms/suggestions'); return j.items || []; } catch (e) { return []; }
+}
+// the rooms you're a member of → [{ id, name, personas, persona, last_active }]
+export async function listRooms() {
+  try { return await authedJSON('GET', '/rooms'); } catch (e) { return []; }
+}
+// create (or reuse) a shared room with these personas → { id, name, personas, persona }
+export async function createRoom(name, personas) {
+  try { return await authedJSON('POST', '/rooms', { name, personas }); } catch (e) { return null; }
+}
+// an invite link token for a room → { token }
+export async function inviteToRoom(roomId) {
+  try { return await authedJSON('POST', `/rooms/${roomId}/invite`, {}); } catch (e) { return null; }
+}
+
 // like openThread, but keeps the thread's saved identity (custom name / avatar)
 // instead of discarding it — so a chat can show the name YOU gave, not the default.
 export async function openThreadInfo(personaKey, name) {
