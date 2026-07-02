@@ -135,7 +135,11 @@ export default function Rooms({ onOpen = () => {} }) {
         { text: 'cancel', style: 'cancel' },
         { text: owned ? 'delete' : 'leave', style: 'destructive', onPress: async () => {
           setRooms((cur) => cur.filter((r) => r.id !== room.id));   // optimistic
-          if (owned) await deleteRoomThread(room.id); else await leaveRoom(room.id);
+          // always leave — removes your membership (works regardless of ownership);
+          // the server also soft-deletes the thread if you own it.
+          await leaveRoom(room.id);
+          const fresh = await listRooms();                          // reconcile with server truth
+          if (Array.isArray(fresh)) setRooms(fresh);
         } },
       ],
     );

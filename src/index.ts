@@ -1237,7 +1237,12 @@ app.post('/rooms/:id/leave', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
+    // always remove your membership — this is what makes the room leave YOUR list
+    // (GET /rooms is membership-based), regardless of who owns the thread.
     await supabase.from('room_members').delete().eq('thread_id', req.params.id).eq('user_id', user.id);
+    // and if you own the thread, soft-delete it too (cleanup, best-effort).
+    await supabase.from('threads').update({ deleted_at: new Date().toISOString() })
+      .eq('id', req.params.id).eq('user_id', user.id);
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: 'leave failed: ' + (e?.message || String(e)) }); }
 });
