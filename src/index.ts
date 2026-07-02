@@ -1141,7 +1141,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     } else if (th.is_group && isOwner) {
       // ARENA support in groups: strip score tags from the moderator's visible stream,
       // and after its turn, parse + emit score/result + persist the match.
-      const tagRe = /\[\[(SCORE|RESULT|VERDICT)[^\]]*\]\]/g;
+      const tagRe = /\[\[(SCORE|RESULT|VERDICT|TENSION|COMPLICATION)[^\]]*\]\]/g;
       const tails: Record<string, string> = {};
       const flushVisible = (key: string, chunk: string, final = false) => {
         let buf = (tails[key] || '') + chunk;
@@ -1165,6 +1165,14 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
             const score = /\[\[SCORE\s+you=(\d+)\s+z=(\d+)\]\]/.exec(full);
             const r2 = /\[\[RESULT\s+winner=(you|z|draw)\s+you=(\d+)\s+z=(\d+)\]\]/.exec(full);
             const verdict = /\[\[VERDICT\s+outcome=(win|loss|draw)\]\]/.exec(full);
+            // the pressure dial: last TENSION wins; complications carry a label
+            const tMatches = [...full.matchAll(/\[\[TENSION\s+(\d{1,2})\]\]/g)];
+            if (tMatches.length) {
+              const n = Math.max(1, Math.min(10, parseInt(tMatches[tMatches.length - 1][1], 10)));
+              res.write(`data: ${JSON.stringify({ tension: n })}\n\n`);
+            }
+            const comp = /\[\[COMPLICATION:\s*([^\]]+)\]\]/.exec(full);
+            if (comp) res.write(`data: ${JSON.stringify({ complication: comp[1].trim().slice(0, 80) })}\n\n`);
             if (score) res.write(`data: ${JSON.stringify({ score: { you: +score[1], z: +score[2] } })}\n\n`);
             if (r2) {
               res.write(`data: ${JSON.stringify({ result: { winner: r2[1], you: +r2[2], z: +r2[3] } })}\n\n`);

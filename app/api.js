@@ -425,7 +425,7 @@ export async function roleplayStart({ scenario, brief, cast }) {
   return r.json();   // { threadId, scenario, members }
 }
 
-export async function streamStage({ threadId, message, onBeat, onVerdict, onDone, onError }) {
+export async function streamStage({ threadId, message, onBeat, onVerdict, onTension, onComplication, onDone, onError }) {
   await loadSession();
   try {
     const doFetch = () => fetch(`${API_BASE}/chat`, {
@@ -445,6 +445,8 @@ export async function streamStage({ threadId, message, onBeat, onVerdict, onDone
       else if (ev.speaker && typeof ev.token === 'string') { acc += ev.token; }
       else if (ev.speaker && ev.end) { pushBeat(); curKey = null; }
       else if (ev.verdict) { verdict = ev.verdict; }
+      else if (typeof ev.tension === 'number') { onTension && onTension(ev.tension); }
+      else if (typeof ev.complication === 'string') { onComplication && onComplication(ev.complication); }
       else if (ev.error) { onError && onError('(' + ev.error + ')'); }
     };
     const parse = (text) => {

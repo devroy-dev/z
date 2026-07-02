@@ -49,18 +49,27 @@ function SceneCard({ s, wide, onPress }) {
 function Beat({ beat, playerName, onTyped, instant }) {
   const isDirection = beat.key === 'the_moderator';
   const isYou = beat.key === '__you__';
-  const [shown, setShown] = useState(instant ? beat.text : '');
+  const clean = (beat.text || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|\s)\*([^*\n]+)\*/g, '$1$2').replace(/__([^_]+)__/g, '$1');
+  const [shown, setShown] = useState(instant ? clean : '');
   useEffect(() => {
-    if (instant) { setShown(beat.text); return; }
-    const words = beat.text.split(/(\s+)/);
+    if (instant) { setShown(clean); return; }
+    const words = clean.split(/(\s+)/);
     let i = 0;
     const iv = setInterval(() => {
       i += 2;
       setShown(words.slice(0, i).join(''));
-      if (i >= words.length) { clearInterval(iv); setShown(beat.text); onTyped && onTyped(); }
+      if (i >= words.length) { clearInterval(iv); setShown(clean); onTyped && onTyped(); }
     }, 34);
     return () => clearInterval(iv);
   }, []);
+  if (beat.meta === 'complication') {
+    return (
+      <View style={st.compCard}>
+        <Text style={st.compKicker}>⚡ complication</Text>
+        <Text style={st.compText}>{beat.text.toUpperCase()}</Text>
+      </View>
+    );
+  }
   if (isYou) {
     return (
       <View style={st.youBeat}>
@@ -90,6 +99,22 @@ function CurtainPulse() {
   return <Animated.Text style={[st.curtain, a]}>the scene unfolds…</Animated.Text>;
 }
 
+function TensionMeter({ n }) {
+  const w = useSharedValue(0);
+  useEffect(() => { w.value = withTiming(n / 10, { duration: 900, easing: Easing.out(Easing.cubic) }); }, [n]);
+  const fill = useAnimatedStyle(() => ({ width: `${w.value * 100}%` }));
+  const toneCol = n >= 8 ? '#F0708C' : n >= 5 ? C.ember : 'rgba(201,155,232,0.8)';
+  return (
+    <View style={st.meterRow}>
+      <Text style={st.meterLabel}>tension</Text>
+      <View style={st.meterTrack}>
+        <Animated.View style={[st.meterFill, { backgroundColor: toneCol }, fill]} />
+      </View>
+      <Text style={[st.meterN, { color: toneCol }]}>{n}</Text>
+    </View>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════════
 export default function Stage({ onBack = () => {} }) {
   const [featured] = useState(() => shuffleFeatured(6));
@@ -105,6 +130,7 @@ export default function Stage({ onBack = () => {} }) {
   const [typing, setTyping] = useState(false);         // a beat is typing on
   const [streaming, setStreaming] = useState(false);
   const [verdict, setVerdict] = useState(null);
+  const [tension, setTension] = useState(0);
   const [line, setLine] = useState('');
   const scroll = useRef(null);
   const toneMap = useRef({});
@@ -125,7 +151,7 @@ export default function Stage({ onBack = () => {} }) {
       const j = await roleplayStart({ scenario: s.id, brief: fullBrief, cast: s.cast });
       toneMap.current = {};
       setScene({ s, threadId: j.threadId });
-      setBeats([]); setQueue([]); setVerdict(null); setTyping(false);
+      setBeats([]); setQueue([]); setVerdict(null); setTyping(false); setTension(0);
       setCustomOpen(false); setCustomBrief('');
       sendLine(KICKOFF(s.id), j.threadId, true);
       buzz('tap');
@@ -142,6 +168,8 @@ export default function Stage({ onBack = () => {} }) {
       threadId,
       message: text,
       onBeat: (beat) => setQueue((q) => [...q, { ...beat, tone: toneFor(beat.key), id: Math.random() }]),
+      onTension: (n) => setQueue((q) => [...q, { meta: 'tension', n, id: Math.random() }]),
+      onComplication: (text) => setQueue((q) => [...q, { meta: 'complication', text, id: Math.random() }]),
       onVerdict: (v) => setVerdict(v),
       onDone: () => setStreaming(false),
       onError: (m) => { setStreaming(false); setQueue((q) => [...q, { key: 'the_moderator', name: 'the moderator', text: m, tone: VIOLET, id: Math.random() }]); },
@@ -150,12 +178,22 @@ export default function Stage({ onBack = () => {} }) {
 
   const revealNext = () => {
     if (typing || !queue.length) return;
-    buzz('tap');
     const [next, ...rest] = queue;
+    if (next.meta === 'tension') {           // the dial moves — no tap consumed
+      setQueue(rest);
+      setTension((t) => { if (next.n > t) buzz('tick'); return next.n; });
+      return;
+    }
+    buzz(next.meta === 'complication' ? 'knock' : 'tap');
     setQueue(rest);
-    setTyping(true);
+    setTyping(next.meta !== 'complication'); // title cards land whole
     setBeats((b) => [...b, next]);
   };
+
+  // meta items auto-flow: after a tension/complication lands, keep revealing without a tap
+  useEffect(() => {
+    if (!typing && queue.length && (queue[0].meta === 'tension')) revealNext();
+  }, [queue, typing]);
 
   // auto-reveal the very first beat of a fresh scene (the curtain rises itself)
   useEffect(() => {
@@ -191,6 +229,7 @@ export default function Stage({ onBack = () => {} }) {
               </View>
             </View>
             <Text style={st.mission} numberOfLines={2}>{scene.s.id === 'custom' ? 'your scene, your mission — the moderator holds the verdict.' : scene.s.desc}</Text>
+            {tension > 0 && <TensionMeter n={tension} />}
 
             <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={st.script} showsVerticalScrollIndicator={false}>
               {beats.map((b, i) => (
@@ -359,6 +398,14 @@ const st = StyleSheet.create({
   youLine: { fontFamily: FONTS.body, color: '#FFE9C7', fontSize: 15, lineHeight: 22.5, textAlign: 'right', maxWidth: '86%' },
   curtain: { fontFamily: FONTS.displayItalic, color: VIOLET, fontSize: 13.5, textAlign: 'center', marginTop: 40 },
 
+  meterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 8, gap: 10 },
+  meterLabel: { fontFamily: FONTS.body, color: C.faint, fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase' },
+  meterTrack: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  meterFill: { height: 3, borderRadius: 2 },
+  meterN: { fontFamily: FONTS.semibold, fontSize: 11, width: 18, textAlign: 'right' },
+  compCard: { marginVertical: 14, paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(240,112,140,0.45)', backgroundColor: 'rgba(240,112,140,0.07)', alignItems: 'center' },
+  compKicker: { fontFamily: FONTS.body, color: '#F0708C', fontSize: 10, letterSpacing: 3, textTransform: 'uppercase' },
+  compText: { fontFamily: FONTS.display, color: '#FFD9E2', fontSize: 15.5, textAlign: 'center', marginTop: 6, letterSpacing: 0.5 },
   nextBtn: { alignSelf: 'center', marginVertical: 12, paddingHorizontal: 26, paddingVertical: 10, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(201,155,232,0.45)', backgroundColor: 'rgba(201,155,232,0.08)' },
   nextTxt: { fontFamily: FONTS.body, color: VIOLET, fontSize: 12, letterSpacing: 3, textTransform: 'uppercase' },
 
