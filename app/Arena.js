@@ -36,6 +36,7 @@ const SECTIONS = [
     { id: 'snakes', name: 'Snakes & Ladders', tone: '#8FD98F', blurb: 'saanp seedhi, baby.' },
   ]},
   { label: 'fast hands', games: [
+    { id: 'liarsdice', name: "Liar's Dice", tone: '#F0A765', blurb: 'five dice, one straight face.' },
     { id: 'airhockey', name: 'Air Hockey', tone: '#6FC9E0', blurb: 'fast hands win.' },
     { id: 'hangman', name: 'Hangman', tone: '#E0C088', blurb: "guess before it's too late." },
   ]},

@@ -25,6 +25,7 @@ import BluffTable from './games/bluff/Table';
 import TeenPattiTable from './games/teenpatti/Table';
 import PokerTable from './games/poker/Table';
 import CallbreakTable from './games/callbreak/Table';
+import LiarsDiceTable from './games/liarsdice/Table';
 import DebateMatch from './games/debate/Match';
 import TriviaMatch from './games/trivia/Match';
 import VerbalMatch from './games/verbal/Match';
@@ -64,6 +65,7 @@ function PlayWorld({ navigate, target }) {
     if (match.game?.id === 'teenpatti' || match.game?.id === 'teen_patti') return <GameBoundary onExit={exit}><TeenPattiTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
     if (match.game?.id === 'poker') return <GameBoundary onExit={exit}><PokerTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
     if (match.game?.id === 'callbreak') return <GameBoundary onExit={exit}><CallbreakTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
+    if (match.game?.id === 'liarsdice') return <GameBoundary onExit={exit}><LiarsDiceTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
     if (match.game?.id === 'debate') return <GameBoundary onExit={exit}><DebateMatch opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
     if (match.game?.id === 'trivia') return <GameBoundary onExit={exit}><TriviaMatch opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
     if (['riddle', 'twenty', 'wyr', 'dilemma'].includes(match.game?.id)) return <GameBoundary onExit={exit}><VerbalMatch gameId={match.game.id} opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
