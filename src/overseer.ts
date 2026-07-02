@@ -99,7 +99,7 @@ export async function runOverseer(opts: { weekly?: boolean; onlyUser?: string } 
   } else {
     const { data: actives } = await supabase
       .from('messages').select('user_id').gte('created_at', since);
-    userIds = [...new Set((actives ?? []).map((r: any) => r.user_id))];
+    userIds = [...new Set<string>((actives ?? []).map((r: any) => String(r.user_id)))];
   }
 
   for (const userId of userIds) {

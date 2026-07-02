@@ -19,6 +19,7 @@ import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
 import { runStateWriter, currentStates, startStateScheduler } from './personaStates.js';
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import * as LD from './games/liarsdice.js';
+import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
@@ -1235,6 +1236,10 @@ app.get('/rooms', async (req, res) => {
 // leave a room (members remove themselves)
 // ════════ MULTIPLAYER GAME SESSIONS (server-authoritative) ════════
 const GAME_ENGINES: Record<string, any> = {
+  callbreak: callbreakAdapter,
+  pusoy: pusoyAdapter,
+  poker: pokerAdapter,
+  ludo: ludoAdapter,
   liarsdice: {
     create: (seats: any[]) => { const g = LD.newGame(seats.length); LD.rollRound(g); return g; },
     move: (state: any, seat: number, mv: any) => {
@@ -1262,7 +1267,7 @@ function advanceAI(engine: any, state: any, seats: any[]) {
     if (t < 0) break;
     const seat = seats[t];
     if (!seat || seat.kind !== 'persona') break;
-    engine.ai(state, t);
+    state = engine.ai(state, t, seats) ?? state;
     if (engine.isOver(state)) break;
   }
   return state;
@@ -1288,8 +1293,15 @@ app.post('/games/start', async (req, res) => {
     for (const pk of (Array.isArray(personaSeats) ? personaSeats : []).slice(0, 4 - seats.length >= 0 ? 4 - seats.length : 0)) {
       if (personaByKey(pk)) seats.push({ kind: 'persona', id: pk });
     }
-    while (seats.length < 2) seats.push({ kind: 'persona', id: 'the_cynic' });
-    if (seats.length > 6) return res.status(400).json({ error: 'too many seats' });
+    const minSeats = engine.minSeats || 2, maxSeats = engine.maxSeats || 6;
+    const FILLERS = ['the_cynic', 'the_diva', 'the_wannabe', 'the_brainiac', 'the_comic'];
+    let fi = 0;
+    while (seats.length < minSeats && fi < FILLERS.length) {
+      const pk = FILLERS[fi++];
+      if (!seats.some((s2) => s2.kind === 'persona' && s2.id === pk)) seats.push({ kind: 'persona', id: pk });
+    }
+    if (seats.length > maxSeats) return res.status(400).json({ error: `too many seats for ${game} (max ${maxSeats})` });
+
     let state = engine.create(seats);
     state = advanceAI(engine, state, seats);
     const { data: sess, error } = await supabase.from('game_sessions').insert({
