@@ -24,6 +24,7 @@ const SECTIONS = [
     { id: 'teenpatti', name: 'Teen Patti', tone: '#F0A765', blurb: 'read the table. bluff or fold.' },
     { id: 'poker', name: "Hold'em", tone: '#E0C088', blurb: 'five-handed. all in, or fold.' },
     { id: 'callbreak', name: 'Callbreak', tone: '#8FD98F', blurb: 'call your tricks. spades rule.' },
+    { id: 'pusoy', name: 'Pusoy Dos', tone: '#6FC9E0', blurb: 'thirteen cards. diamonds are boss.' },
     { id: 'rummy', name: 'Rummy', tone: '#F0708C', blurb: 'sets, sequences, sharp memory.' },
     { id: 'blackjack', name: 'Blackjack', tone: '#8FD98F', blurb: 'beat the house, baby.' },
     { id: 'bluff', name: 'Bluff', tone: '#F0708C', blurb: 'lie, call, get read.' },
