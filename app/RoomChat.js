@@ -303,14 +303,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
         : <LiarsDiceLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
       ) : null}
       <SafeAreaView style={{ flex: 1, display: liveSession ? 'none' : 'flex' }} edges={['top', 'bottom']}>
-        {!liveSession && (
-          <Pressable onPress={liveAvail ? () => setLiveSession({ id: liveAvail.id, game: liveAvail.game }) : () => setGameMenu((v) => !v)}
-            style={{ position: 'absolute', right: 16, top: 54, zIndex: 30, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(240,167,101,0.5)', backgroundColor: 'rgba(20,14,8,0.9)' }}>
-            <Text style={{ fontFamily: 'Figtree_600SemiBold', color: '#F0A765', fontSize: 12 }}>
-              {liveAvail ? `🎲 ${liveAvail.game} live — join` : '🎲 play together'}
-            </Text>
-          </Pressable>
-        )}
+
         {gameMenu && !liveSession && (
           <View style={{ position: 'absolute', right: 16, top: 96, zIndex: 31, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(14,11,9,0.97)', overflow: 'hidden' }}>
             {[['liarsdice', "liar's dice"], ['callbreak', 'callbreak'], ['poker', "hold'em"], ['pusoy', 'pusoy dos'], ['ludo', 'ludo']].map(([id, name]) => (
@@ -332,6 +325,11 @@ export default function RoomChat({ room, onBack = () => {} }) {
               rt: {String(rt)} · {rtCount} rcvd · {rtRendered} shown · last: {rtLast || '—'}
             </Text>
           </View>
+          <Pressable hitSlop={8} style={[styles.inviteBtn, { marginRight: 8 }]}
+            onPress={liveAvail ? () => setLiveSession({ id: liveAvail.id, game: liveAvail.game }) : () => setGameMenu((v) => !v)}>
+            <Text style={{ fontSize: 12 }}>🎲</Text>
+            <Text style={styles.inviteText}>{liveAvail ? 'join game' : 'play'}</Text>
+          </Pressable>
           <Pressable hitSlop={8} style={styles.inviteBtn} onPress={doInvite}>
             <Svg width="13" height="13" viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" stroke={N.candle} strokeWidth="2" strokeLinecap="round" /></Svg>
             <Text style={styles.inviteText}>invite</Text>

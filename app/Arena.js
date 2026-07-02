@@ -146,7 +146,7 @@ function OpponentPicker({ game, onBack, onStart }) {
   const launch = () => {
     const roster = chosen.map((o) => ({ ...o, ai: true }));
     // pass first as `opp` for back-compat, full list as `roster`
-    onStart(game, chosen[0], roster);
+    onStart(game, chosen[0], roster, invited);
   };
   return (
     <View style={styles.root}>
@@ -183,13 +183,15 @@ function OpponentPicker({ game, onBack, onStart }) {
             </View>
           ))}
 
-          <Pressable style={styles.inviteRow} onPress={() => setInvited(true)}>
+          {['liarsdice', 'callbreak', 'poker', 'pusoy', 'ludo'].includes(game?.id) && (
+          <Pressable style={[styles.inviteRow, invited && { borderColor: 'rgba(240,167,101,0.6)' }]} onPress={() => setInvited((v) => !v)}>
             <View style={styles.invitePlus}><Text style={styles.invitePlusText}>+</Text></View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.oppName}>{invited ? 'friend invited' : 'invite a friend'}</Text>
-              <Text style={styles.oppStyle}>they join the table — a persona always plays too.</Text>
+              <Text style={styles.oppStyle}>{invited ? 'a live table will open — the invite link shares when you sit down.' : 'a live table opens and the invite link shares when you sit down.'}</Text>
             </View>
           </Pressable>
+          )}
         </ScrollView>
 
         {/* launch bar */}

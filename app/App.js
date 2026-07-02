@@ -4,6 +4,13 @@
 // ════════════════════════════════════════════════════════════════════════
 import React from 'react';
 import { useBackLayer } from './backbus';
+import { Share } from 'react-native';
+import { createRoom, inviteToRoom, startGameSession } from './api';
+import LiarsDiceLive from './games/liarsdice/Live';
+import CallbreakLive from './games/callbreak/Live';
+import PokerLive from './games/poker/Live';
+import PusoyLive from './games/pusoy/Live';
+import LudoLive from './games/ludo/Live';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -52,10 +59,36 @@ const SCREENS = {
 function PlayWorld({ navigate, target }) {
   const [mode, setMode] = React.useState('choose'); // choose | arena | game
   const [match, setMatch] = React.useState(null);
+  const [live, setLive] = React.useState(null);   // { game, sessionId } — a friends table
+  useBackLayer(!!live, React.useCallback(() => { setLive(null); setMode('arena'); return true; }, []));
+  const startLiveWithFriend = React.useCallback(async (game, roster) => {
+    try {
+      const personaKeys = (roster || []).map((o) => o.key).slice(0, 3);
+      const room = await createRoom(`${game.name} table`, personaKeys.length ? personaKeys : ['the_cynic']);
+      if (!room?.id) return;
+      const inv = await inviteToRoom(room.id);
+      const j = await startGameSession(room.id, game.id, personaKeys);
+      if (!j?.sessionId) return;
+      setLive({ game: game.id, sessionId: j.sessionId });
+      setMode('game');
+      if (inv?.token) {
+        const link = 'https://callmez.app/?join=' + inv.token;
+        try { await Share.share({ message: `come play ${game.name} with me on yourZ: ${link}`, url: link }); } catch (e) {}
+      }
+    } catch (e) {}
+  }, []);
   useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));
   useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
+  if (mode === 'game' && live) {
+    const exitLive = () => { setLive(null); setMode('arena'); };
+    if (live.game === 'callbreak') return <CallbreakLive sessionId={live.sessionId} onExit={exitLive} />;
+    if (live.game === 'poker') return <PokerLive sessionId={live.sessionId} onExit={exitLive} />;
+    if (live.game === 'pusoy') return <PusoyLive sessionId={live.sessionId} onExit={exitLive} />;
+    if (live.game === 'ludo') return <LudoLive sessionId={live.sessionId} onExit={exitLive} />;
+    return <LiarsDiceLive sessionId={live.sessionId} onExit={exitLive} />;
+  }
   if (mode === 'game' && match) {
     const exit = () => setMode('arena');
     if (match.game?.id === 'uno') return <GameBoundary onExit={exit}><Uno game={match.game} opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
@@ -74,7 +107,7 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {
-    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp, roster) => { setMatch({ game, opp, roster }); setMode('game'); }} />;
+    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'stage') navigate && navigate('stage'); }} />;
 }
