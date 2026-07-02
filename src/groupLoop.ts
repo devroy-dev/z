@@ -12,7 +12,7 @@ import { readMemoryBlock } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 import { broadcastRoomMessage } from './broadcast.js';
 
-const anthropic = new Anthropic();
+const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // ── THE DIRECTOR ───────────────────────────────────────────────────────────
@@ -279,8 +279,16 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       streamArgs.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }];
     }
     const stream = anthropic.messages.stream(streamArgs);
-    stream.on('text', (d) => input.onToken?.(key, d));
-    const final = await stream.finalMessage();
+    let __chars = 0;
+    stream.on('text', (d) => { __chars += d.length; input.onToken?.(key, d); });
+    const final = await stream.finalMessage().catch((err: any) => {
+      // DIAGNOSTIC: pinpoint the second premature-close. Which persona died, was
+      // web_search on, and how far did it get (0 = died at prefill; >0 = mid-stream)?
+      console.error('[groupLoop] stream error persona=', key, 'web=', !!persona?.webEnabled,
+        'streamedChars=', __chars, 'name=', err?.name, 'code=', err?.code, 'msg=', err?.message);
+      if (err?.cause) console.error('[groupLoop] cause=', err.cause);
+      throw err;
+    });
     const reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
 
     // persist with persona_key so the surface knows who spoke
