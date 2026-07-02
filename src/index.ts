@@ -17,6 +17,7 @@ import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
 import { runStateWriter, currentStates, startStateScheduler } from './personaStates.js';
+import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
@@ -37,6 +38,7 @@ const __dirname2 = dirname(fileURLToPath(import.meta.url));
 const anthropicShared = new Anthropic({ fetch: globalThis.fetch as any });
 startFollowupScheduler();
 startStateScheduler();
+startBriefScheduler();
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
@@ -208,6 +210,16 @@ app.post('/roleplay/start', async (req, res) => {
     if (error) return res.status(500).json({ error: 'roleplay start: ' + error.message });
     res.json({ threadId: data.id, scenario: scenarioKey, members, isGroup: true });
   } catch (e: any) { res.status(500).json({ error: 'roleplay start failed: ' + (e?.message || String(e)) }); }
+});
+
+// dev: leave this morning's brief now
+app.post('/dev/morning-brief', async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key) return res.status(404).json({ error: 'not found' });
+    if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    res.json(await runMorningBriefs(req.body?.userId ? { onlyUserId: req.body.userId } : undefined));
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
 // the house's day: latest status line per persona (public to any signed-in user)

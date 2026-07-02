@@ -126,7 +126,7 @@ export async function runFollowups(opts?: { onlyUserId?: string }): Promise<{ co
     try {
       // one per day, ever — idempotent across restarts
       const { data: already } = await supabase.from('ping_log')
-        .select('id').eq('user_id', uid).gte('created_at', dayStart.toISOString()).limit(1).maybeSingle();
+        .select('id').eq('user_id', uid).eq('kind', 'followup').gte('created_at', dayStart.toISOString()).limit(1).maybeSingle();
       if (already) continue;
 
       const draft = await draftFor(uid);
