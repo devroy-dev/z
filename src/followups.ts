@@ -25,12 +25,17 @@ const SELECTOR = `You decide whether an AI persona should send ONE short, warm, 
 You will see the user's open tasks and remembered facts. Look for ONE thing genuinely worth following up on: a task due/overdue, an event that has likely happened (an interview, a date, an exam, a doctor visit), something they said they'd do.
 
 Rules:
-- If NOTHING clearly warrants it, output exactly: NONE
-- Otherwise output exactly two lines:
-  PERSONA: <one of the allowed persona keys>
-  PING: <one short message (under 25 words) in that persona's voice — warm, specific, zero pressure, easy to ignore. Never guilt. Never "why haven't you". Reference the specific thing.>
-- Persona fit: work/career → the_colleague or the_mentor; dating/crush → the_wingman; health/heavy → the_healer; money → the_economist; study/exam → the_teacher; a task with a suggested persona → that one; anything else → the_front_desk.
-- When in doubt: NONE. Silence is always correct.`;
+- A task DUE within the next ~48 hours, or OVERDUE, ALWAYS warrants the follow-up — that is the clearest case there is. Pick it.
+- If nothing rises to that bar and nothing event-like stands out, output exactly: NONE
+- Otherwise output EXACTLY two lines and NOTHING else — no preamble, no quotes, no markdown:
+PERSONA: <one of the allowed persona keys>
+PING: <one short message (under 25 words) in that persona's voice — warm, specific, zero pressure, easy to ignore. Never guilt. Never "why haven't you". Reference the specific thing.>
+- Persona fit: a task with a [suggested: X] → X. Otherwise: work/career → the_colleague or the_mentor; dating/crush → the_wingman; health/heavy → the_healer; money → the_economist; study/exam → the_teacher; anything else → the_front_desk.
+- Multiple candidates: pick the single most timely one.
+
+Example output:
+PERSONA: the_colleague
+PING: big pitch tomorrow morning, right? if you want a dry run tonight, I'm at my desk.`;
 
 const ALLOWED = new Set(['the_colleague','the_mentor','the_wingman','the_healer','the_economist','the_teacher','the_front_desk','the_brother']);
 
@@ -39,7 +44,7 @@ async function draftFor(userId: string): Promise<{ personaKey: string; ping: str
     supabase.from('tasks').select('title, notes, due_at, suggested_persona').eq('user_id', userId).eq('status', 'open').limit(15),
     supabase.from('memory').select('key, value, updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(25),
   ]);
-  if (!(tasks?.length) && !(mem?.length)) return null;
+  if (!(tasks?.length) && !(mem?.length)) { console.log('[followups] nothing to consider for', userId); return null; }
   const today = new Date().toISOString().slice(0, 10);
   const ctx = [
     `Today: ${today}`,
@@ -53,10 +58,11 @@ async function draftFor(userId: string): Promise<{ personaKey: string; ping: str
   });
   logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
   const text = ((msg.content?.[0] as any)?.text ?? '').trim();
+  console.log('[followups] selector for', userId, '→', JSON.stringify(text.slice(0, 220)));
   if (/^NONE\b/i.test(text)) return null;
   const pm = /PERSONA:\s*(\S+)/i.exec(text);
   const gm = /PING:\s*([\s\S]+)/i.exec(text);
-  if (!pm || !gm) return null;
+  if (!pm || !gm) { console.log('[followups] unparseable selector output for', userId); return null; }
   const personaKey = pm[1].trim();
   const ping = gm[1].trim().replace(/^["']|["']$/g, '').slice(0, 240);
   if (!ALLOWED.has(personaKey) || !personaByKey(personaKey) || !ping) return null;
