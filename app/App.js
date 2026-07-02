@@ -3,6 +3,7 @@
 //  built worlds. Unbuilt worlds fall back to a "coming alive" stub.
 // ════════════════════════════════════════════════════════════════════════
 import React from 'react';
+import { useBackLayer } from './backbus';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -47,6 +48,8 @@ const SCREENS = {
 function PlayWorld({ navigate, target }) {
   const [mode, setMode] = React.useState('choose'); // choose | arena | game
   const [match, setMatch] = React.useState(null);
+  useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));
+  useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (mode === 'game' && match) {
@@ -70,12 +73,14 @@ function PlayWorld({ navigate, target }) {
 
 function DeskWorld({ navigate, onLogout }) {
   const [openYou, setOpenYou] = React.useState(false);
+  useBackLayer(openYou, React.useCallback(() => { setOpenYou(false); return true; }, []));
   if (openYou) return <You onBack={() => setOpenYou(false)} onLogout={onLogout} />;
   return <Desk onOpenYou={() => setOpenYou(true)} onRoute={navigate || (() => {})} onOpenLetter={() => {}} />;
 }
 
 function GatheringWorld({ navigate, target }) {
   const [openChat, setOpenChat] = React.useState(null); // persona key or null
+  useBackLayer(!!openChat, React.useCallback(() => { setOpenChat(null); return true; }, []));
   React.useEffect(() => { if (target?.persona) setOpenChat(target.persona); }, [target]);
   if (openChat) return <Chat personaKey={openChat} onBack={() => setOpenChat(null)} />;
   return <Roster onOpen={(pkey) => setOpenChat(pkey)} />;
@@ -83,6 +88,7 @@ function GatheringWorld({ navigate, target }) {
 
 function RoomsWorld() {
   const [openRoom, setOpenRoom] = React.useState(null);
+  useBackLayer(!!openRoom, React.useCallback(() => { setOpenRoom(null); return true; }, []));
   if (openRoom && !openRoom.create) {
     if (openRoom.kind === 'public') {
       return <PublicRoom room={openRoom} onExit={() => setOpenRoom(null)} />;

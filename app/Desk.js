@@ -8,7 +8,7 @@
 //  World = moonlight. Presence = candlelight. Each door lit by its own aura.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, KeyboardAvoidingView, Platform, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, KeyboardAvoidingView, Platform, Animated, Easing , RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
@@ -18,6 +18,7 @@ import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
 import Grain from './Grain';
+import { useBackLayer } from './backbus';
 
 // ── NIGHTFALL palette (local to the Front Desk until the full repaint) ──
 const N = {
@@ -165,6 +166,20 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const [letters, setLetters] = useState([]);
   const [roster, setRoster] = useState({});   // key -> { name, dp }
   const [panel, setPanel] = useState(null);    // 'list' | 'remember' | null
+  const [refreshing, setRefreshing] = useState(false);
+  const pullRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refreshDesk(),
+        getLedger().then((l) => setLedgerLine(l?.headline || null)),
+        getRecentPings().then(setNotes),
+        getArcs().then(setArcState),
+      ]);
+    } catch (e) {}
+    setRefreshing(false);
+  };
+  useBackLayer(!!panel, React.useCallback(() => { setPanel(null); return true; }, []));
   const [recents, setRecents] = useState([]);  // recent persona threads → continue
   const [ledgerLine, setLedgerLine] = useState(null);
   const [notes, setNotes] = useState([]);   // proactive pings — notes left at the desk
@@ -508,7 +523,8 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
           onScroll={(e) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
             atBottomRef.current = (contentSize.height - (contentOffset.y + layoutMeasurement.height)) < 120;
-          }}>
+          }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#E7B07A" colors={["#E7B07A"]} progressBackgroundColor="#1a1520" />}>
           {messages.map((m) => (
             <View key={m.id} style={{ marginBottom: 16 }}>
               {m.who === 'you' ? (

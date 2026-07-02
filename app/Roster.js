@@ -8,7 +8,7 @@
 //  Judge fonts/glow on device. Structure-only on web.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, Image, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, Image, ScrollView, TextInput , RefreshControl } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -205,6 +205,12 @@ export default function Roster({ onOpen = () => {} }) {
   const [query, setQuery] = useState('');
   const [states, setStates] = useState({});
   useEffect(() => { getPersonaStates().then(setStates).catch(() => {}); }, []);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullRefresh = async () => {
+    setRefreshing(true);
+    try { setStates(await getPersonaStates()); } catch (e) {}
+    setRefreshing(false);
+  };
   useEffect(() => { getPins().then((p) => { PINS_CACHE = p; setPins(p); }); }, []);
   // overlay your custom companion names on top of the persona defaults
   const [names, setNames] = useState(NAMES_CACHE);
@@ -260,7 +266,8 @@ export default function Roster({ onOpen = () => {} }) {
               </Pressable>
             )}
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled">
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#E7B07A" colors={["#E7B07A"]} progressBackgroundColor="#1a1520" />}>
             {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} names={names} />}
             {GROUPS.map((g) => (
               <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} states={states} />

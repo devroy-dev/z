@@ -3,13 +3,14 @@
 //  Four worlds: Front Desk (home) · Gathering · Rooms · Play.
 //  NIGHTFALL nav: solid moonlit-black bar, custom icons, candle-lit active.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BackHandler } from 'react-native';
+import { handleBack, useBackLayer } from './backbus';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { FONTS } from './theme';
 import Stage from './stage/Stage';
-import QuietRoom from './QuietRoom';
 
 const N = {
   night: '#0B0A0F', night2: '#100E15',
@@ -109,6 +110,18 @@ export default function Nav({ screens }) {
   const [target, setTarget] = useState(null);     // deep-link for the active tab
   const [overlay, setOverlay] = useState(null);   // full-screen, non-tab destinations
 
+  // Android back walks inward before it ever exits: layers first (chat, scene,
+  // panel…), then overlay, then non-desk tab → desk, then bare desk → system.
+  useBackLayer(!!overlay, React.useCallback(() => { setOverlay(null); return true; }, []));
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (handleBack()) return true;
+      if (active !== 'desk') { setActive('desk'); return true; }
+      return false;                       // bare desk → the system may exit
+    });
+    return () => sub.remove();
+  }, [active]);
+
   const navigate = (dest) => {
     if (!dest) return;
     const tab = typeof dest === 'string' ? dest : dest.tab;
@@ -124,7 +137,6 @@ export default function Nav({ screens }) {
 
   if (overlay) {
     if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
-    if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} />;
     const titles = { quiet: 'The Quiet Room', stage: 'The Stage', journal: 'The Journal' };
     const lines = {
       quiet: 'a moonlit room where Z just listens. opening next.',

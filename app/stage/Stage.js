@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import Grain from '../Grain';
+import { useBackLayer } from '../backbus';
 import { C, FONTS } from '../theme';
 import { roleplayStart, streamStage } from '../api';
 import { buzz } from '../games/common';
@@ -119,6 +120,7 @@ function TensionMeter({ n }) {
 export default function Stage({ onBack = () => {} }) {
   const [featured] = useState(() => shuffleFeatured(6));
   const [scene, setScene] = useState(null);            // { s, threadId }
+  useBackLayer(!!scene, useCallback(() => { setScene(null); return true; }, []));
   const [customOpen, setCustomOpen] = useState(false);
   const [customBrief, setCustomBrief] = useState('');
   const [starting, setStarting] = useState(false);
