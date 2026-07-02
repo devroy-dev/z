@@ -41,7 +41,7 @@ const nameOf = (k) => (P[k] ? P[k][0] : (k || 'someone'));
 const rgbOf = (k) => (P[k] ? P[k][1] : '231,176,122');
 
 // ── a persona presence; rises + warms when it holds the floor ──
-function RoomPresence({ pkey, active }) {
+function RoomPresence({ pkey, active, targeted }) {
   const [ok, setOk] = useState(true);
   const breath = useSharedValue(1);
   const lift = useSharedValue(0);
@@ -67,7 +67,7 @@ function RoomPresence({ pkey, active }) {
               : <View style={{ width: '100%', height: '100%', backgroundColor: N.night2 }} />}
         </View>
       </View>
-      <Text style={[styles.rpName, active && { color: N.moon }]} numberOfLines={1}>{nameOf(pkey).replace('the ', '')}</Text>
+      <Text style={[styles.rpName, active && { color: N.moon }, targeted && { color: N.candle }]} numberOfLines={1}>{targeted ? '● ' : ''}{nameOf(pkey).replace('the ', '')}</Text>
     </Animated.View>
   );
 }
@@ -135,6 +135,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const [rtCount, setRtCount] = useState(0);     // DIAG: raw broadcasts received
   const [rtLast, setRtLast] = useState('');      // DIAG: role/persona of last received
   const [rtRendered, setRtRendered] = useState(0); // DIAG: how many actually painted
+  const [addressed, setAddressed] = useState([]);  // personas you tapped/@mentioned for the next send
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -218,6 +219,13 @@ export default function RoomChat({ room, onBack = () => {} }) {
     if (!text || sendingRef.current || !roomId) return;
     sendingRef.current = true; setSending(true);
     setDraft('');
+    // who did they address? tapped faces + @mentions in the text → those personas answer.
+    const atKeys = personas.filter((k) => {
+      const short = nameOf(k).replace(/^the /, '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`@\\s*(the\\s+)?${short}`, 'i').test(text);
+    });
+    const addr = [...new Set([...addressed, ...atKeys])];
+    setAddressed([]);
     const myId = 'me_' + Date.now();
     const pid = 'p_' + Date.now();
     pendingRef.current = pid;
@@ -226,6 +234,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
     // trigger the turn; ignore streamed tokens — realtime renders the saved reply once.
     streamChat({
       threadId: roomId, message: text,
+      addressed: addr.length ? addr : undefined,
       onToken: () => {},
       onDone: () => {
         sendingRef.current = false; setSending(false);
@@ -280,7 +289,11 @@ export default function RoomChat({ room, onBack = () => {} }) {
 
         {/* the presences — lit one rises */}
         <View style={styles.stage}>
-          {personas.map((k) => <RoomPresence key={k} pkey={k} active={floor === k} />)}
+          {personas.map((k) => (
+            <Pressable key={k} onPress={() => setAddressed((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k])}>
+              <RoomPresence pkey={k} active={floor === k} targeted={addressed.includes(k)} />
+            </Pressable>
+          ))}
           {humans.map((h) => <HumanPresence key={h.id} name={h.name} active={floor === h.id} />)}
         </View>
 

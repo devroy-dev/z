@@ -1044,12 +1044,13 @@ app.get('/rooms', async (req, res) => {
     const ids = (mem ?? []).map((m: any) => m.thread_id);
     if (!ids.length) return res.json([]);
     const { data: threads } = await supabase.from('threads')
-      .select('id, companion_name, member_keys, last_active')
+      .select('id, companion_name, member_keys, last_active, user_id')
       .in('id', ids).eq('is_shared', true).is('deleted_at', null)
       .order('last_active', { ascending: false });
     const rooms = (threads ?? []).map((t: any) => ({
       id: t.id, name: t.companion_name,
       personas: (t.member_keys || []), persona: (t.member_keys || [])[0] || null,
+      is_owner: t.user_id === user.id,
     }));
     res.json(rooms);
   } catch (e: any) { res.status(500).json({ error: 'rooms list failed: ' + (e?.message || String(e)) }); }
@@ -1109,7 +1110,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     return res.status(500).json({ error: 'chat setup failed: ' + (e?.message || String(e)) });
   }
 
-  const { threadId, message, image } = req.body ?? {};
+  const { threadId, message, image, addressed } = req.body ?? {};
   if (!threadId || !message) return res.status(400).json({ error: 'threadId and message required' });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -1130,6 +1131,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       }
       await runGroupTurn({
         userId: user.id, threadId, message, senderName: user.display_name || 'someone',
+        addressed: Array.isArray(addressed) ? addressed : undefined,
         onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
         onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),
         onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),

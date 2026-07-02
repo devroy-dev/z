@@ -6,12 +6,12 @@
 //  then YOUR rooms (live), then PUBLIC (coming soon).
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import { getRoomSuggestions, listRooms, createRoom } from './api';
+import { getRoomSuggestions, listRooms, createRoom, leaveRoom, deleteRoomThread } from './api';
 import Grain from './Grain';
 
 const N = {
@@ -93,7 +93,7 @@ function SuggestedCard({ room, onPick, busy }) {
 }
 
 // ── a room you're in ──
-function YourRoomRow({ room, onOpen }) {
+function YourRoomRow({ room, onOpen, onDelete }) {
   return (
     <Pressable style={styles.yourRow} onPress={() => onOpen(room)}>
       <Pool keys={room.personas} size={42} />
@@ -101,6 +101,9 @@ function YourRoomRow({ room, onOpen }) {
         <Text style={styles.yourName} numberOfLines={1}>{room.name || 'a room'}</Text>
         <Text style={styles.yourWho} numberOfLines={1}>{(room.personas || []).map(nameOf).join(', ')}</Text>
       </View>
+      <Pressable hitSlop={12} onPress={() => onDelete(room)} style={styles.roomX}>
+        <Svg width="16" height="16" viewBox="0 0 24 24"><Path d="M6 6l12 12M18 6L6 18" stroke={N.moonFaint} strokeWidth="1.8" strokeLinecap="round" /></Svg>
+      </Pressable>
     </Pressable>
   );
 }
@@ -120,6 +123,23 @@ export default function Rooms({ onOpen = () => {} }) {
   }, []);
 
   const reroll = useCallback(() => { setSuggShown((cur) => shuffle(cur.length ? cur : suggestions)); }, [suggestions]);
+
+  // remove a room: delete it if you own it, otherwise just leave. optimistic + confirm.
+  const removeRoom = useCallback((room) => {
+    const owned = !!room.is_owner;
+    Alert.alert(
+      owned ? 'delete this room?' : 'leave this room?',
+      owned ? 'this removes the room and its history for everyone. can’t be undone.'
+            : 'you’ll leave this room. you can be re-invited later.',
+      [
+        { text: 'cancel', style: 'cancel' },
+        { text: owned ? 'delete' : 'leave', style: 'destructive', onPress: async () => {
+          setRooms((cur) => cur.filter((r) => r.id !== room.id));   // optimistic
+          if (owned) await deleteRoomThread(room.id); else await leaveRoom(room.id);
+        } },
+      ],
+    );
+  }, []);
 
   // spin up (or reuse) a room and open it
   const spinUp = useCallback(async (name, personas) => {
@@ -174,7 +194,7 @@ export default function Rooms({ onOpen = () => {} }) {
           {rooms.length === 0 ? (
             <Text style={styles.empty}>no rooms yet — gather one above, or tap a suggestion.</Text>
           ) : (
-            rooms.map((r) => <YourRoomRow key={r.id} room={r} onOpen={onOpen} />)
+            rooms.map((r) => <YourRoomRow key={r.id} room={r} onOpen={onOpen} onDelete={removeRoom} />)
           )}
 
           {/* PUBLIC — last, not yet open */}
@@ -239,6 +259,7 @@ const styles = StyleSheet.create({
   yourRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 9 },
   yourName: { fontFamily: 'Figtree_500Medium', color: N.moon, fontSize: 15.5 },
   yourWho: { fontFamily: 'Figtree_300Light', color: N.moonDim, fontSize: 12.5, marginTop: 2 },
+  roomX: { paddingHorizontal: 8, paddingVertical: 8 },
 
   empty: { fontFamily: 'Fraunces_400Regular_Italic', color: N.moonFaint, fontSize: 14, paddingHorizontal: 24, marginTop: 4, lineHeight: 21 },
 

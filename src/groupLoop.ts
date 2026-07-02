@@ -31,8 +31,15 @@ async function directRoom(
   transcript: string,
   senderName: string,
   humanCount: number,
+  addressed?: string[],
 ): Promise<string[]> {
   if (members.length === 0) return members; // no personas to direct
+  // EXPLICIT ADDRESS — the human named/tapped specific personas (@name or a face
+  // tap). Honor it directly: those personas answer, director bypassed. Up to 3.
+  if (addressed && addressed.length) {
+    const valid = [...new Set(addressed.filter((k) => members.includes(k)))].slice(0, 3);
+    if (valid.length) return valid;
+  }
   // SOLO ROOM (just this person + personas): there's no "talking to another human"
   // case, so it should behave like a normal group chat — someone almost always
   // answers. Skip the human-restraint director entirely and let the best-fit
@@ -102,6 +109,7 @@ export interface GroupTurnInput {
   threadId: string;
   message: string;
   senderName?: string;   // in a shared room: the human who just spoke
+  addressed?: string[];  // explicit  / tapped faces — those personas answer
   onPersonaStart?: (personaKey: string, name: string) => void;
   onToken?: (personaKey: string, t: string) => void;
   onPersonaEnd?: (personaKey: string, full: string) => void;
@@ -216,7 +224,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const humanCount = (mem ?? []).length || 1;
     const roster = members.map((k) => ({ key: k, name: nameFor(k) }));
     const recent = priorLines.slice(-12).join('\n');
-    speakers = await directRoom(members, roster, recent, input.senderName, humanCount);
+    speakers = await directRoom(members, roster, recent, input.senderName, humanCount, input.addressed);
     // nobody should speak — the humans are talking; stay quiet
     if (!speakers.length) return;
   }
