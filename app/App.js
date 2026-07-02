@@ -16,6 +16,7 @@ import Chat from './Chat';
 import Play from './Play';
 import Arena from './Arena';
 import Uno from './Uno';
+import LudoTable from './games/ludo/Table';
 import Rooms from './Rooms';
 import RoomChat from './RoomChat';
 import Desk from './Desk';
@@ -42,6 +43,7 @@ function PlayWorld({ navigate, target }) {
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (mode === 'game' && match) {
     if (match.game?.id === 'uno') return <Uno game={match.game} opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
+    if (match.game?.id === 'ludo') return <LudoTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {
