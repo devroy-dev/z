@@ -8,12 +8,13 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, ScrollView } from 'react-native';
+import Grain from './Grain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path, Rect } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import { C, FONTS } from './theme';
+import { NIGHT as C, FONTS } from './theme';
 import { TABLE_CAST } from './games/personas';
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
@@ -145,7 +146,8 @@ function OpponentPicker({ game, onBack, onStart }) {
   };
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#160F1C', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#100E15', '#0B0A0F', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.pickHeader}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
@@ -226,7 +228,7 @@ export default function Arena({ onBack = () => {}, onStartGame = () => {} }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#160F1C', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#100E15', '#0B0A0F', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
@@ -285,7 +287,7 @@ const styles = StyleSheet.create({
   launchText: { fontFamily: FONTS.semibold, color: '#3A1505', fontSize: 16, letterSpacing: 0.4 },
   castGroup: { fontFamily: FONTS.body, color: C.faint, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', paddingHorizontal: 18, paddingTop: 18, paddingBottom: 6 },
   oppRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 9 },
-  oppFace: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#1a121f' },
+  oppFace: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#100E15' },
   oppName: { fontFamily: FONTS.medium, color: C.cream, fontSize: 16 },
   oppStyle: { fontFamily: FONTS.light, color: C.muted, fontSize: 13, marginTop: 2 },
   chipGo: { fontFamily: FONTS.semibold, color: C.accent, fontSize: 18, paddingHorizontal: 6 },

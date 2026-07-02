@@ -6,10 +6,11 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import Grain from './Grain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
-import { C, FONTS } from './theme';
+import { NIGHT as C, FONTS } from './theme';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -46,7 +47,8 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#160F1C', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#100E15', '#0B0A0F', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
@@ -84,7 +86,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
           <Text style={[styles.sectionLabel, { marginTop: 28 }]}>settings</Text>
           {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
             <Pressable key={s} style={styles.settingRow} onPress={s === 'sign out' ? onLogout : undefined}>
-              <Text style={[styles.settingText, s === 'sign out' && { color: '#E0A0A0' }]}>{s}</Text>
+              <Text style={[styles.settingText, s === 'sign out' && { color: '#9E9DB0' }]}>{s}</Text>
               <Text style={styles.settingChev}>›</Text>
             </Pressable>
           ))}

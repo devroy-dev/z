@@ -5,11 +5,12 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import Grain from './Grain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path, Ellipse } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import { C, FONTS } from './theme';
+import { NIGHT as C, FONTS } from './theme';
 
 function Door({ tone, kicker, title, line, glyph, onPress, delay = 0 }) {
   const b = useSharedValue(1);
@@ -48,7 +49,8 @@ function Door({ tone, kicker, title, line, glyph, onPress, delay = 0 }) {
 export default function Play({ onEnter = () => {} }) {
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#150C1C', '#0C0814', '#070509']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#100E15', '#0B0A0F', '#08070B']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.kicker}>together, at play</Text>

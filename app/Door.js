@@ -5,11 +5,12 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import Grain from './Grain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import { C, FONTS } from './theme';
+import { NIGHT as C, FONTS } from './theme';
 import { sendOtp, verifyOtp, setMe, setPin, verifyPin, knownDevice } from './api';
 
 function Ember() {
@@ -95,7 +96,8 @@ export default function Door({ onEnter = () => {} }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#1A1020', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#100E15', '#0B0A0F', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <Grain />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
           <View style={styles.center}>

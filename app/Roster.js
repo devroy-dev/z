@@ -9,6 +9,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, Image, ScrollView, TextInput } from 'react-native';
+import Grain from './Grain';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -21,9 +22,9 @@ import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600Sem
 import { getPins, togglePin as togglePinApi, listThreads } from './api';
 
 const C = {
-  void: '#0E0912', ground: '#07050A',
-  cream: '#F5ECE1', muted: '#A1929B', faint: '#6A5E69',
-  ember: '#F3A85F', emberHot: '#FF8A52', emberDeep: '#B5572E',
+  void: '#0B0A0F', ground: '#08070B',
+  cream: '#E9E8F0', muted: '#9E9DB0', faint: '#6A6675',
+  ember: '#E7B07A', emberHot: '#F0B77E', emberDeep: '#C88A4F',
 };
 
 // ── each constellation has its own light temperature ──
@@ -230,7 +231,8 @@ export default function Roster({ onOpen = () => {} }) {
     <View style={{ flex: 1 }}>
       <View style={styles.rootBg}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-        <LinearGradient colors={['#150C1C', '#0E0912', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={['#100E15', '#0B0A0F', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
+        <Grain />
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={styles.header}>
             <Text style={styles.kicker}>your people</Text>
@@ -300,6 +302,6 @@ const styles = StyleSheet.create({
   pin: { fontSize: 18, color: C.faint, opacity: 0.6 },
 
   // presence
-  faceRing: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#1a121f' },
+  faceRing: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#100E15' },
   faceWash: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: 'rgba(255,220,180,0.18)' },
 });

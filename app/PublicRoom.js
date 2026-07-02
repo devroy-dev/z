@@ -8,12 +8,13 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import Grain from './Grain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import { C, FONTS } from './theme';
+import { NIGHT as C, FONTS } from './theme';
 
 // a small live pulse dot
 function LiveDot({ color = '#6FE0A0', size = 7 }) {
@@ -46,7 +47,8 @@ export function PublicDoorway({ room, onStep, onBack }) {
   const tone = r.tone || '#C99BE8';
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#160C20', '#0C0814', '#070509']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#100E15', '#0B0A0F', '#08070B']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <Pressable hitSlop={10} onPress={onBack} style={{ paddingHorizontal: 16, paddingTop: 4 }}>
           <Text style={styles.chev}>‹</Text>
@@ -102,7 +104,7 @@ export function PublicInterior({ room, onLeave }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#160C20', '#0C0814', '#070509']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#100E15', '#0B0A0F', '#08070B']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         {/* leaner head: room identity, NOT a gallery of faces */}
         <View style={styles.head}>
@@ -203,7 +205,7 @@ const styles = StyleSheet.create({
   headTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 18 },
   headMeta: { fontFamily: FONTS.body, color: C.faint, fontSize: 11.5 },
   leaveBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,150,150,0.25)' },
-  leaveText: { fontFamily: FONTS.medium, color: '#E0A0A0', fontSize: 12 },
+  leaveText: { fontFamily: FONTS.medium, color: '#9E9DB0', fontSize: 12 },
 
   // stream
   stream: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },

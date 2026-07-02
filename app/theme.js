@@ -20,6 +20,26 @@ export const C = {
   accentSoft:'#E9A98A',
 };
 
+// Nightfall — the void-black + candle + moonlight language that the chat, rooms,
+// and desk already speak. Same semantic keys as C, so any screen can repaint by
+// importing { NIGHT as C }. This is the finishing-gesture palette.
+export const NIGHT = {
+  void:      '#0B0A0F',
+  voidDeep:  '#08070B',
+  ground:    '#08070B',
+  rise:      '#100E15',
+
+  cream:     '#E9E8F0',   // moonlight text
+  muted:     '#9E9DB0',   // silver
+  faint:     '#6A6675',
+
+  ember:     '#E7B07A',   // candle — the warm accent
+  emberHot:  '#F0B77E',
+  emberDeep: '#C88A4F',
+  accent:    '#E7B07A',
+  accentSoft:'#E9B98A',
+};
+
 // constellation light-temperatures (per group)
 export const TONES = {
   gang:    '#F0A765',
