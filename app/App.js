@@ -16,6 +16,7 @@ import Chat from './Chat';
 import Play from './Play';
 import Arena from './Arena';
 import Uno from './games/uno/Table';
+import GameBoundary from './games/Boundary';
 import LudoTable from './games/ludo/Table';
 import SnakesTable from './games/snakes/Table';
 import BlackjackTable from './games/blackjack/Table';
@@ -46,12 +47,13 @@ function PlayWorld({ navigate, target }) {
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (mode === 'game' && match) {
-    if (match.game?.id === 'uno') return <Uno game={match.game} opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
-    if (match.game?.id === 'ludo') return <LudoTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
-    if (match.game?.id === 'snakes') return <SnakesTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
-    if (match.game?.id === 'blackjack') return <BlackjackTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
-    if (match.game?.id === 'bluff') return <BluffTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
-    if (match.game?.id === 'teenpatti' || match.game?.id === 'teen_patti') return <TeenPattiTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
+    const exit = () => setMode('arena');
+    if (match.game?.id === 'uno') return <GameBoundary onExit={exit}><Uno game={match.game} opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
+    if (match.game?.id === 'ludo') return <GameBoundary onExit={exit}><LudoTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
+    if (match.game?.id === 'snakes') return <GameBoundary onExit={exit}><SnakesTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
+    if (match.game?.id === 'blackjack') return <GameBoundary onExit={exit}><BlackjackTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
+    if (match.game?.id === 'bluff') return <GameBoundary onExit={exit}><BluffTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
+    if (match.game?.id === 'teenpatti' || match.game?.id === 'teen_patti') return <GameBoundary onExit={exit}><TeenPattiTable opponent={match.opp} roster={match.roster} onExit={exit} /></GameBoundary>;
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {

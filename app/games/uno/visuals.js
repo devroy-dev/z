@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { C, FONTS } from '../../theme';
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
