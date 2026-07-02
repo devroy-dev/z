@@ -43,6 +43,7 @@ const PERSONAS = {
   the_historian:   'a cultured scholar, refined features, glasses, a quiet storyteller smile, vintage scholarly air',
   the_cosmologist: 'a dreamy wonder-struck scientist, eyes full of awe, slightly wild hair, gazing as if at the stars',
   the_economist:   'a precise analytical strategist, crisp composed face, glasses, measured serious expression',
+  the_anchor:      'a dignified veteran news anchor, silver-flecked hair, composed authoritative face, steady trustworthy gaze, formal collar, studio-portrait bearing',
   the_leader_opp:  'a formidable debater, strong jaw, piercing confident stare, faint challenging expression, commanding presence',
   the_wingman:     'a charismatic confident friend, easy roguish smile, stylish, relaxed magnetic charm',
   the_crush:       'a gentle attractive person with soft warm eyes, a shy hopeful smile, natural beauty, tender expression',

@@ -52,6 +52,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   media_manager: 'codex-media-manager.md',
   teacher:        'codex-teacher.md',
   economist:      'codex-economist.md',
+  anchor:         'codex-anchor.md',
   leader_opp:     'codex-leader-opposition.md',
   serious:        'codex-serious.md',
   wannabe:        'codex-wannabe-hustler.md',
