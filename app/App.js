@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import React from 'react';
 import { useBackLayer } from './backbus';
-import { Share, Alert } from 'react-native';
+import { Share, Alert, Text } from 'react-native';
 import { createRoom, inviteToRoom, startGameSession } from './api';
 import LiarsDiceLive from './games/liarsdice/Live';
 import CallbreakLive from './games/callbreak/Live';
@@ -61,8 +61,10 @@ function PlayWorld({ navigate, target }) {
   const [mode, setMode] = React.useState('choose'); // choose | arena | game
   const [match, setMatch] = React.useState(null);
   const [live, setLive] = React.useState(null);   // { game, sessionId } — a friends table
+  const [opening, setOpening] = React.useState(false);   // the invited flow, visibly working
   useBackLayer(!!live, React.useCallback(() => { setLive(null); setMode('arena'); return true; }, []));
   const startLiveWithFriend = React.useCallback(async (game, roster) => {
+    setOpening(true);
     try {
       const liveId = game.id === 'debate' ? 'debate_duel' : game.id;
       const personaKeys = liveId === 'debate_duel' ? [] : (roster || []).map((o) => o.key).slice(0, 3);
@@ -73,7 +75,7 @@ function PlayWorld({ navigate, target }) {
       if (!room?.id) room = await createRoom(`${game.name} table`, ['the_moderator']);
       if (!room?.id) { Alert.alert("couldn't open the table", 'the room would not create — try again in a moment.'); return; }
       const inv = await inviteToRoom(room.id);
-      const j = await startGameSession(room.id, liveId, personaKeys);
+      const j = await startGameSession(room.id, liveId, personaKeys, 1);
       if (!j?.sessionId) { Alert.alert("couldn't seat the table", 'the game session failed to start.'); return; }
       if (inv?.token) {
         const link = 'https://callmez.app/?join=' + inv.token;
@@ -86,11 +88,20 @@ function PlayWorld({ navigate, target }) {
     } catch (e) {
       Alert.alert('invite flow error', String((e && (e.message || e.stack)) || e).slice(0, 300));
     }
+    setOpening(false);
   }, []);
   useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));
   useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
+  if (opening && !live) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0C0A10', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(245,236,225,0.85)', fontSize: 17 }}>opening the table…</Text>
+        <Text style={{ fontFamily: 'Figtree_400Regular', color: 'rgba(245,236,225,0.4)', fontSize: 12, marginTop: 8 }}>room · invite link · your seat</Text>
+      </View>
+    );
+  }
   if (mode === 'game' && live) {
     const exitLive = () => { setLive(null); setMode('arena'); };
     if (live.game === 'debate_duel') return <DebateDuelLive sessionId={live.sessionId} onExit={exitLive} />;

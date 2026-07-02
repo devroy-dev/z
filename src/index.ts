@@ -1281,7 +1281,7 @@ app.post('/games/start', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const { roomId, game, personaSeats } = req.body ?? {};
+    const { roomId, game, personaSeats, reserveSeats } = req.body ?? {};
     const engine = GAME_ENGINES[game];
     if (!engine) return res.status(400).json({ error: 'unknown game: ' + game });
     const { data: thread } = await supabase.from('threads')
@@ -1292,9 +1292,13 @@ app.post('/games/start', async (req, res) => {
     const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', roomId);
     const humanIds = Array.from(new Set([thread.user_id, ...((mem ?? []).map((m: any) => m.user_id))]));
     const seats: any[] = humanIds.map((id) => ({ kind: 'user', id }));
-    // humanOnly games reserve OPEN seats for friends who join the room later
+    // reserve OPEN seats for friends joining later: all of them for humans-only
+    // games, or as many as the starter asked for (the invited flow asks for 1)
     if (engine.humanOnly) {
       while (seats.length < (engine.maxSeats || 2)) seats.push({ kind: 'open', id: null });
+    } else {
+      const want = Math.max(0, Math.min((reserveSeats | 0) || 0, (engine.maxSeats || 6) - seats.length - 1));
+      for (let k = 0; k < want; k++) seats.push({ kind: 'open', id: null });
     }
     const seatCap = (engine.maxSeats || 6) - seats.length;
     for (const pk of (Array.isArray(personaSeats) ? personaSeats : []).slice(0, Math.max(0, seatCap))) {

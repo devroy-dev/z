@@ -321,8 +321,8 @@ export async function startArc(arcId) {
 }
 
 // ── multiplayer game sessions ──
-export async function startGameSession(roomId, game, personaSeats = []) {
-  return authedJSON('POST', '/games/start', { roomId, game, personaSeats });
+export async function startGameSession(roomId, game, personaSeats = [], reserveSeat = false) {
+  return authedJSON('POST', '/games/start', { roomId, game, personaSeats, reserveSeat: !!reserveSeat });
 }
 export async function getLiveGame(roomId) {
   try { return await authedJSON('GET', `/games/room/${roomId}/live`); } catch (e) { return {}; }
