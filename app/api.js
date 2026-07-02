@@ -323,6 +323,11 @@ export async function renameThread(threadId, name) {
   try { return await authedJSON('PATCH', `/threads/${threadId}`, { name }); } catch (e) { return null; }
 }
 
+// ── set a custom avatar (a small data-URI string) via the same PATCH ──
+export async function setThreadAvatar(threadId, avatar_url) {
+  try { return await authedJSON('PATCH', `/threads/${threadId}`, { avatar_url }); } catch (e) { return null; }
+}
+
 // ── ROOMS ──
 // daily, web-informed suggestions (topic + why + 3 personas), cached server-side.
 export async function getRoomSuggestions() {
@@ -339,6 +344,14 @@ export async function createRoom(name, personas) {
 // an invite link token for a room → { token }
 export async function inviteToRoom(roomId) {
   try { return await authedJSON('POST', `/rooms/${roomId}/invite`, {}); } catch (e) { return null; }
+}
+// who's in the room → { members: { uid: name }, meId }
+export async function getRoomMembers(roomId) {
+  try { return await authedJSON('GET', `/rooms/${roomId}/members`); } catch (e) { return { members: {}, meId: null }; }
+}
+// a room's saved conversation → { messages: [...], meId }
+export async function getRoomMessages(roomId) {
+  try { return await authedJSON('GET', `/threads/${roomId}/messages`); } catch (e) { return { messages: [], meId: null }; }
 }
 
 // like openThread, but keeps the thread's saved identity (custom name / avatar)

@@ -1,93 +1,101 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — TYPE 1 ROOM INTERIOR (persona-group chat).
-//  The conversation happens AMONG the presences. A row of embers across the
-//  top = who's in the room. When the director gives someone the floor, THEIR
-//  ember rises and warms while the others rest — you SEE who's speaking.
-//  Mirrors groupLoop.ts: sequential turn-taking, one speaker at a time,
-//  each seeing what came before. Words flow below, tagged to the lit presence.
+//  yourZ — ROOM INTERIOR · NIGHTFALL · LIVE
+//  Several presences share one space. Across the top: who's in the room — the
+//  one who just spoke RISES and warms (the "risen speaker"), the rest rest.
+//  Realtime is a faithful port of the PWA's tested pattern: the server
+//  broadcasts each saved message; we dedup across broadcast + pg_changes
+//  (key = role:who:content), skip our own echo, and fill the waiting typing
+//  bubble with the persona reply (single source — no double render). When the
+//  Director keeps the personas silent (humans talking to each other), no reply
+//  comes — we drop the typing bubble after a short grace.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ScrollView } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
-import Animated, {
-  useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing,
-} from 'react-native-reanimated';
-import { C, FONTS, TONES } from './theme';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
+import { subscribeRoom, unsubscribe } from './realtime';
+import { streamChat, getRoomMembers, getRoomMessages, inviteToRoom, API_BASE } from './api';
 
+const N = {
+  night: '#0B0A0F', night2: '#100E15',
+  moon: '#E9E8F0', moonDim: 'rgba(233,232,240,0.56)', moonFaint: 'rgba(233,232,240,0.30)',
+  silver: '#9E9DB0', hair: 'rgba(233,232,240,0.10)',
+  candle: '#E7B07A', candleHot: '#F3CFA3',
+  human: '#9FB0CE',
+};
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
+const P = {
+  the_guru:['the guru','230,190,90'], the_oracle:['the oracle','110,200,200'], the_brainiac:['the brainiac','90,200,230'],
+  the_brother:['the brother','200,120,80'], the_healer:['the healer','124,92,220'], the_comic:['the comic','240,180,70'],
+  the_mentor:['the motivator','230,190,110'], the_colleague:['the colleague','190,160,110'], the_philosopher:['the philosopher','180,160,210'],
+  the_historian:['the historian','200,160,110'], the_cosmologist:['the cosmologist','120,140,230'], the_moderator:['the moderator','120,180,150'],
+  the_cynic:['the cynic','150,150,150'], the_media_manager:['the media manager','230,140,170'], the_teacher:['the professor','120,190,170'],
+  the_economist:['the economist','110,170,140'], the_leader_opp:['the leader of opposition','200,120,110'], the_wannabe:['the wannabe hustler','235,180,90'],
+  the_screen_junkie:['the screen junkie','120,150,230'], the_orator:['the orator','210,150,90'], the_hippie:['the hippie','120,170,120'],
+  the_diva:['the diva','210,90,150'], the_cousin:['the awkward cousin','150,160,190'],
+};
+const nameOf = (k) => (P[k] ? P[k][0] : (k || 'someone'));
+const rgbOf = (k) => (P[k] ? P[k][1] : '231,176,122');
 
-// ── one presence in the room's top row. `active` = it has the floor (rises/warms). ──
-function RoomPresence({ pkey, name, tone, active }) {
+// ── a persona presence; rises + warms when it holds the floor ──
+function RoomPresence({ pkey, active }) {
   const [ok, setOk] = useState(true);
   const breath = useSharedValue(1);
   const lift = useSharedValue(0);
-  useEffect(() => {
-    breath.value = withRepeat(withTiming(1.04, { duration: 3000 + (pkey.length % 5) * 200, easing: Easing.inOut(Easing.ease) }), -1, true);
-  }, []);
-  useEffect(() => {
-    // rise when given the floor, settle when not
-    lift.value = withTiming(active ? 1 : 0, { duration: 520, easing: Easing.out(Easing.ease) });
-  }, [active]);
-
-  const wrap = useAnimatedStyle(() => ({
-    transform: [{ translateY: -lift.value * 14 }, { scale: 0.9 + lift.value * 0.2 }],
-    opacity: 0.5 + lift.value * 0.5,
-  }));
+  const tone = rgbOf(pkey);
+  useEffect(() => { breath.value = withRepeat(withTiming(1.04, { duration: 3000 + (pkey.length % 5) * 200, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
+  useEffect(() => { lift.value = withTiming(active ? 1 : 0, { duration: 520, easing: Easing.out(Easing.ease) }); }, [active]);
+  const wrap = useAnimatedStyle(() => ({ transform: [{ translateY: -lift.value * 12 }, { scale: 0.9 + lift.value * 0.2 }], opacity: 0.5 + lift.value * 0.5 }));
   const halo = useAnimatedStyle(() => ({ opacity: lift.value * 0.9, transform: [{ scale: breath.value * (1 + lift.value * 0.15) }] }));
-  const S = 52;  // shared baseline size (matches humans)
+  const S = 50;
   return (
     <Animated.View style={[styles.rpWrap, wrap]}>
       <View style={{ width: S + 14, height: S + 14, alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }, halo]}>
           <Svg width={S + 14} height={S + 14}>
             <Defs><RadialGradient id={`rh_${pkey}`} cx="50%" cy="50%" r="50%">
-              <Stop offset="0%" stopColor={tone} stopOpacity="0.6" /><Stop offset="60%" stopColor={tone} stopOpacity="0.15" /><Stop offset="100%" stopColor={tone} stopOpacity="0" />
+              <Stop offset="0%" stopColor={`rgb(${tone})`} stopOpacity="0.6" /><Stop offset="60%" stopColor={`rgb(${tone})`} stopOpacity="0.15" /><Stop offset="100%" stopColor={`rgb(${tone})`} stopOpacity="0" />
             </RadialGradient></Defs>
             <Circle cx={(S + 14) / 2} cy={(S + 14) / 2} r={(S + 14) / 2} fill={`url(#rh_${pkey})`} />
           </Svg>
         </Animated.View>
-        <View style={[styles.rpFace, { width: S, height: S, borderRadius: S / 2, borderColor: tone }]}>
+        <View style={[styles.rpFace, { width: S, height: S, borderRadius: S / 2, borderColor: `rgba(${tone},0.7)` }]}>
           {ok ? <Image source={{ uri: faceFor(pkey) }} resizeMode="cover" style={{ width: '100%', height: '100%', borderRadius: S / 2 }} onError={() => setOk(false)} />
-              : <Svg width={S} height={S} viewBox="0 0 54 54"><Defs><RadialGradient id={`rf_${pkey}`} cx="38%" cy="33%" r="70%"><Stop offset="0%" stopColor="#FFD09A" /><Stop offset="60%" stopColor={tone} /><Stop offset="100%" stopColor={C.emberDeep} /></RadialGradient></Defs><Circle cx="27" cy="27" r="27" fill={`url(#rf_${pkey})`} /></Svg>}
+              : <View style={{ width: '100%', height: '100%', backgroundColor: N.night2 }} />}
         </View>
       </View>
-      <Text style={[styles.rpName, active && { color: C.cream }]} numberOfLines={1}>{name}</Text>
+      <Text style={[styles.rpName, active && { color: N.moon }]} numberOfLines={1}>{nameOf(pkey).replace('the ', '')}</Text>
     </Animated.View>
   );
 }
 
-
-// ── a human in the room: present, but plainer/cooler than an AI presence ──
-function HumanPresence({ name, hue = '#8FA0C0', active }) {
+// ── a human presence (cooler than a persona) ──
+function HumanPresence({ name, active }) {
   const lift = useSharedValue(0);
   useEffect(() => { lift.value = withTiming(active ? 1 : 0, { duration: 420, easing: Easing.out(Easing.ease) }); }, [active]);
-  const wrap = useAnimatedStyle(() => ({ transform: [{ translateY: -lift.value * 14 }, { scale: 0.9 + lift.value * 0.2 }], opacity: 0.5 + lift.value * 0.5 }));
-  const S = 52;  // shared baseline size (matches humans)
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const wrap = useAnimatedStyle(() => ({ transform: [{ translateY: -lift.value * 12 }, { scale: 0.9 + lift.value * 0.2 }], opacity: 0.5 + lift.value * 0.5 }));
+  const S = 50;
+  const initials = (name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <Animated.View style={[styles.rpWrap, wrap]}>
       <View style={{ width: S + 14, height: S + 14, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={[styles.humanFace, { width: S, height: S, borderRadius: S / 2, borderColor: active ? hue : 'rgba(180,190,210,0.35)' }]}>
+        <View style={[styles.humanFace, { width: S, height: S, borderRadius: S / 2, borderColor: active ? N.human : 'rgba(180,190,210,0.35)' }]}>
           <Text style={[styles.humanInitials, { color: active ? '#E8ECF4' : '#AEB6C6' }]}>{initials}</Text>
         </View>
       </View>
-      <Text style={[styles.rpName, active && { color: '#D8DEEA' }]} numberOfLines={1}>{name.split(' ')[0]}</Text>
+      <Text style={[styles.rpName, active && { color: '#D8DEEA' }]} numberOfLines={1}>{(name || '').split(' ')[0]}</Text>
     </Animated.View>
   );
 }
 
-// ── a spoken line, tagged to whoever the director lit ──
-function RoomLine({ line, tone }) {
-  const mine = line.who === 'you';
-  if (mine) {
+// ── a spoken line ──
+function RoomLine({ line }) {
+  if (line.who === 'you') {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-end' }]}>
-        <LinearGradient colors={['rgba(243,168,95,0.17)', 'rgba(232,116,60,0.10)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.bubbleYou]}>
-          <Text style={styles.bubbleText}>{line.text}</Text>
-        </LinearGradient>
+        <View style={[styles.bubble, styles.bubbleYou]}><Text style={styles.bubbleText}>{line.text}</Text></View>
       </View>
     );
   }
@@ -95,121 +103,188 @@ function RoomLine({ line, tone }) {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-start' }]}>
         <View style={{ maxWidth: '84%' }}>
-          <Text style={[styles.speaker, { color: '#9FB0CE' }]}>{line.name}</Text>
-          <View style={[styles.bubble, styles.bubbleHuman]}>
-            <Text style={styles.bubbleText}>{line.text}</Text>
-          </View>
+          <Text style={[styles.speaker, { color: N.human }]}>{line.name}</Text>
+          <View style={[styles.bubble, styles.bubbleHuman]}><Text style={styles.bubbleText}>{line.text}</Text></View>
         </View>
       </View>
     );
   }
+  // persona
   return (
     <View style={[styles.lineRow, { justifyContent: 'flex-start' }]}>
       <View style={{ maxWidth: '84%' }}>
-        <Text style={[styles.speaker, { color: tone }]}>{line.name}</Text>
-        <BlurView intensity={18} tint="dark" style={[styles.bubble, styles.bubbleThem]}>
-          <Text style={styles.bubbleText}>{line.text}</Text>
-        </BlurView>
+        {line.key ? <Text style={[styles.speaker, { color: `rgb(${rgbOf(line.key)})` }]}>{nameOf(line.key)}</Text> : null}
+        <View style={[styles.bubble, styles.bubbleThem]}>
+          <Text style={styles.bubbleText}>{line.typing && !line.text ? '•••' : line.text}</Text>
+        </View>
       </View>
     </View>
   );
 }
 
 export default function RoomChat({ room, onBack = () => {} }) {
-  // seed a room (falls back to a default persona-group if none passed)
-  const members = room?.members || [
-    { key: 'the_brainiac',    name: 'the brainiac',    tone: TONES.crazies },
-    { key: 'the_cynic',       name: 'the cynic',       tone: TONES.crazies },
-    { key: 'the_philosopher', name: 'the philosopher', tone: TONES.crazies },
-  ];
-  const title = room?.title || 'sunday debate club';
-  // Type 2 = invited room: real humans present alongside personas.
-  const humans = room?.humans || [];
-  const isInvited = humans.length > 0 || room?.type === 'invited';
+  const roomId = room?.id;
+  const personas = (room?.personas && room.personas.length) ? room.personas : (room?.persona ? [room.persona] : []);
+  const title = room?.name || 'the room';
 
-  const [lines, setLines] = useState(room?.lines || [
-    { who: 'you', text: "is free will real or are we kidding ourselves?" },
-    { who: 'them', key: 'the_philosopher', name: 'the philosopher', text: "the honest answer: we don't know — but the question changes how you live, so it's not idle." },
-    { who: 'them', key: 'the_brainiac', name: 'the brainiac', text: "careful. 'we don't know' is doing a lot of work there. the determinist case is tighter than you're admitting." },
-    { who: 'them', key: 'the_cynic', name: 'the cynic', text: "or — and hear me out — it doesn't matter, because you'll do what you were always going to do either way." },
-  ]);
+  const [lines, setLines] = useState([]);
+  const [members, setMembers] = useState({});   // uid -> name
+  const [floor, setFloor] = useState(null);      // persona key or human uid who spoke last
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
 
-  // the director's "floor": whoever holds the room right now rises; everyone else rests.
-  // Build the speaker order from BOTH personas and humans, so the elevation passes between
-  // AI and people alike. Each human line is matched back to its presence id by first name.
-  const [floor, setFloor] = useState(null);
-  const idx = useRef(0);
+  const scrollRef = useRef(null);
+  const renderedRef = useRef(new Set());         // dedup keys (stable across delivery paths)
+  const meIdRef = useRef(null);
+  const pendingRef = useRef(null);               // id of the waiting typing line
+  const sendingRef = useRef(false);
+  const graceRef = useRef(null);
+
+  const scrollDown = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+
+  // load members + history, then subscribe. teardown on unmount / room change.
   useEffect(() => {
-    const order = lines
-      .map((l) => {
-        if (l.who === 'them') return l.key;
-        if (l.who === 'human') {
-          const h = humans.find((x) => x.name.split(' ')[0].toLowerCase() === (l.name || '').split(' ')[0].toLowerCase());
-          return h ? h.id : null;
-        }
-        return null; // 'you' never rises in the row
-      })
-      .filter(Boolean);
-    if (!order.length) return;
-    // start on the most recent speaker, then cycle so the rise visibly moves across the room
-    idx.current = order.length - 1;
-    setFloor(order[idx.current]);
-    const t = setInterval(() => {
-      idx.current = (idx.current + 1) % order.length;
-      setFloor(order[idx.current]);
-    }, 2600);
-    return () => clearInterval(t);
-  }, [lines, humans]);
+    if (!roomId) return;
+    let alive = true;
+    renderedRef.current = new Set();
+    (async () => {
+      const mem = await getRoomMembers(roomId);
+      if (!alive) return;
+      setMembers(mem.members || {});
+      meIdRef.current = mem.meId || null;
 
-  const toneOf = (k) => members.find(m => m.key === k)?.tone || C.ember;
+      const hist = await getRoomMessages(roomId);
+      if (!alive) return;
+      meIdRef.current = hist.meId || meIdRef.current;
+      const seed = [];
+      (hist.messages || []).forEach((m) => {
+        const k = m.created_at || (m.role + ':' + (m.content || ''));
+        renderedRef.current.add(k);
+        if (m.role === 'user') {
+          const mine = m.mine || (m.sender_user_id && m.sender_user_id === meIdRef.current);
+          seed.push({ id: k, who: mine ? 'you' : 'human', name: m.sender_name || (mem.members || {})[m.sender_user_id] || 'someone', text: m.content || '' });
+        } else {
+          seed.push({ id: k, who: 'them', key: m.persona_key, text: m.content || '' });
+        }
+      });
+      setLines(seed);
+      const last = seed[seed.length - 1];
+      if (last) setFloor(last.who === 'them' ? last.key : null);
+      scrollDown();
+
+      await subscribeRoom(roomId, onLive);
+    })();
+    return () => { alive = false; unsubscribe(); if (graceRef.current) clearTimeout(graceRef.current); };
+  }, [roomId]);
+
+  // the ported onLiveMessage: filter, dedup, skip own, fill-or-append.
+  const onLive = useCallback((m) => {
+    if (!m || String(m.thread_id) !== String(roomId)) return;
+    const who = m.sender_user_id || m.persona_key || '';
+    const key = m.role + ':' + who + ':' + (m.content || '');
+    if (renderedRef.current.has(key)) return;
+    renderedRef.current.add(key);
+    if (m.role === 'user' && m.sender_user_id && meIdRef.current && m.sender_user_id === meIdRef.current) return; // my own echo
+
+    if (m.role === 'user') {
+      setLines((cur) => [...cur, { id: key, who: 'human', name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '' }]);
+      setFloor(m.sender_user_id || null);
+    } else {
+      // persona reply: fill the waiting typing bubble if there is one (single source)
+      if (pendingRef.current) {
+        const pid = pendingRef.current; pendingRef.current = null;
+        if (graceRef.current) { clearTimeout(graceRef.current); graceRef.current = null; }
+        setLines((cur) => cur.map((l) => l.id === pid ? { ...l, key: m.persona_key, text: m.content || '', typing: false } : l));
+      } else {
+        setLines((cur) => [...cur, { id: key, who: 'them', key: m.persona_key, text: m.content || '' }]);
+      }
+      setFloor(m.persona_key || null);
+    }
+    scrollDown();
+  }, [roomId, members]);
+
+  const doSend = async () => {
+    const text = draft.trim();
+    if (!text || sendingRef.current || !roomId) return;
+    sendingRef.current = true; setSending(true);
+    setDraft('');
+    const myId = 'me_' + Date.now();
+    const pid = 'p_' + Date.now();
+    pendingRef.current = pid;
+    setLines((cur) => [...cur, { id: myId, who: 'you', text }, { id: pid, who: 'them', text: '', typing: true }]);
+    scrollDown();
+    // trigger the turn; ignore streamed tokens — realtime renders the saved reply once.
+    streamChat({
+      threadId: roomId, message: text,
+      onToken: () => {},
+      onDone: () => {
+        sendingRef.current = false; setSending(false);
+        // if the Director kept everyone silent, no reply broadcasts — drop the typing bubble.
+        if (graceRef.current) clearTimeout(graceRef.current);
+        graceRef.current = setTimeout(() => {
+          if (pendingRef.current === pid) {
+            pendingRef.current = null;
+            setLines((cur) => cur.filter((l) => l.id !== pid));
+          }
+        }, 2500);
+      },
+      onError: () => {
+        sendingRef.current = false; setSending(false);
+        if (pendingRef.current === pid) { pendingRef.current = null; setLines((cur) => cur.filter((l) => l.id !== pid)); }
+      },
+    });
+  };
+
+  const doInvite = async () => {
+    const r = await inviteToRoom(roomId);
+    if (r && r.token) {
+      const link = 'https://callmez.app/?join=' + r.token;
+      try { await Share.share({ message: `come chat with me in "${title}" on yourZ: ${link}`, url: link }); } catch (e) {}
+    }
+  };
+
+  const humans = Object.entries(members).filter(([uid]) => uid !== meIdRef.current).map(([id, name]) => ({ id, name }));
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#150C1C', '#0C0814', '#070509']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={[`rgba(${rgbOf(personas[0])},0.14)`, `rgba(${rgbOf(personas[0])},0.04)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-        {/* top bar */}
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.roomTitle}>{title}</Text>
-            <Text style={styles.roomSub}>
-              {members.map(m => m.name.replace('the ', '')).join(' · ')}
-              {humans.length > 0 ? `  +  ${humans.map(h => h.name.split(' ')[0]).join(', ')}` : ''}
+            <Text style={styles.roomTitle} numberOfLines={1}>{title}</Text>
+            <Text style={styles.roomSub} numberOfLines={1}>
+              {personas.map((k) => nameOf(k).replace('the ', '')).join(' · ')}
+              {humans.length ? `  +  ${humans.map((h) => (h.name || '').split(' ')[0]).join(', ')}` : ''}
             </Text>
           </View>
-          {isInvited && (
-            <Pressable hitSlop={8} style={styles.inviteBtn}>
-              <Svg width="14" height="14" viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" stroke={C.accentSoft} strokeWidth="2" strokeLinecap="round" /></Svg>
-              <Text style={styles.inviteText}>invite</Text>
-            </Pressable>
-          )}
+          <Pressable hitSlop={8} style={styles.inviteBtn} onPress={doInvite}>
+            <Svg width="13" height="13" viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" stroke={N.candle} strokeWidth="2" strokeLinecap="round" /></Svg>
+            <Text style={styles.inviteText}>invite</Text>
+          </Pressable>
         </View>
 
-        {/* the presences — the room. personas (warm embers) + humans (cooler). lit one rises. */}
+        {/* the presences — lit one rises */}
         <View style={styles.stage}>
-          {members.map((m) => (
-            <RoomPresence key={m.key} pkey={m.key} name={m.name.replace('the ', '')} tone={m.tone} active={floor === m.key} />
-          ))}
-          {humans.map((h) => (
-            <HumanPresence key={h.id} name={h.name} active={floor === h.id} />
-          ))}
+          {personas.map((k) => <RoomPresence key={k} pkey={k} active={floor === k} />)}
+          {humans.map((h) => <HumanPresence key={h.id} name={h.name} active={floor === h.id} />)}
         </View>
 
-        {/* the conversation among them */}
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.convo} showsVerticalScrollIndicator={false}>
-          {lines.map((l, i) => <RoomLine key={i} line={l} tone={toneOf(l.key)} />)}
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.convo} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {lines.length === 0
+            ? <Text style={styles.empty}>a shared room — say something to get it going.</Text>
+            : lines.map((l) => <RoomLine key={l.id} line={l} />)}
         </ScrollView>
 
-        {/* composer */}
         <View style={styles.composer}>
-          <BlurView intensity={24} tint="dark" style={styles.field}>
-            <Text style={styles.fieldPh}>say something to the room…</Text>
-          </BlurView>
-          <Pressable style={styles.send}>
+          <View style={styles.field}>
+            <TextInput value={draft} onChangeText={setDraft} placeholder="say something to the room…" placeholderTextColor={N.moonFaint} style={styles.input} multiline editable={!sending} />
+          </View>
+          <Pressable style={styles.send} onPress={doSend}>
             <Svg width="46" height="46" viewBox="0 0 46 46">
-              <Defs><RadialGradient id="rsend" cx="40%" cy="34%" r="70%"><Stop offset="0%" stopColor="#FFD9AE" /><Stop offset="42%" stopColor={C.ember} /><Stop offset="100%" stopColor={C.emberDeep} /></RadialGradient></Defs>
-              <Circle cx="23" cy="23" r="23" fill="url(#rsend)" />
-              <Path d="M15 23 L31 16 L26 31 L22.5 24.5 Z" fill="#3A1505" />
+              <Defs><RadialGradient id="rsend" cx="42%" cy="36%" r="66%"><Stop offset="0%" stopColor={N.candleHot} /><Stop offset="52%" stopColor={N.candle} /><Stop offset="100%" stopColor="#c88a4f" /></RadialGradient></Defs>
+              <Circle cx="23" cy="23" r="17" fill="url(#rsend)" />
+              <Path d="M16 23 L30 17 L25.5 30 L22 24.5 Z" fill="#2a1c10" />
             </Svg>
           </Pressable>
         </View>
@@ -219,32 +294,33 @@ export default function RoomChat({ room, onBack = () => {} }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.void },
-  topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
-  chev: { color: C.muted, fontSize: 30, width: 26, marginTop: -3 },
-  roomTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 19 },
-  roomSub: { fontFamily: FONTS.light, color: C.muted, fontSize: 12, marginTop: 1 },
+  root: { flex: 1, backgroundColor: N.night },
+  topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 },
+  chev: { color: N.moonDim, fontSize: 30, width: 26, marginTop: -3 },
+  roomTitle: { fontFamily: 'Fraunces_400Regular', color: N.moon, fontSize: 19 },
+  roomSub: { fontFamily: 'Figtree_300Light', color: N.moonDim, fontSize: 12, marginTop: 1 },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(231,176,122,0.3)', backgroundColor: 'rgba(231,176,122,0.06)' },
+  inviteText: { fontFamily: 'Figtree_500Medium', color: N.candle, fontSize: 12 },
 
-  stage: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', height: 118, paddingHorizontal: 12, paddingTop: 8 },
-  rpWrap: { alignItems: 'center', width: 84 },
-  rpFace: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#1a121f' },
-  rpName: { fontFamily: FONTS.body, color: C.faint, fontSize: 11.5, marginTop: 6 },
-
-  convo: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10 },
-  lineRow: { flexDirection: 'row', marginBottom: 14 },
-  speaker: { fontFamily: FONTS.medium, fontSize: 12, marginBottom: 4, marginLeft: 4, letterSpacing: 0.3 },
-  bubble: { paddingVertical: 12, paddingHorizontal: 15, borderRadius: 20, overflow: 'hidden' },
-  bubbleThem: { backgroundColor: 'rgba(255,241,230,0.05)', borderWidth: 1, borderColor: 'rgba(255,240,228,0.10)', borderTopLeftRadius: 6 },
-  bubbleYou: { borderWidth: 1, borderColor: 'rgba(243,168,95,0.28)', borderBottomRightRadius: 6, maxWidth: '84%' },
-  bubbleText: { fontFamily: FONTS.body, color: '#F1E7DC', fontSize: 14.5, lineHeight: 21 },
-
+  stage: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', minHeight: 112, paddingHorizontal: 12, paddingTop: 8 },
+  rpWrap: { alignItems: 'center', width: 78 },
+  rpFace: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: N.night2 },
+  rpName: { fontFamily: 'Figtree_400Regular', color: N.moonFaint, fontSize: 11.5, marginTop: 6 },
   humanFace: { alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: 'rgba(40,46,60,0.6)' },
-  humanInitials: { fontFamily: FONTS.semibold, fontSize: 16 },
-  bubbleHuman: { backgroundColor: 'rgba(150,165,200,0.10)', borderWidth: 1, borderColor: 'rgba(160,175,210,0.18)', borderTopLeftRadius: 6 },
-  inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(243,168,95,0.25)', backgroundColor: 'rgba(243,168,95,0.06)' },
-  inviteText: { fontFamily: FONTS.medium, color: C.accentSoft, fontSize: 12 },
-  composer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, gap: 10 },
-  field: { flex: 1, borderRadius: 24, paddingVertical: 13, paddingHorizontal: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,240,228,0.10)', backgroundColor: 'rgba(255,240,230,0.04)' },
-  fieldPh: { fontFamily: FONTS.body, color: C.faint, fontSize: 14.5 },
+  humanInitials: { fontFamily: 'Figtree_600SemiBold', fontSize: 16 },
+
+  convo: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12 },
+  empty: { fontFamily: 'Fraunces_400Regular_Italic', color: N.moonFaint, fontSize: 14, textAlign: 'center', marginTop: 30 },
+  lineRow: { flexDirection: 'row', marginBottom: 14 },
+  speaker: { fontFamily: 'Figtree_500Medium', fontSize: 12, marginBottom: 4, marginLeft: 4, letterSpacing: 0.3 },
+  bubble: { paddingVertical: 11, paddingHorizontal: 15, borderRadius: 18 },
+  bubbleThem: { backgroundColor: 'rgba(233,232,240,0.05)', borderWidth: 1, borderColor: N.hair, borderTopLeftRadius: 6 },
+  bubbleYou: { backgroundColor: 'rgba(231,176,122,0.10)', borderWidth: 1, borderColor: 'rgba(231,176,122,0.16)', borderBottomRightRadius: 6, maxWidth: '84%' },
+  bubbleHuman: { backgroundColor: 'rgba(159,176,206,0.10)', borderWidth: 1, borderColor: 'rgba(159,176,206,0.2)', borderTopLeftRadius: 6 },
+  bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 21 },
+
+  composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
+  field: { flex: 1, borderRadius: 22, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },
+  input: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 15, paddingHorizontal: 16, paddingVertical: 12, maxHeight: 110 },
   send: { width: 46, height: 46 },
 });

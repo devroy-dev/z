@@ -16,7 +16,8 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg'
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
-import { loadSession, openThreadInfo, streamChat, clearThread, renameThread } from './api';
+import * as ImagePicker from 'expo-image-picker';
+import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar } from './api';
 
 // ── NIGHTFALL palette ──
 const N = {
@@ -79,6 +80,7 @@ function MiniDP({ uri, size = 38, rgb }) {
 // session cache of custom companion names (persona key → your name), so reopening
 // a renamed chat shows YOUR name instantly instead of flashing the default first.
 const NAME_CACHE = {};
+const AVATAR_CACHE = {};   // persona key → custom avatar data-uri (same purpose)
 
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
@@ -99,6 +101,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const [cname, setCname] = useState(NAME_CACHE[KEY] || P.name);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(NAME_CACHE[KEY] || P.name);
+  // custom avatar (data-uri) if the user set one; else null → falls back to the persona face
+  const [avatar, setAvatar] = useState(AVATAR_CACHE[KEY] || null);
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
@@ -111,10 +115,12 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   useEffect(() => {
     const seed = NAME_CACHE[KEY] || P.name;
     setCname(seed); setNameDraft(seed); setEditingName(false);
+    setAvatar(AVATAR_CACHE[KEY] || null);
     loadSession().then(() => openThreadInfo(KEY, P.name)).then((info) => {
       if (!info) return;
       setThreadId(info.id);
       if (info.name) { NAME_CACHE[KEY] = info.name; setCname(info.name); setNameDraft(info.name); }
+      if (info.avatar) { AVATAR_CACHE[KEY] = info.avatar; setAvatar(info.avatar); }
     });
   }, [KEY]);
 
@@ -126,6 +132,23 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
     NAME_CACHE[KEY] = nn;
     setCname(nn);
     if (threadId) await renameThread(threadId, nn);
+  };
+
+  // pick + set a custom avatar: square crop, compressed, stored as a small data-uri.
+  const pickAvatar = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true, aspect: [1, 1], quality: 0.4, base64: true,
+      });
+      if (res.canceled || !res.assets || !res.assets[0]?.base64) return;
+      const uri = `data:image/jpeg;base64,${res.assets[0].base64}`;
+      AVATAR_CACHE[KEY] = uri;
+      setAvatar(uri);
+      if (threadId) await setThreadAvatar(threadId, uri);
+    } catch (e) {}
   };
 
   const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
@@ -227,7 +250,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
           <View style={styles.topbar}>
             <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
             <View style={styles.topWho}>
-              <MiniDP uri={dp} rgb={rgb} />
+              <Pressable onPress={pickAvatar} hitSlop={6}><MiniDP uri={avatar || dp} rgb={rgb} /></Pressable>
               <View style={{ marginLeft: 11, flex: 1 }}>
                 {editingName ? (
                   <TextInput
@@ -278,9 +301,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
             }}>
             {empty ? (
               <View style={styles.epigraph}>
-                <View style={[styles.epFace, { borderColor: `rgba(${rgb},0.5)`, shadowColor: `rgb(${rgb})` }]}>
-                  <Image source={{ uri: dp }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
-                </View>
+                <Pressable onPress={pickAvatar} style={[styles.epFace, { borderColor: `rgba(${rgb},0.5)`, shadowColor: `rgb(${rgb})` }]}>
+                  <Image source={{ uri: avatar || dp }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
+                </Pressable>
                 <Text style={styles.epName}>{cname}</Text>
                 <Text style={styles.epLine}>{P.desc}</Text>
               </View>
