@@ -133,6 +133,8 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const [floor, setFloor] = useState(null);      // persona key or human uid who spoke last
   const [rt, setRt] = useState('connecting');    // DIAG: realtime channel status
   const [rtCount, setRtCount] = useState(0);     // DIAG: raw broadcasts received
+  const [rtLast, setRtLast] = useState('');      // DIAG: role/persona of last received
+  const [rtRendered, setRtRendered] = useState(0); // DIAG: how many actually painted
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -175,7 +177,11 @@ export default function RoomChat({ room, onBack = () => {} }) {
       if (last) setFloor(last.who === 'them' ? last.key : null);
       scrollDown();
 
-      await subscribeRoom(roomId, (m) => { setRtCount((c) => c + 1); onLive(m); }, (status) => setRt(status));
+      await subscribeRoom(roomId, (m) => {
+        setRtCount((c) => c + 1);
+        setRtLast(`${m.role || '?'}/${m.persona_key || m.sender_user_id || '?'}`);
+        onLive(m);
+      }, (status) => setRt(status));
     })();
     return () => { alive = false; unsubscribe(); if (graceRef.current) clearTimeout(graceRef.current); };
   }, [roomId]);
@@ -203,6 +209,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
       }
       setFloor(m.persona_key || null);
     }
+    setRtRendered((n) => n + 1);
     scrollDown();
   }, [roomId, members]);
 
@@ -262,7 +269,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
               {humans.length ? `  +  ${humans.map((h) => (h.name || '').split(' ')[0]).join(', ')}` : ''}
             </Text>
             <Text style={{ fontFamily: 'Figtree_400Regular', fontSize: 10, marginTop: 1, color: rt === 'SUBSCRIBED' ? '#6FE0A0' : '#E0A76F' }} numberOfLines={1}>
-              rt: {String(rt)} · {rtCount} rcvd
+              rt: {String(rt)} · {rtCount} rcvd · {rtRendered} shown · last: {rtLast || '—'}
             </Text>
           </View>
           <Pressable hitSlop={8} style={styles.inviteBtn} onPress={doInvite}>
