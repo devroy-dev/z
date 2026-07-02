@@ -30,12 +30,39 @@ async function directRoom(
   roster: { key: string; name: string }[],
   transcript: string,
   senderName: string,
+  humanCount: number,
 ): Promise<string[]> {
   if (members.length === 0) return members; // no personas to direct
-  if (members.length === 1) {
-    // a single persona in a room with real people still needs the Director's judgment:
-    // it should speak when addressed, but stay quiet when the humans are talking to each other.
-    // (only skip the director for a true 1:1 — handled upstream; here we always judge.)
+  // SOLO ROOM (just this person + personas): there's no "talking to another human"
+  // case, so it should behave like a normal group chat — someone almost always
+  // answers. Skip the human-restraint director entirely and let the best-fit
+  // persona respond (the director below is tuned for multi-human restraint).
+  if (humanCount <= 1) {
+    if (members.length === 1) return members; // the one persona answers
+    // pick the single best-fit persona for this message
+    const cast = roster.map((r) => `- ${r.key} ("${r.name}")`).join('\n');
+    const sys =
+      `You direct a chat between one person and a few AI personas. Pick who should ` +
+      `answer the LATEST message — usually ONE best-fit persona, occasionally TWO if the ` +
+      `message clearly invites several (e.g. "what do you all think?"). Someone should ` +
+      `almost always answer — this is a lively group chat, not a quiet room.\n\n` +
+      `The personas:\n${cast}\n\n` +
+      `Output ONLY a JSON array of persona keys, in order, e.g. ["the_oracle"] or ` +
+      `["the_wannabe","the_oracle"]. No prose.`;
+    try {
+      const r = await anthropic.messages.create({
+        model: MODEL, max_tokens: 60, system: sys,
+        messages: [{ role: 'user', content: `Chat so far:\n\n${transcript}\n\nWho answers? JSON array only.` }],
+      });
+      const txt = (r.content.find((b) => b.type === 'text') as any)?.text || '[]';
+      const m = txt.match(/\[[^\]]*\]/);
+      const arr = m ? JSON.parse(m[0]) : [];
+      const valid = (Array.isArray(arr) ? arr : []).filter((k: any) => typeof k === 'string' && members.includes(k));
+      const picked = [...new Set(valid)].slice(0, 2) as string[];
+      return picked.length ? picked : members.slice(0, 1); // never silent in a solo room
+    } catch {
+      return members.slice(0, 1);
+    }
   }
   const cast = roster.map((r) => `- ${r.key} ("${r.name}")`).join('\n');
   const sys =
@@ -183,9 +210,13 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // (those have their own turn structure). Decides which personas should speak this turn.
   let speakers = members;
   if (t.is_shared && input.senderName && !gameMode && !scenarioKey) {
+    // how many real people are in this room? solo (just the sender) → lively;
+    // multiple humans → the restraint director (let people talk to each other).
+    const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', threadId);
+    const humanCount = (mem ?? []).length || 1;
     const roster = members.map((k) => ({ key: k, name: nameFor(k) }));
     const recent = priorLines.slice(-12).join('\n');
-    speakers = await directRoom(members, roster, recent, input.senderName);
+    speakers = await directRoom(members, roster, recent, input.senderName, humanCount);
     // nobody should speak — the humans are talking; stay quiet
     if (!speakers.length) return;
   }
@@ -207,7 +238,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       // mid-scene: director picks the relevant cast (cap 2), then the moderator narrates last.
       const roster = castKeys.map((k) => ({ key: k, name: nameFor(k) }));
       const recent = priorLines.slice(-12).join('\n');
-      let picked = await directRoom(castKeys, roster, recent, input.senderName || (owner as any)?.display_name || 'the player');
+      let picked = await directRoom(castKeys, roster, recent, input.senderName || (owner as any)?.display_name || 'the player', 2);
       if (!picked.length) picked = castKeys.slice(0, 1); // someone should react to keep the scene alive
       speakers = [...picked, 'the_moderator']; // moderator always closes the beat (narrates/judges)
     }
