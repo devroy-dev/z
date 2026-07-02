@@ -13,6 +13,10 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiarsDiceLive from './games/liarsdice/Live';
+import CallbreakLive from './games/callbreak/Live';
+import PokerLive from './games/poker/Live';
+import PusoyLive from './games/pusoy/Live';
+import LudoLive from './games/ludo/Live';
 import { startGameSession, getLiveGame } from './api';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
@@ -138,11 +142,13 @@ export default function RoomChat({ room, onBack = () => {} }) {
     const t = setInterval(check, 5000);
     return () => { on = false; clearInterval(t); };
   }, [room.id]);
-  const startDice = async () => {
+  const [gameMenu, setGameMenu] = React.useState(false);
+  const startLive = async (game) => {
+    setGameMenu(false);
     try {
-      const roomPersonas = (room.personas || []).slice(0, 2);
-      const j = await startGameSession(room.id, 'liarsdice', roomPersonas);
-      if (j?.sessionId) setLiveSession(j.sessionId);
+      const roomPersonas = (room.personas || []).slice(0, 3);
+      const j = await startGameSession(room.id, game, roomPersonas);
+      if (j?.sessionId) setLiveSession({ id: j.sessionId, game });
     } catch (e) {}
   };
   const roomId = room?.id;
@@ -290,16 +296,29 @@ export default function RoomChat({ room, onBack = () => {} }) {
       <LinearGradient colors={[`rgba(${rgbOf(personas[0])},0.14)`, `rgba(${rgbOf(personas[0])},0.04)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <Grain />
       {liveSession ? (
-        <LiarsDiceLive sessionId={liveSession} onExit={() => setLiveSession(null)} />
+        liveSession.game === 'callbreak' ? <CallbreakLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
+        : liveSession.game === 'poker' ? <PokerLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
+        : liveSession.game === 'pusoy' ? <PusoyLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
+        : liveSession.game === 'ludo' ? <LudoLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
+        : <LiarsDiceLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
       ) : null}
       <SafeAreaView style={{ flex: 1, display: liveSession ? 'none' : 'flex' }} edges={['top', 'bottom']}>
         {!liveSession && (
-          <Pressable onPress={liveAvail ? () => setLiveSession(liveAvail.id) : startDice}
+          <Pressable onPress={liveAvail ? () => setLiveSession({ id: liveAvail.id, game: liveAvail.game }) : () => setGameMenu((v) => !v)}
             style={{ position: 'absolute', right: 16, top: 54, zIndex: 30, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(240,167,101,0.5)', backgroundColor: 'rgba(20,14,8,0.9)' }}>
             <Text style={{ fontFamily: 'Figtree_600SemiBold', color: '#F0A765', fontSize: 12 }}>
-              {liveAvail ? '🎲 game live — join' : '🎲 liar\u2019s dice'}
+              {liveAvail ? `🎲 ${liveAvail.game} live — join` : '🎲 play together'}
             </Text>
           </Pressable>
+        )}
+        {gameMenu && !liveSession && (
+          <View style={{ position: 'absolute', right: 16, top: 96, zIndex: 31, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(14,11,9,0.97)', overflow: 'hidden' }}>
+            {[['liarsdice', "liar's dice"], ['callbreak', 'callbreak'], ['poker', "hold'em"], ['pusoy', 'pusoy dos'], ['ludo', 'ludo']].map(([id, name]) => (
+              <Pressable key={id} onPress={() => startLive(id)} style={{ paddingHorizontal: 18, paddingVertical: 11, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)' }}>
+                <Text style={{ fontFamily: 'Figtree_500Medium', color: 'rgba(245,236,225,0.9)', fontSize: 13 }}>{name}</Text>
+              </Pressable>
+            ))}
+          </View>
         )}
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
