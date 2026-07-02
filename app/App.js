@@ -59,7 +59,7 @@ function PlayWorld({ navigate, target }) {
   if (mode === 'arena') {
     return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp, roster) => { setMatch({ game, opp, roster }); setMode('game'); }} />;
   }
-  return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); }} />;
+  return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'stage') navigate && navigate('stage'); }} />;
 }
 
 function DeskWorld({ navigate, onLogout }) {
