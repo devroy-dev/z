@@ -131,6 +131,8 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const [lines, setLines] = useState([]);
   const [members, setMembers] = useState({});   // uid -> name
   const [floor, setFloor] = useState(null);      // persona key or human uid who spoke last
+  const [rt, setRt] = useState('connecting');    // DIAG: realtime channel status
+  const [rtCount, setRtCount] = useState(0);     // DIAG: raw broadcasts received
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -173,7 +175,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
       if (last) setFloor(last.who === 'them' ? last.key : null);
       scrollDown();
 
-      await subscribeRoom(roomId, onLive);
+      await subscribeRoom(roomId, (m) => { setRtCount((c) => c + 1); onLive(m); }, (status) => setRt(status));
     })();
     return () => { alive = false; unsubscribe(); if (graceRef.current) clearTimeout(graceRef.current); };
   }, [roomId]);
@@ -258,6 +260,9 @@ export default function RoomChat({ room, onBack = () => {} }) {
             <Text style={styles.roomSub} numberOfLines={1}>
               {personas.map((k) => nameOf(k).replace('the ', '')).join(' · ')}
               {humans.length ? `  +  ${humans.map((h) => (h.name || '').split(' ')[0]).join(', ')}` : ''}
+            </Text>
+            <Text style={{ fontFamily: 'Figtree_400Regular', fontSize: 10, marginTop: 1, color: rt === 'SUBSCRIBED' ? '#6FE0A0' : '#E0A76F' }} numberOfLines={1}>
+              rt: {String(rt)} · {rtCount} rcvd
             </Text>
           </View>
           <Pressable hitSlop={8} style={styles.inviteBtn} onPress={doInvite}>

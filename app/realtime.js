@@ -34,11 +34,12 @@ async function getClient() {
 }
 
 // subscribe to a room's live feed. onMsg(rawMessage) fires for EVERY delivery
-// (broadcast + pg_changes) — the consumer is responsible for dedup + thread_id
-// filtering. returns an unsubscribe fn (also call unsubscribe() directly).
-export async function subscribeRoom(threadId, onMsg) {
+// (broadcast + pg_changes) — the consumer dedups + thread_id-filters. onStatus
+// reports the channel state (connecting/SUBSCRIBED/CHANNEL_ERROR/...) so the UI
+// can show whether realtime actually connected. returns an unsubscribe fn.
+export async function subscribeRoom(threadId, onMsg, onStatus) {
   const sb = await getClient();
-  if (!sb) return () => {};
+  if (!sb) { onStatus && onStatus('no-client'); return () => {}; }
   unsubscribe();
   _channel = sb.channel('room-' + threadId, { config: { broadcast: { self: false } } })
     .on('broadcast', { event: 'msg' }, (payload) => {
@@ -47,7 +48,7 @@ export async function subscribeRoom(threadId, onMsg) {
     .on('postgres_changes', { event: 'INSERT', schema: 'z', table: 'messages' }, (payload) => {
       if (payload && payload.new) onMsg(payload.new);
     })
-    .subscribe();
+    .subscribe((status, err) => { onStatus && onStatus(status, err); });
   return unsubscribe;
 }
 
