@@ -172,7 +172,8 @@ export default function UnoTable({ game: gameMeta, opponent, roster, onExit = ()
   const topCard = st.discard[st.discard.length - 1];
   const showColor = topCard.c === 'W' ? st.activeColor : topCard.c;
   const yourLegal = st.turn === 0 && st.phase === 'play' ? new Set(legalIdxs(st, 0)) : new Set();
-  const players = ids.map((id, i) => ({ id, ai: i > 0, key: id, name: i === 0 ? 'you' : cast[i - 1].name, hand: st.hands[i] }));
+  const TONES = ['#F3A85F', '#6FC9E0', '#F0708C', '#8FD98F'];
+  const players = ids.map((id, i) => ({ id, ai: i > 0, key: id, name: i === 0 ? 'you' : cast[i - 1].name, hand: st.hands[i], tone: TONES[i] }));
 
   return (
     <View style={styles.root}>

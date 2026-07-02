@@ -2,7 +2,7 @@
 //  yourZ — UNO visual layer, extracted verbatim from the original table
 //  (the felt was good; the logic underneath was not). Pure presentation.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing } from 'react-native-reanimated';
 import { C, FONTS } from '../../theme';
@@ -99,20 +99,20 @@ export function OpponentSeat({ player, active, position }) {
   const [okFace, setOkFace] = useState(true);
   const n = Math.min(player.hand.length, 8);
   return (
-    <View style={styles.seat}>
-      <View style={[styles.seatAvatarWrap, active && styles.seatActive]}>
+    <View style={ss.seat}>
+      <View style={[ss.seatAvatarWrap, active && ss.seatActive]}>
         {okFace ? (
           <Image source={{ uri: faceFor(player.key) }} onError={() => setOkFace(false)}
-            style={[styles.seatAvatar, active && { borderColor: player.tone }]} />
+            style={[ss.seatAvatar, active && { borderColor: player.tone }]} />
         ) : (
-          <View style={[styles.seatAvatar, styles.seatFallback, active && { borderColor: player.tone }]}>
+          <View style={[ss.seatAvatar, ss.seatFallback, active && { borderColor: player.tone }]}>
             <Text style={{ color: player.tone, fontFamily: FONTS.display, fontSize: 18 }}>{player.name[0]}</Text>
           </View>
         )}
-        <View style={styles.seatCount}><Text style={styles.seatCountText}>{player.hand.length}</Text></View>
+        <View style={ss.seatCount}><Text style={ss.seatCountText}>{player.hand.length}</Text></View>
       </View>
-      <Text style={styles.seatName} numberOfLines={1}>{player.name}</Text>
-      <View style={styles.seatFan}>
+      <Text style={ss.seatName} numberOfLines={1}>{player.name}</Text>
+      <View style={ss.seatFan}>
         {Array.from({ length: n }, (_, i) => (
           <View key={i} style={{ marginLeft: i === 0 ? 0 : -14, transform: [{ rotate: `${(i - n / 2) * 4}deg` }] }}>
             <UnoCard faceDown w={22} h={32} />
@@ -123,6 +123,19 @@ export function OpponentSeat({ player, active, position }) {
   );
 }
 
+
+
+const ss = StyleSheet.create({
+  seat: { alignItems: 'center', width: 96 },
+  seatAvatarWrap: { position: 'relative' },
+  seatActive: { transform: [{ scale: 1.06 }] },
+  seatAvatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: 'rgba(255,255,255,0.18)', backgroundColor: '#1a121f' },
+  seatFallback: { alignItems: 'center', justifyContent: 'center' },
+  seatCount: { position: 'absolute', right: -6, bottom: -4, backgroundColor: C.ember, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  seatCountText: { fontFamily: FONTS.semibold, color: '#22150A', fontSize: 11 },
+  seatName: { fontFamily: FONTS.medium, color: C.muted, fontSize: 11.5, marginTop: 5, maxWidth: 92 },
+  seatFan: { flexDirection: 'row', marginTop: 5, height: 34 },
+});
 
 export const cs = StyleSheet.create({
   card: { borderRadius: 12, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 7, borderWidth: 2.5, borderColor: '#fff' },
