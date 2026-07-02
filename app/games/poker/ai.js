@@ -5,7 +5,7 @@
 //  free-forms: every choice comes from legalActions().
 // ════════════════════════════════════════════════════════════════════════
 import { score7 } from './eval.js';
-import { legalActions, BB } from './engine.js';
+import { legalActions, potTotal, BB } from './engine.js';
 
 // preflop strength 0..1 (heads-up ranges are wide)
 export function preflopStrength(hole) {
@@ -53,10 +53,12 @@ export function chooseAction(g, seat, styleKey = 'steady', rnd = Math.random) {
   const strength = g.street === 'preflop'
     ? preflopStrength(g.hole[seat])
     : postflopStrength(g.hole[seat], g.board);
-  const owe = g.committed[1 - seat] - g.committed[seat];
-  const potOdds = owe > 0 ? owe / (g.pot + owe) : 0;
-  const bluffing = rnd() < st.bluff;
-  const eff = bluffing ? Math.max(strength, 0.72) : strength;
+  const owe = g.toMatch - g.committed[seat];
+  const potOdds = owe > 0 ? owe / (potTotal(g) + owe) : 0;
+  const live = g.folded.filter((f) => !f).length;
+  const multiwayTax = (live - 2) * 0.05;               // tighter with more players in
+  const bluffing = rnd() < st.bluff / Math.max(1, live - 1);
+  const eff = (bluffing ? Math.max(strength, 0.72) : strength) - multiwayTax;
 
   const canRaise = acts.find((a) => a.type === 'bet' || a.type === 'raise');
   const canCall = acts.find((a) => a.type === 'call');
@@ -64,14 +66,14 @@ export function chooseAction(g, seat, styleKey = 'steady', rnd = Math.random) {
 
   // strong (or bluffing) → aggression
   if (canRaise && eff > 0.62 && rnd() < st.aggro) {
-    const potish = g.pot + owe;
+    const potish = potTotal(g) + owe;
     const sizing = eff > 0.85 ? potish : Math.max(Math.floor(potish * 0.6), BB * 2);
-    const to = Math.min(canRaise.maxTo, Math.max(canRaise.minTo, g.committed[seat] + owe + sizing));
+    const to = Math.min(canRaise.maxTo, Math.max(canRaise.minTo, g.toMatch + sizing));
     return { type: canRaise.type, to };
   }
   if (canCheck) {
     if (canRaise && eff > 0.5 && rnd() < st.aggro * 0.6) {
-      const to = Math.min(canRaise.maxTo, Math.max(canRaise.minTo, g.committed[seat] + Math.max(Math.floor(g.pot * 0.5), BB * 2)));
+      const to = Math.min(canRaise.maxTo, Math.max(canRaise.minTo, g.committed[seat] + Math.max(Math.floor(potTotal(g) * 0.5), BB * 2)));
       return { type: canRaise.type, to };
     }
     return { type: 'check' };

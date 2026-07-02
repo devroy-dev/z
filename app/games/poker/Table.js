@@ -1,11 +1,10 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — THE HOLD'EM TABLE. Heads-up no-limit against any persona.
-//  Deterministic engine owns every rule (harness-proven: 600 hands, exact
-//  conservation, zero illegal actions); the persona supplies style + mouth.
-//  Play-money only; the bank persists like every table in the house.
+//  yourZ — THE HOLD'EM TABLE, five-handed. You + four personas. The
+//  multiway engine is harness-proven (side pots, layered awards, exact
+//  conservation); the personas supply style and mouth. Play-money only.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,172 +12,210 @@ import Grain from '../../Grain';
 import { C, FONTS } from '../../theme';
 import { banter } from '../../api';
 import { buzz, faceFor } from '../common';
-import { resolveStyle } from '../personas';
-import { newHand, act, legalActions, BB } from './engine.js';
+import { resolveStyle, TABLE_CAST } from '../personas';
+import { newHand, act, legalActions, potTotal, BB } from './engine.js';
 import { chooseAction } from './ai.js';
-import { handName } from './eval.js';
 
 const BANK_KEY = 'z_poker_bank';
 const BOOT = 2000;
+const SEATS = 5;
 const SUIT_GLYPH = ['♠', '♥', '♦', '♣'];
 const SUIT_TONE = ['#E9E4DA', '#F0708C', '#F0A765', '#8FD98F'];
 const rankName = (r) => (r === 14 ? 'A' : r === 13 ? 'K' : r === 12 ? 'Q' : r === 11 ? 'J' : String(r));
+const STYLE_KEYS = { calculator: 'calculator', gambler: 'gambler', guardian: 'guardian', chaos: 'chaos', smooth: 'smooth', steady: 'steady' };
 
-function PCard({ c, hidden, small }) {
-  const w = small ? 44 : 54, h = small ? 62 : 76;
+function PCard({ c, hidden, size = 'board' }) {
+  const dims = size === 'board' ? [46, 64, 18, 15] : size === 'mine' ? [54, 76, 21, 17] : [26, 37, 12, 10];
+  const [w, h, rf, sf] = dims;
   if (hidden || !c) return (
     <View style={[st.card, { width: w, height: h }, st.cardBack]}>
-      <Text style={st.backGlyph}>✦</Text>
+      {size !== 'opp' && <Text style={st.backGlyph}>✦</Text>}
     </View>
   );
   return (
     <View style={[st.card, { width: w, height: h }]}>
-      <Text style={[st.cardRank, small && { fontSize: 17 }, { color: SUIT_TONE[c.s] }]}>{rankName(c.r)}</Text>
-      <Text style={[st.cardSuit, small && { fontSize: 15 }, { color: SUIT_TONE[c.s] }]}>{SUIT_GLYPH[c.s]}</Text>
+      <Text style={[st.cardRank, { fontSize: rf, color: SUIT_TONE[c.s] }]}>{rankName(c.r)}</Text>
+      <Text style={[st.cardSuit, { fontSize: sf, color: SUIT_TONE[c.s] }]}>{SUIT_GLYPH[c.s]}</Text>
+    </View>
+  );
+}
+
+function OppSeat({ p, seat, g, showdown, talk }) {
+  const folded = g && g.folded[seat];
+  const acting = g && g.toAct === seat && g.street !== 'over';
+  const reveal = showdown && g?.results?.scores && !folded;
+  return (
+    <View style={[st.seat, folded && { opacity: 0.35 }]}>
+      <View style={[st.seatFaceWrap, acting && { borderColor: p.tone, shadowColor: p.tone, shadowOpacity: 0.8, shadowRadius: 8 }]}>
+        <Image source={{ uri: faceFor(p.key) }} style={st.seatFace} />
+        {g && g.dealer === seat && <Text style={st.seatBtn}>Ⓓ</Text>}
+      </View>
+      <Text style={st.seatName} numberOfLines={1}>{p.name.replace(/^the /, '')}</Text>
+      <Text style={[st.seatStack, { color: p.tone }]}>{g ? g.stacks[seat] : ''}</Text>
+      <View style={{ flexDirection: 'row', gap: 3, marginTop: 2, minHeight: 37 }}>
+        {!folded && g && <>
+          <PCard c={g.hole[seat][0]} hidden={!reveal} size="opp" />
+          <PCard c={g.hole[seat][1]} hidden={!reveal} size="opp" />
+        </>}
+        {folded && <Text style={st.foldedTxt}>folded</Text>}
+      </View>
+      {g && g.committed[seat] > 0 && g.street !== 'over' && (
+        <Text style={st.committed}>{g.committed[seat]}</Text>
+      )}
+      {talk && talk.seat === seat && (
+        <View style={[st.talk, { borderColor: `${p.tone}66` }]}><Text style={st.talkTxt} numberOfLines={3}>{talk.line}</Text></View>
+      )}
     </View>
   );
 }
 
 export default function PokerTable({ opponent, roster, onExit = () => {} }) {
-  const opp = (Array.isArray(roster) && roster[0]) || opponent || { key: 'the_cynic', name: 'the cynic', tone: '#6FC9E0' };
-  // style keys ARE the AI's policy names; resolveStyle maps persona→temperament alias
-  const STYLE_KEYS = { calculator: 'calculator', gambler: 'gambler', guardian: 'guardian', chaos: 'chaos', smooth: 'smooth', steady: 'steady' };
-  const styleKey = resolveStyle(STYLE_KEYS, opp.key, 'steady');
-  const tone = opp.tone || '#6FC9E0';
+  // seat 0 = you; seats 1..4 = personas (picked roster padded from the cast)
+  const [opps] = useState(() => {
+    const picked = (Array.isArray(roster) && roster.length ? roster : (opponent ? [opponent] : [])).slice(0, 4);
+    const have = new Set(picked.map((p) => p.key));
+    for (const p of TABLE_CAST) {
+      if (picked.length >= 4) break;
+      if (!have.has(p.key)) { picked.push(p); have.add(p.key); }
+    }
+    return picked;
+  });
+  const styleKeys = opps.map((p) => resolveStyle(STYLE_KEYS, p.key, 'steady'));
 
   const [bank, setBank] = useState(BOOT);
-  const [oppStack, setOppStack] = useState(BOOT);
   const [g, setG] = useState(null);
-  const [reveal, setReveal] = useState(0);        // board cards currently shown
-  const [showOpp, setShowOpp] = useState(false);
+  const [reveal, setReveal] = useState(0);
   const [banner, setBanner] = useState(null);
   const [talk, setTalk] = useState(null);
   const banterAt = useRef(0);
   const dealerRef = useRef(0);
+  const oppStacks = useRef([BOOT, BOOT, BOOT, BOOT]);
   const thinking = useRef(false);
 
   useEffect(() => { AsyncStorage.getItem(BANK_KEY).then((v) => { if (v != null) setBank(Number(v)); }).catch(() => {}); }, []);
   const saveBank = (b) => { setBank(b); AsyncStorage.setItem(BANK_KEY, String(b)).catch(() => {}); };
 
-  const say = useCallback(async (prompt) => {
+  const say = useCallback(async (seat, prompt) => {
     const now = Date.now(); if (now - banterAt.current < 7000) return;
     banterAt.current = now;
+    const p = opps[seat - 1];
+    if (!p) return;
     try {
-      const { line } = await banter(opp.key, `Heads-up hold'em table, play-money chips, mid-hand. ONE short in-character line, no quotes. ${prompt}`);
-      if (line) { setTalk(line); setTimeout(() => setTalk(null), 4200); }
+      const { line } = await banter(p.key, `Five-handed hold'em table, play-money chips, mid-hand. ONE short in-character line, no quotes. ${prompt}`);
+      if (line) { setTalk({ seat, line }); setTimeout(() => setTalk(null), 4200); }
     } catch (e) {}
-  }, [opp.key]);
+  }, [opps]);
 
   const deal = useCallback(() => {
-    let you = bank, them = oppStack;
-    if (you < BB) { you = BOOT; saveBank(BOOT); say('The player went broke — the house fronts fresh chips. Have a line about it.'); }
-    if (them < BB) { them = BOOT; setOppStack(BOOT); }
-    const hand = newHand([you, them], dealerRef.current);
-    dealerRef.current = 1 - dealerRef.current;
-    setShowOpp(false); setBanner(null); setReveal(0);
+    let you = bank;
+    if (you < BB * 2) { you = BOOT; saveBank(BOOT); say(1 + Math.floor(Math.random() * 4), 'The player went broke and the house fronted fresh chips. One line about it.'); }
+    const os = oppStacks.current.map((s) => (s < BB * 2 ? BOOT : s));
+    oppStacks.current = os;
+    const hand = newHand([you, ...os], dealerRef.current);
+    dealerRef.current = (dealerRef.current + 1) % SEATS;
+    setBanner(null); setReveal(0);
     setG({ ...hand });
     buzz('tap');
-  }, [bank, oppStack, say]);
+  }, [bank, say]);
 
   // board reveal pacing
   useEffect(() => {
     if (!g) return;
     if (g.board.length > reveal) {
-      const t = setTimeout(() => { setReveal((r) => r + 1); buzz('tick'); }, 320);
+      const t = setTimeout(() => { setReveal((r) => r + 1); buzz('tick'); }, 300);
       return () => clearTimeout(t);
     }
   }, [g, reveal]);
 
-  // settle when a hand ends
+  // settle
   useEffect(() => {
     if (!g || g.street !== 'over' || banner) return;
-    const done = () => {
-      saveBank(g.stacks[0]); setOppStack(g.stacks[1]);
-      if (g.result?.scores) setShowOpp(true);
-      const youWin = g.winner === 0, chop = g.winner === 'chop';
-      setBanner(chop ? 'A CHOP' : youWin ? `YOURS — ${g.reason.toUpperCase()}` : g.winner === 1 && g.result?.reason === 'fold' ? `${opp.name.toUpperCase()} TAKES IT` : `${opp.name.toUpperCase()} — ${String(g.reason).toUpperCase()}`);
-      buzz(chop ? 'knock' : youWin ? 'win' : 'lose');
-      say(youWin ? 'You just lost the pot to the player. React in character.' : chop ? 'The pot got chopped. React.' : `You just won the pot${g.result?.reason === 'fold' ? ' because they folded' : ' at showdown'}. React in character, one line.`);
-    };
-    const t = setTimeout(done, g.result?.scores ? 700 : 250);
+    const t = setTimeout(() => {
+      saveBank(g.stacks[0]);
+      oppStacks.current = g.stacks.slice(1);
+      const youWon = (g.results?.awards?.[0] || 0) > 0;
+      const mainW = g.winner;
+      const line = g.results?.reason === 'fold'
+        ? (mainW === 0 ? 'THE TABLE FOLDS — YOURS' : `${opps[mainW - 1]?.name?.toUpperCase() || 'THEM'} TAKES IT`)
+        : mainW === 'chop' ? `A CHOP — ${g.results.reason.toUpperCase()}`
+        : mainW === 0 ? `YOURS — ${g.results.reason.toUpperCase()}`
+        : `${opps[mainW - 1]?.name?.toUpperCase()} — ${g.results.reason.toUpperCase()}`;
+      setBanner(line);
+      buzz(youWon ? 'win' : 'lose');
+      if (mainW !== 0 && mainW !== 'chop') say(mainW, `You just won the pot${g.results?.reason === 'fold' ? ' when everyone folded' : ` at showdown with ${g.results?.reason}`}. Gloat, in character, one line.`);
+      else if (mainW === 0) say(1 + Math.floor(Math.random() * 4), 'The player just took the pot off the table. React, one line.');
+    }, g.results?.scores ? 800 : 250);
     return () => clearTimeout(t);
-  }, [g, banner, opp.name, say]);
+  }, [g, banner, opps, say]);
 
-  // the opponent thinks and acts
+  // AI seats think and act
   useEffect(() => {
-    if (!g || g.street === 'over' || g.toAct !== 1 || thinking.current) return;
-    if (g.board.length > reveal) return;                       // let the board land first
+    if (!g || g.street === 'over' || g.toAct === 0 || g.toAct < 0 || thinking.current) return;
+    if (g.board.length > reveal) return;
     thinking.current = true;
+    const seat = g.toAct;
     const t = setTimeout(() => {
       thinking.current = false;
       setG((cur) => {
-        if (!cur || cur.toAct !== 1 || cur.street === 'over') return cur;
-        const choice = chooseAction(cur, 1, styleKey);
-        const next = { ...act(cur, choice) };
-        if (choice.type === 'raise' || choice.type === 'bet') { buzz('knock'); if (Math.random() < 0.4) say(`You just ${choice.type === 'bet' ? 'bet' : 'raised'} into them. One needling line.`); }
-        if (choice.type === 'fold') buzz('thud');
-        return next;
+        if (!cur || cur.toAct !== seat || cur.street === 'over') return cur;
+        const choice = chooseAction(cur, seat, styleKeys[seat - 1]);
+        try {
+          const next = { ...act(cur, choice) };
+          if ((choice.type === 'raise' || choice.type === 'bet') && Math.random() < 0.3) say(seat, `You just ${choice.type} into a live pot. One needling line at the table.`);
+          if (choice.type === 'fold') buzz('tick');
+          if (choice.type === 'raise' || choice.type === 'bet') buzz('knock');
+          return next;
+        } catch (e) { return cur; }
       });
-    }, 700 + Math.random() * 900);
+    }, 550 + Math.random() * 850);
     return () => clearTimeout(t);
-  }, [g, reveal, styleKey, say]);
+  }, [g, reveal, styleKeys, say]);
 
-  const you = 0;
-  const acts = g && g.street !== 'over' && g.toAct === you && g.board.length <= reveal ? legalActions(g) : [];
+  const acts = g && g.street !== 'over' && g.toAct === 0 && g.board.length <= reveal ? legalActions(g) : [];
   const canCall = acts.find((a) => a.type === 'call');
   const canCheck = acts.find((a) => a.type === 'check');
   const canBet = acts.find((a) => a.type === 'bet' || a.type === 'raise');
-  const owe = g ? g.committed[1] - g.committed[0] : 0;
+  const owe = g ? Math.max(0, g.toMatch - g.committed[0]) : 0;
 
   const doAct = (action) => {
     setG((cur) => {
-      if (!cur || cur.toAct !== you || cur.street === 'over') return cur;
+      if (!cur || cur.toAct !== 0 || cur.street === 'over') return cur;
       try { return { ...act(cur, action) }; } catch (e) { return cur; }
     });
     buzz('tick');
   };
   const betTo = (mult) => {
     if (!canBet || !g) return;
-    const pot = g.pot + owe;
-    const target = mult === 'allin' ? canBet.maxTo : Math.round(g.committed[0] + owe + Math.max(pot * mult, BB * 2));
+    const pot = potTotal(g);
+    const target = mult === 'allin' ? canBet.maxTo : Math.round(g.toMatch + Math.max((pot + owe) * mult, BB * 2));
     doAct({ type: canBet.type, to: Math.min(Math.max(target, canBet.minTo), canBet.maxTo) });
-    if (mult === 'allin') { buzz('thud'); say('The player just shoved ALL IN on you. React.'); }
+    if (mult === 'allin') { buzz('thud'); say(1 + Math.floor(Math.random() * 4), 'The player just shoved ALL IN. React.'); }
   };
 
   const streetLabel = g ? (g.street === 'preflop' ? 'pre-flop' : g.street === 'over' ? '' : g.street) : '';
+  const showdown = g && g.street === 'over' && g.results?.scores;
 
   return (
     <View style={st.root}>
       <LinearGradient colors={['#14100C', '#0E0B08', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-        {/* opponent */}
         <View style={st.bar}>
           <Pressable hitSlop={12} onPress={onExit}><Text style={st.chev}>‹</Text></Pressable>
-          <View style={{ flex: 1, marginLeft: 4 }}>
-            <Text style={st.kicker}>hold'em · heads-up</Text>
-            <Text style={st.title}>{opp.name}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', marginRight: 10 }}>
-            <Text style={[st.stackN, { color: tone }]}>{g ? g.stacks[1] : oppStack}</Text>
-            <Text style={st.stackLabel}>their chips</Text>
-          </View>
-          <Image source={{ uri: faceFor(opp.key) }} style={[st.face, { borderColor: tone }]} />
+          <Text style={st.kicker}>hold'em · five-handed</Text>
+          <View style={{ width: 26 }} />
         </View>
 
-        {/* their cards + speech */}
-        <View style={st.oppRow}>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            <PCard c={g?.hole[1][0]} hidden={!showOpp} small />
-            <PCard c={g?.hole[1][1]} hidden={!showOpp} small />
-          </View>
-          {g && g.dealer === 1 && <Text style={st.button}>Ⓓ</Text>}
+        {/* the four of them */}
+        <View style={st.oppArc}>
+          {opps.map((p, i) => (
+            <OppSeat key={p.key} p={p} seat={i + 1} g={g} showdown={showdown} talk={talk} />
+          ))}
         </View>
-        {talk && <View style={[st.talk, { borderColor: `${tone}66` }]}><Text style={st.talkTxt}>{talk}</Text></View>}
 
         {/* the felt */}
         <View style={st.felt}>
-          <Text style={st.potN}>{g ? g.pot + g.committed[0] + g.committed[1] : 0}</Text>
+          <Text style={st.potN}>{g ? potTotal(g) : 0}</Text>
           <Text style={st.potLabel}>the pot{streetLabel ? ` · ${streetLabel}` : ''}</Text>
           <View style={st.board}>
             {[0, 1, 2, 3, 4].map((i) => (
@@ -186,33 +223,28 @@ export default function PokerTable({ opponent, roster, onExit = () => {} }) {
             ))}
           </View>
           {banner && (
-            <View style={[st.bannerWrap, { borderColor: `${tone}59` }]}>
+            <View style={st.bannerWrap}>
               <Text style={st.bannerTxt}>{banner}</Text>
-              <Pressable style={[st.nextBtn, { borderColor: `${tone}80`, backgroundColor: `${tone}1A` }]} onPress={deal}>
-                <Text style={[st.nextTxt, { color: tone }]}>next hand</Text>
-              </Pressable>
+              <Pressable style={st.nextBtn} onPress={deal}><Text style={st.nextTxt}>next hand</Text></Pressable>
             </View>
           )}
           {!g && (
-            <Pressable style={[st.nextBtn, { borderColor: `${tone}80`, backgroundColor: `${tone}1A`, marginTop: 18 }]} onPress={deal}>
-              <Text style={[st.nextTxt, { color: tone }]}>deal me in</Text>
-            </Pressable>
+            <Pressable style={[st.nextBtn, { marginTop: 16 }]} onPress={deal}><Text style={st.nextTxt}>deal me in</Text></Pressable>
           )}
         </View>
 
         {/* you */}
         <View style={st.youRow}>
-          <View style={{ alignItems: 'flex-start' }}>
+          <View>
             <Text style={[st.stackN, { color: C.ember }]}>{g ? g.stacks[0] : bank}</Text>
-            <Text style={st.stackLabel}>your chips{g && g.dealer === 0 ? ' · Ⓓ' : ''}</Text>
+            <Text style={st.stackLabel}>your chips{g && g.dealer === 0 ? ' · Ⓓ' : ''}{g && g.committed[0] > 0 && g.street !== 'over' ? ` · in ${g.committed[0]}` : ''}</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <PCard c={g?.hole[0][0]} hidden={!g} />
-            <PCard c={g?.hole[0][1]} hidden={!g} />
+            <PCard c={g?.hole[0][0]} hidden={!g} size="mine" />
+            <PCard c={g?.hole[0][1]} hidden={!g} size="mine" />
           </View>
         </View>
 
-        {/* action bar */}
         <View style={st.actions}>
           {acts.length > 0 ? (
             <>
@@ -229,8 +261,8 @@ export default function PokerTable({ opponent, roster, onExit = () => {} }) {
                 </View>
               )}
             </>
-          ) : g && g.street !== 'over' ? (
-            <Text style={st.waiting}>{opp.name} is thinking…</Text>
+          ) : g && g.street !== 'over' && g.toAct > 0 ? (
+            <Text style={st.waiting}>{opps[g.toAct - 1]?.name} is thinking…</Text>
           ) : null}
         </View>
       </SafeAreaView>
@@ -240,36 +272,42 @@ export default function PokerTable({ opponent, roster, onExit = () => {} }) {
 
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0E0B08' },
-  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6 },
+  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 6 },
   chev: { color: C.muted, fontSize: 30, width: 26, marginTop: -3 },
   kicker: { fontFamily: FONTS.body, color: '#E0C088', fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', opacity: 0.85 },
-  title: { fontFamily: FONTS.display, color: C.cream, fontSize: 22 },
-  face: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, backgroundColor: '#141009' },
+
+  oppArc: { flexDirection: 'row', justifyContent: 'space-evenly', paddingTop: 8, paddingHorizontal: 4 },
+  seat: { alignItems: 'center', width: 84 },
+  seatFaceWrap: { width: 46, height: 46, borderRadius: 23, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.18)', overflow: 'visible' },
+  seatFace: { width: 43, height: 43, borderRadius: 22, backgroundColor: '#141009' },
+  seatBtn: { position: 'absolute', right: -6, top: -6, fontFamily: FONTS.semibold, color: '#E0C088', fontSize: 13 },
+  seatName: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.85)', fontSize: 10.5, marginTop: 3 },
+  seatStack: { fontFamily: FONTS.display, fontSize: 13 },
+  foldedTxt: { fontFamily: FONTS.light, color: C.faint, fontSize: 10, fontStyle: 'italic', paddingTop: 10 },
+  committed: { fontFamily: FONTS.semibold, color: '#E0C088', fontSize: 11, marginTop: 2 },
+  talk: { position: 'absolute', top: 96, width: 130, padding: 7, borderRadius: 10, borderWidth: 1, backgroundColor: 'rgba(10,8,6,0.92)', zIndex: 9 },
+  talkTxt: { fontFamily: FONTS.displayItalic, color: C.cream, fontSize: 11, textAlign: 'center' },
+
+  felt: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  potN: { fontFamily: FONTS.display, color: '#E0C088', fontSize: 28 },
+  potLabel: { fontFamily: FONTS.body, color: C.faint, fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase' },
+  board: { flexDirection: 'row', gap: 6, marginTop: 10 },
+
+  card: { borderRadius: 7, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: '#171310', alignItems: 'center', justifyContent: 'center' },
+  cardBack: { backgroundColor: '#1a1409', borderColor: 'rgba(224,192,136,0.3)' },
+  backGlyph: { color: 'rgba(224,192,136,0.5)', fontSize: 16 },
+  cardRank: { fontFamily: FONTS.display, lineHeight: 22 },
+  cardSuit: { lineHeight: 17 },
+
+  bannerWrap: { marginTop: 14, alignItems: 'center', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(224,192,136,0.4)', backgroundColor: 'rgba(0,0,0,0.35)' },
+  bannerTxt: { fontFamily: FONTS.display, color: C.cream, fontSize: 15.5, textAlign: 'center' },
+  nextBtn: { marginTop: 9, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(224,192,136,0.5)', backgroundColor: 'rgba(224,192,136,0.1)' },
+  nextTxt: { fontFamily: FONTS.semibold, color: '#E0C088', fontSize: 13.5 },
+
+  youRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 6 },
   stackN: { fontFamily: FONTS.display, fontSize: 19, lineHeight: 21 },
   stackLabel: { fontFamily: FONTS.light, color: C.faint, fontSize: 9.5, letterSpacing: 1, textTransform: 'uppercase' },
 
-  oppRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 10 },
-  button: { fontFamily: FONTS.semibold, color: '#E0C088', fontSize: 15 },
-  talk: { alignSelf: 'center', marginTop: 8, maxWidth: '82%', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  talkTxt: { fontFamily: FONTS.displayItalic, color: C.cream, fontSize: 13.5, textAlign: 'center' },
-
-  felt: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  potN: { fontFamily: FONTS.display, color: '#E0C088', fontSize: 30 },
-  potLabel: { fontFamily: FONTS.body, color: C.faint, fontSize: 10, letterSpacing: 2.5, textTransform: 'uppercase' },
-  board: { flexDirection: 'row', gap: 7, marginTop: 12 },
-
-  card: { borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: '#171310', alignItems: 'center', justifyContent: 'center' },
-  cardBack: { backgroundColor: '#1a1409', borderColor: 'rgba(224,192,136,0.3)' },
-  backGlyph: { color: 'rgba(224,192,136,0.5)', fontSize: 18 },
-  cardRank: { fontFamily: FONTS.display, fontSize: 21, lineHeight: 24 },
-  cardSuit: { fontSize: 17, lineHeight: 19 },
-
-  bannerWrap: { marginTop: 16, alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, borderWidth: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  bannerTxt: { fontFamily: FONTS.display, color: C.cream, fontSize: 17, textAlign: 'center' },
-  nextBtn: { marginTop: 10, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 14, borderWidth: 1 },
-  nextTxt: { fontFamily: FONTS.semibold, fontSize: 14 },
-
-  youRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 6 },
   actions: { paddingHorizontal: 16, paddingBottom: 10, gap: 8, minHeight: 108 },
   actRow: { flexDirection: 'row', gap: 8 },
   actBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', alignItems: 'center' },
