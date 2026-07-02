@@ -308,6 +308,10 @@ export async function listThreads() {
   try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
 }
 
+export async function getRecentPings() {
+  try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
+}
+
 export async function getLedger() {
   try { return await authedJSON('GET', '/ledger'); } catch (e) { return { headline: null, week: null, feed: [] }; }
 }

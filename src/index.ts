@@ -14,6 +14,7 @@ import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { seatbeltCheck } from './seatbelt.js';
+import { runFollowups, startFollowupScheduler } from './followups.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
@@ -32,6 +33,7 @@ const __dirname2 = dirname(fileURLToPath(import.meta.url));
 // Native fetch (undici) — NOT the SDK's default node-fetch@2, which premature-closes
 // streams on Node 22. Same fix as loop.ts; applies to /banter + /dev/echo.
 const anthropicShared = new Anthropic({ fetch: globalThis.fetch as any });
+startFollowupScheduler();
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
@@ -203,6 +205,31 @@ app.post('/roleplay/start', async (req, res) => {
     if (error) return res.status(500).json({ error: 'roleplay start: ' + error.message });
     res.json({ threadId: data.id, scenario: scenarioKey, members, isGroup: true });
   } catch (e: any) { res.status(500).json({ error: 'roleplay start failed: ' + (e?.message || String(e)) }); }
+});
+
+// notes left at the desk: this user's recent proactive pings (last 48h)
+app.get('/pings/recent', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const since = new Date(Date.now() - 48 * 3600e3).toISOString();
+    const { data } = await supabase.from('ping_log')
+      .select('persona_key, ping, created_at').eq('user_id', user.id).eq('sent', true)
+      .gte('created_at', since).order('created_at', { ascending: false }).limit(3);
+    res.json({ pings: data ?? [] });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// dev trigger: run follow-ups now (for me only, or all) — curl with x-dev-key
+app.post('/dev/followups', async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key) return res.status(404).json({ error: 'not found' });
+    if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    const r = await runFollowups(req.body?.userId ? { onlyUserId: req.body.userId } : undefined);
+    res.json(r);
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
 // ── THE GROWTH LEDGER (#17): every judged moment, one endpoint ──────────────

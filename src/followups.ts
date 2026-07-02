@@ -1,0 +1,134 @@
+// ════════════════════════════════════════════════════════════════════════
+//  yourZ — PERSONA FOLLOW-UPS (#18). The house speaks first.
+//  Nightly: for each recently-active user, ONE Haiku call reads their open
+//  tasks + memory and either stays silent or drafts ONE in-character ping
+//  from the right persona ("so. did you talk to her?"). The ping lands in
+//  that persona's thread; the Desk shows it as a note left at the desk.
+//
+//  LAWS: max ONE ping per user per day (idempotent via ping_log) · silence
+//  is always a valid output · the SEATBELT runs in SHADOW MODE — it judges
+//  every ping and its verdict is logged, but blocks nothing (calibration
+//  corpus per the roadmap amendment; enforcement comes after real data).
+// ════════════════════════════════════════════════════════════════════════
+import Anthropic from '@anthropic-ai/sdk';
+import { supabase } from './db.js';
+import { personaByKey } from './personas.js';
+import { seatbeltCheck } from './seatbelt.js';
+import { logUsage } from './usage.js';
+
+const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const MODEL = 'claude-haiku-4-5-20251001';
+const RUN_HOUR_IST = 18;                       // ~6pm IST — the evening nudge
+
+const SELECTOR = `You decide whether an AI persona should send ONE short, warm, easy-to-ignore follow-up message to a user tonight — and draft it if so.
+
+You will see the user's open tasks and remembered facts. Look for ONE thing genuinely worth following up on: a task due/overdue, an event that has likely happened (an interview, a date, an exam, a doctor visit), something they said they'd do.
+
+Rules:
+- If NOTHING clearly warrants it, output exactly: NONE
+- Otherwise output exactly two lines:
+  PERSONA: <one of the allowed persona keys>
+  PING: <one short message (under 25 words) in that persona's voice — warm, specific, zero pressure, easy to ignore. Never guilt. Never "why haven't you". Reference the specific thing.>
+- Persona fit: work/career → the_colleague or the_mentor; dating/crush → the_wingman; health/heavy → the_healer; money → the_economist; study/exam → the_teacher; a task with a suggested persona → that one; anything else → the_front_desk.
+- When in doubt: NONE. Silence is always correct.`;
+
+const ALLOWED = new Set(['the_colleague','the_mentor','the_wingman','the_healer','the_economist','the_teacher','the_front_desk','the_brother']);
+
+async function draftFor(userId: string): Promise<{ personaKey: string; ping: string } | null> {
+  const [{ data: tasks }, { data: mem }] = await Promise.all([
+    supabase.from('tasks').select('title, notes, due_at, suggested_persona').eq('user_id', userId).eq('status', 'open').limit(15),
+    supabase.from('memory').select('key, value, updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(25),
+  ]);
+  if (!(tasks?.length) && !(mem?.length)) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const ctx = [
+    `Today: ${today}`,
+    tasks?.length ? `OPEN TASKS:\n${tasks.map((t: any) => `- ${t.title}${t.due_at ? ` (due ${String(t.due_at).slice(0, 10)})` : ''}${t.suggested_persona ? ` [suggested: ${t.suggested_persona}]` : ''}`).join('\n')}` : '',
+    mem?.length ? `REMEMBERED:\n${mem.map((m: any) => `- ${m.key ? m.key + ': ' : ''}${m.value}`).join('\n')}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const msg = await anthropic.messages.create({
+    model: MODEL, max_tokens: 120, system: SELECTOR,
+    messages: [{ role: 'user', content: ctx.slice(0, 4000) }],
+  });
+  logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
+  const text = ((msg.content?.[0] as any)?.text ?? '').trim();
+  if (/^NONE\b/i.test(text)) return null;
+  const pm = /PERSONA:\s*(\S+)/i.exec(text);
+  const gm = /PING:\s*([\s\S]+)/i.exec(text);
+  if (!pm || !gm) return null;
+  const personaKey = pm[1].trim();
+  const ping = gm[1].trim().replace(/^["']|["']$/g, '').slice(0, 240);
+  if (!ALLOWED.has(personaKey) || !personaByKey(personaKey) || !ping) return null;
+  return { personaKey, ping };
+}
+
+async function threadFor(userId: string, personaKey: string): Promise<string | null> {
+  const p = personaByKey(personaKey)!;
+  const { data: ex } = await supabase.from('threads')
+    .select('id').eq('user_id', userId).eq('persona_key', personaKey)
+    .eq('is_group', false).is('deleted_at', null)
+    .order('last_active', { ascending: false }).limit(1).maybeSingle();
+  if (ex) return ex.id;
+  const { data, error } = await supabase.from('threads').insert({
+    user_id: userId, persona_key: personaKey, codex_key: p.codex,
+    companion_name: p.defaultName,
+  }).select('id').single();
+  return error ? null : data.id;
+}
+
+export async function runFollowups(opts?: { onlyUserId?: string }): Promise<{ considered: number; sent: number }> {
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
+  let userIds: string[];
+  if (opts?.onlyUserId) userIds = [opts.onlyUserId];
+  else {
+    const { data: th } = await supabase.from('threads')
+      .select('user_id').gte('last_active', since).limit(2000);
+    userIds = Array.from(new Set<string>((th ?? []).map((t: any) => String(t.user_id))));
+  }
+  const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
+  let sent = 0;
+  for (const uid of userIds) {
+    try {
+      // one per day, ever — idempotent across restarts
+      const { data: already } = await supabase.from('ping_log')
+        .select('id').eq('user_id', uid).gte('created_at', dayStart.toISOString()).limit(1).maybeSingle();
+      if (already) continue;
+
+      const draft = await draftFor(uid);
+      if (!draft) continue;
+
+      // SHADOW-MODE seatbelt: judge, log, never block
+      const belt = await seatbeltCheck(draft.ping, { personaKey: draft.personaKey, userId: uid });
+
+      const threadId = await threadFor(uid, draft.personaKey);
+      if (!threadId) continue;
+      await supabase.from('messages').insert({
+        thread_id: threadId, user_id: uid, role: 'assistant', content: draft.ping, persona_key: draft.personaKey,
+      });
+      await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
+      await supabase.from('ping_log').insert({
+        user_id: uid, persona_key: draft.personaKey, thread_id: threadId, ping: draft.ping,
+        seatbelt_ok: belt.ok, seatbelt_reason: belt.reason ?? null, sent: true,
+      });
+      sent++;
+    } catch (e: any) {
+      console.error('[followups] user failed:', uid, e?.message || e);
+    }
+  }
+  return { considered: userIds.length, sent };
+}
+
+// hourly heartbeat; fires the run once when the IST clock crosses RUN_HOUR
+export function startFollowupScheduler() {
+  const tick = async () => {
+    const istHour = (new Date().getUTCHours() + 5.5) % 24;
+    if (Math.floor(istHour) !== RUN_HOUR_IST) return;
+    try {
+      const r = await runFollowups();
+      console.log(`[followups] nightly run: ${r.sent}/${r.considered} pinged`);
+    } catch (e: any) { console.error('[followups] run failed:', e?.message || e); }
+  };
+  setInterval(tick, 55 * 60 * 1000);            // hourly-ish; per-user idempotency makes double-fires harmless
+  console.log('[followups] scheduler armed for', RUN_HOUR_IST, 'IST');
+}

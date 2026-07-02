@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings } from './api';
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
@@ -167,6 +167,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const [panel, setPanel] = useState(null);    // 'list' | 'remember' | null
   const [recents, setRecents] = useState([]);  // recent persona threads → continue
   const [ledgerLine, setLedgerLine] = useState(null);
+  const [notes, setNotes] = useState([]);   // proactive pings — notes left at the desk
 
   // ── tonight at the house: living hooks, freshly dealt every visit ──
   const [tonight] = useState(() => {
@@ -223,6 +224,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
       .then((id) => id && setThreadId(id));
     refreshDesk();
     getLedger().then((l) => setLedgerLine(l?.headline || null)).catch(() => {});
+    getRecentPings().then(setNotes).catch(() => {});
   }, []);
 
   const nameFor = (key) => (roster[key] && roster[key].name) || nameFallback(key);
@@ -397,6 +399,21 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
         {/* ── the living lobby ── */}
         {panel === null && (
           <View>
+            {notes.length > 0 && (
+              <View>
+                <Text style={styles.lobbyLabel}>left at the desk</Text>
+                {notes.map((n, i) => (
+                  <Pressable key={i} style={styles.noteRow} onPress={() => routeTo(n.persona_key)}>
+                    <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.noteWho}>{nameFallback(n.persona_key)}</Text>
+                      <Text style={styles.noteTxt} numberOfLines={2}>“{n.ping}”</Text>
+                    </View>
+                    <Text style={styles.noteGo}>▸</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             {ledgerLine && (
               <Pressable style={styles.ledgerChip} onPress={onOpenYou}>
                 <Text style={styles.ledgerTxt} numberOfLines={1}>◆ {ledgerLine}</Text>
@@ -501,6 +518,10 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 }
 
 const styles = StyleSheet.create({
+  noteRow: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,155,232,0.3)', backgroundColor: 'rgba(201,155,232,0.05)' },
+  noteWho: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.9)', fontSize: 12.5 },
+  noteTxt: { fontFamily: FONTS.displayItalic, color: 'rgba(231,215,199,0.7)', fontSize: 12.5, lineHeight: 17, marginTop: 1 },
+  noteGo: { color: 'rgba(201,155,232,0.8)', fontSize: 15, marginLeft: 8 },
   ledgerChip: { marginHorizontal: 16, marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(231,176,122,0.35)', backgroundColor: 'rgba(231,176,122,0.06)' },
   ledgerTxt: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.9)', fontSize: 12.5, flex: 1, marginRight: 10 },
   ledgerGo: { fontFamily: FONTS.body, color: '#E7B07A', fontSize: 10.5, letterSpacing: 1.5, textTransform: 'uppercase' },
