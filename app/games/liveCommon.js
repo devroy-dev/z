@@ -3,7 +3,7 @@
 //  session driver, seat labels, and the standard live-table chrome.
 // ════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getGameSession, sendGameMove } from '../api';
+import { getGameSession, sendGameMove, claimGameSeat } from '../api';
 import { personaMeta } from './personas';
 
 export function useLiveSession(sessionId) {
@@ -15,7 +15,15 @@ export function useLiveSession(sessionId) {
       try {
         const v = await getGameSession(sessionId);
         if (on && v && v.version !== versionRef.current) { versionRef.current = v.version; setView(v); }
-      } catch (e) {}
+      } catch (e) {
+        // not seated yet → claim an open chair, then look again
+        if (String(e?.message || '').includes('not seated')) {
+          const c2 = await claimGameSeat(sessionId);
+          if (c2?.ok) {
+            try { const v2 = await getGameSession(sessionId); if (on && v2) { versionRef.current = v2.version; setView(v2); } } catch (e2) {}
+          }
+        }
+      }
     };
     refresh();
     const t = setInterval(refresh, 1500);

@@ -183,7 +183,7 @@ function OpponentPicker({ game, onBack, onStart }) {
             </View>
           ))}
 
-          {['liarsdice', 'callbreak', 'poker', 'pusoy', 'ludo'].includes(game?.id) && (
+          {['liarsdice', 'callbreak', 'poker', 'pusoy', 'ludo', 'debate'].includes(game?.id) && (
           <Pressable style={[styles.inviteRow, invited && { borderColor: 'rgba(240,167,101,0.6)' }]} onPress={() => setInvited((v) => !v)}>
             <View style={styles.invitePlus}><Text style={styles.invitePlusText}>+</Text></View>
             <View style={{ flex: 1, marginLeft: 12 }}>

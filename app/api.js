@@ -330,6 +330,9 @@ export async function getLiveGame(roomId) {
 export async function getGameSession(id) {
   return authedJSON('GET', `/games/session/${id}`);
 }
+export async function claimGameSeat(id) {
+  try { return await authedJSON('POST', `/games/session/${id}/claim`, {}); } catch (e) { return null; }
+}
 export async function sendGameMove(id, move, version) {
   return authedJSON('POST', `/games/session/${id}/move`, { move, version });
 }

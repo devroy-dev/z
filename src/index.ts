@@ -20,6 +20,7 @@ import { runStateWriter, currentStates, startStateScheduler } from './personaSta
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
+import { debateDuelAdapter } from './games/debateDuel.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
@@ -1236,6 +1237,7 @@ app.get('/rooms', async (req, res) => {
 // leave a room (members remove themselves)
 // ════════ MULTIPLAYER GAME SESSIONS (server-authoritative) ════════
 const GAME_ENGINES: Record<string, any> = {
+  debate_duel: debateDuelAdapter,
   callbreak: callbreakAdapter,
   pusoy: pusoyAdapter,
   poker: pokerAdapter,
@@ -1290,6 +1292,10 @@ app.post('/games/start', async (req, res) => {
     const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', roomId);
     const humanIds = Array.from(new Set([thread.user_id, ...((mem ?? []).map((m: any) => m.user_id))]));
     const seats: any[] = humanIds.map((id) => ({ kind: 'user', id }));
+    // humanOnly games reserve OPEN seats for friends who join the room later
+    if (engine.humanOnly) {
+      while (seats.length < (engine.maxSeats || 2)) seats.push({ kind: 'open', id: null });
+    }
     const seatCap = (engine.maxSeats || 6) - seats.length;
     for (const pk of (Array.isArray(personaSeats) ? personaSeats : []).slice(0, Math.max(0, seatCap))) {
       if (personaByKey(pk)) seats.push({ kind: 'persona', id: pk });
@@ -1340,6 +1346,30 @@ app.get('/games/session/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
+// claim an open seat (friends joining a humans-only table after creation)
+app.post('/games/session/:id/claim', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: s } = await supabase.from('game_sessions').select('*').eq('id', req.params.id).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such session' });
+    const seats = s.seats as any[];
+    if (seats.some((x) => x.kind === 'user' && x.id === user.id)) return res.json({ ok: true, seat: seats.findIndex((x) => x.kind === 'user' && x.id === user.id) });
+    // must be a member of the room
+    const { data: t } = await supabase.from('threads').select('user_id').eq('id', s.thread_id).maybeSingle();
+    if (t?.user_id !== user.id && !(await isRoomMember(s.thread_id, user.id))) return res.status(403).json({ error: 'not in this room' });
+    const open = seats.findIndex((x) => x.kind === 'open');
+    if (open < 0) return res.status(409).json({ error: 'table is full' });
+    seats[open] = { kind: 'user', id: user.id };
+    const { data: upd } = await supabase.from('game_sessions')
+      .update({ seats, version: s.version + 1, updated_at: new Date().toISOString() })
+      .eq('id', s.id).eq('version', s.version).select('version').maybeSingle();
+    if (!upd) return res.status(409).json({ error: 'lost the race' });
+    res.json({ ok: true, seat: open });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 // make a move (optimistic concurrency via version)
 app.post('/games/session/:id/move', async (req, res) => {
   try {
@@ -1360,10 +1390,23 @@ app.post('/games/session/:id/move', async (req, res) => {
       const t = engine.toActSeat(state);
       if (t !== mySeat) return res.status(409).json({ error: 'not your turn', version: s.version });
     }
-    try { state = engine.move(state, mySeat, move); }
+    try { state = await engine.move(state, mySeat, move); }
     catch (err: any) { return res.status(400).json({ error: err?.message || 'illegal move' }); }
     state = advanceAI(engine, state, s.seats);
     const over = engine.isOver(state);
+    // a finished duel writes to BOTH debaters' ledgers
+    if (over && s.game === 'debate_duel') {
+      try {
+        const humanSeats = (s.seats as any[]).map((x2: any, i: number) => ({ ...x2, i })).filter((x2: any) => x2.kind === 'user');
+        for (const hs of humanSeats) {
+          const w = state.winner === 'draw' ? 'draw' : state.winner === hs.i ? 'you' : 'them';
+          await supabase.from('arena_matches').insert({
+            user_id: hs.id, game: 'debate duel', winner: w,
+            notes: `motion: ${state.motion} — ${String(state.verdict || '').slice(0, 300)}`,
+          });
+        }
+      } catch (e) { console.error('[duel] ledger write failed', e); }
+    }
     const { data: upd, error } = await supabase.from('game_sessions')
       .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
       .eq('id', s.id).eq('version', s.version)      // concurrency fence
