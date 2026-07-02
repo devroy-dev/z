@@ -15,7 +15,7 @@ import Roster from './Roster';
 import Chat from './Chat';
 import Play from './Play';
 import Arena from './Arena';
-import Uno from './Uno';
+import Uno from './games/uno/Table';
 import LudoTable from './games/ludo/Table';
 import SnakesTable from './games/snakes/Table';
 import BlackjackTable from './games/blackjack/Table';
