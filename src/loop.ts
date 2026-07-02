@@ -5,6 +5,7 @@
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
 import { withGapMarker, sinceLine } from './timegap.js';
+import { arcBlockFor } from './arcs.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { logUsage } from './usage.js';
@@ -131,7 +132,9 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   }));
   const lastAt = (history && history.length) ? (history as any)[history.length - 1].created_at : null;
 
-  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${memoryBlock}`;
+  let arcBlock = '';
+  if (t.persona_key) { try { arcBlock = await arcBlockFor(userId, t.persona_key); } catch {} }
+  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${arcBlock}${frontDeskBlock}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the

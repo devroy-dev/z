@@ -308,6 +308,14 @@ export async function listThreads() {
   try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
 }
 
+export async function getArcs() {
+  try { return await authedJSON('GET', '/arcs/mine'); } catch (e) { return { arcs: [], catalog: [] }; }
+}
+export async function startArc(arcId) {
+  const r = await authedJSON('POST', '/arcs/start', { arcId });
+  return r;
+}
+
 export async function getRecentPings() {
   try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
 }

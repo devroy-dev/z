@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc } from './api';
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
@@ -168,6 +168,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const [recents, setRecents] = useState([]);  // recent persona threads → continue
   const [ledgerLine, setLedgerLine] = useState(null);
   const [notes, setNotes] = useState([]);   // proactive pings — notes left at the desk
+  const [arcState, setArcState] = useState({ arcs: [], catalog: [] });
 
   // ── tonight at the house: living hooks, freshly dealt every visit ──
   const [tonight] = useState(() => {
@@ -225,6 +226,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
     refreshDesk();
     getLedger().then((l) => setLedgerLine(l?.headline || null)).catch(() => {});
     getRecentPings().then(setNotes).catch(() => {});
+    getArcs().then(setArcState).catch(() => {});
   }, []);
 
   const nameFor = (key) => (roster[key] && roster[key].name) || nameFallback(key);
@@ -399,6 +401,21 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
         {/* ── the living lobby ── */}
         {panel === null && (
           <View>
+            {arcState.arcs.length > 0 ? (
+              arcState.arcs.map((a) => (
+                <Pressable key={a.id} style={styles.arcCard}
+                  onPress={() => routeTo(a.status === 'final_ready' ? 'the_stage' : a.def.personaKey)}>
+                  <Text style={styles.arcKicker}>{a.status === 'final_ready' ? '◈ your final awaits' : `◈ ${a.def.title} — day ${a.day} of ${a.def.days}`}</Text>
+                  <Text style={styles.arcLine}>{a.status === 'final_ready' ? `${a.def.finalTitle}, on the stage. you're ready.` : `with ${a.def.personaKey.replace(/^the_/, 'the ')} · today's session is open`}</Text>
+                </Pressable>
+              ))
+            ) : arcState.catalog.length > 0 ? (
+              <Pressable style={styles.arcCard}
+                onPress={async () => { try { await startArc(arcState.catalog[0].id); const j = await getArcs(); setArcState(j); routeTo(arcState.catalog[0].personaKey); } catch (e) {} }}>
+                <Text style={styles.arcKicker}>◈ begin an arc</Text>
+                <Text style={styles.arcLine}>{arcState.catalog[0].title} — {arcState.catalog[0].days} days with {arcState.catalog[0].personaKey.replace(/^the_/, 'the ')}, final on the stage: {arcState.catalog[0].finalTitle}</Text>
+              </Pressable>
+            ) : null}
             {notes.length > 0 && (
               <View>
                 <Text style={styles.lobbyLabel}>left at the desk</Text>
@@ -518,6 +535,9 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 }
 
 const styles = StyleSheet.create({
+  arcCard: { marginHorizontal: 16, marginTop: 14, padding: 13, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(143,217,143,0.35)', backgroundColor: 'rgba(143,217,143,0.05)' },
+  arcKicker: { fontFamily: FONTS.body, color: '#8FD98F', fontSize: 10.5, letterSpacing: 2, textTransform: 'uppercase' },
+  arcLine: { fontFamily: FONTS.displayItalic, color: 'rgba(245,236,225,0.9)', fontSize: 13.5, lineHeight: 19, marginTop: 4 },
   noteRow: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,155,232,0.3)', backgroundColor: 'rgba(201,155,232,0.05)' },
   noteWho: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.9)', fontSize: 12.5 },
   noteTxt: { fontFamily: FONTS.displayItalic, color: 'rgba(231,215,199,0.7)', fontSize: 12.5, lineHeight: 17, marginTop: 1 },

@@ -15,6 +15,7 @@ import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
+import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
@@ -205,6 +206,26 @@ app.post('/roleplay/start', async (req, res) => {
     if (error) return res.status(500).json({ error: 'roleplay start: ' + error.message });
     res.json({ threadId: data.id, scenario: scenarioKey, members, isGroup: true });
   } catch (e: any) { res.status(500).json({ error: 'roleplay start failed: ' + (e?.message || String(e)) }); }
+});
+
+// ── learning arcs (#19): list mine, start one ──
+app.get('/arcs/mine', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ arcs: await myArcs(user.id), catalog: Object.values(ARCS).map((a) => ({ id: a.id, title: a.title, personaKey: a.personaKey, days: a.days, finalTitle: a.finalTitle })) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/arcs/start', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const out = await startArc(user.id, String(req.body?.arcId || ''));
+    if ((out as any).error) return res.status(400).json(out);
+    res.json(out);
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
 // notes left at the desk: this user's recent proactive pings (last 48h)
@@ -1275,6 +1296,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
                 };
                 if (notes) runRow.notes = notes;
                 supabase.from('roleplay_runs').insert(runRow).then(() => {});
+                if (thr?.scenario_key) void completeArcIfFinal(user.id, thr.scenario_key, outcome);
                 // scene over — clear the scenario so the thread returns to normal
                 supabase.from('threads').update({ scenario_key: null, scenario_brief: null }).eq('id', threadId).then(() => {});
               });
