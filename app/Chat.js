@@ -76,6 +76,10 @@ function MiniDP({ uri, size = 38, rgb }) {
   );
 }
 
+// session cache of custom companion names (persona key → your name), so reopening
+// a renamed chat shows YOUR name instantly instead of flashing the default first.
+const NAME_CACHE = {};
+
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
   const P = PERSONAS[KEY];
@@ -91,10 +95,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const [draft, setDraft] = useState('');
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
-  // the name YOU gave this companion (defaults to the persona name until renamed)
-  const [cname, setCname] = useState(P.name);
+  // the name YOU gave this companion (seed from cache so no default-name flash on reopen)
+  const [cname, setCname] = useState(NAME_CACHE[KEY] || P.name);
   const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(P.name);
+  const [nameDraft, setNameDraft] = useState(NAME_CACHE[KEY] || P.name);
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
@@ -105,11 +109,12 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const atBottomRef = useRef(true);
 
   useEffect(() => {
-    setCname(P.name); setNameDraft(P.name); setEditingName(false);
+    const seed = NAME_CACHE[KEY] || P.name;
+    setCname(seed); setNameDraft(seed); setEditingName(false);
     loadSession().then(() => openThreadInfo(KEY, P.name)).then((info) => {
       if (!info) return;
       setThreadId(info.id);
-      if (info.name) { setCname(info.name); setNameDraft(info.name); }
+      if (info.name) { NAME_CACHE[KEY] = info.name; setCname(info.name); setNameDraft(info.name); }
     });
   }, [KEY]);
 
@@ -118,6 +123,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
     const nn = nameDraft.trim();
     setEditingName(false);
     if (!nn || nn === cname) { setNameDraft(cname); return; }
+    NAME_CACHE[KEY] = nn;
     setCname(nn);
     if (threadId) await renameThread(threadId, nn);
   };

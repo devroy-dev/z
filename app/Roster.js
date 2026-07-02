@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
-import { getPins, togglePin as togglePinApi } from './api';
+import { getPins, togglePin as togglePinApi, listThreads } from './api';
 
 const C = {
   void: '#0E0912', ground: '#07050A',
@@ -117,13 +117,14 @@ function Presence({ pkey, tone, size = 60, dim = false }) {
 }
 
 // ── a full row in a constellation: presence + name + tagline + pin ──
-function PresenceRow({ pkey, tone, pinned, onPin, onOpen }) {
+function PresenceRow({ pkey, tone, pinned, onPin, onOpen, names = {} }) {
   const p = PERSONAS[pkey] || { name: pkey, desc: '' };
+  const shownName = names[pkey] || p.name;
   return (
     <Pressable style={styles.row} onPress={() => onOpen(pkey)}>
       <Presence pkey={pkey} tone={tone} size={56} />
       <View style={styles.rowText}>
-        <Text style={styles.rowName}>{p.name}</Text>
+        <Text style={styles.rowName}>{shownName}</Text>
         <Text style={styles.rowDesc} numberOfLines={1}>{p.desc}</Text>
       </View>
       <Pressable hitSlop={12} onPress={() => onPin(pkey)} style={styles.pinHit}>
@@ -136,7 +137,7 @@ function PresenceRow({ pkey, tone, pinned, onPin, onOpen }) {
 // ── the pinned "shelf" — warmer, closer, horizontal ──
 // each item opens on tap; the ★ badge unpins it (the only place a favourite can
 // be removed, since pinned personas are filtered out of the lists below).
-function PinnedShelf({ pins, onOpen, onPin }) {
+function PinnedShelf({ pins, onOpen, onPin, names = {} }) {
   if (!pins.length) return null;
   return (
     <View style={styles.shelf}>
@@ -148,7 +149,7 @@ function PinnedShelf({ pins, onOpen, onPin }) {
             <Pressable hitSlop={10} onPress={() => onPin(k)} style={styles.shelfStar}>
               <Text style={styles.shelfStarTxt}>★</Text>
             </Pressable>
-            <Text style={styles.shelfName} numberOfLines={1}>{(PERSONAS[k]||{}).name}</Text>
+            <Text style={styles.shelfName} numberOfLines={1}>{names[k] || (PERSONAS[k]||{}).name}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -157,7 +158,7 @@ function PinnedShelf({ pins, onOpen, onPin }) {
 }
 
 // ── a constellation (group) ──
-function Constellation({ group, pins, onPin, onOpen, query }) {
+function Constellation({ group, pins, onPin, onOpen, query, names = {} }) {
   const q = (query || '').trim().toLowerCase();
   const matches = (k) => {
     if (!q) return true;
@@ -175,7 +176,7 @@ function Constellation({ group, pins, onPin, onOpen, query }) {
       </View>
       {visible.map((k) => (
         <PresenceRow key={k} pkey={k} tone={group.tone}
-          pinned={pins.includes(k)} onPin={onPin} onOpen={onOpen} />
+          pinned={pins.includes(k)} onPin={onPin} onOpen={onOpen} names={names} />
       ))}
     </View>
   );
@@ -185,6 +186,9 @@ function Constellation({ group, pins, onPin, onOpen, query }) {
 // the known list instead of flashing empty while the server refetches. Lives at
 // module scope, so it survives every Roster remount (chat-back, tab-switch).
 let PINS_CACHE = [];
+// custom companion names you've set (persona key → your name), overlaid on the
+// static defaults so a rename shows up in the list/shelf. Cached to avoid a flash.
+let NAMES_CACHE = {};
 
 export default function Roster({ onOpen = () => {} }) {
   const [fontsLoaded, fontError] = useFonts({
@@ -196,6 +200,16 @@ export default function Roster({ onOpen = () => {} }) {
   const [pins, setPins] = useState(PINS_CACHE);
   const [query, setQuery] = useState('');
   useEffect(() => { getPins().then((p) => { PINS_CACHE = p; setPins(p); }); }, []);
+  // overlay your custom companion names on top of the persona defaults
+  const [names, setNames] = useState(NAMES_CACHE);
+  useEffect(() => {
+    listThreads().then((ts) => {
+      if (!Array.isArray(ts)) return;
+      const m = {};
+      ts.forEach((t) => { if (t?.persona_key && t?.companion_name) m[t.persona_key] = t.companion_name; });
+      NAMES_CACHE = m; setNames(m);
+    });
+  }, []);
   const togglePin = useCallback((k) => {
     // optimistic flip for instant feedback; persist the explicit new state
     // (idempotent set, so even a retry can't desync). server truth reconciles after.
@@ -241,9 +255,9 @@ export default function Roster({ onOpen = () => {} }) {
             )}
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled">
-            {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} />}
+            {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} names={names} />}
             {GROUPS.map((g) => (
-              <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} />
+              <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} />
             ))}
           </ScrollView>
         </SafeAreaView>
