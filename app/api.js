@@ -308,6 +308,10 @@ export async function listThreads() {
   try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
 }
 
+export async function getPersonaStates() {
+  try { const j = await authedJSON('GET', '/persona-states'); return j.states || {}; } catch (e) { return {}; }
+}
+
 export async function getArcs() {
   try { return await authedJSON('GET', '/arcs/mine'); } catch (e) { return { arcs: [], catalog: [] }; }
 }

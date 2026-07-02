@@ -6,6 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { withGapMarker, sinceLine } from './timegap.js';
 import { arcBlockFor } from './arcs.js';
+import { stateBlockFor } from './personaStates.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { logUsage } from './usage.js';
@@ -134,7 +135,9 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
 
   let arcBlock = '';
   if (t.persona_key) { try { arcBlock = await arcBlockFor(userId, t.persona_key); } catch {} }
-  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${arcBlock}${frontDeskBlock}${memoryBlock}`;
+  let stateBlock = '';
+  if (t.persona_key) { try { stateBlock = await stateBlockFor(t.persona_key); } catch {} }
+  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${arcBlock}${stateBlock}${frontDeskBlock}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the

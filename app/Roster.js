@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
-import { getPins, togglePin as togglePinApi, listThreads } from './api';
+import { getPins, togglePin as togglePinApi, listThreads, getPersonaStates } from './api';
 
 const C = {
   void: '#0E0912', ground: '#07050A',
@@ -118,7 +118,7 @@ function Presence({ pkey, tone, size = 60, dim = false }) {
 }
 
 // ── a full row in a constellation: presence + name + tagline + pin ──
-function PresenceRow({ pkey, tone, pinned, onPin, onOpen, names = {} }) {
+function PresenceRow({ pkey, tone, pinned, onPin, onOpen, names = {}, states = {} }) {
   const p = PERSONAS[pkey] || { name: pkey, desc: '' };
   const shownName = names[pkey] || p.name;
   return (
@@ -126,7 +126,11 @@ function PresenceRow({ pkey, tone, pinned, onPin, onOpen, names = {} }) {
       <Presence pkey={pkey} tone={tone} size={56} />
       <View style={styles.rowText}>
         <Text style={styles.rowName}>{shownName}</Text>
-        <Text style={styles.rowDesc} numberOfLines={1}>{p.desc}</Text>
+        {states[pkey] ? (
+          <Text style={styles.rowStatus} numberOfLines={2}>{states[pkey].status_line}</Text>
+        ) : (
+          <Text style={styles.rowDesc} numberOfLines={1}>{p.desc}</Text>
+        )}
       </View>
       <Pressable hitSlop={12} onPress={() => onPin(pkey)} style={styles.pinHit}>
         <Text style={[styles.pin, pinned && { color: tone, opacity: 1 }]}>{pinned ? '★' : '☆'}</Text>
@@ -176,7 +180,7 @@ function Constellation({ group, pins, onPin, onOpen, query, names = {} }) {
         <Text style={styles.groupSub}>{group.sub}</Text>
       </View>
       {visible.map((k) => (
-        <PresenceRow key={k} pkey={k} tone={group.tone}
+        <PresenceRow states={states} key={k} pkey={k} tone={group.tone}
           pinned={pins.includes(k)} onPin={onPin} onOpen={onOpen} names={names} />
       ))}
     </View>
@@ -200,6 +204,8 @@ export default function Roster({ onOpen = () => {} }) {
   // shows immediately on remount (no empty flash); the fetch reconciles quietly.
   const [pins, setPins] = useState(PINS_CACHE);
   const [query, setQuery] = useState('');
+  const [states, setStates] = useState({});
+  useEffect(() => { getPersonaStates().then(setStates).catch(() => {}); }, []);
   useEffect(() => { getPins().then((p) => { PINS_CACHE = p; setPins(p); }); }, []);
   // overlay your custom companion names on top of the persona defaults
   const [names, setNames] = useState(NAMES_CACHE);
@@ -296,6 +302,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 18 },
   rowText: { flex: 1, marginLeft: 12 },
   rowName: { fontFamily: 'Figtree_500Medium', color: C.cream, fontSize: 15.5 },
+  rowStatus: { fontFamily: FONTS.displayItalic, color: 'rgba(231,215,199,0.62)', fontSize: 12.5, lineHeight: 17, marginTop: 2 },
   rowDesc: { fontFamily: 'Figtree_300Light', color: C.muted, fontSize: 12.5, marginTop: 2 },
   pinHit: { paddingHorizontal: 8, paddingVertical: 6 },
   pin: { fontSize: 18, color: C.faint, opacity: 0.6 },
