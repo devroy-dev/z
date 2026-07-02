@@ -195,14 +195,14 @@ function OpponentPicker({ game, onBack, onStart }) {
         </ScrollView>
 
         {/* launch bar */}
-        {chosen.length > 0 && (
+        {(chosen.length > 0 || invited) && (
           <View style={styles.launchBar}>
             <Text style={styles.launchCount}>
               {chosen.length === 1 ? `1v1 · you vs ${chosen[0].name}` : `you + ${chosen.length} at the table`}
             </Text>
             <Pressable style={styles.launchBtn} onPress={launch}>
               <LinearGradient colors={[C.ember, C.emberDeep]} start={{ x: 0.3, y: 0 }} end={{ x: 1, y: 1 }} style={styles.launchInner}>
-                <Text style={styles.launchText}>take your seat ›</Text>
+                <Text style={styles.launchText}>{invited ? 'open the table & share the invite' : 'take your seat ›'}</Text>
               </LinearGradient>
             </Pressable>
           </View>
