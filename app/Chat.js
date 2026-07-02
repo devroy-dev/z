@@ -18,7 +18,7 @@ import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600Sem
 import VideoCall from './VideoCall';
 import Grain from './Grain';
 import * as ImagePicker from 'expo-image-picker';
-import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar } from './api';
+import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages } from './api';
 
 // ── NIGHTFALL palette ──
 const N = {
@@ -122,6 +122,13 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
       setThreadId(info.id);
       if (info.name) { NAME_CACHE[KEY] = info.name; setCname(info.name); setNameDraft(info.name); }
       if (info.avatar) { AVATAR_CACHE[KEY] = info.avatar; setAvatar(info.avatar); }
+      // the past belongs on the screen: load this thread's saved conversation
+      getRoomMessages(info.id).then((j) => {
+        const hist = (j.messages || [])
+          .map((m, i) => ({ id: 'h' + (m.id || i), who: m.role === 'user' ? 'you' : 'them', text: m.content || '' }))
+          .filter((m) => m.text);
+        if (hist.length) setMessages((cur) => (cur.length ? cur : hist));
+      }).catch(() => {});
     });
   }, [KEY]);
 

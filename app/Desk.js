@@ -424,7 +424,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
                     <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.noteWho}>{nameFallback(n.persona_key)}</Text>
-                      <Text style={styles.noteTxt} numberOfLines={2}>“{n.ping}”</Text>
+                      <Text style={styles.noteTxt} numberOfLines={6}>“{n.ping}”</Text>
                     </View>
                     <Text style={styles.noteGo}>▸</Text>
                   </Pressable>
