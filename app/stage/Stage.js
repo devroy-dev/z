@@ -49,7 +49,7 @@ function SceneCard({ s, wide, onPress }) {
 function Beat({ beat, playerName, onTyped, instant }) {
   const isDirection = beat.key === 'the_moderator';
   const isYou = beat.key === '__you__';
-  const clean = (beat.text || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|\s)\*([^*\n]+)\*/g, '$1$2').replace(/__([^_]+)__/g, '$1');
+  const clean = (beat.text || '').replace(/\[\[[^\]]*\]\]/g, '').trim().replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|\s)\*([^*\n]+)\*/g, '$1$2').replace(/__([^_]+)__/g, '$1');
   const [shown, setShown] = useState(instant ? clean : '');
   useEffect(() => {
     if (instant) { setShown(clean); return; }
@@ -248,6 +248,12 @@ export default function Stage({ onBack = () => {} }) {
                   <Text style={[st.verdictWord, { color: verdict.outcome === 'win' ? '#8FD98F' : verdict.outcome === 'loss' ? '#F0708C' : C.accentSoft }]}>
                     {verdict.outcome === 'win' ? 'YOU WON THE SCENE' : verdict.outcome === 'loss' ? 'THE SCENE WON' : 'A DRAW'}
                   </Text>
+                  {verdict.notes ? (
+                    <View style={st.notesBox}>
+                      <Text style={st.notesKicker}>the director's notes</Text>
+                      <Text style={st.notesText}>{verdict.notes}</Text>
+                    </View>
+                  ) : null}
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                     <Pressable style={st.vBtn} onPress={() => begin(scene.s, scene.s.id === 'custom' ? customBrief : undefined)}>
                       <Text style={st.vBtnTxt}>run it again</Text>
@@ -412,6 +418,9 @@ const st = StyleSheet.create({
   verdictCard: { marginVertical: 18, padding: 20, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(201,155,232,0.35)', backgroundColor: 'rgba(201,155,232,0.06)', alignItems: 'center' },
   verdictKicker: { fontFamily: FONTS.body, color: VIOLET, fontSize: 10.5, letterSpacing: 3, textTransform: 'uppercase' },
   verdictWord: { fontFamily: FONTS.display, fontSize: 22, marginTop: 8, textAlign: 'center' },
+  notesBox: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(201,155,232,0.2)', alignSelf: 'stretch' },
+  notesKicker: { fontFamily: FONTS.body, color: 'rgba(201,155,232,0.7)', fontSize: 9.5, letterSpacing: 2.5, textTransform: 'uppercase', textAlign: 'center' },
+  notesText: { fontFamily: FONTS.displayItalic, color: 'rgba(245,236,225,0.85)', fontSize: 13.5, lineHeight: 20, textAlign: 'center', marginTop: 6 },
   vBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,155,232,0.5)', backgroundColor: 'rgba(201,155,232,0.1)' },
   vBtnTxt: { fontFamily: FONTS.semibold, color: VIOLET, fontSize: 13.5 },
 

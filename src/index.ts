@@ -1141,7 +1141,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     } else if (th.is_group && isOwner) {
       // ARENA support in groups: strip score tags from the moderator's visible stream,
       // and after its turn, parse + emit score/result + persist the match.
-      const tagRe = /\[\[(SCORE|RESULT|VERDICT|TENSION|COMPLICATION)[^\]]*\]\]/g;
+      const tagRe = /\[\[(SCORE|RESULT|VERDICT|TENSION|COMPLICATION|COMMIT|NOTES)[^\]]*\]\]/g;
       const tails: Record<string, string> = {};
       const flushVisible = (key: string, chunk: string, final = false) => {
         let buf = (tails[key] || '') + chunk;
@@ -1187,12 +1187,16 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
             }
             if (verdict) {
               const outcome = verdict[1];
-              res.write(`data: ${JSON.stringify({ verdict: { outcome } })}\n\n`);
+              const notesM = /\[\[NOTES:\s*([^\]]+)\]\]/.exec(full);
+              const notes = notesM ? notesM[1].trim().slice(0, 400) : null;
+              res.write(`data: ${JSON.stringify({ verdict: { outcome, notes } })}\n\n`);
               supabase.from('threads').select('scenario_key, scenario_brief').eq('id', threadId).maybeSingle().then(({ data: thr }: any) => {
-                supabase.from('roleplay_runs').insert({
+                const runRow: any = {
                   user_id: user.id, scenario: thr?.scenario_key || 'unknown',
                   player_role: thr?.scenario_brief || null, outcome,
-                }).then(() => {});
+                };
+                if (notes) runRow.notes = notes;
+                supabase.from('roleplay_runs').insert(runRow).then(() => {});
                 // scene over — clear the scenario so the thread returns to normal
                 supabase.from('threads').update({ scenario_key: null, scenario_brief: null }).eq('id', threadId).then(() => {});
               });
