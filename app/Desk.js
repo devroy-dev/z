@@ -14,6 +14,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
 import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote } from './api';
+import { MOTIONS } from './games/debate/motions';
+import { LIBRARY as STAGE_LIB } from './stage/library';
+import { TABLE_CAST } from './games/personas';
 import Grain from './Grain';
 
 // ── NIGHTFALL palette (local to the Front Desk until the full repaint) ──
@@ -162,6 +165,31 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const [letters, setLetters] = useState([]);
   const [roster, setRoster] = useState({});   // key -> { name, dp }
   const [panel, setPanel] = useState(null);    // 'list' | 'remember' | null
+  const [recents, setRecents] = useState([]);  // recent persona threads → continue
+
+  // ── tonight at the house: living hooks, freshly dealt every visit ──
+  const [tonight] = useState(() => {
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const motion = pick(MOTIONS);
+    const scene = pick(STAGE_LIB);
+    const tables = [
+      { id: 'teenpatti', name: 'teen patti' }, { id: 'bluff', name: 'bluff' },
+      { id: 'blackjack', name: 'blackjack' }, { id: 'uno', name: 'UNO' }, { id: 'ludo', name: 'ludo' },
+    ];
+    const table = pick(tables);
+    const seatA = pick(TABLE_CAST); let seatB = pick(TABLE_CAST);
+    while (seatB.key === seatA.key) seatB = pick(TABLE_CAST);
+    const hour = new Date().getHours();
+    const hooks = [
+      { key: 'the_arena', tone: '#6FC9E0', kicker: 'the chamber is open', line: `blitz debate — “${motion.text}”` },
+      { key: 'the_stage', tone: '#C99BE8', kicker: 'on the stage tonight', line: `${scene.name} — ${scene.tag}` },
+      { key: 'the_arena', tone: '#F0A765', kicker: `the ${table.name} table is hot`, line: `${seatA.name} and ${seatB.name} are already seated` },
+      { key: 'the_anchor', tone: '#E0C088', kicker: 'from the news desk', line: `the anchor has the ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : '9 o’clock'} bulletin ready` },
+      { key: 'the_arena', tone: '#8FD98F', kicker: 'the gauntlet waits', line: 'trivia streak — one miss ends the run. how far can you ride?' },
+    ];
+    for (let i = hooks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [hooks[i], hooks[j]] = [hooks[j], hooks[i]]; }
+    return hooks.slice(0, 3);
+  });
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
@@ -178,6 +206,11 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
     const map = {};
     (th || []).forEach((t) => { map[t.persona_key] = { name: t.companion_name || nameFallback(t.persona_key), dp: t.avatar_url || null }; });
     setRoster(map);
+    const rec = (th || [])
+      .filter((t) => t.persona_key && t.persona_key !== 'the_front_desk' && !t.is_group)
+      .slice(0, 4)
+      .map((t) => ({ key: t.persona_key, name: t.companion_name || nameFallback(t.persona_key) }));
+    setRecents(rec);
     setTasks(tk || []);
     setFacts((nt && nt.facts) || []);
     setLetters((nt && nt.notes) || []);
@@ -359,6 +392,46 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
           </View>
         )}
 
+        {/* ── the living lobby ── */}
+        {panel === null && (
+          <View>
+            <Text style={styles.lobbyLabel}>tonight at the house</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marqueeRow}>
+              {tonight.map((h, i) => (
+                <Pressable key={i} style={[styles.marqueeCard, { borderColor: `${h.tone}4D` }]} onPress={() => routeTo(h.key)}>
+                  <Text style={[styles.marqueeKicker, { color: h.tone }]}>{h.kicker}</Text>
+                  <Text style={styles.marqueeLine} numberOfLines={2}>{h.line}</Text>
+                  <Text style={[styles.marqueeGo, { color: h.tone }]}>step in ▸</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {recents.length > 0 && (
+              <View>
+                <Text style={styles.lobbyLabel}>continue</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
+                  {recents.map((r) => (
+                    <Pressable key={r.key} style={styles.recentChip} onPress={() => routeTo(r.key)}>
+                      <Avatar pkey={r.key} uri={dpFor(r.key)} size={26} />
+                      <Text style={styles.recentName} numberOfLines={1}>{r.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            <Text style={styles.lobbyLabel}>the gathering, at the door</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gatherRow}>
+              {[...TABLE_CAST.map((p) => p.key), 'the_anchor'].map((k) => (
+                <Pressable key={k} onPress={() => routeTo(k)} style={{ alignItems: 'center', width: 56 }}>
+                  <Avatar pkey={k} uri={dpFor(k)} size={44} />
+                  <Text style={styles.gatherName} numberOfLines={1}>{nameFallback(k).replace(/^the /, '')}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* the conversation — Z floats in serif (the house speaks); you in a candle bubble */}
         <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingVertical: 16, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
           scrollEventThrottle={16}
@@ -420,6 +493,17 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 }
 
 const styles = StyleSheet.create({
+  lobbyLabel: { fontFamily: FONTS.body, color: 'rgba(231,215,199,0.4)', fontSize: 10.5, letterSpacing: 2.5, textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  marqueeRow: { paddingHorizontal: 16, gap: 10 },
+  marqueeCard: { width: 230, borderRadius: 16, borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.03)', padding: 13 },
+  marqueeKicker: { fontFamily: FONTS.body, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' },
+  marqueeLine: { fontFamily: FONTS.displayItalic, color: 'rgba(245,236,225,0.92)', fontSize: 13.5, lineHeight: 19, marginTop: 5, minHeight: 38 },
+  marqueeGo: { fontFamily: FONTS.medium, fontSize: 11, letterSpacing: 1.5, marginTop: 8, textTransform: 'uppercase' },
+  recentRow: { paddingHorizontal: 16, gap: 8 },
+  recentChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 6, paddingRight: 14, paddingVertical: 6, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' },
+  recentName: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.85)', fontSize: 12.5, maxWidth: 110 },
+  gatherRow: { paddingHorizontal: 16, gap: 6, paddingBottom: 4 },
+  gatherName: { fontFamily: FONTS.light, color: 'rgba(231,215,199,0.5)', fontSize: 9.5, marginTop: 4 },
   root: { flex: 1, backgroundColor: N.night },
   lightfall: { position: 'absolute', top: 0, left: 0, right: 0, height: '42%' },
 
