@@ -18,6 +18,7 @@ import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
 import { runStateWriter, currentStates, startStateScheduler } from './personaStates.js';
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
+import * as LD from './games/liarsdice.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
@@ -1232,6 +1233,133 @@ app.get('/rooms', async (req, res) => {
 });
 
 // leave a room (members remove themselves)
+// ════════ MULTIPLAYER GAME SESSIONS (server-authoritative) ════════
+const GAME_ENGINES: Record<string, any> = {
+  liarsdice: {
+    create: (seats: any[]) => { const g = LD.newGame(seats.length); LD.rollRound(g); return g; },
+    move: (state: any, seat: number, mv: any) => {
+      if (mv.type === 'bid') return LD.placeBid(state, seat, mv.qty | 0, mv.face | 0);
+      if (mv.type === 'liar') return LD.callLiar(state, seat);
+      if (mv.type === 'next') return LD.nextRound(state);
+      throw new Error('unknown move');
+    },
+    ai: (state: any, seat: number) => LD.aiMove(state, seat),
+    view: (state: any, seat: number) => LD.viewFor(state, seat),
+    isOver: (state: any) => state.phase === 'over',
+    toActSeat: (state: any) => (state.phase === 'bidding' ? state.toAct : -1),
+  },
+};
+
+async function sessionSeatOf(session: any, userId: string): Promise<number> {
+  const seats = session.seats as any[];
+  return seats.findIndex((s) => s.kind === 'user' && s.id === userId);
+}
+// advance persona seats until a human must act, a reveal pauses play, or the game ends
+function advanceAI(engine: any, state: any, seats: any[]) {
+  let guard = 0;
+  while (guard++ < 40) {
+    const t = engine.toActSeat(state);
+    if (t < 0) break;
+    const seat = seats[t];
+    if (!seat || seat.kind !== 'persona') break;
+    engine.ai(state, t);
+    if (engine.isOver(state)) break;
+  }
+  return state;
+}
+
+// start a session in a room you belong to. seats: humans by user id + personas.
+app.post('/games/start', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { roomId, game, personaSeats } = req.body ?? {};
+    const engine = GAME_ENGINES[game];
+    if (!engine) return res.status(400).json({ error: 'unknown game: ' + game });
+    const { data: thread } = await supabase.from('threads')
+      .select('id, user_id, is_shared').eq('id', roomId).is('deleted_at', null).maybeSingle();
+    if (!thread) return res.status(404).json({ error: 'room not found' });
+    if (thread.user_id !== user.id && !(await isRoomMember(roomId, user.id))) return res.status(403).json({ error: 'not in this room' });
+    // seats: every human member of the room, then the requested personas
+    const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', roomId);
+    const humanIds = Array.from(new Set([thread.user_id, ...((mem ?? []).map((m: any) => m.user_id))]));
+    const seats: any[] = humanIds.map((id) => ({ kind: 'user', id }));
+    for (const pk of (Array.isArray(personaSeats) ? personaSeats : []).slice(0, 4 - seats.length >= 0 ? 4 - seats.length : 0)) {
+      if (personaByKey(pk)) seats.push({ kind: 'persona', id: pk });
+    }
+    while (seats.length < 2) seats.push({ kind: 'persona', id: 'the_cynic' });
+    if (seats.length > 6) return res.status(400).json({ error: 'too many seats' });
+    let state = engine.create(seats);
+    state = advanceAI(engine, state, seats);
+    const { data: sess, error } = await supabase.from('game_sessions').insert({
+      thread_id: roomId, game, state, seats, created_by: user.id,
+    }).select('id, version').single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ sessionId: sess.id, version: sess.version });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// the live session in a room (latest)
+app.get('/games/room/:roomId/live', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const { data } = await supabase.from('game_sessions')
+      .select('id, game, version, status').eq('thread_id', req.params.roomId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    res.json(data ?? {});
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// your view of a session (hidden info filtered server-side)
+app.get('/games/session/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: s } = await supabase.from('game_sessions').select('*').eq('id', req.params.id).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such session' });
+    const engine = GAME_ENGINES[s.game];
+    const mySeat = await sessionSeatOf(s, user.id);
+    if (mySeat < 0) return res.status(403).json({ error: 'not seated here' });
+    res.json({ id: s.id, game: s.game, version: s.version, status: s.status, mySeat, seats: s.seats, state: engine.view(s.state, mySeat) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// make a move (optimistic concurrency via version)
+app.post('/games/session/:id/move', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { move, version } = req.body ?? {};
+    const { data: s } = await supabase.from('game_sessions').select('*').eq('id', req.params.id).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such session' });
+    if (s.status !== 'live') return res.status(409).json({ error: 'game over' });
+    if ((version | 0) !== s.version) return res.status(409).json({ error: 'stale version', version: s.version });
+    const engine = GAME_ENGINES[s.game];
+    const mySeat = await sessionSeatOf(s, user.id);
+    if (mySeat < 0) return res.status(403).json({ error: 'not seated here' });
+    let state = s.state;
+    // 'next' (advancing past a reveal) is anyone's; play moves must be yours
+    if (move?.type !== 'next') {
+      const t = engine.toActSeat(state);
+      if (t !== mySeat) return res.status(409).json({ error: 'not your turn', version: s.version });
+    }
+    try { state = engine.move(state, mySeat, move); }
+    catch (err: any) { return res.status(400).json({ error: err?.message || 'illegal move' }); }
+    state = advanceAI(engine, state, s.seats);
+    const over = engine.isOver(state);
+    const { data: upd, error } = await supabase.from('game_sessions')
+      .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
+      .eq('id', s.id).eq('version', s.version)      // concurrency fence
+      .select('version').maybeSingle();
+    if (error || !upd) return res.status(409).json({ error: 'lost the race', version: s.version });
+    res.json({ ok: true, version: upd.version, over });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 // owner deletes a thread (room or 1:1): soft delete for everyone
 app.delete('/threads/:id', async (req, res) => {
   try {

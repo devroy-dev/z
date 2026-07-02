@@ -320,6 +320,20 @@ export async function startArc(arcId) {
   return r;
 }
 
+// ── multiplayer game sessions ──
+export async function startGameSession(roomId, game, personaSeats = []) {
+  return authedJSON('POST', '/games/start', { roomId, game, personaSeats });
+}
+export async function getLiveGame(roomId) {
+  try { return await authedJSON('GET', `/games/room/${roomId}/live`); } catch (e) { return {}; }
+}
+export async function getGameSession(id) {
+  return authedJSON('GET', `/games/session/${id}`);
+}
+export async function sendGameMove(id, move, version) {
+  return authedJSON('POST', `/games/session/${id}/move`, { move, version });
+}
+
 export async function acceptDropin(id) {
   return authedJSON('POST', `/dropin/${id}/accept`);
 }
