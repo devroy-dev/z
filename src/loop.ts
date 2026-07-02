@@ -135,9 +135,12 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
 
   let arcBlock = '';
   if (t.persona_key) { try { arcBlock = await arcBlockFor(userId, t.persona_key); } catch {} }
+  const buzzBlock = (message || '').trim() === '*buzz*'
+    ? `\n\n[The user just BUZZED you — a wordless, friendly poke, the old-messenger nudge. There is nothing to answer; it means "oi, you there?" Reply SHORT and playful, completely in your voice — buzz back in spirit, tease, or toss them a crumb of your day if it's alive. One or two lines, never a lecture, never "how can I help".]`
+    : '';
   let stateBlock = '';
   if (t.persona_key) { try { stateBlock = await stateBlockFor(t.persona_key); } catch {} }
-  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${arcBlock}${stateBlock}${frontDeskBlock}${memoryBlock}`;
+  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${arcBlock}${stateBlock}${buzzBlock}${frontDeskBlock}${memoryBlock}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the

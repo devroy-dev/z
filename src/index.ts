@@ -212,6 +212,49 @@ app.post('/roleplay/start', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'roleplay start failed: ' + (e?.message || String(e)) }); }
 });
 
+// the door: a drop-in is accepted (opener lands in the chat) or ignored (they leave)
+app.post('/dropin/:id/accept', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: p } = await supabase.from('ping_log')
+      .select('id, persona_key, ping, status').eq('id', req.params.id).eq('user_id', user.id).eq('kind', 'dropin').maybeSingle();
+    if (!p) return res.status(404).json({ error: 'not at the door' });
+    const persona = personaByKey(p.persona_key);
+    if (!persona) return res.status(400).json({ error: 'unknown persona' });
+    // find-or-create their 1:1 thread, land the opener
+    const { data: ex } = await supabase.from('threads')
+      .select('id').eq('user_id', user.id).eq('persona_key', p.persona_key)
+      .eq('is_group', false).is('deleted_at', null)
+      .order('last_active', { ascending: false }).limit(1).maybeSingle();
+    let threadId = ex?.id ?? null;
+    if (!threadId) {
+      const { data: nt } = await supabase.from('threads').insert({
+        user_id: user.id, persona_key: p.persona_key, codex_key: persona.codex, companion_name: persona.defaultName,
+      }).select('id').single();
+      threadId = nt?.id ?? null;
+    }
+    if (!threadId) return res.status(500).json({ error: 'no thread' });
+    if (p.status === 'offered') {
+      await supabase.from('messages').insert({ thread_id: threadId, user_id: user.id, role: 'assistant', content: p.ping, persona_key: p.persona_key });
+      await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
+      await supabase.from('ping_log').update({ status: 'accepted', thread_id: threadId }).eq('id', p.id);
+    }
+    res.json({ threadId, personaKey: p.persona_key });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/dropin/:id/ignore', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    await supabase.from('ping_log').update({ status: 'ignored' })
+      .eq('id', req.params.id).eq('user_id', user.id).eq('kind', 'dropin');
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 // dev: leave this morning's brief now
 app.post('/dev/morning-brief', async (req, res) => {
   try {
@@ -268,8 +311,9 @@ app.get('/pings/recent', async (req, res) => {
     const user = await resolveUser(authId);
     const since = new Date(Date.now() - 48 * 3600e3).toISOString();
     const { data } = await supabase.from('ping_log')
-      .select('persona_key, ping, created_at').eq('user_id', user.id).eq('sent', true)
-      .gte('created_at', since).order('created_at', { ascending: false }).limit(3);
+      .select('id, persona_key, ping, kind, status, created_at').eq('user_id', user.id).eq('sent', true)
+      .neq('status', 'ignored')
+      .gte('created_at', since).order('created_at', { ascending: false }).limit(4);
     res.json({ pings: data ?? [] });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });

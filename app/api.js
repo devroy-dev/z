@@ -320,6 +320,13 @@ export async function startArc(arcId) {
   return r;
 }
 
+export async function acceptDropin(id) {
+  return authedJSON('POST', `/dropin/${id}/accept`);
+}
+export async function ignoreDropin(id) {
+  try { return await authedJSON('POST', `/dropin/${id}/ignore`); } catch (e) { return { ok: false }; }
+}
+
 export async function getRecentPings() {
   try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
 }
@@ -363,10 +370,10 @@ export async function createRoom(name, personas) {
 }
 // leave a room (removes you from it); delete a room you own (soft-delete the thread)
 export async function leaveRoom(roomId) {
-  try { return await authedJSON('POST', `/rooms/${roomId}/leave`, {}); } catch (e) { return null; }
+  try { return await authedJSON("POST", `/rooms//leave`, {}); } catch (e) { return null; }
 }
 export async function deleteRoomThread(roomId) {
-  try { return await authedJSON('DELETE', `/threads/${roomId}`); } catch (e) { return null; }
+  try { return await authedJSON("DELETE", `/threads/`); } catch (e) { return null; }
 }
 // an invite link token for a room → { token }
 export async function inviteToRoom(roomId) {

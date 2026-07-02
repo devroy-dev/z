@@ -204,8 +204,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
     }
   };
 
-  const doSend = async () => {
-    const text = draft.trim();
+  const doSend = async (overrideText) => {
+    const text = (typeof overrideText === 'string' ? overrideText : draft).trim();
     if (!text || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
@@ -319,7 +319,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
             ) : (
               messages.map((m) => (
                 <View key={m.id} style={{ marginBottom: 16 }}>
-                  {m.who === 'you' ? (
+                  {(m.text || '').trim() === '*buzz*' ? (
+                    <Text style={[styles.buzzChip, m.who === 'you' && { alignSelf: 'flex-end' }]}>⚡ buzz</Text>
+                  ) : m.who === 'you' ? (
                     <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
                   ) : (
                     <Text style={styles.themText}>{m.text || (m.typing ? '…' : '')}</Text>
@@ -342,7 +344,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
                 editable={!sending}
               />
             </View>
-            <Pressable style={styles.send} onPress={doSend}>
+            <Pressable style={styles.buzzBtn} onPress={() => doSend('*buzz*')} hitSlop={6}>
+              <Text style={styles.buzzBtnTxt}>⚡</Text>
+            </Pressable>
+            <Pressable style={styles.send} onPress={() => doSend()}>
               <Svg width="48" height="48" viewBox="0 0 48 48">
                 <Defs><RadialGradient id="csend" cx="42%" cy="36%" r="66%">
                   <Stop offset="0%" stopColor={N.candleHot} /><Stop offset="52%" stopColor={N.candle} /><Stop offset="100%" stopColor="#c88a4f" />
@@ -360,6 +365,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
 }
 
 const styles = StyleSheet.create({
+  buzzChip: { fontFamily: 'Figtree_600SemiBold', color: '#F0A765', fontSize: 13, letterSpacing: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(240,167,101,0.45)', overflow: 'hidden', alignSelf: 'flex-start' },
+  buzzBtn: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
+  buzzBtnTxt: { fontSize: 20, color: '#F0A765' },
   root: { flex: 1, backgroundColor: N.night },
 
   topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8 },

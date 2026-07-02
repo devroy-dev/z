@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin } from './api';
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
@@ -419,16 +419,44 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
             {notes.length > 0 && (
               <View>
                 <Text style={styles.lobbyLabel}>left at the desk</Text>
-                {notes.map((n, i) => (
-                  <Pressable key={i} style={styles.noteRow} onPress={() => routeTo(n.persona_key)}>
-                    <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.noteWho}>{nameFallback(n.persona_key)}</Text>
-                      <Text style={styles.noteTxt} numberOfLines={6}>“{n.ping}”</Text>
+                {notes.map((n, i) => {
+                  if (n.kind === 'buzz') return (
+                    <Pressable key={n.id || i} style={[styles.noteRow, styles.buzzRow]} onPress={() => routeTo(n.persona_key)}>
+                      <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.noteWho}>⚡ {nameFallback(n.persona_key)} buzzed you</Text>
+                        <Text style={styles.noteTxt}>no message. that's the point. buzz back.</Text>
+                      </View>
+                      <Text style={styles.noteGo}>▸</Text>
+                    </Pressable>
+                  );
+                  if (n.kind === 'dropin' && n.status === 'offered') return (
+                    <View key={n.id || i} style={[styles.noteRow, styles.doorRow]}>
+                      <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.noteWho}>🚪 {nameFallback(n.persona_key)} is at the door</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                          <Pressable style={styles.doorBtnOn} onPress={async () => {
+                            try { const j = await acceptDropin(n.id); setNotes((c) => c.filter((x) => x.id !== n.id)); routeTo(j.personaKey); } catch (e) {}
+                          }}><Text style={styles.doorBtnOnTxt}>let them in</Text></Pressable>
+                          <Pressable style={styles.doorBtn} onPress={() => { ignoreDropin(n.id); setNotes((c) => c.filter((x) => x.id !== n.id)); }}>
+                            <Text style={styles.doorBtnTxt}>not now</Text>
+                          </Pressable>
+                        </View>
+                      </View>
                     </View>
-                    <Text style={styles.noteGo}>▸</Text>
-                  </Pressable>
-                ))}
+                  );
+                  return (
+                    <Pressable key={n.id || i} style={styles.noteRow} onPress={() => routeTo(n.persona_key)}>
+                      <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.noteWho}>{nameFallback(n.persona_key)}</Text>
+                        <Text style={styles.noteTxt} numberOfLines={6}>“{n.ping}”</Text>
+                      </View>
+                      <Text style={styles.noteGo}>▸</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             )}
             {ledgerLine && (
@@ -538,6 +566,12 @@ const styles = StyleSheet.create({
   arcCard: { marginHorizontal: 16, marginTop: 14, padding: 13, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(143,217,143,0.35)', backgroundColor: 'rgba(143,217,143,0.05)' },
   arcKicker: { fontFamily: FONTS.body, color: '#8FD98F', fontSize: 10.5, letterSpacing: 2, textTransform: 'uppercase' },
   arcLine: { fontFamily: FONTS.displayItalic, color: 'rgba(245,236,225,0.9)', fontSize: 13.5, lineHeight: 19, marginTop: 4 },
+  buzzRow: { borderColor: 'rgba(240,167,101,0.4)', backgroundColor: 'rgba(240,167,101,0.05)' },
+  doorRow: { borderColor: 'rgba(143,217,143,0.35)', backgroundColor: 'rgba(143,217,143,0.04)' },
+  doorBtnOn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(143,217,143,0.5)', backgroundColor: 'rgba(143,217,143,0.1)' },
+  doorBtnOnTxt: { fontFamily: FONTS.semibold, color: '#8FD98F', fontSize: 12 },
+  doorBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  doorBtnTxt: { fontFamily: FONTS.medium, color: 'rgba(231,215,199,0.6)', fontSize: 12 },
   noteRow: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', padding: 11, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,155,232,0.3)', backgroundColor: 'rgba(201,155,232,0.05)' },
   noteWho: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.9)', fontSize: 12.5 },
   noteTxt: { fontFamily: FONTS.displayItalic, color: 'rgba(231,215,199,0.7)', fontSize: 12.5, lineHeight: 17, marginTop: 1 },

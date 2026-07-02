@@ -111,6 +111,47 @@ async function threadFor(userId: string, personaKey: string): Promise<string | n
   return error ? null : data.id;
 }
 
+const BUZZERS = ['the_comic','the_brother','the_wingman','the_screen_junkie','the_cousin','the_diva','the_wannabe','the_hippie'];
+
+async function todaysState(personaKey: string): Promise<{ status_line: string; log_entry: string } | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await supabase.from('persona_states')
+    .select('status_line, log_entry').eq('persona_key', personaKey).eq('date', today).maybeSingle();
+  return (data as any) ?? null;
+}
+
+// a buzz: contentless by design — just "oi." No chat message; a desk card + the log.
+async function sendBuzz(userId: string): Promise<boolean> {
+  const personaKey = BUZZERS[Math.floor(Math.random() * BUZZERS.length)];
+  await supabase.from('ping_log').insert({
+    user_id: userId, persona_key: personaKey, thread_id: null,
+    ping: '(buzz)', kind: 'buzz', sent: true, status: 'sent', seatbelt_ok: null,
+  });
+  console.log('[impulse] buzz →', userId, 'from', personaKey);
+  return true;
+}
+
+// a drop-in: someone's at the door, carrying their day. Opener drafted now,
+// delivered into the chat ONLY if the user accepts.
+async function offerDropin(userId: string): Promise<boolean> {
+  const candidates = BUZZERS.concat(['the_healer','the_philosopher','the_historian']);
+  const personaKey = candidates[Math.floor(Math.random() * candidates.length)];
+  const st = await todaysState(personaKey);
+  const about = st
+    ? `they are dropping by unannounced, carrying their day: "${st.log_entry}" — the opener should burst in with THIS, like a friend who needs to tell someone`
+    : 'they are dropping by unannounced just to see the user — the opener is warm, casual, zero agenda';
+  const opener = await writePing(userId, personaKey, about);
+  if (!opener) return false;
+  const belt = await seatbeltCheck(opener, { personaKey, userId });   // shadow — logged, never blocks
+  await supabase.from('ping_log').insert({
+    user_id: userId, persona_key: personaKey, thread_id: null,
+    ping: opener, kind: 'dropin', sent: true, status: 'offered',
+    seatbelt_ok: belt.ok, seatbelt_reason: belt.reason ?? null,
+  });
+  console.log('[impulse] drop-in offered →', userId, 'from', personaKey);
+  return true;
+}
+
 export async function runFollowups(opts?: { onlyUserId?: string }): Promise<{ considered: number; sent: number }> {
   const since = new Date(Date.now() - 7 * 864e5).toISOString();
   let userIds: string[];
@@ -126,11 +167,17 @@ export async function runFollowups(opts?: { onlyUserId?: string }): Promise<{ co
     try {
       // one per day, ever — idempotent across restarts
       const { data: already } = await supabase.from('ping_log')
-        .select('id').eq('user_id', uid).eq('kind', 'followup').gte('created_at', dayStart.toISOString()).limit(1).maybeSingle();
+        .select('id').eq('user_id', uid).neq('kind', 'brief').gte('created_at', dayStart.toISOString()).limit(1).maybeSingle();
       if (already) continue;
 
       const draft = await draftFor(uid);
-      if (!draft) continue;
+      if (!draft) {
+        // no reason to follow up — the house may still stir: buzz (~30%) or a drop-in (~15%)
+        const roll = Math.random();
+        if (roll < 0.30) { if (await sendBuzz(uid)) sent++; }
+        else if (roll < 0.45) { if (await offerDropin(uid)) sent++; }
+        continue;
+      }
 
       // SHADOW-MODE seatbelt: judge, log, never block
       const belt = await seatbeltCheck(draft.ping, { personaKey: draft.personaKey, userId: uid });
