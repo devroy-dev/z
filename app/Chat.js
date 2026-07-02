@@ -17,6 +17,7 @@ import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
 import Grain from './Grain';
+import RichText from './RichText';
 import * as ImagePicker from 'expo-image-picker';
 import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages } from './api';
 
@@ -65,12 +66,14 @@ const DEFAULT_KEY = 'the_brother';
 const faceFor = (key) => `https://callmez.app/faces/${key}.jpg`;
 
 // ── small circular DP (cover-fit, aura edge, orb fallback) ──
-function MiniDP({ uri, size = 38, rgb }) {
+function MiniDP({ uri, size = 38, rgb, isDesk = false }) {
   const [ok, setOk] = useState(true);
   return (
     <View style={[styles.miniWrap, { width: size, height: size, borderRadius: size / 2, borderColor: `rgba(${rgb},0.5)` }]}>
       {uri && ok ? (
         <Image source={{ uri }} resizeMode="cover" style={{ width: '100%', height: '100%' }} onError={() => setOk(false)} />
+      ) : isDesk ? (
+        <DeskOrb size={size} />
       ) : (
         <View style={{ width: '100%', height: '100%', backgroundColor: N.night2 }} />
       )}
@@ -82,6 +85,19 @@ function MiniDP({ uri, size = 38, rgb }) {
 // a renamed chat shows YOUR name instantly instead of flashing the default first.
 const NAME_CACHE = {};
 const AVATAR_CACHE = {};   // persona key → custom avatar data-uri (same purpose)
+
+
+// the desk's presence — Z's warm orb, for wherever the front desk needs a face
+function DeskOrb({ size = 40 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Defs><RadialGradient id="deskorb" cx="40%" cy="34%" r="70%">
+        <Stop offset="0%" stopColor="#F5D9AE" /><Stop offset="50%" stopColor="#E7B07A" /><Stop offset="100%" stopColor="#8a5a2f" />
+      </RadialGradient></Defs>
+      <Circle cx="24" cy="24" r="22" fill="url(#deskorb)" />
+    </Svg>
+  );
+}
 
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
@@ -259,7 +275,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
           <View style={styles.topbar}>
             <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
             <View style={styles.topWho}>
-              <Pressable onPress={pickAvatar} hitSlop={6}><MiniDP uri={avatar || dp} rgb={rgb} /></Pressable>
+              <Pressable onPress={pickAvatar} hitSlop={6}><MiniDP uri={avatar || dp} rgb={rgb} isDesk={KEY === 'the_front_desk'} /></Pressable>
               <View style={{ marginLeft: 11, flex: 1 }}>
                 {editingName ? (
                   <TextInput
@@ -311,7 +327,11 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
             {empty ? (
               <View style={styles.epigraph}>
                 <Pressable onPress={pickAvatar} style={[styles.epFace, { borderColor: `rgba(${rgb},0.5)`, shadowColor: `rgb(${rgb})` }]}>
-                  <Image source={{ uri: avatar || dp }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
+                  {KEY === 'the_front_desk' && !avatar ? (
+                    <DeskOrb size={120} />
+                  ) : (
+                    <Image source={{ uri: avatar || dp }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
+                  )}
                 </Pressable>
                 <Text style={styles.epName}>{cname}</Text>
                 <Text style={styles.epLine}>{P.desc}</Text>
@@ -323,8 +343,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
                     <Text style={[styles.buzzChip, m.who === 'you' && { alignSelf: 'flex-end' }]}>⚡ buzz</Text>
                   ) : m.who === 'you' ? (
                     <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
+                  ) : m.text ? (
+                    <View style={styles.themWrap}><RichText text={m.text} style={styles.themText} /></View>
                   ) : (
-                    <Text style={styles.themText}>{m.text || (m.typing ? '…' : '')}</Text>
+                    <Text style={styles.themText}>{m.typing ? '…' : ''}</Text>
                   )}
                 </View>
               ))
@@ -365,6 +387,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
 }
 
 const styles = StyleSheet.create({
+  themWrap: { alignSelf: 'flex-start', maxWidth: '88%', backgroundColor: 'rgba(255,255,255,0.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 18, borderTopLeftRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
   buzzChip: { fontFamily: 'Figtree_600SemiBold', color: '#F0A765', fontSize: 13, letterSpacing: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(240,167,101,0.45)', overflow: 'hidden', alignSelf: 'flex-start' },
   buzzBtn: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
   buzzBtnTxt: { fontSize: 20, color: '#F0A765' },
