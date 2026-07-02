@@ -13,11 +13,21 @@ export const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 export const SEAT_TONES = ['#F3A85F', '#6FC9E0', '#F0708C', '#8FD98F'];
 
 let Haptics = null; try { Haptics = require('expo-haptics'); } catch (_) {}
+// ── the haptic vocabulary: ONE language across every table ──────────────
+//  tick    · selection changes (picking cards, choosing a chip)
+//  tap     · a piece moves: deal, roll, token step        (light)
+//  knock   · something lands with weight: double, big play (medium)
+//  thud    · bad news: bust, capture, snake bite           (heavy)
+//  win     · you take the hand / the game                  (success)
+//  lose    · the table takes you                           (error)
 export const buzz = (kind) => { try {
   if (!Haptics) return;
-  if (kind === 'heavy') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-  else if (kind === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  if (kind === 'tick') Haptics.selectionAsync();
+  else if (kind === 'knock') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  else if (kind === 'heavy' || kind === 'thud') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  else if (kind === 'success' || kind === 'win') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  else if (kind === 'lose') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);   // 'tap' / default
 } catch (_) {} };
 
 // the die: 2.5D tumble illusion; settles with a back-ease snap (the beat)

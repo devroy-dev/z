@@ -132,7 +132,7 @@ export default function BlackjackTable({ opponent, roster, onExit = () => {} }) 
         const delta = results.filter((r) => r.id === 'you').reduce((a, r) => a + r.delta, 0);
         setLastDelta(delta);
         saveBank(Math.max(0, bank + delta));
-        buzz(delta > 0 ? 'success' : delta < 0 ? 'heavy' : 'light');
+        buzz(delta > 0 ? 'win' : delta < 0 ? 'lose' : 'tap');
         const bm = banterMoment(events, nameOf);
         say(bm ? bm.line : `The hand is settled — the player ${delta > 0 ? 'won ' + delta : delta < 0 ? 'lost ' + (-delta) : 'pushed'}. React as the dealer.`);
       }, 700);
@@ -236,7 +236,7 @@ export default function BlackjackTable({ opponent, roster, onExit = () => {} }) 
               <>
                 <View style={styles.chipRow}>
                   {CHIPS.map((c) => (
-                    <Pressable key={c} onPress={() => setBet(c)} style={[styles.chip, bet === c && styles.chipOn, c > bank && { opacity: 0.3 }]} disabled={c > bank}>
+                    <Pressable key={c} onPress={() => { buzz('tick'); setBet(c); }} style={[styles.chip, bet === c && styles.chipOn, c > bank && { opacity: 0.3 }]} disabled={c > bank}>
                       <Text style={[styles.chipTxt, bet === c && { color: '#22150A' }]}>{c}</Text>
                     </Pressable>
                   ))}

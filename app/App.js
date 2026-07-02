@@ -19,6 +19,7 @@ import Uno from './Uno';
 import LudoTable from './games/ludo/Table';
 import SnakesTable from './games/snakes/Table';
 import BlackjackTable from './games/blackjack/Table';
+import BluffTable from './games/bluff/Table';
 import Rooms from './Rooms';
 import RoomChat from './RoomChat';
 import Desk from './Desk';
@@ -48,6 +49,7 @@ function PlayWorld({ navigate, target }) {
     if (match.game?.id === 'ludo') return <LudoTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
     if (match.game?.id === 'snakes') return <SnakesTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
     if (match.game?.id === 'blackjack') return <BlackjackTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
+    if (match.game?.id === 'bluff') return <BluffTable opponent={match.opp} roster={match.roster} onExit={() => setMode('arena')} />;
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {

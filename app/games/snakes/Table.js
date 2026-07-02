@@ -189,7 +189,7 @@ export default function SnakesTable({ opponent, roster, onExit = () => {} }) {
       if (ride) {
         setSlides({ [ride.seat]: ride.from });          // token pauses on the head/foot…
         setTimeout(() => setSlides({}), 1250);          // …then rides (Token handles the beat)
-        buzz(ride.type === 'snake' ? 'heavy' : 'success');
+        buzz(ride.type === 'snake' ? 'thud' : 'win');
       } else if (events.some((e) => e.type === 'win')) buzz('success');
       else if (events.some((e) => e.type === 'stay')) buzz('heavy');
       setGame(s2);
