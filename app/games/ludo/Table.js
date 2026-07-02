@@ -20,58 +20,19 @@ import Animated, {
 import Grain from '../../Grain';
 import { C, FONTS } from '../../theme';
 import { banter } from '../../api';
+import { Die, buzz, faceFor, SEAT_TONES } from '../common';
 import { newGame, roll, legalMoves, applyMove, passTurn } from './rules.js';
 import { chooseMove, banterEvent } from './ai.js';
 import { RING, LANES, CENTER, YARDS, YARD_RECTS, cellFor } from './boardMap.js';
 
-let Haptics = null; try { Haptics = require('expo-haptics'); } catch (_) {}
-const buzz = (kind) => { try {
-  if (!Haptics) return;
-  if (kind === 'heavy') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-  else if (kind === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-} catch (_) {} };
 
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 const { width: SCREEN_W } = Dimensions.get('window');
 const BOARD = Math.min(SCREEN_W - 20, 400);
 const CELL = BOARD / 15;
-const SEAT_TONES = ['#F3A85F', '#6FC9E0', '#F0708C', '#8FD98F'];   // you, then AIs
 const STARS = new Set([8, 21, 34, 47].map((i) => RING[i].join(',')));
 const STARTS = new Set([0, 13, 26, 39].map((i) => RING[i].join(',')));
 const xy = ([r, c]) => ({ x: c * CELL, y: r * CELL });
 
-// ── the die: 2.5D tumble illusion, settles with a beat ──
-function Die({ value, rolling, onPress, enabled, tone }) {
-  const spin = useSharedValue(0);
-  const scale = useSharedValue(1);
-  useEffect(() => {
-    if (rolling) {
-      spin.value = withRepeat(withTiming(360, { duration: 260, easing: Easing.linear }), -1, false);
-      scale.value = withRepeat(withTiming(1.15, { duration: 130 }), -1, true);
-    } else {
-      spin.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.back(1.4)) });
-      scale.value = withSequence(withTiming(1.25, { duration: 110 }), withSpring(1, { damping: 9 }));
-    }
-  }, [rolling]);
-  const st = useAnimatedStyle(() => ({
-    transform: [{ perspective: 500 }, { rotateX: `${spin.value}deg` }, { rotateZ: `${spin.value * 0.6}deg` }, { scale: scale.value }],
-  }));
-  const pips = { 1:[[24,24]], 2:[[13,13],[35,35]], 3:[[13,13],[24,24],[35,35]],
-    4:[[13,13],[13,35],[35,13],[35,35]], 5:[[13,13],[13,35],[24,24],[35,13],[35,35]],
-    6:[[13,11],[13,24],[13,37],[35,11],[35,24],[35,37]] }[value || 6];
-  return (
-    <Pressable onPress={enabled ? onPress : undefined} hitSlop={10}>
-      <Animated.View style={[styles.die, enabled && { borderColor: tone, shadowColor: tone }, st]}>
-        <Svg width="48" height="48" viewBox="0 0 48 48">
-          <Rect x="2" y="2" width="44" height="44" rx="10" fill="#F5ECE1" />
-          <Rect x="2" y="2" width="44" height="44" rx="10" fill="none" stroke="#B5572E" strokeOpacity="0.35" strokeWidth="1.5" />
-          {(rolling ? [[24,24]] : pips).map(([px, py], i) => <Circle key={i} cx={px} cy={py} r="4.2" fill="#2A1508" />)}
-        </Svg>
-      </Animated.View>
-    </Pressable>
-  );
-}
 
 // ── one token: springs to wherever (seat, steps) says it lives ──
 function Token({ seat, idx, steps, tone, pulsing, onPress, stack }) {
@@ -383,7 +344,6 @@ const styles = StyleSheet.create({
 
   dock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 26, paddingTop: 12 },
   prompt: { fontFamily: FONTS.displayItalic, color: C.accentSoft, fontSize: 14.5, flex: 1, marginRight: 14 },
-  die: { width: 48, height: 48, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', shadowOpacity: 0.6, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } },
 
   resultRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 14 },
   resultBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(243,168,95,0.4)', alignItems: 'center', backgroundColor: 'rgba(243,168,95,0.08)' },
