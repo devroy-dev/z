@@ -425,7 +425,18 @@ export async function roleplayStart({ scenario, brief, cast }) {
   return r.json();   // { threadId, scenario, members }
 }
 
-export async function streamStage({ threadId, message, onBeat, onVerdict, onTension, onComplication, onDone, onError }) {
+export async function arenaStart({ game, personaKey }) {
+  await loadSession();
+  const call = () => fetch(`${API_BASE}/arena/start`, {
+    method: 'POST', headers: headers(), body: JSON.stringify({ game, personaKey }),
+  });
+  let r = await call();
+  if (r.status === 401 && (await refreshSession())) r = await call();
+  if (!r.ok) { let m = 'could not open the arena'; try { const j = await r.json(); if (j.error) m = j.error; } catch (_) {} throw new Error(m); }
+  return r.json();   // { threadId, game, persona, members }
+}
+
+export async function streamStage({ threadId, message, onBeat, onVerdict, onTension, onComplication, onScore, onResult, onDone, onError }) {
   await loadSession();
   try {
     const doFetch = () => fetch(`${API_BASE}/chat`, {
@@ -447,6 +458,8 @@ export async function streamStage({ threadId, message, onBeat, onVerdict, onTens
       else if (ev.verdict) { verdict = ev.verdict; }
       else if (typeof ev.tension === 'number') { onTension && onTension(ev.tension); }
       else if (typeof ev.complication === 'string') { onComplication && onComplication(ev.complication); }
+      else if (ev.score) { onScore && onScore(ev.score); }
+      else if (ev.result) { onResult && onResult(ev.result); }
       else if (ev.error) { onError && onError('(' + ev.error + ')'); }
     };
     const parse = (text) => {
