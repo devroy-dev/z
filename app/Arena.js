@@ -132,7 +132,7 @@ function OpponentPicker({ game, onBack, onStart }) {
   const [invited, setInvited] = useState(false);
   const [chosen, setChosen] = useState([]);   // array of opponent keys
   // board games + card games can seat up to 3 others; verbal duels up to 3 (2v2 mixes)
-  const maxOthers = 3;
+  const maxOthers = game?.id === 'poker' ? 4 : 3;   // hold'em seats five
   const toggle = (o) => {
     setChosen((cur) => {
       if (cur.find((c) => c.key === o.key)) return cur.filter((c) => c.key !== o.key);
