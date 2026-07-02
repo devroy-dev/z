@@ -363,10 +363,10 @@ export async function createRoom(name, personas) {
 }
 // leave a room (removes you from it); delete a room you own (soft-delete the thread)
 export async function leaveRoom(roomId) {
-  try { return await authedJSON("POST", `/rooms//leave`, {}); } catch (e) { return null; }
+  try { return await authedJSON('POST', `/rooms/${roomId}/leave`, {}); } catch (e) { return null; }
 }
 export async function deleteRoomThread(roomId) {
-  try { return await authedJSON("DELETE", `/threads/`); } catch (e) { return null; }
+  try { return await authedJSON('DELETE', `/threads/${roomId}`); } catch (e) { return null; }
 }
 // an invite link token for a room → { token }
 export async function inviteToRoom(roomId) {
