@@ -22,7 +22,8 @@ const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 const SECTIONS = [
   { label: 'cards', games: [
     { id: 'teenpatti', name: 'Teen Patti', tone: '#F0A765', blurb: 'read the table. bluff or fold.' },
-    { id: 'poker', name: 'Poker', tone: '#E0C088', blurb: "heads-up. all in, or don't." },
+    { id: 'poker', name: "Hold'em", tone: '#E0C088', blurb: 'five-handed. all in, or fold.' },
+    { id: 'callbreak', name: 'Callbreak', tone: '#8FD98F', blurb: 'call your tricks. spades rule.' },
     { id: 'rummy', name: 'Rummy', tone: '#F0708C', blurb: 'sets, sequences, sharp memory.' },
     { id: 'blackjack', name: 'Blackjack', tone: '#8FD98F', blurb: 'beat the house, baby.' },
     { id: 'bluff', name: 'Bluff', tone: '#F0708C', blurb: 'lie, call, get read.' },
