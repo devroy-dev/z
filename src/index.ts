@@ -673,6 +673,89 @@ app.post('/pins', async (req, res) => {
   }
 });
 
+// ── SUGGESTED ROOMS: daily, web-informed topics + the best-fitting personas ──
+// Generated once per day (Haiku + web_search), cached in z.room_suggestions, then
+// served instantly. The client's refresh button rerolls from this cached pool —
+// no live web call per tap, so refresh is fast and free.
+const SHAREABLE_ROSTER: [string, string][] = [
+  ['the_guru', 'deep knowledge, learning, the big questions'],
+  ['the_oracle', 'quick facts, the "google friend", trivia'],
+  ['the_brainiac', 'debate, devil\'s advocate, sharpening ideas'],
+  ['the_brother', 'family, loyalty, real talk'],
+  ['the_healer', 'heartbreak, love, emotional wounds'],
+  ['the_comic', 'humour, jokes, levity'],
+  ['the_mentor', 'drive, discipline, pushing you (the motivator)'],
+  ['the_colleague', 'work, office politics, careers'],
+  ['the_philosopher', 'meaning, ethics, existence'],
+  ['the_historian', 'history, how we got here'],
+  ['the_cosmologist', 'space, science, zoom-out perspective'],
+  ['the_moderator', 'keeps debates civil'],
+  ['the_cynic', 'dark humour, skepticism'],
+  ['the_media_manager', 'branding, social, image'],
+  ['the_teacher', 'explaining hard things simply (the professor)'],
+  ['the_economist', 'money, markets, cost of living'],
+  ['the_leader_opp', 'takes the contrarian political side'],
+  ['the_wannabe', 'hype, betting, get-rich energy (the wannabe hustler)'],
+  ['the_screen_junkie', 'movies, shows, what to watch'],
+  ['the_orator', 'speech, persuasion, rhetoric'],
+  ['the_hippie', 'calm, nature, anti-rat-race'],
+  ['the_diva', 'style, taste, fashion'],
+  ['the_cousin', 'shy, relatable, everyday (the awkward cousin)'],
+];
+
+app.get('/rooms/suggestions', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const today = new Date().toISOString().slice(0, 10);
+    // serve today's cache if we already built it
+    const { data: cached } = await supabase.from('room_suggestions')
+      .select('items').eq('day', today).maybeSingle();
+    if (cached && Array.isArray((cached as any).items) && (cached as any).items.length) {
+      return res.json({ items: (cached as any).items });
+    }
+    // build a fresh daily set: web-informed topics + best-fitting personas
+    const roster = SHAREABLE_ROSTER.map(([k, d]) => `${k} = ${d}`).join('\n');
+    const prompt =
+      `It's ${new Date().toDateString()}. Suggest 8 lively "rooms" to gather friends around — ` +
+      `each a conversation topic several people would jump into. Mix a few TIMELY ones ` +
+      `(use web_search for what's genuinely current: sports, releases, news, cultural moments) ` +
+      `with a few evergreen fun ones. For each room, pick the 3 BEST-FITTING personas from this ` +
+      `roster (use the exact keys on the left):\n${roster}\n\n` +
+      `Return ONLY a JSON array — no prose, no markdown fences. Each item: ` +
+      `{"topic":"short room title, max 6 words","why":"one short line on why it's fun right now",` +
+      `"personas":["key","key","key"]}.`;
+    const msg = await anthropicShared.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 } as any],
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text = ((msg.content || []) as any[])
+      .filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    let items: any[] = [];
+    try {
+      const a = text.indexOf('['), b = text.lastIndexOf(']');
+      if (a >= 0 && b > a) items = JSON.parse(text.slice(a, b + 1));
+    } catch { items = []; }
+    // validate: only shareable personas, exactly 3 per room
+    items = (Array.isArray(items) ? items : [])
+      .map((it: any) => ({
+        topic: String(it?.topic || '').slice(0, 60),
+        why: String(it?.why || '').slice(0, 140),
+        personas: [...new Set((Array.isArray(it?.personas) ? it.personas : [])
+          .filter((k: any) => SHAREABLE_PERSONAS.has(k)))].slice(0, 3),
+      }))
+      .filter((it: any) => it.topic && it.personas.length === 3);
+    if (!items.length) return res.json({ items: [] }); // don't cache a dud — retry next call
+    await supabase.from('room_suggestions')
+      .upsert({ day: today, items, made_at: new Date().toISOString() });
+    res.json({ items });
+  } catch (e: any) {
+    res.status(500).json({ error: 'suggestions failed: ' + (e?.message || String(e)) });
+  }
+});
+
 // one turn — SSE stream
 // ── AUTH: phone OTP (Supabase phone auth, Twilio Verify as SMS provider) ──────
 // send a one-time code to the phone number.
