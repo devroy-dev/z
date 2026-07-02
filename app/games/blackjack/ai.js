@@ -4,6 +4,7 @@
 //  personality is PURE MOUTH; the co-players' shows in their decisions.
 // ════════════════════════════════════════════════════════════════════════
 import { handValue, actions } from './rules.js';
+import { resolveStyle } from '../personas.js';
 
 // stand thresholds vs dealer up-card + appetite for double/split.
 export const STYLES = {
@@ -17,7 +18,7 @@ export const STYLES = {
 const D = STYLES.the_brother;
 
 export function chooseAction(state, styleKey, rng = Math.random) {
-  const W = STYLES[styleKey] || D;
+  const W = resolveStyle(STYLES, styleKey, D);
   const as = actions(state);
   if (!as.length) return null;
   const h = state.hands[state.active];

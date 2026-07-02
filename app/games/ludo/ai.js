@@ -4,6 +4,7 @@
 //  chooseMove(state, styleKey) → tokenIdx | null   (null = no legal moves)
 // ════════════════════════════════════════════════════════════════════════
 import { legalMoves, _internals } from './rules.js';
+import { resolveStyle } from '../personas.js';
 const { STEPS_TO_LANE, SAFE, MAX_STEPS } = _internals;
 
 // Each style weighs the same features differently. Weights are the character.
@@ -20,6 +21,8 @@ export const STYLES = {
   the_comic:       { capture: 7, home: 6, progress: 3, release: 6, safety: 2, spread: 2, risk: 0.4, noise: 0.55 },
   // slow, deliberate; every move means something
   the_philosopher: { capture: 4, home: 10, progress: 3, release: 3, safety: 7, spread: 5, risk: -0.1, noise: 0.05 },
+  // controlled, stylish; strikes only when it looks good
+  the_diva:        { capture: 7, home: 9, progress: 4, release: 4, safety: 6, spread: 3, risk: 0.05, noise: 0.08 },
 };
 const DEFAULT = STYLES.the_brother;
 
@@ -41,7 +44,7 @@ function danger(state, seat, landingSteps) {
 }
 
 export function chooseMove(state, styleKey, rng = Math.random) {
-  const W = STYLES[styleKey] || DEFAULT;
+  const W = resolveStyle(STYLES, styleKey, DEFAULT);
   const moves = legalMoves(state);
   if (!moves.length) return null;
   const seat = state.turn;

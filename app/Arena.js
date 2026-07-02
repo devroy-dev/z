@@ -14,6 +14,7 @@ import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path, Rect } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { C, FONTS } from './theme';
+import { TABLE_CAST } from './games/personas';
 
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
 
@@ -46,15 +47,9 @@ const SECTIONS = [
 ];
 const GAMES = SECTIONS.flatMap(s => s.games);
 
-// ── safe-to-play opponents + how each PLAYS (style mimics character) ──
-const OPPONENTS = [
-  { key: 'the_brainiac',   name: 'the brainiac',   style: 'calculates every move. plays to win.', tone: '#6FC9E0' },
-  { key: 'the_wannabe',    name: 'the hustler',    style: 'rash, cocky, all bravado. bluffs hard.', tone: '#F0A765' },
-  { key: 'the_brother',    name: 'the brother',    style: 'easygoing. lets you breathe, then strikes.', tone: '#F0A765' },
-  { key: 'the_cynic',      name: 'the cynic',      style: 'defensive, patient. waits for your mistake.', tone: '#A1929B' },
-  { key: 'the_comic',      name: 'the comic',      style: 'chaotic. unpredictable. never serious.', tone: '#F0708C' },
-  { key: 'the_philosopher',name: 'the philosopher',style: 'slow, deliberate. every move means something.', tone: '#C99BE8' },
-];
+// ── the table cast: the WHOLE gathering can sit down, grouped like the roster ──
+const OPPONENTS = TABLE_CAST;
+const CAST_GROUPS = [...new Set(TABLE_CAST.map((p) => p.group))];
 
 function hexA(hex, a) {
   const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
@@ -162,7 +157,10 @@ function OpponentPicker({ game, onBack, onStart }) {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
           <Text style={styles.pickNote}>pick one for a duel, or up to three for a full table. each plays like themselves.</Text>
-          {OPPONENTS.map((o) => {
+          {CAST_GROUPS.map((grp) => (
+            <View key={grp}>
+              <Text style={styles.castGroup}>{grp}</Text>
+              {OPPONENTS.filter((o) => o.group === grp).map((o) => {
             const on = !!chosen.find((c) => c.key === o.key);
             return (
               <Pressable key={o.key} style={[styles.oppRow, on && styles.oppRowOn]} onPress={() => toggle(o)}>
@@ -177,6 +175,8 @@ function OpponentPicker({ game, onBack, onStart }) {
               </Pressable>
             );
           })}
+            </View>
+          ))}
 
           <Pressable style={styles.inviteRow} onPress={() => setInvited(true)}>
             <View style={styles.invitePlus}><Text style={styles.invitePlusText}>+</Text></View>
@@ -283,6 +283,7 @@ const styles = StyleSheet.create({
   launchBtn: { borderRadius: 16, overflow: 'hidden' },
   launchInner: { paddingVertical: 15, alignItems: 'center' },
   launchText: { fontFamily: FONTS.semibold, color: '#3A1505', fontSize: 16, letterSpacing: 0.4 },
+  castGroup: { fontFamily: FONTS.body, color: C.faint, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', paddingHorizontal: 18, paddingTop: 18, paddingBottom: 6 },
   oppRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 9 },
   oppFace: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#1a121f' },
   oppName: { fontFamily: FONTS.medium, color: C.cream, fontSize: 16 },

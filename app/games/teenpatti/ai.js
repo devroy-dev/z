@@ -5,6 +5,7 @@
 //  Strength = percentile of the eval score against all 3-card hands (approx).
 // ════════════════════════════════════════════════════════════════════════
 import { available } from './rules.js';
+import { resolveStyle } from '../personas.js';
 import { evalHand } from './eval.js';
 
 // coarse strength 0..1 from category + top key (good enough for taste)
@@ -31,7 +32,7 @@ export const STYLES = {
 const D = STYLES.the_brother;
 
 export function chooseMove(state, styleKey, rng = Math.random) {
-  const W = STYLES[styleKey] || D;
+  const W = resolveStyle(STYLES, styleKey, D);
   const mv = available(state);
   if (!mv.length) return null;
   const p = state.players[state.turn];
@@ -70,7 +71,7 @@ export function chooseMove(state, styleKey, rng = Math.random) {
 
 // does the asked player ACCEPT a sideshow? confident hands accept.
 export function acceptSideshow(state, seat, styleKey, rng = Math.random) {
-  const W = STYLES[styleKey] || D;
+  const W = resolveStyle(STYLES, styleKey, D);
   const str = strength(state.players[seat].cards);
   return rng() < (str * 0.9 + W.sideshow * 0.2);
 }

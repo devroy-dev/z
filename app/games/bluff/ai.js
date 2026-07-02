@@ -5,6 +5,7 @@
 //  counts, pile size, who's low on cards. Never other hands, never the pile.
 // ════════════════════════════════════════════════════════════════════════
 import { legalPlays } from './rules.js';
+import { resolveStyle } from '../personas.js';
 
 export const STYLES = {
   // counts everything; lies only when cornered; challenges on the math
@@ -23,7 +24,7 @@ const D = STYLES.the_brother;
 
 // decide a turn: returns { action:'play', cardIdxs, claimRank } or { action:'pass' }
 export function chooseTurn(state, seat, styleKey, rng = Math.random) {
-  const W = STYLES[styleKey] || D;
+  const W = resolveStyle(STYLES, styleKey, D);
   const hand = state.hands[seat];
   const { canPass, mustClaim } = legalPlays(state);
   const byRank = {};
@@ -62,7 +63,7 @@ export function chooseTurn(state, seat, styleKey, rng = Math.random) {
 // hold of that rank exceeds 4, someone is lying — certainty. Below that,
 // suspicion scales with claim size, pile size, and the endgame.
 export function wantsChallenge(state, seat, styleKey, rng = Math.random) {
-  const W = STYLES[styleKey] || D;
+  const W = resolveStyle(STYLES, styleKey, D);
   if (!state.lastPlay || state.lastPlay.seat === seat) return false;
   const lp = state.pile[state.pile.length - 1];
   const mine = state.hands[seat].filter((c) => c.r === lp.claimRank).length;

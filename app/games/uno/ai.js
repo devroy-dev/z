@@ -4,6 +4,7 @@
 //  whoever's about to win), and wild-color choice from actual hand depth.
 // ════════════════════════════════════════════════════════════════════════
 import { legalIdxs, COLORS } from './rules.js';
+import { resolveStyle } from '../personas.js';
 
 export const STYLES = {
   the_brainiac: { hoardWild: 0.9, spite: 0.9, colorControl: 0.9, aggro: 0.5, noise: 0.05 },
@@ -22,7 +23,7 @@ export function wildColorFor(hand, styleKey) {
 }
 
 export function chooseCard(state, seat, styleKey, rng = Math.random) {
-  const W = STYLES[styleKey] || D;
+  const W = resolveStyle(STYLES, styleKey, D);
   const legal = legalIdxs(state, seat);
   if (!legal.length) return null;
   const hand = state.hands[seat];
