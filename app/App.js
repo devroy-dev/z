@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import React from 'react';
 import { useBackLayer } from './backbus';
-import { Share } from 'react-native';
+import { Share, Alert } from 'react-native';
 import { createRoom, inviteToRoom, startGameSession } from './api';
 import LiarsDiceLive from './games/liarsdice/Live';
 import CallbreakLive from './games/callbreak/Live';
@@ -64,11 +64,15 @@ function PlayWorld({ navigate, target }) {
   const startLiveWithFriend = React.useCallback(async (game, roster) => {
     try {
       const personaKeys = (roster || []).map((o) => o.key).slice(0, 3);
-      const room = await createRoom(`${game.name} table`, personaKeys.length ? personaKeys : ['the_cynic']);
-      if (!room?.id) return;
+      // the room needs a SHAREABLE host; some table casts aren't (by doctrine).
+      // fall back to the moderator — the house's universal game master —
+      // while the GAME still seats the cast the player actually chose.
+      let room = await createRoom(`${game.name} table`, personaKeys.length ? personaKeys : ['the_moderator']);
+      if (!room?.id) room = await createRoom(`${game.name} table`, ['the_moderator']);
+      if (!room?.id) { Alert.alert("couldn't open the table", 'the room would not create — try again in a moment.'); return; }
       const inv = await inviteToRoom(room.id);
       const j = await startGameSession(room.id, game.id, personaKeys);
-      if (!j?.sessionId) return;
+      if (!j?.sessionId) { Alert.alert("couldn't seat the table", 'the game session failed to start.'); return; }
       setLive({ game: game.id, sessionId: j.sessionId });
       setMode('game');
       if (inv?.token) {
