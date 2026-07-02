@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Grain from '../../Grain';
 import { C, FONTS } from '../../theme';
 import { buzz } from '../common';
-import { useLiveSession, seatLabelFn } from '../liveCommon';
+import { useLiveSession, seatLabelFn, shareTableInvite } from '../liveCommon';
 
 export default function DebateDuelLive({ sessionId, onExit = () => {} }) {
   const { view, move } = useLiveSession(sessionId);
@@ -43,7 +43,9 @@ export default function DebateDuelLive({ sessionId, onExit = () => {} }) {
           <View style={st.bar}>
             <Pressable hitSlop={12} onPress={onExit}><Text style={st.chev}>‹</Text></Pressable>
             <Text style={st.kicker}>debate duel · the moderator presides</Text>
-            <View style={{ width: 26 }} />
+            <Pressable hitSlop={10} onPress={() => shareTableInvite(view, 'a debate duel')}>
+              <Text style={{ fontSize: 16 }}>🔗</Text>
+            </Pressable>
           </View>
 
           {/* the motion */}

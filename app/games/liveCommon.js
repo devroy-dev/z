@@ -3,7 +3,8 @@
 //  session driver, seat labels, and the standard live-table chrome.
 // ════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getGameSession, sendGameMove, claimGameSeat } from '../api';
+import { Share } from 'react-native';
+import { getGameSession, sendGameMove, claimGameSeat, inviteToRoom } from '../api';
 import { personaMeta } from './personas';
 
 export function useLiveSession(sessionId) {
@@ -37,6 +38,18 @@ export function useLiveSession(sessionId) {
     } catch (e) {}
   }, [sessionId]);
   return { view, move };
+}
+
+// share this table's room invite — mountable from any live table, any time
+export async function shareTableInvite(view, gameName = 'a game') {
+  try {
+    if (!view?.roomId) return false;
+    const r = await inviteToRoom(view.roomId);
+    if (!r?.token) return false;
+    const link = 'https://callmez.app/?join=' + r.token;
+    await Share.share({ message: `come play ${gameName} with me on yourZ: ${link}`, url: link });
+    return true;
+  } catch (e) { return false; }
 }
 
 export function seatLabelFn(view, names = {}) {

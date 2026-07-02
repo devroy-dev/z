@@ -75,12 +75,14 @@ function PlayWorld({ navigate, target }) {
       const inv = await inviteToRoom(room.id);
       const j = await startGameSession(room.id, liveId, personaKeys);
       if (!j?.sessionId) { Alert.alert("couldn't seat the table", 'the game session failed to start.'); return; }
-      setLive({ game: liveId, sessionId: j.sessionId });
-      setMode('game');
       if (inv?.token) {
         const link = 'https://callmez.app/?join=' + inv.token;
         try { await Share.share({ message: `come play ${game.name} with me on yourZ: ${link}`, url: link }); } catch (e) {}
+      } else {
+        Alert.alert('no invite link', "the table opened, but the invite token didn't — use the 🔗 button at the table to retry.");
       }
+      setLive({ game: liveId, sessionId: j.sessionId });
+      setMode('game');
     } catch (e) {}
   }, []);
   useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));

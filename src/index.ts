@@ -1342,7 +1342,7 @@ app.get('/games/session/:id', async (req, res) => {
     const engine = GAME_ENGINES[s.game];
     const mySeat = await sessionSeatOf(s, user.id);
     if (mySeat < 0) return res.status(403).json({ error: 'not seated here' });
-    res.json({ id: s.id, game: s.game, version: s.version, status: s.status, mySeat, seats: s.seats, state: engine.view(s.state, mySeat) });
+    res.json({ id: s.id, game: s.game, version: s.version, status: s.status, mySeat, seats: s.seats, roomId: s.thread_id, state: engine.view(s.state, mySeat) });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
