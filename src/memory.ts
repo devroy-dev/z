@@ -9,7 +9,8 @@
 import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
 
-const anthropic = new Anthropic();
+// shared client on native fetch — per the /banter premature-close lesson (see index.ts)
+const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // Pull the user's memory into a context block. Ordered by weight, capped so it
@@ -42,6 +43,8 @@ export async function harvestMemory(
       system:
         'Extract durable facts worth remembering about the user from this exchange — ' +
         'names, relationships, ongoing situations, stable preferences, important history. ' +
+        'NEVER store the user\'s age or date of birth, in any form — not even when they state it directly. ' +
+        'The account profile is the only authority on age; chat claims about age (their own or corrections) are noise, sometimes tests, sometimes someone else on the phone. Skip them entirely. ' +
         'NOT passing mood or chit-chat. Return ONLY a JSON array of {"key":"short label","value":"the fact in plain language"}. ' +
         'Empty array [] if nothing durable. No prose, no markdown.',
       messages: [{ role: 'user', content: `USER: ${userMsg}\nFRIEND: ${zReply}` }],
