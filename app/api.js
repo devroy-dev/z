@@ -399,3 +399,74 @@ export async function deleteNote(kind, id) {
 export async function clearThread(threadId) {
   try { return await authedJSON('POST', '/thread/clear', { threadId }); } catch (e) { return null; }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  THE STAGE — roleplay transport. /roleplay/start creates the group thread;
+//  streamStage POSTs the player's line and BUFFERS each speaker's complete
+//  message (the beat-reveal law: the client holds beats; the thumb reveals).
+//  SSE frames: {speaker,name} · {speaker,token} · {speaker,end} ·
+//              {verdict:{outcome}} · {done} · {error}
+// ══════════════════════════════════════════════════════════════════════════
+export async function roleplayStart({ scenario, brief, cast }) {
+  await loadSession();
+  const call = () => fetch(`${API_BASE}/roleplay/start`, {
+    method: 'POST', headers: headers(), body: JSON.stringify({ scenario, brief, cast }),
+  });
+  let r = await call();
+  if (r.status === 401 && (await refreshSession())) r = await call();
+  if (!r.ok) { let m = 'could not raise the curtain'; try { const j = await r.json(); if (j.error) m = j.error; } catch (_) {} throw new Error(m); }
+  return r.json();   // { threadId, scenario, members }
+}
+
+export async function streamStage({ threadId, message, onBeat, onVerdict, onDone, onError }) {
+  await loadSession();
+  try {
+    const doFetch = () => fetch(`${API_BASE}/chat`, {
+      method: 'POST', headers: headers(), body: JSON.stringify({ threadId, message }),
+    });
+    let res = await doFetch();
+    if (res.status === 401 && (await refreshSession())) res = await doFetch();
+    if (!res.ok) { onError && onError('(the stage went dark — try again)'); return; }
+
+    let curKey = null, curName = null, acc = '', verdict = null;
+    const pushBeat = () => {
+      if (curKey && acc.trim()) onBeat && onBeat({ key: curKey, name: curName, text: acc.trim() });
+      acc = '';
+    };
+    const handle = (ev) => {
+      if (ev.speaker && ev.name && !ev.token && !ev.end) { pushBeat(); curKey = ev.speaker; curName = ev.name; }
+      else if (ev.speaker && typeof ev.token === 'string') { acc += ev.token; }
+      else if (ev.speaker && ev.end) { pushBeat(); curKey = null; }
+      else if (ev.verdict) { verdict = ev.verdict; }
+      else if (ev.error) { onError && onError('(' + ev.error + ')'); }
+    };
+    const parse = (text) => {
+      text.split('\n\n').forEach((chunk) => chunk.split('\n').forEach((line) => {
+        line = line.trim();
+        if (!line.startsWith('data:')) return;
+        const p = line.slice(5).trim(); if (!p) return;
+        let ev; try { ev = JSON.parse(p); } catch (_) { return; }
+        handle(ev);
+      }));
+    };
+    if (res.body && typeof res.body.getReader === 'function') {
+      const reader = res.body.getReader(); const dec = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) { parse(buf.slice(0, i + 2)); buf = buf.slice(i + 2); }
+      }
+      if (buf) parse(buf + '\n\n');
+    } else {
+      parse(await res.text());
+    }
+    pushBeat();
+    if (verdict) onVerdict && onVerdict(verdict);
+    onDone && onDone();
+  } catch (e) {
+    onError && onError('(no connection — check your network)');
+  }
+}

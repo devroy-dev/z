@@ -16,7 +16,7 @@ const eslint = new ESLint({
     rules: { 'no-undef': 'error', 'react/jsx-no-undef': 'error' },
   }],
 });
-const results = await eslint.lintFiles(['games/**/*.js']);
+const results = await eslint.lintFiles(['games/**/*.js', 'stage/**/*.js']);
 let bad = 0;
 for (const r of results) for (const m of r.messages) {
   if (m.ruleId === 'no-undef' || m.ruleId === 'react/jsx-no-undef') {

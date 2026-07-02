@@ -8,6 +8,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { FONTS } from './theme';
+import Stage from './stage/Stage';
 
 const N = {
   night: '#0B0A0F', night2: '#100E15',
@@ -121,6 +122,7 @@ export default function Nav({ screens }) {
   };
 
   if (overlay) {
+    if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
     const titles = { quiet: 'The Quiet Room', stage: 'The Stage', journal: 'The Journal' };
     const lines = {
       quiet: 'a moonlit room where Z just listens. opening next.',
