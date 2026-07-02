@@ -83,7 +83,9 @@ function PlayWorld({ navigate, target }) {
       }
       setLive({ game: liveId, sessionId: j.sessionId });
       setMode('game');
-    } catch (e) {}
+    } catch (e) {
+      Alert.alert('invite flow error', String((e && (e.message || e.stack)) || e).slice(0, 300));
+    }
   }, []);
   useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));
   useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
