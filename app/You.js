@@ -6,11 +6,11 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import Grain from './Grain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
-import { NIGHT as C, FONTS } from './theme';
+import { C, FONTS } from './theme';
+import { getLedger } from './api';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -40,6 +40,8 @@ function MemoryCard({ item, isFact, onForget }) {
 }
 
 export default function You({ onBack = () => {}, onLogout = () => {} }) {
+  const [ledger, setLedger] = React.useState(null);
+  React.useEffect(() => { getLedger().then(setLedger).catch(() => {}); }, []);
   const [facts, setFacts] = useState(SEED_FACTS);
   const [notes, setNotes] = useState(SEED_NOTES);
   const forgetFact = (id) => setTimeout(() => setFacts((f) => f.filter((x) => x.id !== id)), 220);
@@ -47,8 +49,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#100E15', '#0B0A0F', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
-      <Grain />
+      <LinearGradient colors={['#160F1C', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
@@ -66,6 +67,26 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
 
           {/* WHAT Z REMEMBERS — the heart */}
           <View style={styles.memHead}>
+            <Text style={styles.memTitle}>the ledger</Text>
+            <Text style={styles.memSub}>every judged moment — scenes, matches, verdicts. proof you showed up.</Text>
+            {(!ledger || !ledger.feed || ledger.feed.length === 0) ? (
+              <Text style={styles.ledgerEmpty}>nothing on the record yet. win a scene or take a match — it lands here.</Text>
+            ) : ledger.feed.slice(0, 25).map((e, i) => (
+              <View key={i} style={styles.ledgerRow}>
+                <Text style={[styles.ledgerOutcome, { color: e.outcome === 'win' ? '#8FD98F' : e.outcome === 'loss' ? '#F0708C' : 'rgba(245,236,225,0.5)' }]}>
+                  {e.outcome === 'win' ? 'W' : e.outcome === 'loss' ? 'L' : '–'}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ledgerTitle}>
+                    {e.kind === 'stage' ? `${(e.title || 'a scene').replace(/_/g, ' ')} · the stage` : `${e.title}${e.persona ? ` vs ${String(e.persona).replace(/^the_/, 'the ').replace(/_/g, ' ')}` : ''}${e.you != null ? ` · ${e.you}–${e.z}` : ''}`}
+                  </Text>
+                  {e.kind === 'stage' && e.notes ? <Text style={styles.ledgerNotes} numberOfLines={3}>“{e.notes}”</Text> : null}
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.memBlock}>
             <Text style={styles.memTitle}>what Z remembers</Text>
             <Text style={styles.memSub}>everything i've held onto, so we can pick up where we left off. you can't change it — but you can make me forget any of it, anytime.</Text>
           </View>
@@ -86,7 +107,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
           <Text style={[styles.sectionLabel, { marginTop: 28 }]}>settings</Text>
           {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
             <Pressable key={s} style={styles.settingRow} onPress={s === 'sign out' ? onLogout : undefined}>
-              <Text style={[styles.settingText, s === 'sign out' && { color: '#9E9DB0' }]}>{s}</Text>
+              <Text style={[styles.settingText, s === 'sign out' && { color: '#E0A0A0' }]}>{s}</Text>
               <Text style={styles.settingChev}>›</Text>
             </Pressable>
           ))}
@@ -97,6 +118,11 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
 }
 
 const styles = StyleSheet.create({
+  ledgerEmpty: { fontFamily: FONTS.light, color: 'rgba(231,215,199,0.45)', fontSize: 13, marginTop: 10, fontStyle: 'italic' },
+  ledgerRow: { flexDirection: 'row', gap: 12, marginTop: 14, alignItems: 'flex-start' },
+  ledgerOutcome: { fontFamily: FONTS.display, fontSize: 16, width: 18, textAlign: 'center', marginTop: 1 },
+  ledgerTitle: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.88)', fontSize: 13.5 },
+  ledgerNotes: { fontFamily: FONTS.displayItalic, color: 'rgba(231,215,199,0.55)', fontSize: 12.5, lineHeight: 18, marginTop: 3 },
   root: { flex: 1, backgroundColor: C.void },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
   chev: { color: C.muted, fontSize: 30, width: 26, marginTop: -3 },

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger } from './api';
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
@@ -166,6 +166,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const [roster, setRoster] = useState({});   // key -> { name, dp }
   const [panel, setPanel] = useState(null);    // 'list' | 'remember' | null
   const [recents, setRecents] = useState([]);  // recent persona threads → continue
+  const [ledgerLine, setLedgerLine] = useState(null);
 
   // ── tonight at the house: living hooks, freshly dealt every visit ──
   const [tonight] = useState(() => {
@@ -221,6 +222,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
       .then(() => openThread('the_front_desk', 'the front desk'))
       .then((id) => id && setThreadId(id));
     refreshDesk();
+    getLedger().then((l) => setLedgerLine(l?.headline || null)).catch(() => {});
   }, []);
 
   const nameFor = (key) => (roster[key] && roster[key].name) || nameFallback(key);
@@ -395,6 +397,12 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
         {/* ── the living lobby ── */}
         {panel === null && (
           <View>
+            {ledgerLine && (
+              <Pressable style={styles.ledgerChip} onPress={onOpenYou}>
+                <Text style={styles.ledgerTxt} numberOfLines={1}>◆ {ledgerLine}</Text>
+                <Text style={styles.ledgerGo}>the ledger ▸</Text>
+              </Pressable>
+            )}
             <Text style={styles.lobbyLabel}>tonight at the house</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marqueeRow}>
               {tonight.map((h, i) => (
@@ -493,6 +501,9 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 }
 
 const styles = StyleSheet.create({
+  ledgerChip: { marginHorizontal: 16, marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(231,176,122,0.35)', backgroundColor: 'rgba(231,176,122,0.06)' },
+  ledgerTxt: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.9)', fontSize: 12.5, flex: 1, marginRight: 10 },
+  ledgerGo: { fontFamily: FONTS.body, color: '#E7B07A', fontSize: 10.5, letterSpacing: 1.5, textTransform: 'uppercase' },
   lobbyLabel: { fontFamily: FONTS.body, color: 'rgba(231,215,199,0.4)', fontSize: 10.5, letterSpacing: 2.5, textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   marqueeRow: { paddingHorizontal: 16, gap: 10 },
   marqueeCard: { width: 230, borderRadius: 16, borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.03)', padding: 13 },

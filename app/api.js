@@ -308,6 +308,10 @@ export async function listThreads() {
   try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
 }
 
+export async function getLedger() {
+  try { return await authedJSON('GET', '/ledger'); } catch (e) { return { headline: null, week: null, feed: [] }; }
+}
+
 // ── favourites: pinned personas (persona keys, stored on the user) ──
 // getPins → string[] of keys. togglePin(key, pinned) sets it explicitly (idempotent);
 // returns the new full list, or null on failure so the caller can roll back.

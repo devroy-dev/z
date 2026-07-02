@@ -205,6 +205,40 @@ app.post('/roleplay/start', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'roleplay start failed: ' + (e?.message || String(e)) }); }
 });
 
+// ── THE GROWTH LEDGER (#17): every judged moment, one endpoint ──────────────
+// Reads what already exists (roleplay_runs + arena_matches); computes a headline.
+app.get('/ledger', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const [{ data: runs }, { data: matches }] = await Promise.all([
+      supabase.from('roleplay_runs').select('scenario, outcome, notes, created_at')
+        .eq('user_id', user.id).order('created_at', { ascending: false }).limit(60),
+      supabase.from('arena_matches').select('game, persona_key, you_score, z_score, winner, created_at')
+        .eq('user_id', user.id).order('created_at', { ascending: false }).limit(60),
+    ]);
+    const feed = [
+      ...(runs ?? []).map((r: any) => ({ kind: 'stage', title: r.scenario, outcome: r.outcome, notes: r.notes ?? null, at: r.created_at })),
+      ...(matches ?? []).map((m: any) => ({ kind: 'arena', title: m.game, persona: m.persona_key, you: m.you_score, z: m.z_score, outcome: m.winner === 'you' ? 'win' : m.winner === 'z' ? 'loss' : 'draw', at: m.created_at })),
+    ].sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 80);
+
+    const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+    const wkRuns = (runs ?? []).filter((r: any) => r.created_at >= weekAgo);
+    const wkMatches = (matches ?? []).filter((m: any) => m.created_at >= weekAgo);
+    const sceneWins = wkRuns.filter((r: any) => r.outcome === 'win').length;
+    const matchWins = wkMatches.filter((m: any) => m.winner === 'you').length;
+    const bestStreak = Math.max(0, ...wkMatches.filter((m: any) => m.game === 'trivia').map((m: any) => m.you_score || 0));
+    const bits: string[] = [];
+    if (sceneWins) bits.push(`${sceneWins} scene${sceneWins > 1 ? 's' : ''} won`);
+    if (bestStreak >= 3) bits.push(`a ${bestStreak}-streak in trivia`);
+    if (matchWins) bits.push(`${matchWins} match${matchWins > 1 ? 'es' : ''} taken`);
+    const week = { scenes: wkRuns.length, sceneWins, matches: wkMatches.length, matchWins, bestStreak };
+    const headline = bits.length ? `this week: ${bits.join(' \u00b7 ')}` : null;
+    res.json({ headline, week, feed });
+  } catch (e: any) { res.status(500).json({ error: 'ledger failed: ' + (e?.message || String(e)) }); }
+});
+
 // the player's win/loss record per game
 // ── THE FRONT DESK: tasks (the concierge holds the user's list) ──────────────
 // list open (and recently-done) tasks for the user
