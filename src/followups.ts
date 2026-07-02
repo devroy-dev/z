@@ -39,12 +39,39 @@ PING: big pitch tomorrow morning, right? if you want a dry run tonight, I'm at m
 
 const ALLOWED = new Set(['the_colleague','the_mentor','the_wingman','the_healer','the_economist','the_teacher','the_front_desk','the_brother']);
 
+const WRITER = `You write ONE short proactive message (under 25 words) from an AI persona to a user, following up on something specific. Warm, casual, zero pressure, easy to ignore. Never guilt, never "why haven't you". Reference the specific thing naturally. Output ONLY the message — no quotes, no preamble.`;
+
+async function writePing(userId: string, personaKey: string, about: string): Promise<string | null> {
+  const p = personaByKey(personaKey);
+  const msg = await anthropic.messages.create({
+    model: MODEL, max_tokens: 60, system: WRITER,
+    messages: [{ role: 'user', content: `Persona: ${p?.defaultName || personaKey}. Following up on: ${about}` }],
+  });
+  logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
+  const text = ((msg.content?.[0] as any)?.text ?? '').trim().replace(/^["']|["']$/g, '').slice(0, 240);
+  return text || null;
+}
+
 async function draftFor(userId: string): Promise<{ personaKey: string; ping: string } | null> {
   const [{ data: tasks }, { data: mem }] = await Promise.all([
     supabase.from('tasks').select('title, notes, due_at, suggested_persona').eq('user_id', userId).eq('status', 'open').limit(15),
     supabase.from('memory').select('key, value, updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(25),
   ]);
   if (!(tasks?.length) && !(mem?.length)) { console.log('[followups] nothing to consider for', userId); return null; }
+
+  // ── THE CLEAR CASE IS CODE'S JOB: a task due within 48h (or overdue) gets the ping, deterministically ──
+  const soon = Date.now() + 48 * 3600e3;
+  const dueTask = (tasks ?? [])
+    .filter((t: any) => t.due_at && new Date(t.due_at).getTime() <= soon)
+    .sort((a: any, b: any) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime())[0];
+  if (dueTask) {
+    const personaKey = (dueTask.suggested_persona && ALLOWED.has(dueTask.suggested_persona)) ? dueTask.suggested_persona : 'the_front_desk';
+    const about = `their task "${dueTask.title}" (due ${String(dueTask.due_at).slice(0, 16)})${dueTask.notes ? ` — ${dueTask.notes}` : ''}`;
+    console.log('[followups] deterministic pick for', userId, '→', personaKey, '·', dueTask.title);
+    const ping = await writePing(userId, personaKey, about);
+    return ping ? { personaKey, ping } : null;
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const ctx = [
     `Today: ${today}`,
@@ -52,6 +79,7 @@ async function draftFor(userId: string): Promise<{ personaKey: string; ping: str
     mem?.length ? `REMEMBERED:\n${mem.map((m: any) => `- ${m.key ? m.key + ': ' : ''}${m.value}`).join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
 
+  console.log('[followups] selector ctx for', userId, '→', JSON.stringify(ctx.slice(0, 260)));
   const msg = await anthropic.messages.create({
     model: MODEL, max_tokens: 120, system: SELECTOR,
     messages: [{ role: 'user', content: ctx.slice(0, 4000) }],
