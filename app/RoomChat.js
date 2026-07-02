@@ -131,11 +131,8 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const [lines, setLines] = useState([]);
   const [members, setMembers] = useState({});   // uid -> name
   const [floor, setFloor] = useState(null);      // persona key or human uid who spoke last
-  const [rt, setRt] = useState('connecting');    // DIAG: realtime channel status
-  const [rtCount, setRtCount] = useState(0);     // DIAG: raw broadcasts received
-  const [rtLast, setRtLast] = useState('');      // DIAG: role/persona of last received
-  const [rtRendered, setRtRendered] = useState(0); // DIAG: how many actually painted
   const [addressed, setAddressed] = useState([]);  // personas you tapped/@mentioned for the next send
+  const [mentioning, setMentioning] = useState(null); // the @-query in progress (null = picker closed)
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -178,11 +175,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
       if (last) setFloor(last.who === 'them' ? last.key : null);
       scrollDown();
 
-      await subscribeRoom(roomId, (m) => {
-        setRtCount((c) => c + 1);
-        setRtLast(`${m.role || '?'}/${m.persona_key || m.sender_user_id || '?'}`);
-        onLive(m);
-      }, (status) => setRt(status));
+      await subscribeRoom(roomId, (m) => { onLive(m); });
     })();
     return () => { alive = false; unsubscribe(); if (graceRef.current) clearTimeout(graceRef.current); };
   }, [roomId]);
@@ -210,7 +203,6 @@ export default function RoomChat({ room, onBack = () => {} }) {
       }
       setFloor(m.persona_key || null);
     }
-    setRtRendered((n) => n + 1);
     scrollDown();
   }, [roomId, members]);
 
@@ -264,6 +256,23 @@ export default function RoomChat({ room, onBack = () => {} }) {
 
   const humans = Object.entries(members).filter(([uid]) => uid !== meIdRef.current).map(([id, name]) => ({ id, name }));
 
+  // @-mention picker: typing "@…" opens a list of room members (personas + humans).
+  const onDraftChange = (t) => {
+    setDraft(t);
+    const m = t.match(/@(\w*)$/);
+    setMentioning(m ? m[1].toLowerCase() : null);
+  };
+  const mentionList = mentioning === null ? [] : [
+    ...personas.map((k) => ({ kind: 'persona', key: k, label: nameOf(k) })),
+    ...humans.map((h) => ({ kind: 'human', key: h.id, label: h.name || 'someone' })),
+  ].filter((c) => c.label.toLowerCase().replace(/^the /, '').includes(mentioning)).slice(0, 6);
+  const insertMention = (c) => {
+    const tag = '@' + (c.label || '').replace(/^the /, '').replace(/\s+/g, '') + ' ';
+    setDraft((d) => d.replace(/@(\w*)$/, tag));
+    if (c.kind === 'persona') setAddressed((cur) => cur.includes(c.key) ? cur : [...cur, c.key]);
+    setMentioning(null);
+  };
+
   return (
     <View style={styles.root}>
       <LinearGradient colors={[`rgba(${rgbOf(personas[0])},0.14)`, `rgba(${rgbOf(personas[0])},0.04)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -276,9 +285,6 @@ export default function RoomChat({ room, onBack = () => {} }) {
             <Text style={styles.roomSub} numberOfLines={1}>
               {personas.map((k) => nameOf(k).replace('the ', '')).join(' · ')}
               {humans.length ? `  +  ${humans.map((h) => (h.name || '').split(' ')[0]).join(', ')}` : ''}
-            </Text>
-            <Text style={{ fontFamily: 'Figtree_400Regular', fontSize: 10, marginTop: 1, color: rt === 'SUBSCRIBED' ? '#6FE0A0' : '#E0A76F' }} numberOfLines={1}>
-              rt: {String(rt)} · {rtCount} rcvd · {rtRendered} shown · last: {rtLast || '—'}
             </Text>
           </View>
           <Pressable hitSlop={8} style={styles.inviteBtn} onPress={doInvite}>
@@ -303,9 +309,19 @@ export default function RoomChat({ room, onBack = () => {} }) {
             : lines.map((l) => <RoomLine key={l.id} line={l} />)}
         </ScrollView>
 
+        {mentionList.length > 0 && (
+          <View style={styles.mentionBar}>
+            {mentionList.map((c) => (
+              <Pressable key={c.kind + c.key} style={styles.mentionItem} onPress={() => insertMention(c)}>
+                <View style={[styles.mentionDot, { backgroundColor: c.kind === 'persona' ? `rgb(${rgbOf(c.key)})` : N.human }]} />
+                <Text style={styles.mentionName}>{c.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
         <View style={styles.composer}>
           <View style={styles.field}>
-            <TextInput value={draft} onChangeText={setDraft} placeholder="say something to the room…" placeholderTextColor={N.moonFaint} style={styles.input} multiline editable={!sending} />
+            <TextInput value={draft} onChangeText={onDraftChange} placeholder="say something to the room…" placeholderTextColor={N.moonFaint} style={styles.input} multiline editable={!sending} />
           </View>
           <Pressable style={styles.send} onPress={doSend}>
             <Svg width="46" height="46" viewBox="0 0 46 46">
@@ -347,6 +363,10 @@ const styles = StyleSheet.create({
   bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 21 },
 
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
+  mentionBar: { marginHorizontal: 16, marginBottom: 2, borderRadius: 14, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2, overflow: 'hidden' },
+  mentionItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, gap: 10 },
+  mentionDot: { width: 9, height: 9, borderRadius: 5 },
+  mentionName: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5 },
   field: { flex: 1, borderRadius: 22, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },
   input: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 15, paddingHorizontal: 16, paddingVertical: 12, maxHeight: 110 },
   send: { width: 46, height: 46 },
