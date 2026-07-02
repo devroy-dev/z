@@ -6,6 +6,7 @@
 // just looped over members. Each member's reply is tagged with its persona key so the
 // surface can show the right name/face per bubble.
 import Anthropic from '@anthropic-ai/sdk';
+import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock } from './memory.js';
@@ -329,6 +330,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       throw err;
     });
     const reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    logUsage({ userId, threadId, personaKey: key, surface: 'group', model: MODEL, usage: (final as any).usage });
 
     // persist with persona_key so the surface knows who spoke
     await supabase.from('messages').insert({

@@ -13,6 +13,8 @@ import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
+import { seatbeltCheck } from './seatbelt.js';
+import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
 import { supabase } from './db.js';
@@ -470,6 +472,7 @@ app.post('/banter', async (req, res) => {
     stream.on('text', () => {});
     stream.on('error', () => {}); // don't let a stream 'error' event go unhandled
     const final = await stream.finalMessage();
+    logUsage({ userId: user.id, personaKey: persona, surface: 'banter', model: 'claude-haiku-4-5-20251001', usage: (final as any).usage });
     const line = final.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
     res.json({ line });
   } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
@@ -483,6 +486,20 @@ app.post('/banter', async (req, res) => {
 //        -d '{"persona":"the_screen_junkie","message":"recommend me something"}'
 // Optional: "dob":"2011-01-01" injects the age line (probe the quiet-minor case),
 //           "serious":true injects serious mode, "region":"Lucknow" for slang.
+// probe the seatbelt: curl .../dev/seatbelt -H 'x-dev-key: $DEV_KEY' -H 'content-type: application/json' \\
+//        -d '{"ping":"hey, how did the interview go?","persona":"the_mentor"}'
+app.post('/dev/seatbelt', async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key) return res.status(404).json({ error: 'not found' });
+    if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    const { ping, persona } = req.body ?? {};
+    if (!ping) return res.status(400).json({ error: 'need { ping }' });
+    const out = await seatbeltCheck(String(ping), { personaKey: persona ?? null });
+    res.json(out);
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.post('/dev/echo', async (req, res) => {
   try {
     const key = process.env.DEV_KEY;

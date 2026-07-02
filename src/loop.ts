@@ -6,6 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
+import { logUsage } from './usage.js';
 import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 
@@ -246,6 +247,8 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     in: u.input_tokens ?? 0, out: u.output_tokens ?? 0,
     cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0,
   };
+
+  logUsage({ userId, threadId, surface: 'chat', model: MODEL, usage });
 
   // persist Z's reply + touch the thread
   await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'assistant', content: reply });
