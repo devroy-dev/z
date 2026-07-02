@@ -4,6 +4,7 @@
 //  "forget" button. Deep memory + your control over it = the trust contract.
 //  Also: your name/DP, pinned people, settings.
 // ════════════════════════════════════════════════════════════════════════
+import * as Updates from 'expo-updates';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +41,20 @@ function MemoryCard({ item, isFact, onForget }) {
 }
 
 export default function You({ onBack = () => {}, onLogout = () => {} }) {
+  // ── the update lever: no more guessing which bundle the device runs ──
+  const [updState, setUpdState] = React.useState(null);
+  const checkUpdates = async () => {
+    setUpdState('checking…');
+    try {
+      const r = await Updates.checkForUpdateAsync();
+      if (r.isAvailable) {
+        setUpdState('downloading…');
+        await Updates.fetchUpdateAsync();
+        setUpdState('restarting…');
+        await Updates.reloadAsync();
+      } else setUpdState('up to date ✓');
+    } catch (e) { setUpdState('check failed — try again'); }
+  };
   const [ledger, setLedger] = React.useState(null);
   React.useEffect(() => { getLedger().then(setLedger).catch(() => {}); }, []);
   const [facts, setFacts] = useState(SEED_FACTS);
@@ -105,6 +120,10 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
 
           {/* settings, quiet at the bottom */}
           <Text style={[styles.sectionLabel, { marginTop: 28 }]}>settings</Text>
+          <Pressable style={styles.settingRow} onPress={checkUpdates}>
+            <Text style={styles.settingText}>{updState || 'check for updates'}</Text>
+            <Text style={styles.settingChev}>›</Text>
+          </Pressable>
           {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
             <Pressable key={s} style={styles.settingRow} onPress={s === 'sign out' ? onLogout : undefined}>
               <Text style={[styles.settingText, s === 'sign out' && { color: '#E0A0A0' }]}>{s}</Text>

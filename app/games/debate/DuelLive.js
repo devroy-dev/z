@@ -42,7 +42,7 @@ export default function DebateDuelLive({ sessionId, onExit = () => {} }) {
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
           <View style={st.bar}>
             <Pressable hitSlop={12} onPress={onExit}><Text style={st.chev}>‹</Text></Pressable>
-            <Text style={st.kicker}>debate duel · the moderator presides</Text>
+            <Text style={st.kicker}>debate duel · the moderator presides · v2</Text>
             <Pressable hitSlop={10} onPress={() => shareTableInvite(view, 'a debate duel')}>
               <Text style={{ fontSize: 16 }}>🔗</Text>
             </Pressable>
