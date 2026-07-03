@@ -156,6 +156,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'z') return setOverlay({ tab: 'quiet' });
     if (dest.kind === 'persona') return setChatOpen(dest);
     if (dest.kind === 'room') return setChatOpen(dest);
+    if (dest.kind === 'dm') return setChatOpen({ kind: 'room', room: { id: dest.threadId, name: dest.name, personas: [] } });
     if (dest.kind === 'roster') return setChatOpen(dest);
   };
   const [chatOpen, setChatOpen] = useState(null);

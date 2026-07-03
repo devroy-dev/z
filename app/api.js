@@ -649,3 +649,9 @@ export async function getFriends() {
   try { return await authedJSON('GET', '/friends'); }
   catch (e) { return { friends: [], incoming: [], outgoing: [] }; }
 }
+
+// ---- DM: open/create a 1:1 human chat with a friend, then it behaves like any thread ----
+export async function openDM(friendId) {
+  try { return await authedJSON('POST', `/dm/${encodeURIComponent(friendId)}`); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}

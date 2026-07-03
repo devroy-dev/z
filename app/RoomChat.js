@@ -361,23 +361,26 @@ export default function RoomChat({ room, onBack = () => {} }) {
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.roomTitle} numberOfLines={1}>{title}</Text>
-            <Text style={styles.roomSub} numberOfLines={1}>
-              {personas.map((k) => nameOf(k).replace('the ', '')).join(' · ')}
-              {humans.length ? `  +  ${humans.map((h) => (h.name || '').split(' ')[0]).join(', ')}` : ''}
-            </Text>
-            <Text style={{ fontFamily: 'Figtree_400Regular', fontSize: 10, marginTop: 1, color: rt === 'SUBSCRIBED' ? '#6FE0A0' : '#E0A76F' }} numberOfLines={1}>
-              rt: {String(rt)} · {rtCount} rcvd · {rtRendered} shown · last: {rtLast || '—'}
-            </Text>
+            {personas.length ? (
+              <Text style={styles.roomSub} numberOfLines={1}>
+                {personas.map((k) => nameOf(k).replace('the ', '')).join(' · ')}
+                {humans.length ? `  +  ${humans.map((h) => (h.name || '').split(' ')[0]).join(', ')}` : ''}
+              </Text>
+            ) : null}
           </View>
-          <Pressable hitSlop={8} style={[styles.inviteBtn, { marginRight: 8 }]}
-            onPress={liveAvail ? () => setLiveSession({ id: liveAvail.id, game: liveAvail.game }) : () => setGameMenu((v) => !v)}>
-            <Text style={{ fontSize: 12 }}>🎲</Text>
-            <Text style={styles.inviteText}>{liveAvail ? 'join game' : 'play'}</Text>
-          </Pressable>
-          <Pressable hitSlop={8} style={styles.inviteBtn} onPress={doInvite}>
-            <Svg width="13" height="13" viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" stroke={N.candle} strokeWidth="2" strokeLinecap="round" /></Svg>
-            <Text style={styles.inviteText}>invite</Text>
-          </Pressable>
+          {personas.length ? (
+            <Pressable hitSlop={8} style={[styles.inviteBtn, { marginRight: 8 }]}
+              onPress={liveAvail ? () => setLiveSession({ id: liveAvail.id, game: liveAvail.game }) : () => setGameMenu((v) => !v)}>
+              <Text style={{ fontSize: 12 }}>🎲</Text>
+              <Text style={styles.inviteText}>{liveAvail ? 'join game' : 'play'}</Text>
+            </Pressable>
+          ) : null}
+          {personas.length ? (
+            <Pressable hitSlop={8} style={styles.inviteBtn} onPress={doInvite}>
+              <Svg width="13" height="13" viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" stroke={N.candle} strokeWidth="2" strokeLinecap="round" /></Svg>
+              <Text style={styles.inviteText}>invite</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* the presences — lit one rises */}

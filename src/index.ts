@@ -13,6 +13,7 @@ import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
+import { broadcastRoomMessage } from './broadcast.js';
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
@@ -226,6 +227,48 @@ app.get('/friends', async (req, res) => {
       outgoing: outgoing.map(shape),
     });
   } catch (e: any) { res.status(500).json({ error: 'friends failed: ' + (e?.message || String(e)) }); }
+});
+
+// open (or create) a DM thread with a friend → returns the thread id.
+// a DM is a shared thread with two human members and NO persona keys.
+app.post('/dm/:friendId', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const friendId = String(req.params.friendId || '');
+    if (!friendId || friendId === me.id) return res.status(400).json({ error: 'bad friend' });
+    // must actually be accepted friends
+    const [lo, hi] = me.id < friendId ? [me.id, friendId] : [friendId, me.id];
+    const { data: edge } = await supabase.from('friendships')
+      .select('status').eq('user_lo', lo).eq('user_hi', hi).maybeSingle();
+    if (!edge || edge.status !== 'accepted') return res.status(403).json({ error: 'not friends' });
+    // existing DM? find a shared, persona-less thread where BOTH are members.
+    const { data: myShared } = await supabase.from('room_members')
+      .select('thread_id').eq('user_id', me.id);
+    const myThreadIds = (myShared ?? []).map((r: any) => r.thread_id);
+    if (myThreadIds.length) {
+      const { data: shared } = await supabase.from('threads')
+        .select('id, member_keys, is_shared').in('id', myThreadIds).is('deleted_at', null);
+      const { data: theirMems } = await supabase.from('room_members')
+        .select('thread_id').eq('user_id', friendId).in('thread_id', myThreadIds);
+      const theirSet = new Set((theirMems ?? []).map((r: any) => r.thread_id));
+      const dm = (shared ?? []).find((t: any) => t.is_shared && theirSet.has(t.id) && (!t.member_keys || t.member_keys.filter(Boolean).length === 0));
+      if (dm) return res.json({ id: dm.id });
+    }
+    // create it: a shared thread, no persona members, both humans as members
+    const { data: friendRow } = await supabase.from('users').select('display_name, handle').eq('id', friendId).maybeSingle();
+    const title = (friendRow?.display_name || (friendRow?.handle ? '@' + friendRow.handle : 'a friend'));
+    const { data: t, error } = await supabase.from('threads').insert({
+      user_id: me.id, is_group: true, is_shared: true, member_keys: [], companion_name: title,
+    }).select('id').single();
+    if (error || !t) return res.status(500).json({ error: 'dm create: ' + (error?.message || 'failed') });
+    await supabase.from('room_members').insert([
+      { thread_id: t.id, user_id: me.id, role: 'owner' },
+      { thread_id: t.id, user_id: friendId, role: 'member' },
+    ]);
+    res.json({ id: t.id });
+  } catch (e: any) { res.status(500).json({ error: 'dm failed: ' + (e?.message || String(e)) }); }
 });
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
@@ -1720,9 +1763,33 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   try {
     // look up the thread. shared rooms: any MEMBER may chat (not just owner).
     const { data: th } = await supabase.from('threads')
-      .select('is_group, is_shared, user_id').eq('id', threadId).is('deleted_at', null).maybeSingle();
+      .select('is_group, is_shared, user_id, member_keys').eq('id', threadId).is('deleted_at', null).maybeSingle();
     if (!th) { res.write(`data: ${JSON.stringify({ error: 'thread not found' })}\n\n`); return res.end(); }
     const isOwner = th.user_id === user.id;
+    // A DM is a shared thread with NO persona members — two humans, no one to "generate"
+    // a reply. Persist the message + broadcast it to the other device; never call
+    // runGroupTurn (which needs persona members and would throw / try to summon one).
+    const isDM = th.is_shared && (!th.member_keys || th.member_keys.filter(Boolean).length === 0);
+    if (isDM) {
+      if (!isOwner && !(await isRoomMember(threadId, user.id))) {
+        res.write(`data: ${JSON.stringify({ error: 'not your conversation' })}\n\n`); return res.end();
+      }
+      if (!message || !String(message).trim()) {
+        res.write(`data: ${JSON.stringify({ error: 'empty message' })}\n\n`); return res.end();
+      }
+      const { data: saved } = await supabase.from('messages')
+        .insert({ thread_id: threadId, user_id: user.id, role: 'user', content: String(message), sender_user_id: user.id })
+        .select('id, created_at').maybeSingle();
+      await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
+      try {
+        await broadcastRoomMessage(threadId, {
+          role: 'user', content: String(message), sender_user_id: user.id,
+          sender_name: user.display_name || 'someone',
+        });
+      } catch (e) { /* broadcast best-effort; message is persisted */ }
+      res.write(`data: ${JSON.stringify({ done: true, saved: saved?.id || null })}\n\n`);
+      return res.end();
+    }
     if (th.is_shared) {
       // membership gate: only members of the room may post
       if (!isOwner && !(await isRoomMember(threadId, user.id))) {

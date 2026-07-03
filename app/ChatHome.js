@@ -10,7 +10,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path as SvgPath } from 'react-
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE } from './api';
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM } from './api';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { personaMeta } from './games/personas';
@@ -138,17 +138,30 @@ export default function ChatHome({ onOpen = () => {} }) {
   const [q, setQ] = useState('');
   const [filt, setFilt] = useState('all');
   const [zFace, setZFace] = useState(true);
+  const [friendList, setFriendList] = useState([]);
+  const [opening, setOpening] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [t, r] = await Promise.all([getThreads(), listRooms()]);
+      const [t, r, f] = await Promise.all([getThreads(), listRooms(), getFriends()]);
       const tt = Array.isArray(t) ? t : [];
       const rr = Array.isArray(r) ? r : (r?.rooms || []);
       setThreads(tt);
       setRooms(rr);
+      setFriendList((f && f.friends) ? f.friends : []);
       AsyncStorage.setItem('z_home_cache', JSON.stringify({ t: tt, r: rr })).catch(() => {});
     } catch (e) {}
   }, []);
+  // tap a friend → open (or create) the DM thread, then land in the normal chat surface.
+  const openFriendDM = useCallback(async (friend) => {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const r = await openDM(friend.id);
+      if (r && r.id) onOpen({ kind: 'dm', threadId: r.id, name: friend.display_name || ('@' + friend.handle) });
+    } catch (e) {}
+    setOpening(false);
+  }, [opening, onOpen]);
   // paint the last-known list instantly, then refresh behind it — kills the
   // pinned-rows-then-blank-wait on every open.
   useEffect(() => {
@@ -195,7 +208,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             <TextInput value={q} onChangeText={setQ} placeholder="search the house…" placeholderTextColor={MOON.faint} style={st.searchInput} />
           </View>
           <View style={st.chips}>
-            {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['friends','friends']].map(([id,label]) => (
+            {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['friends','live friends']].map(([id,label]) => (
               <Pressable key={id} style={[st.chip, filt === id && st.chipOn]} onPress={() => setFilt(id)}>
                 <Text style={[st.chipTxt, filt === id && st.chipTxtOn]}>{label}</Text>
               </Pressable>
@@ -224,7 +237,19 @@ export default function ChatHome({ onOpen = () => {} }) {
           </Pressable>
           <View style={st.divider} />
           {filt === 'friends' ? (
-            <Text style={st.empty}>manage friends in the You tab — set a handle and add people. chatting with them is coming next.</Text>
+            friendList.length === 0 ? (
+              <Text style={st.empty}>no friends yet — add people by handle in the You tab, then they show up here to chat.</Text>
+            ) : (
+              friendList.map((fr) => (
+                <Row key={fr.id}
+                  glyph="🙂"
+                  tone={MOON.hair}
+                  name={fr.display_name || ('@' + fr.handle)}
+                  line={fr.handle ? '@' + fr.handle : 'tap to chat'}
+                  onPress={() => openFriendDM(fr)}
+                />
+              ))
+            )
           ) : (
             <>
               {recents.map((r, i) => (
