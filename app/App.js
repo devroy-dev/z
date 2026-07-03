@@ -99,7 +99,7 @@ function PlayWorld({ navigate, target }) {
   useBackLayer(mode === 'sims', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'floor', React.useCallback(() => { setMode('sims'); return true; }, []));
   useBackLayer(mode === 'ffl', React.useCallback(() => { setMode('sims'); return true; }, []));
-  React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
+  React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); else if (target?.open === 'sims') setMode('sims'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (opening && !live) {
     return (

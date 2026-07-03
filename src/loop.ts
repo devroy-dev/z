@@ -155,7 +155,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   • [[REMIND: call the lawyer | tomorrow 11am]]
   • [[NAME: Dev]] — when they tell you their name (the interview, or any time), tag it once; the house learns it
   • [[FEEDBACK: their words, faithfully]] — the maker reads these himself]`;
-    frontDeskBlock += manifestBlock();
+    frontDeskBlock += await manifestBlock(userId);
     if (!interviewing) {
       // the first-week tour: one door a day, woven in, never a manual
       const ageDays = (owner as any)?.created_at ? Math.floor((Date.now() - new Date((owner as any).created_at).getTime()) / 864e5) : 99;

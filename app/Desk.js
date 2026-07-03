@@ -256,6 +256,8 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
     if (key === 'the_arena') return onRoute({ tab: 'play', open: 'arena' });
     if (key === 'the_stage') return onRoute({ tab: 'stage' });
     if (key === 'the_journal') return onRoute({ tab: 'journal' });
+    if (key === 'the_sims') return onRoute({ tab: 'play', open: 'sims' });
+    if (key === 'the_rooms') return onRoute({ tab: 'rooms' });
     if (key === 'z_serious') return onRoute({ tab: 'quiet' });
     return onRoute({ tab: 'gathering', persona: key });
   };
