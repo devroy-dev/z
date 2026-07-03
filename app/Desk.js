@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
+import { parseCards, ProgrammeCard } from './Chat';
 import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe } from './api';
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
@@ -434,7 +435,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
               arcState.arcs.map((a) => (
                 <Pressable key={a.id} style={styles.arcCard}
                   onPress={() => routeTo(a.status === 'final_ready' ? 'the_stage' : a.def.personaKey)}>
-                  <Text style={styles.arcKicker}>{a.status === 'final_ready' ? '◈ your final awaits' : `◈ ${a.def.title} — day ${a.day} of ${a.def.days}`}</Text>
+                  <Text style={styles.arcKicker}>{a.status === 'final_ready' ? '◈ your final awaits' : `◈ ${a.def.title} — ${a.def.days - a.day > 0 ? `${a.def.days - a.day + 1} sessions to go` : 'last session'}`}</Text>
                   <Text style={styles.arcLine}>{a.status === 'final_ready' ? `${a.def.finalTitle}, on the stage. you're ready.` : `with ${a.def.personaKey.replace(/^the_/, 'the ')} · today's session is open`}</Text>
                 </Pressable>
               ))
@@ -536,7 +537,10 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
               {m.who === 'you' ? (
                 <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
               ) : (
-                <Text style={styles.themText}>{m.text || (m.typing ? '…' : '')}</Text>
+                (() => { const parsed = parseCards(m.text || ''); return (<>
+                  <Text style={styles.themText}>{parsed.text || (m.typing ? '…' : '')}</Text>
+                  {parsed.cards.map((c, ci) => (<ProgrammeCard key={ci} card={c} onPress={() => routeTo(c.goto)} />))}
+                </>); })()
               )}
               {m.routes && m.routes.length > 0 && (
                 <View style={styles.doors}>

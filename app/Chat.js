@@ -64,6 +64,7 @@ const PERSONAS = {
   the_front_desk:{name:'the front desk',desc:"welcome back. i've got your list, and i know which room can help.",rgb:'231,176,122'},
 };
 const DEFAULT_KEY = 'the_brother';
+const CHIP_LABEL = (k) => k === 'the_stage' ? 'the stage' : k === 'the_arena' ? 'the arena' : k === 'z_serious' ? 'the quiet room' : (PERSONAS[k]?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
 const faceFor = (key) => `https://callmez.app/faces/${key}.jpg?v=2`;
 
 // ── small circular DP (cover-fit, aura edge, orb fallback) ──
@@ -106,8 +107,8 @@ const splitBursts = (t) => String(t || '').split(/\n\s*\n/).map((x) => x.trim())
 // ── the evening programme's cards: [[CARD: kind | title | line | goto]] lives
 // in the PERSISTED message (cron-written, no stream), parsed at render so
 // weeks of programmes stay tappable in the scroll. ──
-const CARD_RE = /\[\[CARD:\s*([a-z]+)\s*\|([^|\]]+)\|([^|\]]+)\|\s*([a-z_:]+)\s*\]\]/gi;
-const parseCards = (t) => {
+export const CARD_RE = /\[\[CARD:\s*([a-z]+)\s*\|([^|\]]+)\|([^|\]]+)\|\s*([a-z_:]+)\s*\]\]/gi;
+export const parseCards = (t) => {
   const cards = [];
   const text = String(t || '').replace(CARD_RE, (_, kind, title, line, goto) => {
     cards.push({ kind: kind.trim(), title: title.trim(), line: line.trim(), goto: goto.trim() });
@@ -116,7 +117,7 @@ const parseCards = (t) => {
   return { text, cards };
 };
 const CARD_TINT = { social: '159,194,232', growth: '231,176,122', play: '143,217,143' };
-function ProgrammeCard({ card, onPress }) {
+export function ProgrammeCard({ card, onPress }) {
   const tint = CARD_TINT[card.kind] || '231,176,122';
   return (
     <Pressable onPress={onPress} style={[pcStyles.card, { borderLeftColor: `rgba(${tint},0.8)` }]}>
@@ -135,6 +136,8 @@ const pcStyles = StyleSheet.create({
   title: { fontFamily: 'Figtree_500Medium', color: 'rgba(245,236,225,0.92)', fontSize: 14.5, marginTop: 2 },
   line: { fontFamily: 'Figtree_300Light', color: 'rgba(245,236,225,0.55)', fontSize: 12.5, marginTop: 2, lineHeight: 17 },
   chev: { color: 'rgba(245,236,225,0.4)', fontSize: 22, paddingLeft: 10 },
+  chip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(231,176,122,0.4)', backgroundColor: 'rgba(231,176,122,0.07)' },
+  chipTxt: { fontFamily: 'Figtree_500Medium', color: 'rgba(240,201,144,0.95)', fontSize: 12.5 },
 });
 
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false, onRoute = () => {} }) {
@@ -340,6 +343,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         targetRef.current = acc || targetRef.current;
         streamDoneRef.current = true;
       },
+      onRoutes: (routes) => {
+        const keys = (routes || []).filter((k) => typeof k === 'string').slice(0, 4);
+        if (keys.length) setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, routes: keys } : m)));
+      },
       onError: (msg) => {
         pacingRef.current = false;
         setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: msg, typing: false } : m));
@@ -444,6 +451,13 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                         {parsed.cards.map((c, ci) => (
                           <ProgrammeCard key={ci} card={c} onPress={() => routeTo(c.goto)} />
                         ))}
+                        {m.routes && m.routes.length > 0 && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, gap: 8 }}>
+                            {m.routes.map((rk) => (
+                              <Pressable key={rk} onPress={() => routeTo(rk)} style={pcStyles.chip}><Text style={pcStyles.chipTxt}>{CHIP_LABEL(rk)} ›</Text></Pressable>
+                            ))}
+                          </View>
+                        )}
                         {m.typing ? <Text style={[styles.themText, { marginTop: 5 }]}>…</Text> : null}
                       </>
                     ); })()

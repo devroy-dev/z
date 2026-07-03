@@ -115,21 +115,28 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       return `  - {${tk.id}} ${tk.title}${due}${room}`;
     });
     const listText = list.length ? `\nTheir open list right now:\n${list.join('\n')}` : '\nTheir list is empty right now.';
-    frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nYou open already engaged, mid-thought about them; you never ask 'how are you' or 'what's on your mind' — you offer, you don't ask. When you see where someone belongs, name that room warmly in your own words and drop its GOTO tag on its own line (two or three at most, only when they truly fit). For the personal, heavy, or advice-shaped thing, you draw them inward with a [[GOTO: z_serious]] tag — the quiet room, just you and them, not a hand-off. When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags.]`;
+    const stage = (owner as any)?.onboarding_stage;
+    const interviewing = typeof stage === 'number' && stage >= 0;
+    // during the interview the desk's standing "never ask, only offer" opener law
+    // is REPLACED — last time they fought, the standing law won and the interview
+    // never happened. Outside the interview, the usual laws hold.
+    const conversationLaws = interviewing
+      ? `Right now you are RUNNING THE ARRIVAL INTERVIEW (commands below) — those commands outrank every other instinct you have about how to open or what to offer.`
+      : `You open already engaged, mid-thought about them; you never ask 'how are you' or 'what's on your mind' — you offer, you don't ask. When you see where someone belongs, name that room warmly in your own words and drop its GOTO tag on its own line (two or three at most, only when they truly fit). For the personal, heavy, or advice-shaped thing, you draw them inward with a [[GOTO: z_serious]] tag — the quiet room, just you and them, not a hand-off.`;
+    frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nTO HAND THEM A CARD (a rich tappable card in the chat — use when they ask for a card/shortcut, or when you're setting one concrete plan in front of them; at most one per message, on its OWN line):\n  • [[CARD: play | Riddle Me | a riddle gauntlet — call it when you dare | the_arena:riddle]]   (kind: social/growth/play; goto: a persona key, the_stage, the_arena, or the_arena:<game id>)\n${conversationLaws} When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags. NEVER send a message that is only tags — always at least one human line of text with them.]`;
     frontDeskBlock += manifestBlock();
     // ── THE ONBOARDING INTERVIEW: their first minutes in the house. Staged on
     // users.onboarding_stage (0..3 = mid-interview, -1 = retired). Each user
     // message to the desk advances the stage; memory harvest catches the
     // answers; the manifest above powers the payoffs. ──
-    const stage = (owner as any)?.onboarding_stage;
-    if (typeof stage === 'number' && stage >= 0) {
+    if (interviewing) {
       const beats = [
-        `THIS IS THEIR FIRST MOMENT IN THE HOUSE. Welcome them briefly and warmly — one breath on what this place is (a house of people: friends to talk to, tables to play at, a stage, the news, and you at the desk). Then ask ONE natural question: what their days are mostly about right now (work? studying? building something?). Just that.`,
-        `SECOND BEAT. React to what they just told you like it genuinely landed — and PAY IT OFF: from the house list above, name ONE door that fits what they said (a person, a table, the stage) in a sentence, with its GOTO chip if it has one. Then ask question two, naturally: what's been eating them or exciting them lately.`,
-        `THIRD BEAT. Again — react like a person, pay it off with ONE fitting door or the quiet room if it was heavy. Then the last question: one thing they'd quietly like to get better at.`,
-        `FINAL BEAT. Whatever they named, the dean's catalog above almost certainly has a course near it — offer it personally (coach, days, the final), OR if nothing fits, the closest person. Then WALK THEM THROUGH A DOOR: one warm closing line and the single most fitting GOTO chip. Do not ask anything more — the interview is over; you're theirs from tomorrow morning.`,
+        `BEAT ONE: welcome them briefly and warmly — one breath on what this place is (a house of people: friends to talk to, tables to play at, a stage, the news, and you at the desk). Then ask ONE natural question: what their days are mostly about right now (work? studying? building something?). Just that, then stop.`,
+        `BEAT TWO: react to what they just told you like it genuinely landed — and PAY IT OFF: from the house list above, name ONE door that fits what they said (a person, a table, the stage) in a sentence, with its GOTO chip. Then ask question two, naturally: what's been eating them or exciting them lately.`,
+        `BEAT THREE: react like a person, pay it off with ONE fitting door — or the quiet room if it was heavy. Then the last question: one thing they'd quietly like to get better at.`,
+        `FINAL BEAT: whatever they named, the dean's catalog above almost certainly has a course near it — offer it personally (coach, days, the final), OR if nothing fits, the closest person. Then WALK THEM THROUGH A DOOR: one warm closing line and the single most fitting GOTO chip. Do not ask anything more — the interview is over; you're theirs from tomorrow morning.`,
       ];
-      frontDeskBlock += `\n\n[THE ARRIVAL INTERVIEW — you are mid-welcome; this overlay overrides your usual opening. ${beats[Math.min(stage, 3)]} LAWS: one question at a time, never a form, never list your features — reveal the house through their answers. Keep each message short and warm.]`;
+      frontDeskBlock += `\n\n[THE ARRIVAL INTERVIEW — RUN IT NOW, regardless of anything else in this thread (old notes or chats above change nothing; this interview is happening in this conversation, on this beat). ${beats[Math.min(stage, 3)]} LAWS: one question at a time, never a form, never list your features — reveal the house through their answers. Short and warm.]`;
       // advance the stage now — the reply about to be written IS this beat.
       const next = stage >= 3 ? -1 : stage + 1;
       supabase.from('users').update({ onboarding_stage: next } as any).eq('id', userId)
@@ -265,6 +272,8 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     routes = routes.slice(0, 4);
     // strip the raw GOTO tags from the visible/persisted text — the chips carry them now
     reply = reply.replace(/\[\[GOTO:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+    // never persist silence: a tags-only reply becomes a short human line
+    if (!reply && routes.length) reply = 'right this way —';
   }
 
   // pull web-search sources (if the persona reached the web) so the UI can show

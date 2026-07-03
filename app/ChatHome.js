@@ -119,8 +119,9 @@ export default function ChatHome({ onOpen = () => {} }) {
   }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
+  const PINNED_KEYS = new Set(['the_front_desk', 'the_anchor', 'z', 'z_serious']);
   const recents = [
-    ...threads.filter((t) => t.persona_key && !t.is_shared).map((t) => ({
+    ...threads.filter((t) => t.persona_key && !t.is_shared && !PINNED_KEYS.has(t.persona_key)).map((t) => ({
       kind: 'persona', key: t.persona_key, name: t.companion_name || nameOf(t.persona_key),
       at: t.last_active, line: 'tap to continue',
     })),
