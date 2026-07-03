@@ -302,6 +302,18 @@ app.get('/persona-states', async (req, res) => {
     res.json({ states: await currentStates() });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
+// one persona's recent diary — the Updates tab's story feed
+app.get('/persona-diary/:key', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const key = String(req.params.key || '').replace(/[^a-z_]/g, '').slice(0, 40);
+    const { data } = await supabase.from('persona_states')
+      .select('date, status_line, log_entry').eq('persona_key', key)
+      .order('date', { ascending: false }).limit(10);
+    res.json({ key, entries: data ?? [] });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
 // dev: write today's states now
 app.post('/dev/persona-states', async (req, res) => {
   try {

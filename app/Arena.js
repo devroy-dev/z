@@ -224,7 +224,7 @@ function OppFace({ pkey, tone }) {
 }
 
 // ── the lobby ──
-export default function Arena({ onBack = () => {}, onStartGame = () => {}, initialGameId = null }) {
+export default function Arena({ onBack = () => {}, onStartGame = () => {}, initialGameId = null, onOpenStage = () => {} }) {
   const [picked, setPicked] = useState(() => GAMES.find((g) => g.id === initialGameId) || null); // a programme card lands you AT the table, not the shelf
 
   if (picked) {
@@ -238,7 +238,7 @@ export default function Arena({ onBack = () => {}, onStartGame = () => {}, initi
         <View style={styles.header}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
           <View style={{ flex: 1, marginLeft: 4 }}>
-            <Text style={styles.kicker}>put the feed down</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={styles.kicker}>put the feed down</Text><Pressable onPress={onOpenStage} hitSlop={8}><Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(240,201,144,0.85)', fontSize: 13 }}>the stage ✦</Text></Pressable></View>
             <Text style={styles.title}>the arena</Text>
           </View>
         </View>

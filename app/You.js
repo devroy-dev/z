@@ -64,7 +64,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#160F1C', '#0E0912', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#0D1119', '#0A0D14', '#090C12']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
@@ -120,7 +120,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             <Text style={styles.settingText}>{updState || 'check for updates'}</Text>
             <Text style={styles.settingChev}>›</Text>
           </Pressable>
-          <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.35)', fontSize: 10.5, paddingHorizontal: 4, paddingBottom: 6 }}>
+          <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(232,236,244,0.35)', fontSize: 10.5, paddingHorizontal: 4, paddingBottom: 6 }}>
             bundle: {Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'}{Updates.createdAt ? ' · ' + new Date(Updates.createdAt).toLocaleString() : ''}
           </Text>
           {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
@@ -141,22 +141,22 @@ const styles = StyleSheet.create({
   ledgerOutcome: { fontFamily: FONTS.display, fontSize: 16, width: 18, textAlign: 'center', marginTop: 1 },
   ledgerTitle: { fontFamily: FONTS.medium, color: 'rgba(245,236,225,0.88)', fontSize: 13.5 },
   ledgerNotes: { fontFamily: FONTS.displayItalic, color: 'rgba(231,215,199,0.55)', fontSize: 12.5, lineHeight: 18, marginTop: 3 },
-  root: { flex: 1, backgroundColor: C.void },
+  root: { flex: 1, backgroundColor: '#090C12' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
-  chev: { color: C.muted, fontSize: 30, width: 26, marginTop: -3 },
-  topTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 20 },
+  chev: { color: 'rgba(232,236,244,0.55)', fontSize: 30, width: 26, marginTop: -3 },
+  topTitle: { fontFamily: FONTS.display, color: '#E8ECF4', fontSize: 20 },
 
   identity: { alignItems: 'center', paddingTop: 10, paddingBottom: 24 },
-  bigAvatar: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(243,168,95,0.4)', backgroundColor: 'rgba(243,168,95,0.08)' },
-  bigInitial: { fontFamily: FONTS.display, color: C.accent, fontSize: 36 },
-  name: { fontFamily: FONTS.display, color: C.cream, fontSize: 26, marginTop: 12 },
-  since: { fontFamily: FONTS.displayItalic, color: C.faint, fontSize: 13, marginTop: 3 },
+  bigAvatar: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(159,194,232,0.4)', backgroundColor: 'rgba(159,194,232,0.07)' },
+  bigInitial: { fontFamily: FONTS.display, color: '#9FC2E8', fontSize: 36 },
+  name: { fontFamily: FONTS.display, color: '#E8ECF4', fontSize: 26, marginTop: 12 },
+  since: { fontFamily: FONTS.body, color: 'rgba(232,236,244,0.4)', fontSize: 12.5, marginTop: 3 },
 
   memHead: { paddingHorizontal: 24, marginBottom: 14 },
-  memTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 22 },
-  memSub: { fontFamily: FONTS.displayItalic, color: C.muted, fontSize: 13.5, marginTop: 5, lineHeight: 20 },
+  memTitle: { fontFamily: FONTS.display, color: '#E8ECF4', fontSize: 22 },
+  memSub: { fontFamily: FONTS.body, color: 'rgba(232,236,244,0.5)', fontSize: 13, marginTop: 5, lineHeight: 19 },
 
-  sectionLabel: { fontFamily: FONTS.semibold, color: C.accentSoft, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: 24, marginBottom: 10 },
+  sectionLabel: { fontFamily: FONTS.semibold, color: 'rgba(159,194,232,0.8)', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: 24, marginBottom: 10 },
 
   card: { flexDirection: 'row', alignItems: 'flex-start', marginHorizontal: 20, marginBottom: 8, padding: 15, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,240,228,0.07)', backgroundColor: 'rgba(255,255,255,0.02)' },
   cardText: { flex: 1, fontFamily: FONTS.body, color: '#E8DCCE', fontSize: 14.5, lineHeight: 21 },
@@ -166,6 +166,6 @@ const styles = StyleSheet.create({
   empty: { fontFamily: FONTS.displayItalic, color: C.faint, fontSize: 15, textAlign: 'center', paddingHorizontal: 40, paddingVertical: 30, lineHeight: 23 },
 
   settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  settingText: { fontFamily: FONTS.body, color: C.cream, fontSize: 15 },
+  settingText: { fontFamily: FONTS.body, color: '#E8ECF4', fontSize: 14.5 },
   settingChev: { color: C.faint, fontSize: 20 },
 });

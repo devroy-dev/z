@@ -10,7 +10,8 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path as SvgPath } from 'react-
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, API_BASE } from './api';
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE } from './api';
+import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { personaMeta } from './games/personas';
 
@@ -62,6 +63,48 @@ function ZOrb({ size = 44 }) {
 }
 
 const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=2`;
+
+// the house diaries, as a feed: today's line per resident; tap → their recent week
+function UpdatesFeed({ onOpen }) {
+  const [states, setStates] = useState({});
+  const [open, setOpen] = useState(null);        // persona key unfolded
+  const [diary, setDiary] = useState({});        // key -> entries
+  useEffect(() => { getPersonaStates().then(setStates); }, []);
+  const keys = Object.keys(states);
+  const unfold = async (k) => {
+    if (open === k) return setOpen(null);
+    setOpen(k);
+    if (!diary[k]) { const e = await getPersonaDiary(k); setDiary((d) => ({ ...d, [k]: e })); }
+  };
+  if (!keys.length) return <View style={st.soonWrap}><Text style={st.soonLine}>the house is quiet — diaries arrive with the morning.</Text></View>;
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90, paddingTop: 4 }} showsVerticalScrollIndicator={false}>
+      {keys.map((k) => (
+        <View key={k}>
+          <Pressable style={st.updRow} onPress={() => unfold(k)}>
+            <View style={st.updRing}><Image source={{ uri: dpFor(k) }} style={st.updFace} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={st.updName}>{nameOf(k)}</Text>
+              <Text style={st.updLine} numberOfLines={open === k ? 4 : 2}>{states[k]?.status_line}</Text>
+            </View>
+          </Pressable>
+          {open === k && (
+            <View style={st.updDiary}>
+              {(diary[k] || []).slice(1).map((e) => (
+                <View key={e.date} style={{ marginBottom: 10 }}>
+                  <Text style={st.updDate}>{e.date}</Text>
+                  <Text style={st.updEntry}>{e.log_entry}</Text>
+                </View>
+              ))}
+              {!(diary[k] || []).length && <Text style={st.updEntry}>fetching their week…</Text>}
+              <Pressable onPress={() => onOpen({ kind: 'persona', key: k })}><Text style={st.updGo}>message {nameOf(k)} ›</Text></Pressable>
+            </View>
+          )}
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
 const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
 const ago = (t) => {
   if (!t) return '';
@@ -182,10 +225,12 @@ export default function ChatHome({ onOpen = () => {} }) {
           {recents.length === 0 && <Text style={st.empty}>no conversations yet — tap ✎ to meet the house.</Text>}
         </ScrollView>
       )}
-      {tab !== 'chats' && (
+      {tab === 'updates' && <UpdatesFeed onOpen={onOpen} />}
+      {tab === 'groups' && <Rooms onOpen={(r) => onOpen({ kind: 'room', room: r })} />}
+      {tab === 'rooms' && (
         <View style={st.soonWrap}>
-          <Text style={st.soonTitle}>{tab === 'updates' ? 'updates' : tab === 'groups' ? 'groups' : 'rooms'}</Text>
-          <Text style={st.soonLine}>{tab === 'updates' ? 'the house diaries, as stories — moving in next.' : tab === 'groups' ? 'your groups, gathered here — moving in next.' : 'the public rooms — opening soon.'}</Text>
+          <Text style={st.soonTitle}>rooms</Text>
+          <Text style={st.soonLine}>the public rooms — opening soon.</Text>
         </View>
       )}
 
@@ -219,6 +264,15 @@ export default function ChatHome({ onOpen = () => {} }) {
 }
 
 const st = StyleSheet.create({
+  updRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  updRing: { width: 50, height: 50, borderRadius: 25, borderWidth: 1.5, borderColor: 'rgba(159,194,232,0.45)', alignItems: 'center', justifyContent: 'center' },
+  updFace: { width: 44, height: 44, borderRadius: 22 },
+  updName: { fontFamily: 'Figtree_500Medium', color: '#E8ECF4', fontSize: 14.5 },
+  updLine: { fontFamily: 'Figtree_400Regular', color: 'rgba(232,236,244,0.55)', fontSize: 12.5, lineHeight: 17, marginTop: 1 },
+  updDiary: { marginLeft: 78, marginRight: 16, marginBottom: 8, paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: 'rgba(159,194,232,0.25)' },
+  updDate: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(159,194,232,0.7)', fontSize: 10, letterSpacing: 0.8 },
+  updEntry: { fontFamily: 'Figtree_400Regular', color: 'rgba(232,236,244,0.6)', fontSize: 12.5, lineHeight: 18, marginTop: 2 },
+  updGo: { fontFamily: 'Figtree_500Medium', color: '#9FC2E8', fontSize: 12.5, marginTop: 4, marginBottom: 6 },
   root: { flex: 1, backgroundColor: MOON.ground },
   searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 4, marginBottom: 10, borderWidth: 1, borderColor: MOON.hair, borderRadius: 22, paddingHorizontal: 14, backgroundColor: MOON.raise },
   searchIcon: { color: MOON.faint, fontSize: 17, marginRight: 8 },
