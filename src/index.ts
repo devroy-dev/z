@@ -276,6 +276,66 @@ app.post('/dm/:friendId', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'dm failed: ' + (e?.message || String(e)) }); }
 });
 
+// ════════════════════════════════════════════════════════════════════════
+//  COMMUNITIES — public rooms. Curated house rooms anyone can join; the doorman
+//  (the_moderator) is always resident. Reuses the shared-thread machinery.
+// ════════════════════════════════════════════════════════════════════════
+
+// the directory — every active public room, with live member count + residents
+app.get('/public-rooms', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: rooms } = await supabase.from('public_rooms')
+      .select('id, thread_id, slug, name, theme, persona_keys, member_count, sort_order')
+      .eq('active', true).order('sort_order', { ascending: true });
+    // which of these has the user already joined?
+    const threadIds = (rooms ?? []).map((r: any) => r.thread_id);
+    const joined = new Set<string>();
+    if (threadIds.length) {
+      const { data: mems } = await supabase.from('room_members')
+        .select('thread_id').eq('user_id', me.id).in('thread_id', threadIds);
+      for (const m of (mems ?? [])) joined.add((m as any).thread_id);
+    }
+    res.json((rooms ?? []).map((r: any) => ({
+      id: r.id, threadId: r.thread_id, slug: r.slug, name: r.name, theme: r.theme,
+      personas: (r.persona_keys || []).filter((k: string) => k !== 'the_moderator'),
+      doorman: 'the_moderator',
+      memberCount: r.member_count, joined: joined.has(r.thread_id),
+    })));
+  } catch (e: any) { res.status(500).json({ error: 'public rooms failed: ' + (e?.message || String(e)) }); }
+});
+
+// join a public room — adds membership on the underlying thread, bumps member_count
+app.post('/public-rooms/:id/join', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: room } = await supabase.from('public_rooms')
+      .select('id, thread_id, name, active').eq('id', req.params.id).maybeSingle();
+    if (!room || !room.active) return res.status(404).json({ error: 'no such room' });
+    // a permanent ban blocks joining outright
+    const { data: ban } = await supabase.from('room_sanctions')
+      .select('id, kind, until').eq('room_id', room.id).eq('user_id', me.id)
+      .eq('kind', 'ban').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (ban) return res.status(403).json({ error: 'the doorman has barred you from this room.' });
+    // already a member? idempotent
+    const { data: existing } = await supabase.from('room_members')
+      .select('thread_id').eq('thread_id', room.thread_id).eq('user_id', me.id).maybeSingle();
+    if (!existing) {
+      await supabase.from('room_members').insert({ thread_id: room.thread_id, user_id: me.id, role: 'member' });
+      await supabase.rpc('increment_public_room_count', { rid: room.id }).catch(async () => {
+        // no rpc? fall back to a read-modify-write
+        const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', room.id).maybeSingle();
+        await supabase.from('public_rooms').update({ member_count: ((r2 as any)?.member_count || 0) + 1 }).eq('id', room.id);
+      });
+    }
+    res.json({ id: room.id, threadId: room.thread_id, name: room.name });
+  } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 // create a companion
