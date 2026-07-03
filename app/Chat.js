@@ -32,6 +32,7 @@ const N = {
 // ── persona registry: name · soul-line · aura rgb (the room's light) ──
 const PERSONAS = {
   the_brother:{name:'the brother',desc:"love them, hate them, can't live without them. let's talk family.",rgb:'200,120,80'},
+  the_anchor:{name:'the anchor',desc:"the news desk is yours — the bulletin, then your questions.",rgb:'224,192,136'},
   the_healer:{name:'the healer',desc:"love once and you know what love is. love twice and you know what life is.",rgb:'124,92,220'},
   the_brainiac:{name:'the brainiac',desc:"i'll take the other side just to watch you get sharper.",rgb:'90,200,230'},
   the_screen_junkie:{name:'the screen junkie',desc:"endless suggestions, countless screen time.",rgb:'120,150,230'},
