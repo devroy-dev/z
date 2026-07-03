@@ -30,6 +30,7 @@ import { debateDuelAdapter } from './games/debateDuel.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
+import { PROFILE_BLURBS } from './blurbs.js';
 import { supabase } from './db.js';
 
 const app = express();
@@ -509,20 +510,22 @@ app.get('/persona-diary/:key', async (req, res) => {
     const { data } = await supabase.from('persona_states')
       .select('date, status_line, log_entry').eq('persona_key', key)
       .order('date', { ascending: false }).limit(10);
-    // a SHORT life-story blurb for the profile: just the opening paragraph of the
-    // codex's "THE LIFE BEHIND THE VOICE" — the story, not the disposition/self-
-    // awareness/pursuit labels below it. The full life stays private (engine-only).
+    // a SHORT life-story blurb for the profile ("their story"). Prefer the
+    // hand-written third-person blurb keyed by the persona's CODEX; fall back to
+    // slicing the codex opening (2nd person) only if none is authored. Full life
+    // stays engine-private.
     let blurb: string | null = null;
     try {
       const codex = personaByKey(key)?.codex;
-      if (codex) {
+      if (codex && PROFILE_BLURBS[codex]) {
+        blurb = PROFILE_BLURBS[codex];
+      } else if (codex) {
         const raw = readContentFile(`codex-${codex.replace(/_/g, '-')}.md`);
         const i = raw.indexOf('## THE LIFE BEHIND THE VOICE');
         if (i > -1) {
           const after = raw.slice(i + '## THE LIFE BEHIND THE VOICE'.length);
-          // first non-empty paragraph, stopping before the first "**label:**" or next heading
           const para = after.split(/\n\s*\n/).map((s) => s.trim()).find((s) => s && !s.startsWith('**') && !s.startsWith('#'));
-          if (para) blurb = para.replace(/\s+/g, ' ').trim().slice(0, 600);
+          if (para) blurb = para.replace(/\s+/g, ' ').trim().replace(/\*+/g, '').slice(0, 600);
         }
       }
     } catch (e) { /* blurb is best-effort */ }
