@@ -100,6 +100,9 @@ function DeskOrb({ size = 40 }) {
   );
 }
 
+// texting register: an assistant reply with blank lines becomes several bubbles
+const splitBursts = (t) => String(t || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
   const P = PERSONAS[KEY];
@@ -352,7 +355,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   ) : m.who === 'you' ? (
                     <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
                   ) : m.text ? (
-                    <View style={styles.themWrap}><RichText text={m.text} style={styles.themText} /></View>
+                    splitBursts(m.text).map((burst, bi) => (
+                      <View key={bi} style={[styles.themWrap, bi > 0 && { marginTop: 5 }]}><RichText text={burst} style={styles.themText} /></View>
+                    ))
                   ) : (
                     <Text style={styles.themText}>{m.typing ? '…' : ''}</Text>
                   )}

@@ -70,12 +70,30 @@ export async function getBulletin(scope: string, cityName?: string): Promise<any
 
 // the morning edition, compiled before the house wakes
 export function startBulletinScheduler() {
-  const RUN_HOUR_IST = 6;
+  const RUN_HOUR_IST = 5;
   const tick = async () => {
     const istHour = Math.floor((new Date().getUTCHours() + 5.5) % 24);
     if (istHour !== RUN_HOUR_IST) return;
     try { await getBulletin('in'); } catch (e: any) { console.error('[bulletin] morning run failed:', e?.message || e); }
   };
+  // hourly top-up: the anchor adds up to two stories ONLY if something genuinely
+  // new broke since the edition — silence is allowed; filler is not.
+  const topUp = async () => {
+    const istHour = Math.floor((new Date().getUTCHours() + 5.5) % 24);
+    if (istHour <= RUN_HOUR_IST || istHour > 23) return;
+    try {
+      const day = istToday();
+      const { data: hit } = await supabase.from('bulletins').select('id, stories').eq('scope', 'in').eq('day', day).maybeSingle();
+      if (!hit) return;
+      const have = (hit.stories as any[]).map((s) => s.headline).join(' | ');
+      const fresh = await generate(`It is now ${istHour}:00 IST on ${day}. The bulletin already carries these headlines: ${have}. Search the web for what has happened in the LAST FEW HOURS only. If — and only if — something genuinely NEW and significant broke that is not already covered, give me up to 2 stories for it. If nothing truly new broke, output nothing at all.`);
+      if (!fresh.length) return;
+      const merged = [...(hit.stories as any[]), ...fresh.map((s, i) => ({ ...s, id: (hit.stories as any[]).length + i + 1 }))].slice(0, 16);
+      await supabase.from('bulletins').update({ stories: merged }).eq('id', hit.id);
+      console.log('[bulletin] top-up added', fresh.length);
+    } catch (e: any) { console.error('[bulletin] top-up failed:', e?.message || e); }
+  };
   setInterval(tick, 55 * 60 * 1000);
-  console.log('[bulletin] the anchor clocks in at', RUN_HOUR_IST, 'IST');
+  setInterval(topUp, 60 * 60 * 1000);
+  console.log('[bulletin] the anchor clocks in at', RUN_HOUR_IST, 'IST, tops up hourly');
 }

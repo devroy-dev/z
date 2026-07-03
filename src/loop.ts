@@ -4,12 +4,8 @@
 //   DYNAMIC (uncached): today's date + the shared memory block. Changes per turn.
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
-import { withGapMarker, sinceLine } from './timegap.js';
-import { arcBlockFor } from './arcs.js';
-import { stateBlockFor } from './personaStates.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
-import { logUsage } from './usage.js';
 import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 
@@ -120,27 +116,12 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nYou open already engaged, mid-thought about them; you never ask 'how are you' or 'what's on your mind' — you offer, you don't ask. When you see where someone belongs, name that room warmly in your own words and drop its GOTO tag on its own line (two or three at most, only when they truly fit). For the personal, heavy, or advice-shaped thing, you draw them inward with a [[GOTO: z_serious]] tag — the quiet room, just you and them, not a hand-off. When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags.]`;
   }
 
-  // ── prior turns for this thread ───────────────────────────────────────
-  const { data: history } = await supabase
-    .from('messages')
-    .select('role, content, created_at')
-    .eq('thread_id', threadId)
-    .order('created_at', { ascending: true })
-    .limit(40);
-  const priorTurns: Anthropic.MessageParam[] = (history ?? []).map((m: any, i: number) => ({
-    role: m.role,
-    content: withGapMarker(m.content, i > 0 ? (history as any)[i - 1].created_at : null, m.created_at),
-  }));
-  const lastAt = (history && history.length) ? (history as any)[history.length - 1].created_at : null;
-
-  let arcBlock = '';
-  if (t.persona_key) { try { arcBlock = await arcBlockFor(userId, t.persona_key); } catch {} }
-  const buzzBlock = (message || '').trim() === '*buzz*'
-    ? `\n\n[The user just BUZZED you — a wordless, friendly poke, the old-messenger nudge. There is nothing to answer; it means "oi, you there?" Reply SHORT and playful, completely in your voice — buzz back in spirit, tease, or toss them a crumb of your day if it's alive. One or two lines, never a lecture, never "how can I help".]`
-    : '';
-  let stateBlock = '';
-  if (t.persona_key) { try { stateBlock = await stateBlockFor(t.persona_key); } catch {} }
-  const dynamic = `\n\n[${todayLine}${sinceLine(lastAt)}]${ownerLine}${seriousLine}${gameLine}${arcBlock}${stateBlock}${buzzBlock}${frontDeskBlock}${memoryBlock}`;
+  // THE CHAT REGISTER: personas text like people — short bursts, not essays.
+  let registerNote = '\n\n[TEXTING REGISTER: this is a phone chat. Keep messages SHORT — most under 25 words. When you have more to say, break it into 2-3 separate short messages with a blank line between them (each becomes its own bubble). A question lands alone in its own bubble. Never write essays.]';
+  if (t?.persona_key === 'the_anchor') {
+    registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly: "that is a misstatement" / "that forward is fabricated - here is what actually happened." Never soften a correction into ambiguity; never confirm what you have not verified.]';
+  }
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${memoryBlock}${registerNote}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
@@ -149,6 +130,15 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,
   ];
   if (dynamic.trim()) system.push({ type: 'text', text: dynamic });
+
+  // ── prior turns for this thread ───────────────────────────────────────
+  const { data: history } = await supabase
+    .from('messages')
+    .select('role, content')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: true })
+    .limit(40);
+  const priorTurns: Anthropic.MessageParam[] = (history ?? []).map((m: any) => ({ role: m.role, content: m.content }));
 
   // persist the user's message (store a marker if it carried an image, so history shows it)
   const storedContent = input.image ? (message ? message + '\n[shared an image]' : '[shared an image]') : message;
@@ -261,8 +251,6 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     in: u.input_tokens ?? 0, out: u.output_tokens ?? 0,
     cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0,
   };
-
-  logUsage({ userId, threadId, surface: 'chat', model: MODEL, usage });
 
   // persist Z's reply + touch the thread
   await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'assistant', content: reply });
