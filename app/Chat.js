@@ -139,6 +139,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   }, []);
   const targetRef = useRef('');
   const shownRef = useRef('');
+  const shownBurstsRef = useRef(0);       // resident delivery: bursts already popped
   const streamDoneRef = useRef(false);
   const pacingRef = useRef(false);
   const atBottomRef = useRef(true);
@@ -207,6 +208,31 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     );
   };
 
+  // resident delivery: bubbles pop ONE AT A TIME like a person texting.
+  // a burst is complete once its \n\n boundary streams in (or the stream ends),
+  // so the first bubble lands early; the rest follow with a human beat.
+  const burstTick = (zId, finalize) => {
+    if (!pacingRef.current) return;
+    const done = streamDoneRef.current;
+    const parts = targetRef.current.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+    const complete = done ? parts.length : Math.max(0, parts.length - 1);
+    if (shownBurstsRef.current < complete) {
+      const n = shownBurstsRef.current + 1;
+      shownBurstsRef.current = n;
+      const isLast = done && n >= parts.length;
+      setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: parts.slice(0, n).join('\n\n'), typing: !isLast } : m)));
+      scrollDown();
+      if (isLast) { pacingRef.current = false; finalize && finalize(); return; }
+      setTimeout(() => burstTick(zId, finalize), 420 + Math.random() * 320);
+    } else if (done) {
+      pacingRef.current = false;
+      setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: targetRef.current, typing: false } : m)));
+      finalize && finalize();
+    } else {
+      setTimeout(() => burstTick(zId, finalize), 150);
+    }
+  };
+
   const revealTick = (zId, finalize) => {
     if (!pacingRef.current) return;
     const target = targetRef.current;
@@ -251,10 +277,11 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
 
     targetRef.current = '';
     shownRef.current = '';
+    shownBurstsRef.current = 0;
     streamDoneRef.current = false;
-    pacingRef.current = LIVE_STREAM;
+    pacingRef.current = true;
     const done = () => { sendingRef.current = false; setSending(false); };
-    if (LIVE_STREAM) revealTick(zId, done);
+    if (LIVE_STREAM) revealTick(zId, done); else burstTick(zId, done);
 
     streamChat({
       threadId: tid,
@@ -264,12 +291,6 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       onDone: (acc) => {
         targetRef.current = acc || targetRef.current;
         streamDoneRef.current = true;
-        if (!LIVE_STREAM) {
-          const full = targetRef.current;
-          setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: full, typing: false } : m)));
-          scrollDown();
-          done();
-        }
       },
       onError: (msg) => {
         pacingRef.current = false;
@@ -367,9 +388,12 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   ) : m.who === 'you' ? (
                     <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
                   ) : m.text ? (
-                    splitBursts(m.text).map((burst, bi) => (
-                      <View key={bi} style={[styles.themWrap, bi > 0 && { marginTop: 5 }]}><RichText text={burst} style={styles.themText} /></View>
-                    ))
+                    <>
+                      {splitBursts(m.text).map((burst, bi) => (
+                        <View key={bi} style={[styles.themWrap, bi > 0 && { marginTop: 5 }]}><RichText text={burst} style={styles.themText} /></View>
+                      ))}
+                      {m.typing ? <Text style={[styles.themText, { marginTop: 5 }]}>…</Text> : null}
+                    </>
                   ) : (
                     <Text style={styles.themText}>{m.typing ? '…' : ''}</Text>
                   )}
