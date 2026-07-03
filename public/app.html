@@ -679,8 +679,8 @@ body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px
 
 
 /* ── live table (multiplayer felt) ── */
-#ltab{position:fixed;inset:0;z-index:400;background:linear-gradient(180deg,#12100E,#0D0B09 55%,#0a0908);display:none;flex-direction:column;font-family:inherit}
-#ltab.on{display:flex}
+#ltab,#cbtab,#pktab,#pstab,#ldtab{position:fixed;inset:0;z-index:400;background:linear-gradient(180deg,#12100E,#0D0B09 55%,#0a0908);display:none;flex-direction:column;font-family:inherit}
+#ltab.on,#cbtab.on,#pktab.on,#pstab.on,#ldtab.on{display:flex}
 .lt-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
 .lt-kick{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#F0A765;opacity:.85}
 .lt-x{color:#9a8f80;font-size:26px;background:none;border:0;cursor:pointer;line-height:1}
@@ -711,6 +711,24 @@ body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px
 .lt-liar{padding:0 15px;height:46px;border-radius:12px;border:1.5px solid rgba(240,112,140,.6);background:rgba(240,112,140,.08);color:#F0708C;font-weight:600;letter-spacing:2px;cursor:pointer}
 .lt-wait{font-style:italic;color:#9a8f80;font-size:13.5px}
 #lt-join{position:absolute;right:14px;top:64px;z-index:40;padding:8px 13px;border-radius:12px;border:1px solid rgba(240,167,101,.5);background:rgba(20,14,8,.92);color:#F0A765;font-weight:600;font-size:12px;cursor:pointer;display:none}
+/* ── shared playing card + the four felts (cb/pk/ps/ld) ── */
+.gcard{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:42px;height:58px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:#17130f;color:#E9E4DA;font-family:Fraunces,serif;cursor:pointer;user-select:none;flex:0 0 auto}
+.gcard .r{font-size:16px;line-height:1}.gcard .u{font-size:13px;margin-top:2px}
+.gcard.red{color:#F0708C}.gcard.small{width:34px;height:47px}.gcard.small .r{font-size:13px}.gcard.small .u{font-size:11px}
+.gcard.sel{transform:translateY(-8px);border-color:#F0A765;background:rgba(240,167,101,.12)}
+.gcard.dim{opacity:.35}.gcard.back{background:rgba(255,255,255,.06);border-style:dashed}
+.ghand{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;padding:4px 10px;max-width:100%}
+.gpill{font-size:11px;color:#9a8f80}.gline{font-size:12px;color:#9a8f80;font-style:italic}
+.pk-stack{font-size:11px;color:#8FD98F}.pk-comm{font-size:10.5px;color:#F0A765}
+.pk-pot{font-family:Fraunces,serif;font-size:30px;color:#f2e9dc}.pk-board{display:flex;gap:6px;justify-content:center;margin-top:8px}
+.ld-wrap{display:flex;align-items:center;justify-content:center;flex:1}
+.ld-board{position:relative;display:grid;grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);width:min(92vw,330px);aspect-ratio:1;border:1px solid rgba(255,255,255,.14);border-radius:10px;overflow:hidden;background:#0f0c12}
+.ld-c{border:0.5px solid rgba(255,255,255,.045)}
+.ld-y0{background:rgba(240,167,101,.14)}.ld-y1{background:rgba(111,201,224,.14)}.ld-y2{background:rgba(143,217,143,.14)}.ld-y3{background:rgba(240,112,140,.14)}
+.ld-l0{background:rgba(240,167,101,.22)}.ld-l1{background:rgba(111,201,224,.22)}.ld-l2{background:rgba(143,217,143,.22)}.ld-l3{background:rgba(240,112,140,.22)}
+.ld-ring{background:rgba(255,255,255,.05)}.ld-ctr{background:rgba(255,255,255,.10)}
+.ld-tok{position:absolute;width:5.2%;height:5.2%;border-radius:50%;border:1.5px solid rgba(0,0,0,.5);z-index:2;cursor:pointer;transition:left .18s,top .18s}
+.ld-tok.lit{border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.6)}
 </style>
 </head>
 <body>
@@ -4111,13 +4129,283 @@ async function ltWatchRoom(){
   try{
     const r=await zfetch('/games/room/'+activeRoom.id+'/live',{headers:HDRS()});
     const j=await r.json();
-    if(j&&j.id&&j.status==='live'){ pill.style.display='block'; pill.onclick=()=>{pill.style.display='none';ltOpen(j.id);}; }
+    if(j&&j.id&&j.status==='live'){
+      var opener={liarsdice:ltOpen,callbreak:cbOpen,poker:pkOpen,pusoy:psOpen,ludo:ldOpen}[j.game];
+      var gl={liarsdice:"liar's dice",callbreak:'callbreak',poker:'poker',pusoy:'pusoy dos',ludo:'ludo'}[j.game]||j.game;
+      if(opener){ pill.textContent='\uD83C\uDFB2 '+gl+' live \u2014 take a seat'; pill.style.display='block'; pill.onclick=()=>{pill.style.display='none';opener(j.id);}; }
+      else pill.style.display='none';
+    }
     else pill.style.display='none';
   }catch(e){pill.style.display='none';}
 }
 setInterval(ltWatchRoom,5000);
 </script>
 
+<script>
+/* ═══ FOUR MORE FELTS — callbreak / poker / pusoy / ludo. Same law as LT:
+   server owns rules; we render the filtered view, offer only what the state
+   implies, send the move with the version we rendered, poll. ═══ */
+var SUIT=['\u2660','\u2665','\u2666','\u2663'];
+function rname(r){return r===14?'A':r===13?'K':r===12?'Q':r===11?'J':String(r);}
+function cardHTML(c,cls,attr){ if(!c)return '<span class="gcard back '+(cls||'')+'"></span>';
+  var red=(c.s===1||c.s===2)?' red':'';
+  return '<span class="gcard'+red+(cls?' '+cls:'')+'" '+(attr||'')+'><span class="r">'+rname(c.r)+'</span><span class="u">'+SUIT[c.s]+'</span></span>'; }
+function mkTable(prefix){ return function(sid){
+  var T=window[prefix.toUpperCase()]; if(T&&T.timer)clearInterval(T.timer);
+  window[prefix.toUpperCase()]={sid:sid,view:null,ver:0,timer:null,sel:{}};
+  document.getElementById(prefix+'tab').classList.add('on');
+  var refresh=window[prefix+'Refresh']; refresh();
+  window[prefix.toUpperCase()].timer=setInterval(refresh,1600); }; }
+function mkClose(prefix){ return function(){ var T=window[prefix.toUpperCase()];
+  document.getElementById(prefix+'tab').classList.remove('on');
+  if(T&&T.timer)clearInterval(T.timer); if(T)T.sid=null; }; }
+function mkRefresh(prefix){ return async function(){
+  var T=window[prefix.toUpperCase()]; if(!T||!T.sid)return;
+  try{
+    var r=await zfetch('/games/session/'+T.sid,{headers:HDRS()});
+    var j=await r.json();
+    if(j&&j.error&&/not seated/.test(j.error)){
+      var c=await zfetch('/games/session/'+T.sid+'/claim',{method:'POST',headers:HDRS(),body:'{}'});
+      var cj=await c.json(); if(cj&&cj.error){ window[prefix+'Close'](); alert(cj.error); return; }
+      return window[prefix+'Refresh']();
+    }
+    if(j&&j.version&&j.version!==T.ver){ T.ver=j.version; T.view=j; window[prefix+'Paint'](); }
+  }catch(e){ console.error(prefix+' refresh',e); }
+};}
+function mkMove(prefix){ return async function(m){
+  var T=window[prefix.toUpperCase()];
+  try{ var r=await zfetch('/games/session/'+T.sid+'/move',{method:'POST',headers:HDRS(),body:JSON.stringify({move:m,version:T.ver})});
+    var j=await r.json(); if(j&&j.error&&!/stale/i.test(j.error))alert(j.error);
+  }catch(e){ console.error(prefix+' move',e); }
+  window[prefix+'Refresh']();
+};}
+function gName(T,i){var st=T.view&&T.view.seats&&T.view.seats[i];if(!st)return '?';
+  if(st.kind==='persona')return (CAT[st.id]?CAT[st.id].name:st.id).replace(/^the /,'');
+  if(i===T.view.mySeat)return 'you'; if(st.kind==='open')return 'open seat'; return 'friend';}
+function gFace(T,i,acting){var st=T.view.seats[i];
+  return st.kind==='persona' ? '<div class="lt-face'+(acting?' act':'')+'">'+dpFor(st.id)+'</div>'
+       : '<div class="lt-face hum'+(acting?' act':'')+'">'+(st.kind==='open'?'?':'\u263A')+'</div>';}
+function fmt1(x){return (Math.round((x||0)*10)/10);}
+
+/* ── CALLBREAK ── */
+var CB={sid:null,view:null,ver:0,timer:null,sel:{}};
+var cbOpen=mkTable('cb'),cbClose=mkClose('cb'),cbRefresh=mkRefresh('cb'),cbMove=mkMove('cb');
+function cbPaint(){
+  var v=CB.view,st=v.state||{},g=st.g,me=v.mySeat;
+  var myBid=g&&g.phase==='bidding'&&g.toBid===me, myPlay=g&&g.phase==='play'&&g.toPlay===me;
+  document.getElementById('cb-kick').textContent='callbreak \u00b7 round '+((st.round||0)+1)+' of 5';
+  document.getElementById('cb-opps').innerHTML=(v.seats||[]).map(function(seat,i){
+    if(i===me)return '';
+    var acting=g&&((g.phase==='bidding'&&g.toBid===i)||(g.phase==='play'&&g.toPlay===i));
+    var bid=g&&g.bids&&g.bids[i]!=null?g.tricks[i]+'/'+g.bids[i]:'\u2026';
+    return '<div class="lt-seat">'+gFace(CB,i,acting)+'<div class="lt-nm">'+gName(CB,i)+'</div><div class="gpill">'+bid+' \u00b7 '+fmt1(st.totals&&st.totals[i])+'</div></div>';
+  }).join('');
+  var felt=document.getElementById('cb-felt');
+  if(!g){felt.innerHTML='<div class="lt-hint">taking your seat\u2026</div>';}
+  else if(g.phase==='over'||st.done){
+    felt.innerHTML='<div class="lt-ban"><b>FINAL BOARD</b><div class="sub">'+(st.totals||[]).map(function(t,i){return gName(CB,i)+' '+fmt1(t);}).join(' \u00b7 ')+'</div><button class="lt-btn" onclick="cbClose()">back to the room</button></div>';
+  }else if(g.phase==='scored'){
+    felt.innerHTML='<div class="lt-ban"><b>'+((st.lastScores&&st.lastScores[me])>0?'CALL MADE \u2014 +'+fmt1(st.lastScores[me]):'CALL MISSED \u2014 '+fmt1(st.lastScores&&st.lastScores[me]))+'</b><div class="sub">'+(st.lastScores||[]).map(function(x,i){return gName(CB,i)+' '+(x>0?'+':'')+fmt1(x);}).join(' \u00b7 ')+'</div><button class="lt-btn" onclick="cbMove({type:\'next\'})">next round</button></div>';
+  }else{
+    var trick=(g.trick&&g.trick.length?g.trick:(g.history&&g.history.length?g.history[g.history.length-1].trick:[]))||[];
+    felt.innerHTML=(trick.length?'<div class="ghand">'+trick.map(function(t){return cardHTML(t.card,'small');}).join('')+'</div><div class="gline">'+trick.map(function(t){return gName(CB,t.seat);}).join(' \u00b7 ')+'</div>':'')
+      +'<div class="lt-hint">'+(g.phase==='bidding'?(myBid?'your call \u2014 how many?':gName(CB,g.toBid)+' is calling\u2026'):(myPlay?(trick.length?'your card':'your lead'):gName(CB,g.toPlay)+(trick.length?' to play':' leads')+'\u2026'))+'</div>';
+  }
+  var hand=(g&&me>=0&&g.hands&&g.hands[me])||[];
+  var lead=g&&g.trick&&g.trick.length?g.trick[0].card.s:null;
+  var hasLead=lead!=null&&hand.some(function(c){return c.s===lead;});
+  document.getElementById('cb-hand').innerHTML=hand.map(function(c,i){
+    var dim=myPlay&&hasLead&&c.s!==lead;
+    return cardHTML(c,(dim?'dim':''),myPlay?'onclick="cbMove({type:\'card\',card:{s:'+c.s+',r:'+c.r+'}})"':'');
+  }).join('');
+  document.getElementById('cb-acts').innerHTML=myBid?[1,2,3,4,5,6,7,8].map(function(n){return '<button class="lt-q" onclick="cbMove({type:\'bid\',n:'+n+'})">'+n+'</button>';}).join(''):'';
+}
+
+/* ── POKER ── */
+var PK={sid:null,view:null,ver:0,timer:null,sel:{}};
+var pkOpen=mkTable('pk'),pkClose=mkClose('pk'),pkRefresh=mkRefresh('pk'),pkMove=mkMove('pk');
+function pkBet(mult){
+  var g=PK.view.state.g,me=PK.view.mySeat;
+  var pot=(g.totalCommit||[]).reduce(function(a,b){return a+b;},0);
+  var owe=Math.max(0,g.toMatch-(g.committed[me]||0));
+  var target=mult==='allin'?(g.committed[me]+g.stacks[me]):Math.round(g.toMatch+Math.max((pot+owe)*mult,40));
+  pkMove({type:owe>0?'raise':'bet',to:target});
+}
+function pkPaint(){
+  var v=PK.view,st=v.state||{},g=st.g,me=v.mySeat;
+  var pot=g?(g.totalCommit||[]).reduce(function(a,b){return a+b;},0):0;
+  var over=g&&g.street==='over';
+  var myTurn=g&&!over&&g.toAct===me&&!(g.folded&&g.folded[me])&&!(g.allIn&&g.allIn[me]);
+  document.getElementById('pk-opps').innerHTML=(v.seats||[]).map(function(seat,i){
+    if(i===me)return '';
+    var acting=g&&!over&&g.toAct===i, folded=g&&g.folded&&g.folded[i];
+    var reveal=over&&!folded&&g.hole&&g.hole[i];
+    return '<div class="lt-seat" style="'+(folded?'opacity:.35':'')+'">'+gFace(PK,i,acting)
+      +'<div class="lt-nm">'+gName(PK,i)+'</div>'
+      +'<div class="pk-stack">'+(g?g.stacks[i]:'')+(g&&g.committed&&g.committed[i]>0&&!over?' <span class="pk-comm">+'+g.committed[i]+'</span>':'')+(g&&g.allIn&&g.allIn[i]?' \u00b7 all-in':'')+'</div>'
+      +(reveal?'<div class="ghand">'+g.hole[i].map(function(c){return cardHTML(c,'small');}).join('')+'</div>':'')
+      +'</div>';
+  }).join('');
+  var felt=document.getElementById('pk-felt');
+  if(!g){felt.innerHTML='<div class="lt-hint">taking your seat\u2026</div>';}
+  else{
+    var boardH='<div class="pk-board">'+[0,1,2,3,4].map(function(i){return cardHTML(g.board&&g.board[i],'small');}).join('')+'</div>';
+    var head='<div class="pk-pot">'+pot+'</div><div class="gpill">the pot'+(!over?' \u00b7 '+(g.street==='preflop'?'pre-flop':g.street):'')+'</div>';
+    var ban='';
+    if(over){
+      var lines=(g.results&&g.results.scores)?g.results.scores.map(function(x,i){return gName(PK,i)+' '+(x>0?'+':'')+x;}).join(' \u00b7 '):'hand over';
+      ban='<div class="lt-ban" style="margin-top:8px"><b>SHOWDOWN</b><div class="sub">'+lines+'</div><button class="lt-btn" onclick="pkMove({type:\'deal\'})">deal on</button></div>';
+    } else if(!myTurn){ ban='<div class="lt-wait" style="margin-top:6px">'+gName(PK,g.toAct)+' to act\u2026</div>'; }
+    felt.innerHTML=head+boardH+ban;
+  }
+  document.getElementById('pk-hand').innerHTML=(g&&me>=0&&g.hole&&g.hole[me]?g.hole[me]:[null,null]).map(function(c){return cardHTML(c);}).join('');
+  var acts=document.getElementById('pk-acts');
+  if(myTurn){
+    var owe=Math.max(0,g.toMatch-(g.committed[me]||0));
+    acts.innerHTML=(owe>0
+      ? '<button class="lt-liar" onclick="pkMove({type:\'fold\'})">FOLD</button><button class="lt-btn" style="margin:0" onclick="pkMove({type:\'call\'})">call '+owe+'</button>'
+      : '<button class="lt-btn" style="margin:0" onclick="pkMove({type:\'check\'})">check</button>')
+      +'<button class="lt-q" style="width:auto;padding:0 10px" onclick="pkBet(0.5)">\u00bd pot</button>'
+      +'<button class="lt-q" style="width:auto;padding:0 10px" onclick="pkBet(1)">pot</button>'
+      +'<button class="lt-q" style="width:auto;padding:0 10px" onclick="pkBet(\'allin\')">all-in</button>';
+  } else acts.innerHTML='';
+  document.getElementById('pk-me').textContent=g&&me>=0?('your stack '+g.stacks[me]+(g.committed&&g.committed[me]>0&&!over?' \u00b7 in for '+g.committed[me]:'')):'';
+}
+
+/* ── PUSOY DOS ── */
+var PS={sid:null,view:null,ver:0,timer:null,sel:{}};
+var psOpen=mkTable('ps'),psClose=mkClose('ps'),psRefresh=mkRefresh('ps'),psMove=mkMove('ps');
+function psToggle(k){ PS.sel[k]=!PS.sel[k]; psPaint(); }
+function psPlay(){
+  var g=PS.view.state,me=PS.view.mySeat;
+  var cards=(g.hands[me]||[]).filter(function(c){return PS.sel[c.s+':'+c.r];});
+  if(!cards.length){alert('pick the cards first');return;}
+  PS.sel={}; psMove({type:'play',cards:cards});
+}
+function psPaint(){
+  var v=PS.view,g=v.state,me=v.mySeat;
+  var myTurn=g&&g.winner==null&&g.toAct===me;
+  document.getElementById('ps-opps').innerHTML=(v.seats||[]).map(function(seat,i){
+    if(i===me)return '';
+    var acting=g&&g.winner==null&&g.toAct===i;
+    return '<div class="lt-seat">'+gFace(PS,i,acting)+'<div class="lt-nm">'+gName(PS,i)+'</div><div class="lt-cup">\uD83C\uDCA0 \u00d7'+(g&&g.counts?g.counts[i]:13)+'</div></div>';
+  }).join('');
+  var felt=document.getElementById('ps-felt');
+  if(!g){felt.innerHTML='<div class="lt-hint">taking your seat\u2026</div>';}
+  else if(g.winner!=null){
+    felt.innerHTML='<div class="lt-ban"><b>'+(g.winner===me?'CARDS GONE \u2014 YOU WIN':gName(PS,g.winner).toUpperCase()+' GOES OUT FIRST')+'</b><br><button class="lt-btn" onclick="psClose()">back to the room</button></div>';
+  }else if(g.table&&g.table.cards){
+    felt.innerHTML='<div class="ghand">'+g.table.cards.map(function(c){return cardHTML(c,'small');}).join('')+'</div><div class="lt-who">'+gName(PS,g.table.by)+' set it down</div>'+(!myTurn?'<div class="lt-wait">'+gName(PS,g.toAct)+' to act</div>':'');
+  }else{
+    felt.innerHTML='<div class="lt-hint">'+(myTurn?(g.firstPlay?'your lead \u2014 the 3\u2666 opens':'the table is yours \u2014 lead anything'):gName(PS,g.toAct)+' leads\u2026')+'</div>';
+  }
+  var hand=(g&&me>=0&&g.hands&&g.hands[me])||[];
+  document.getElementById('ps-hand').innerHTML=hand.map(function(c){
+    var k=c.s+':'+c.r;
+    return cardHTML(c,(PS.sel[k]?'sel':''),'onclick="psToggle(\''+k+'\')"');
+  }).join('');
+  document.getElementById('ps-acts').innerHTML=myTurn
+    ? '<button class="lt-btn" style="margin:0" onclick="psPlay()">play selected</button>'+(g.table?'<button class="lt-liar" onclick="PS.sel={};psMove({type:\'pass\'})">PASS</button>':'')
+    : (g&&g.winner==null?'<div class="lt-wait">'+gName(PS,g.toAct)+' is thinking\u2026</div>':'');
+}
+
+/* ── LUDO — the 15\u00d715 grid, geometry mirrored from the native boardMap ── */
+var LD={sid:null,view:null,ver:0,timer:null,sel:{}};
+var ldOpen=mkTable('ld'),ldClose=mkClose('ld'),ldRefresh=mkRefresh('ld'),ldMove=mkMove('ld');
+var LD_TONES=['#F0A765','#6FC9E0','#8FD98F','#F0708C'];
+function ldRing(){ var p=[],push=function(r,c){p.push([r,c]);},r,c;
+  for(c=1;c<=5;c++)push(6,c); for(r=5;r>=0;r--)push(r,6); push(0,7);
+  for(r=0;r<=5;r++)push(r,8); for(c=9;c<=14;c++)push(6,c); push(7,14);
+  for(c=14;c>=9;c--)push(8,c); for(r=9;r<=14;r++)push(r,8); push(14,7);
+  for(r=14;r>=9;r--)push(r,6); for(c=5;c>=0;c--)push(8,c); push(7,0); push(6,0); return p; }
+var LD_RING=ldRing();
+var LD_LANES=[[[7,1],[7,2],[7,3],[7,4],[7,5]],[[1,7],[2,7],[3,7],[4,7],[5,7]],[[7,13],[7,12],[7,11],[7,10],[7,9]],[[13,7],[12,7],[11,7],[10,7],[9,7]]];
+var LD_YARDS=[[[2,2],[2,3],[3,2],[3,3]],[[2,11],[2,12],[3,11],[3,12]],[[11,11],[11,12],[12,11],[12,12]],[[11,2],[11,3],[12,2],[12,3]]];
+function ldCell(seat,steps){ if(steps===0)return null;
+  if(steps<=51)return LD_RING[(([0,13,26,39][seat])+steps-1)%52];
+  if(steps<57)return LD_LANES[seat][steps-52]; return [7,7]; }
+function ldGridHTML(){ var cells='';
+  for(var r=0;r<15;r++)for(var c=0;c<15;c++){
+    var cls='ld-c';
+    if(r<6&&c<6)cls+=' ld-y0'; else if(r<6&&c>8)cls+=' ld-y1';
+    else if(r>8&&c>8)cls+=' ld-y2'; else if(r>8&&c<6)cls+=' ld-y3';
+    else if(r===7&&c===7)cls+=' ld-ctr';
+    else{
+      var lane=-1;
+      for(var s2=0;s2<4;s2++)for(var k=0;k<5;k++)if(LD_LANES[s2][k][0]===r&&LD_LANES[s2][k][1]===c)lane=s2;
+      if(lane>=0)cls+=' ld-l'+lane; else cls+=' ld-ring';
+    }
+    cells+='<div class="'+cls+'"></div>';
+  }
+  return cells;
+}
+function ldMovable(g,seat){ var out={};
+  if(g.phase!=='move'||g.die==null)return out;
+  (g.players[seat].tokens||[]).forEach(function(t,i){
+    if(t.steps===57)return;
+    if(t.steps===0){ if(g.die===6)out[i]=true; return; }
+    if(t.steps+g.die<=57)out[i]=true;
+  }); return out; }
+function ldPaint(){
+  var v=LD.view,g=v.state,me=v.mySeat;
+  var myTurn=g&&g.winner==null&&g.turn===me;
+  var lit=myTurn?ldMovable(g,me):{};
+  document.getElementById('ld-opps').innerHTML=(v.seats||[]).map(function(seat,i){
+    var acting=g&&g.winner==null&&g.turn===i;
+    return '<div class="lt-seat" style="width:auto;padding:0 6px">'+gFace(LD,i,acting)+'<div class="lt-nm" style="color:'+LD_TONES[i]+'">'+gName(LD,i)+'</div></div>';
+  }).join('');
+  var board=document.getElementById('ld-board');
+  if(!board.dataset.built){ board.innerHTML=ldGridHTML(); board.dataset.built='1'; }
+  board.querySelectorAll('.ld-tok').forEach(function(n){n.remove();});
+  if(g){
+    var stacks={};
+    (g.players||[]).forEach(function(p,seat){ (p.tokens||[]).forEach(function(t,ti){
+      var pos=t.steps===0?LD_YARDS[seat][ti]:ldCell(seat,t.steps);
+      if(!pos)return;
+      var key=pos[0]+'-'+pos[1]; var n=stacks[key]=(stacks[key]||0)+1;
+      var el=document.createElement('div'); el.className='ld-tok'+(seat===me&&lit[ti]?' lit':'');
+      el.style.background=LD_TONES[seat];
+      el.style.left=((pos[1]/15)*100+0.7+(n-1)*1.1)+'%'; el.style.top=((pos[0]/15)*100+0.7+(n-1)*1.1)+'%';
+      if(seat===me&&lit[ti]) el.onclick=function(){ ldMove({type:'move',token:ti}); };
+      board.appendChild(el);
+    });});
+  }
+  var acts=document.getElementById('ld-acts');
+  if(!g)acts.innerHTML='<div class="lt-wait">taking your seat\u2026</div>';
+  else if(g.winner!=null)acts.innerHTML='<div class="lt-ban"><b>'+(g.winner===me?'ALL FOUR HOME \u2014 YOU WIN':gName(LD,g.winner).toUpperCase()+' BRINGS IT HOME')+'</b><br><button class="lt-btn" onclick="ldClose()">back to the room</button></div>';
+  else if(myTurn&&g.phase==='roll')acts.innerHTML='<button class="lt-btn" style="margin:0;padding:12px 34px" onclick="ldMove({type:\'roll\'})">roll</button>';
+  else if(myTurn&&g.phase==='move')acts.innerHTML='<div class="lt-hint">you rolled a '+g.die+' \u2014 tap a lit token</div>';
+  else acts.innerHTML='<div class="lt-wait">'+gName(LD,g.turn)+"'s turn"+(g.die!=null&&g.phase==='move'?' \u00b7 rolled '+g.die:'')+'</div>';
+}
+</script>
+
+<div id="cbtab">
+  <div class="lt-bar"><span class="lt-kick" id="cb-kick">callbreak · live table</span><button class="lt-x" onclick="cbClose()">×</button></div>
+  <div class="lt-opps" id="cb-opps"></div>
+  <div class="lt-felt" id="cb-felt"></div>
+  <div class="lt-you"><div class="lt-youl">your hand</div><div class="ghand" id="cb-hand"></div></div>
+  <div class="lt-acts" id="cb-acts"></div>
+</div>
+<div id="pktab">
+  <div class="lt-bar"><span class="lt-kick">hold'em · live table</span><button class="lt-x" onclick="pkClose()">×</button></div>
+  <div class="lt-opps" id="pk-opps"></div>
+  <div class="lt-felt" id="pk-felt"></div>
+  <div class="lt-you"><div class="lt-youl" id="pk-me">your hand</div><div class="ghand" id="pk-hand"></div></div>
+  <div class="lt-acts" id="pk-acts"></div>
+</div>
+<div id="pstab">
+  <div class="lt-bar"><span class="lt-kick">pusoy dos · live table</span><button class="lt-x" onclick="psClose()">×</button></div>
+  <div class="lt-opps" id="ps-opps"></div>
+  <div class="lt-felt" id="ps-felt"></div>
+  <div class="lt-you"><div class="lt-youl">your thirteen</div><div class="ghand" id="ps-hand"></div></div>
+  <div class="lt-acts" id="ps-acts"></div>
+</div>
+<div id="ldtab">
+  <div class="lt-bar"><span class="lt-kick">ludo · live board</span><button class="lt-x" onclick="ldClose()">×</button></div>
+  <div class="lt-opps" id="ld-opps" style="justify-content:center"></div>
+  <div class="ld-wrap"><div class="ld-board" id="ld-board"></div></div>
+  <div class="lt-acts" id="ld-acts"></div>
+</div>
 <button id="lt-join">🎲 game live — take a seat</button>
 <div id="ltab">
   <div class="lt-bar"><span class="lt-kick">liar's dice · live table</span><button class="lt-x" onclick="ltClose()">×</button></div>
