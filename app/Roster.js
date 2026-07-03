@@ -21,22 +21,25 @@ import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600Sem
 import { getPins, togglePin as togglePinApi, listThreads, getPersonaStates } from './api';
 
 const C = {
-  void: '#0E0912', ground: '#07050A',
-  cream: '#F5ECE1', muted: '#A1929B', faint: '#6A5E69',
-  ember: '#F3A85F', emberHot: '#FF8A52', emberDeep: '#B5572E',
+  void: '#090C12', ground: '#08070B',            // Moonlight — cold ink, matches the chat
+  cream: '#E8ECF4', muted: '#9E9DB0', faint: '#6A6675',
+  moonBlue: '#9FC2E8', hair: 'rgba(233,232,240,0.10)',
+  ember: '#E7B07A', emberHot: '#F3CFA3', emberDeep: '#C88A4F',  // candle kept only for the pin star
 };
 
-// ── each constellation has its own light temperature ──
+// ── constellations keep their identity by NAME, not by room-lighting the screen.
+// Moonlight register: every group tone is moon-blue; the persona's own aura survives
+// only as a faint ring accent per row (set below), never as a full-screen wash. ──
 const GROUPS = [
-  { id: 'gang',    name: 'The Gang',           tone: '#F0A765', sub: 'the ones who just get it',
+  { id: 'gang',    name: 'The Gang',           tone: C.moonBlue, sub: 'the ones who just get it',
     keys: ['the_brother','the_cousin','the_wingman','the_colleague','the_comic','the_screen_junkie'] },
-  { id: 'support', name: 'The Support',        tone: '#C99BE8', sub: 'when you need to be held, not fixed',
+  { id: 'support', name: 'The Support',        tone: C.moonBlue, sub: 'when you need to be held, not fixed',
     keys: ['the_healer','the_stranger','the_guru','the_hippie','the_mentor','the_oracle','the_addict','the_self_obsessed'] },
-  { id: 'crazies', name: 'The Crazies',        tone: '#6FC9E0', sub: 'the ones who make you think',
+  { id: 'crazies', name: 'The Crazies',        tone: C.moonBlue, sub: 'the ones who make you think',
     keys: ['the_brainiac','the_philosopher','the_cosmologist','the_historian','the_leader_opp','the_cynic'] },
-  { id: 'wild',    name: 'The Unpredictables', tone: '#F0708C', sub: 'careful what you wish for',
+  { id: 'wild',    name: 'The Unpredictables', tone: C.moonBlue, sub: 'careful what you wish for',
     keys: ['the_crush','the_hottie','the_diva','the_wannabe','the_orator','the_media_manager'] },
-  { id: 'faculty', name: 'The Faculty',        tone: '#E0C088', sub: 'come to learn',
+  { id: 'faculty', name: 'The Faculty',        tone: C.moonBlue, sub: 'come to learn',
     keys: ['the_teacher','the_economist','the_anchor'] },
 ];
 
@@ -242,7 +245,7 @@ export default function Roster({ onOpen = () => {} }) {
     <View style={{ flex: 1 }}>
       <View style={styles.rootBg}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-        <LinearGradient colors={['#0D1119', '#0E0912', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={['#0D1119', '#090C12', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={styles.header}>
             <Text style={styles.kicker}>your people</Text>
@@ -267,7 +270,7 @@ export default function Roster({ onOpen = () => {} }) {
             )}
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#E7B07A" colors={["#E7B07A"]} progressBackgroundColor="#1a1520" />}>
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#9FC2E8" colors={["#9FC2E8"]} progressBackgroundColor="#100E15" />}>
             {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} names={names} />}
             {GROUPS.map((g) => (
               <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} states={states} />
@@ -283,7 +286,7 @@ const styles = StyleSheet.create({
   rootBg: { flex: 1, backgroundColor: C.void },
 
   header: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 10 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 14, paddingHorizontal: 16, paddingVertical: 11, borderRadius: 16, backgroundColor: 'rgba(255,240,230,0.04)', borderWidth: 1, borderColor: 'rgba(255,240,228,0.08)' },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 14, paddingHorizontal: 16, paddingVertical: 11, borderRadius: 16, backgroundColor: 'rgba(233,232,240,0.04)', borderWidth: 1, borderColor: C.hair },
   searchInput: { flex: 1, fontFamily: 'Figtree_400Regular', color: C.cream, fontSize: 15, padding: 0 },
   searchClear: { color: C.muted, fontSize: 22, paddingHorizontal: 4 },
   kicker: { fontFamily: 'Figtree_400Regular', color: C.faint, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
@@ -294,7 +297,7 @@ const styles = StyleSheet.create({
   shelfLabel: { fontFamily: 'Fraunces_400Regular_Italic', color: C.faint, fontSize: 13, paddingHorizontal: 24, marginBottom: 12 },
   shelfItem: { alignItems: 'center', width: 86 },
   shelfStar: { position: 'absolute', top: -2, right: 12, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(14,9,18,0.85)' },
-  shelfStarTxt: { color: C.ember, fontSize: 13, lineHeight: 15 },
+  shelfStarTxt: { color: C.moonBlue, fontSize: 13, lineHeight: 15 },
   shelfName: { fontFamily: 'Figtree_400Regular', color: C.cream, fontSize: 12, marginTop: 6, textAlign: 'center' },
 
   // constellation
@@ -308,12 +311,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 18 },
   rowText: { flex: 1, marginLeft: 12 },
   rowName: { fontFamily: 'Figtree_500Medium', color: C.cream, fontSize: 15.5 },
-  rowStatus: { fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(231,215,199,0.62)', fontSize: 12.5, lineHeight: 17, marginTop: 2 },
+  rowStatus: { fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(232,236,244,0.60)', fontSize: 12.5, lineHeight: 17, marginTop: 2 },
   rowDesc: { fontFamily: 'Figtree_300Light', color: C.muted, fontSize: 12.5, marginTop: 2 },
   pinHit: { paddingHorizontal: 8, paddingVertical: 6 },
   pin: { fontSize: 18, color: C.faint, opacity: 0.6 },
 
   // presence
   faceRing: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#0D1119' },
-  faceWash: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: 'rgba(255,220,180,0.18)' },
+  faceWash: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: 'rgba(159,194,232,0.16)' },
 });
