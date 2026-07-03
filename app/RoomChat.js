@@ -389,13 +389,13 @@ const styles = StyleSheet.create({
 
   convo: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12 },
   empty: { fontFamily: 'Fraunces_400Regular_Italic', color: N.moonFaint, fontSize: 14, textAlign: 'center', marginTop: 30 },
-  lineRow: { flexDirection: 'row', marginBottom: 14 },
+  lineRow: { flexDirection: 'row', marginBottom: 9 },
   speaker: { fontFamily: 'Figtree_500Medium', fontSize: 12, marginBottom: 4, marginLeft: 4, letterSpacing: 0.3 },
-  bubble: { paddingVertical: 11, paddingHorizontal: 15, borderRadius: 18 },
+  bubble: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 15 },
   bubbleThem: { backgroundColor: 'rgba(233,232,240,0.05)', borderWidth: 1, borderColor: N.hair, borderTopLeftRadius: 6 },
-  bubbleYou: { backgroundColor: 'rgba(231,176,122,0.10)', borderWidth: 1, borderColor: 'rgba(231,176,122,0.16)', borderBottomRightRadius: 6, maxWidth: '84%' },
+  bubbleYou: { backgroundColor: 'rgba(159,194,232,0.10)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.18)', borderBottomRightRadius: 5, maxWidth: '84%' },
   bubbleHuman: { backgroundColor: 'rgba(159,176,206,0.10)', borderWidth: 1, borderColor: 'rgba(159,176,206,0.2)', borderTopLeftRadius: 6 },
-  bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 21 },
+  bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 19 },
 
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
   field: { flex: 1, borderRadius: 22, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },

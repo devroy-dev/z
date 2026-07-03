@@ -23,6 +23,8 @@ import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, set
 
 // ── NIGHTFALL palette ──
 const N = {
+  ink: '#090C12', ink2: '#0D1119',            // Moonlight — the resident register
+  moonBlue: '#9FC2E8', porcelain: '#E8ECF4',
   night: '#0B0A0F', night2: '#100E15',
   moon: '#E9E8F0', moonDim: 'rgba(233,232,240,0.56)', moonFaint: 'rgba(233,232,240,0.30)',
   silver: '#9E9DB0', hair: 'rgba(233,232,240,0.10)',
@@ -154,6 +156,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   // the hero treatment: only the pinned trinity stream live. residents text
   // like people — typing indicator, then the whole message lands at once.
   const LIVE_STREAM = KEY === 'the_anchor' || KEY === 'the_front_desk' || KEY === 'z' || KEY === 'z_serious';
+  const WARM = LIVE_STREAM; // desk/anchor/Z keep the warm serif register — deliberate exception
   const P = PERSONAS[KEY];
   const rgb = P.rgb;
   const dp = faceFor(KEY);
@@ -355,7 +358,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     });
   };
 
-  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: N.night }} />;
+  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: WARM ? N.night : N.ink }} />;
   if (inCall) return <VideoCall persona={{ key: KEY, name: cname }} onEnd={() => setInCall(false)} />;
 
   const empty = messages.length === 0;
@@ -364,7 +367,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       {/* the room's own light — this persona's aura, falling from the top */}
-      <LinearGradient colors={[`rgba(${rgb},0.17)`, `rgba(${rgb},0.05)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <LinearGradient colors={WARM ? [`rgba(${rgb},0.17)`, `rgba(${rgb},0.05)`, N.night] : [`rgba(${rgb},0.05)`, N.ink2, N.ink]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <Grain />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
@@ -436,17 +439,17 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                 <Text style={styles.epLine}>{P.desc}</Text>
               </View>
             ) : (
-              messages.map((m) => (
-                <View key={m.id} style={{ marginBottom: 16 }}>
+              messages.map((m, mi) => (
+                <View key={m.id} style={{ marginBottom: messages[mi + 1] && messages[mi + 1].who === m.who ? 4 : 14 }}>
                   {(m.text || '').trim() === '*buzz*' ? (
                     <Text style={[styles.buzzChip, m.who === 'you' && { alignSelf: 'flex-end' }]}>⚡ buzz</Text>
                   ) : m.who === 'you' ? (
-                    <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
+                    <View style={[styles.youWrap, !WARM && styles.youWrapMoon]}><Text style={[styles.youText, !WARM && styles.youTextMoon]}>{m.text}</Text></View>
                   ) : m.text ? (
                     (() => { const parsed = parseCards(m.text); return (
                       <>
                         {splitBursts(parsed.text).map((burst, bi) => (
-                          <View key={bi} style={[styles.themWrap, bi > 0 && { marginTop: 5 }]}><RichText text={burst} style={styles.themText} /></View>
+                          <View key={bi} style={[styles.themWrap, !WARM && styles.themWrapMoon, bi > 0 && { marginTop: 4 }]}><RichText text={burst} style={WARM ? styles.themText : styles.themTextMoon} /></View>
                         ))}
                         {parsed.cards.map((c, ci) => (
                           <ProgrammeCard key={ci} card={c} onPress={() => routeTo(c.goto)} />
@@ -530,6 +533,10 @@ const styles = StyleSheet.create({
   themText: { fontFamily: 'Fraunces_400Regular_Italic', color: N.moon, fontSize: 18, lineHeight: 28, letterSpacing: 0.1 },
   youWrap: { alignSelf: 'flex-end', maxWidth: '82%', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 18, borderTopRightRadius: 6, backgroundColor: 'rgba(231,176,122,0.10)', borderWidth: 1, borderColor: 'rgba(231,176,122,0.16)' },
   youText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 15, lineHeight: 22 },
+  themWrapMoon: { backgroundColor: 'rgba(232,236,244,0.05)', borderColor: 'rgba(232,236,244,0.08)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 15, borderTopLeftRadius: 5 },
+  themTextMoon: { fontFamily: 'Figtree_400Regular', color: N.porcelain, fontSize: 14.5, lineHeight: 19, letterSpacing: 0 },
+  youWrapMoon: { backgroundColor: 'rgba(159,194,232,0.10)', borderColor: 'rgba(159,194,232,0.18)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 15, borderTopRightRadius: 5 },
+  youTextMoon: { fontFamily: 'Figtree_400Regular', color: N.porcelain, fontSize: 14.5, lineHeight: 19 },
 
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
   field: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },
