@@ -173,6 +173,9 @@ export async function refreshSession() {
 }
 
 // set the profile name (server wants it, esp. for rooms)
+export async function getMe() {
+  try { return await authedJSON('GET', '/me'); } catch (e) { return null; }
+}
 export async function setMe(displayName) {
   try {
     await fetch(`${API_BASE}/me`, {

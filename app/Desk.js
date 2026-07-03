@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe } from './api';
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
@@ -159,6 +159,8 @@ function DoorCard({ dkey, name, uri, onPress }) {
 export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenLetter = () => {} }) {
   const [messages, setMessages] = useState([{ id: 'greet', who: 'them', text: greetingFor() }]);
   const [draft, setDraft] = useState('');
+  const [meName, setMeName] = useState('');
+  useEffect(() => { getMe().then((m) => { if (m && m.displayName) setMeName(m.displayName); }).catch(() => {}); }, []);
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   const [tasks, setTasks] = useState([]);
@@ -351,7 +353,9 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
             </View>
           </View>
           <Pressable onPress={onOpenYou} hitSlop={10}>
-            <View style={styles.profileRing}><Text style={styles.profileGlyph}>you</Text></View>
+            <View style={styles.profileRing}>
+              <Text style={styles.profileGlyph}>{(meName || 'Y').trim().charAt(0).toUpperCase()}</Text>
+            </View>
           </Pressable>
         </View>
 
@@ -413,6 +417,15 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
           </View>
         )}
 
+
+        {/* the conversation — Z floats in serif (the house speaks); you in a candle bubble */}
+        <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingVertical: 16, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            atBottomRef.current = (contentSize.height - (contentOffset.y + layoutMeasurement.height)) < 120;
+          }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#E7B07A" colors={["#E7B07A"]} progressBackgroundColor="#1a1520" />}>
         {/* ── the living lobby ── */}
         {panel === null && (
           <View>
@@ -517,14 +530,6 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
           </View>
         )}
 
-        {/* the conversation — Z floats in serif (the house speaks); you in a candle bubble */}
-        <ScrollView ref={scrollRef} style={styles.convo} contentContainerStyle={{ paddingVertical: 16, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
-          scrollEventThrottle={16}
-          onScroll={(e) => {
-            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-            atBottomRef.current = (contentSize.height - (contentOffset.y + layoutMeasurement.height)) < 120;
-          }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#E7B07A" colors={["#E7B07A"]} progressBackgroundColor="#1a1520" />}>
           {messages.map((m) => (
             <View key={m.id} style={{ marginBottom: 16 }}>
               {m.who === 'you' ? (
@@ -613,8 +618,8 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   deskTitle: { fontFamily: FONTS.display, color: N.moon, fontSize: 21 },
   deskSub: { fontFamily: FONTS.displayItalic, color: N.moonDim, fontSize: 12.5, marginTop: 1 },
-  profileRing: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: N.hair, alignItems: 'center', justifyContent: 'center', backgroundColor: N.night2 },
-  profileGlyph: { fontFamily: FONTS.body, color: N.silver, fontSize: 11 },
+  profileRing: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.2, borderColor: 'rgba(231,176,122,0.65)', backgroundColor: 'rgba(231,176,122,0.08)', alignItems: 'center', justifyContent: 'center', shadowColor: '#E7B07A', shadowOpacity: 0.35, shadowRadius: 8, elevation: 3 },
+  profileGlyph: { fontFamily: FONTS.display, color: '#F0C990', fontSize: 19, marginTop: -1 },
 
   strip: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
   stripBtn: { flex: 1, paddingVertical: 10, borderRadius: 100, borderWidth: 1, borderColor: N.hair, backgroundColor: N.hairSoft, alignItems: 'center' },

@@ -101,10 +101,6 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             ))}
           </View>
 
-          <View style={styles.memBlock}>
-            <Text style={styles.memTitle}>what Z remembers</Text>
-            <Text style={styles.memSub}>everything i've held onto, so we can pick up where we left off. you can't change it — but you can make me forget any of it, anytime.</Text>
-          </View>
 
           {(facts.length > 0 || notes.length > 0) ? (
             <>
