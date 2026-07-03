@@ -144,7 +144,6 @@ function OpponentPicker({ game, onBack, onStart }) {
     });
   };
   const launch = () => {
-    console.log('[TRACER launch]', JSON.stringify({ invited, chosen: chosen.length, game: game?.id }));
     const roster = chosen.map((o) => ({ ...o, ai: true }));
     // pass first as `opp` for back-compat, full list as `roster`
     onStart(game, chosen[0], roster, invited);
@@ -229,7 +228,7 @@ export default function Arena({ onBack = () => {}, onStartGame = () => {} }) {
   const [picked, setPicked] = useState(null);
 
   if (picked) {
-    return <OpponentPicker game={picked} onBack={() => setPicked(null)} onStart={(g, o, roster) => onStartGame(g, o, roster)} />;
+    return <OpponentPicker game={picked} onBack={() => setPicked(null)} onStart={(g, o, roster, invited) => onStartGame(g, o, roster, invited)} />;
   }
 
   return (
