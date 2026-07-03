@@ -12,6 +12,7 @@ import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
 import { FONTS } from './theme';
 import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
+import QuietRoom from './QuietRoom';
 import ChatHome, { MOON } from './ChatHome';
 import You from './You';
 
@@ -149,7 +150,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
   const openFromChat = (dest) => {
     if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
-    if (dest.kind === 'z') { setTarget({ tab: 'desk', quiet: true }); setWorld('chat'); setChatOpen({ kind: 'desk' }); return; }
+    if (dest.kind === 'z') return setOverlay({ tab: 'quiet' });
     if (dest.kind === 'persona') return setChatOpen(dest);
     if (dest.kind === 'room') return setChatOpen(dest);
     if (dest.kind === 'roster') return setChatOpen(dest);
@@ -165,6 +166,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
   if (overlay) {
     if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} />;
+    if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} />;
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}
