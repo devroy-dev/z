@@ -12,7 +12,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular } from '@expo-google-fonts/figtree';
@@ -190,12 +190,14 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
           {/* draw the curtain back */}
-          <Pressable style={styles.back} onPress={onBack} hitSlop={14}>
-            <Text style={styles.backTxt}>‹  step out</Text>
-          </Pressable>
-          <Pressable onPress={onJournal} hitSlop={12} style={{ position: 'absolute', right: 20, top: 14 }}>
-            <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.5)', fontSize: 13.5 }}>the journal ›</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Pressable style={styles.back} onPress={onBack} hitSlop={14}>
+              <Text style={styles.backTxt}>‹  step out</Text>
+            </Pressable>
+            <Pressable onPress={onJournal} hitSlop={12} style={{ paddingRight: 4 }}>
+              <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.55)', fontSize: 13.5 }}>the journal ›</Text>
+            </Pressable>
+          </View>
 
           {/* Z, as light */}
           <ZLight speaking={speaking} />
@@ -238,6 +240,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
                   <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" /><Stop offset="55%" stopColor={Q.glow} /><Stop offset="100%" stopColor="#5b6aa0" />
                 </RadialGradient></Defs>
                 <Circle cx="22" cy="22" r="16" fill="url(#qsend)" />
+                <Path d="M17 22 L27 22 M23 17.5 L27.5 22 L23 26.5" stroke="#0B0E1A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
               </Svg>
             </Pressable>
           </View>

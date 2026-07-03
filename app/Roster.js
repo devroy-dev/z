@@ -242,7 +242,7 @@ export default function Roster({ onOpen = () => {} }) {
     <View style={{ flex: 1 }}>
       <View style={styles.rootBg}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-        <LinearGradient colors={['#150C1C', '#0E0912', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={['#0D1119', '#0E0912', C.ground]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={styles.header}>
             <Text style={styles.kicker}>your people</Text>
@@ -314,6 +314,6 @@ const styles = StyleSheet.create({
   pin: { fontSize: 18, color: C.faint, opacity: 0.6 },
 
   // presence
-  faceRing: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#1a121f' },
+  faceRing: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: '#0D1119' },
   faceWash: { ...StyleSheet.absoluteFillObject, borderWidth: 1, borderColor: 'rgba(255,220,180,0.18)' },
 });

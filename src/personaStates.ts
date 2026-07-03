@@ -7,6 +7,17 @@
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './db.js';
+import { readFileSync } from 'fs';
+
+function lifeSection(personaKey: string): string {
+  try {
+    const codex = personaByKey(personaKey)?.codex;
+    if (!codex) return '';
+    const raw = readFileSync(new URL(`../content/codex-${codex.replace(/_/g, '-')}.md`, import.meta.url), 'utf8');
+    const i = raw.indexOf('## THE LIFE BEHIND THE VOICE');
+    return i > -1 ? raw.slice(i).slice(0, 1400) : '';
+  } catch { return ''; }
+}
 import { personaByKey } from './personas.js';
 import { PURSUITS } from './pursuits.js';
 
@@ -14,7 +25,7 @@ const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
 const RUN_HOUR_IST = 5;                     // states ready before the house wakes
 
-const WRITER = `You continue the daily life of an AI persona around their ongoing pursuit. You get the pursuit and the last few diary entries; you write TODAY.
+const WRITER = `You continue the daily life of an AI persona around their ongoing pursuit. You get WHO THEY ARE (their life behind the voice), the pursuit, and the last few diary entries; today's entry is the next CHAPTER of that one life — same geography, same people, same wounds; never contradict the backstory. You write TODAY.
 
 Make it a SERIAL, not a slot machine: small real progress, setbacks, digressions, moods — days build on days. Some days are big, most are small. Never reset, never contradict the previous entries.
 
@@ -39,7 +50,7 @@ async function writeState(personaKey: string, pursuit: string): Promise<boolean>
 
   const msg = await anthropic.messages.create({
     model: MODEL, max_tokens: 160, system: WRITER,
-    messages: [{ role: 'user', content: `Persona: ${p?.defaultName || personaKey}\nTheir pursuit: ${pursuit}\n\nRecent diary:\n${priorText}\n\nWrite today (${today}).` }],
+    messages: [{ role: 'user', content: `Persona: ${p?.defaultName || personaKey}\n${lifeSection(personaKey) ? 'WHO THEY ARE:\n' + lifeSection(personaKey) + '\n\n' : ''}Their pursuit: ${pursuit}\n\nRecent diary:\n${priorText}\n\nWrite today (${today}).` }],
   });
   const text = ((msg.content?.[0] as any)?.text ?? '').trim();
   const sm = /STATUS:\s*(.+)/i.exec(text);

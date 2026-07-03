@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger } from './api';
+import { getLedger, getMemory, forgetMemory } from './api';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -58,10 +58,16 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   };
   const [ledger, setLedger] = React.useState(null);
   React.useEffect(() => { getLedger().then(setLedger).catch(() => {}); }, []);
-  const [facts, setFacts] = useState(SEED_FACTS);
-  const [notes, setNotes] = useState(SEED_NOTES);
-  const forgetFact = (id) => setTimeout(() => setFacts((f) => f.filter((x) => x.id !== id)), 220);
-  const forgetNote = (id) => setTimeout(() => setNotes((n) => n.filter((x) => x.id !== id)), 220);
+  const [facts, setFacts] = useState([]);
+  const [notes, setNotes] = useState([]);
+  React.useEffect(() => {
+    getMemory().then((items) => {
+      setFacts(items.filter((m) => m.kind !== 'note').map((m) => ({ id: m.id, key: m.key, value: m.value })));
+      setNotes(items.filter((m) => m.kind === 'note').map((m) => ({ id: m.id, body: m.value })));
+    });
+  }, []);
+  const forgetFact = (id) => { forgetMemory(id); setTimeout(() => setFacts((f) => f.filter((x) => x.id !== id)), 220); };
+  const forgetNote = (id) => { forgetMemory(id); setTimeout(() => setNotes((n) => n.filter((x) => x.id !== id)), 220); };
 
   if (showLedger) return (
     <View style={styles.root}>

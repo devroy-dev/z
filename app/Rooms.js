@@ -242,8 +242,8 @@ export default function Rooms({ onOpen = () => {} }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: N.night },
   header: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 10 },
-  kicker: { fontFamily: 'Figtree_400Regular', color: N.moonFaint, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
-  title: { fontFamily: 'Fraunces_400Regular', color: N.moon, fontSize: 34, marginTop: 2 },
+  kicker: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(159,194,232,0.7)', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
+  title: { fontFamily: 'Fraunces_400Regular', color: '#E8ECF4', fontSize: 34, marginTop: 2 },
 
   gather: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginHorizontal: 20, marginBottom: 22,
     paddingVertical: 15, borderRadius: 16, backgroundColor: 'rgba(231,176,122,0.12)', borderWidth: 1, borderColor: 'rgba(231,176,122,0.4)' },

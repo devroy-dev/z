@@ -19,6 +19,7 @@ const IST_MS = 5.5 * 3600e3;
 export function parseWhen(raw: string, now = new Date()): Date | null {
   const s = String(raw || '').trim().toLowerCase();
   if (!s) return null;
+  if (s === 'now' || s === 'right now' || s === 'immediately') return new Date(now.getTime() + 60e3);
   const iso = new Date(s);
   if (!isNaN(iso.getTime()) && /\d{4}-\d{2}-\d{2}/.test(s)) return iso;
   const rel = s.match(/^in\s+(\d+)\s*(minutes?|mins?|m|hours?|hrs?|h)$/);

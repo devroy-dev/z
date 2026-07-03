@@ -134,7 +134,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     }
     frontDeskBlock = interviewBlock + `\n\n[THE LIST YOU HOLD:${listText}
 
-YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest never sees the raw tag (so always at least one human line of text with them; never promise in words what you didn't tag):
+YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest never sees the raw tag (always at least one human line of text with them). THE CONCIERGE'S WORD: you never SAY a table, room, or reminder is set unless the matching tag is in this very message — [[BOOK]] with a time ("now" is valid) actually creates it; a [[CARD]] is an invitation to a door, never a created thing, so speak of it as one:
   • [[TASK_ADD: title | due: tomorrow 5pm | room: the_orator]] · [[TASK_DONE: {id}]]
   • [[GOTO: the_brother]] — a tappable chip (also: the_stage, the_arena, z_serious for the quiet room)
   • [[CARD: play | Teen Patti | the desi bluff classic | the_arena:teenpatti]] — one concrete plan set in front of them; for games always the_arena:<game id> — the card seats them at that table where THEY pick their company, so suggest a pairing, never promise one

@@ -302,6 +302,29 @@ app.get('/persona-states', async (req, res) => {
     res.json({ states: await currentStates() });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
+// what z remembers — read + forget (the trust contract, for real)
+app.get('/memory', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('memory')
+      .select('id, kind, key, value, created_at').eq('user_id', user.id)
+      .order('created_at', { ascending: false }).limit(100);
+    res.json({ items: data ?? [] });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.delete('/memory/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { error } = await supabase.from('memory').delete().eq('id', req.params.id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ forgotten: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 // one persona's recent diary — the Updates tab's story feed
 app.get('/persona-diary/:key', async (req, res) => {
   try {

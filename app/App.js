@@ -58,7 +58,7 @@ const SCREENS = {
 };
 
 function PlayWorld({ navigate, target }) {
-  const [mode, setMode] = React.useState('arena'); // choose | arena | game
+  const [mode, setMode] = React.useState('choose'); // choose | arena | game — the landing IS the play world's front door
   const [match, setMatch] = React.useState(null);
   const [live, setLive] = React.useState(null);   // { game, sessionId } — a friends table
   const [opening, setOpening] = React.useState(false);   // the invited flow, visibly working
@@ -91,7 +91,7 @@ function PlayWorld({ navigate, target }) {
     setOpening(false);
   }, []);
   useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));
-  useBackLayer(mode === 'arena', React.useCallback(() => { navigate && navigate({ tab: 'gathering' }); return true; }, [navigate]));
+  useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (opening && !live) {
@@ -129,7 +129,7 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {
-    return <Arena initialGameId={target?.game || null} initialOpponent={target?.opp || null} onOpenStage={() => navigate && navigate('stage')} onBack={() => { navigate && navigate({ tab: 'gathering' }); }} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
+    return <Arena initialGameId={target?.game || null} initialOpponent={target?.opp || null} onOpenStage={() => navigate && navigate('stage')} onBack={() => setMode('choose')} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'stage') navigate && navigate('stage'); }} />;
 }

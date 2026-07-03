@@ -142,7 +142,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
       setTarget(typeof dest === 'string' ? null : dest);
       return;
     }
-    if (tab === 'play') { setWorld('play'); setActive('play'); setTarget(typeof dest === 'string' ? null : dest); return; }
+    if (tab === 'play') { setChatOpen(null); setWorld('play'); setActive('play'); setTarget(typeof dest === 'string' ? null : dest); return; }
     if (TABS.some((t) => t.id === tab)) {
       setActive(tab);
       setTarget(typeof dest === 'string' ? null : dest);

@@ -359,6 +359,12 @@ export async function getRecentPings() {
   try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
 }
 
+export async function getMemory() {
+  try { const j = await authedJSON('GET', '/memory'); return j.items || []; } catch (e) { return []; }
+}
+export async function forgetMemory(id) {
+  try { return await authedJSON('DELETE', `/memory/${id}`); } catch (e) { return null; }
+}
 export async function getJournal() {
   try { const j = await authedJSON('GET', '/journal'); return Array.isArray(j) ? j : (j.entries || []); } catch (e) { return []; }
 }
