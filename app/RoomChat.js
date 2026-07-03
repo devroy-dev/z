@@ -18,7 +18,7 @@ import PokerLive from './games/poker/Live';
 import PusoyLive from './games/pusoy/Live';
 import LudoLive from './games/ludo/Live';
 import DebateDuelLive from './games/debate/DuelLive';
-import { startGameSession, getLiveGame } from './api';
+import { startGameSession, getLiveGame, kickFromRoom } from './api';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
@@ -336,6 +336,22 @@ export default function RoomChat({ room, onBack = () => {} }) {
   };
 
   const humans = Object.entries(members).filter(([uid]) => uid !== meIdRef.current).map(([id, name]) => ({ id, name }));
+  // creator-as-moderator: the room's creator can remove a member (24h kick).
+  const canModerate = !!room?.youCreated && !!room?.publicRoomId;
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [kicking, setKicking] = useState(null);
+  const doKick = async (uid, name) => {
+    if (kicking) return;
+    setKicking(uid);
+    const r = await kickFromRoom(room.publicRoomId, uid);
+    setKicking(null);
+    if (r && r.ok) {
+      setMembers((m) => { const n = { ...m }; delete n[uid]; return n; });
+      setRosterOpen(false);
+    } else {
+      alert((r && r.error) || 'could not remove them');
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -360,6 +376,22 @@ export default function RoomChat({ room, onBack = () => {} }) {
             ))}
           </View>
         )}
+        {rosterOpen && canModerate && (
+          <Pressable style={styles.rosterScrim} onPress={() => setRosterOpen(false)}>
+            <Pressable style={styles.rosterSheet} onPress={(e) => e.stopPropagation?.()}>
+              <Text style={styles.rosterTitle}>your room</Text>
+              <Text style={styles.rosterSub}>tap someone to remove them for 24 hours.</Text>
+              {humans.length ? humans.map((h) => (
+                <View key={h.id} style={styles.rosterRow}>
+                  <Text style={styles.rosterName} numberOfLines={1}>{h.name || 'someone'}</Text>
+                  <Pressable style={styles.rosterKick} onPress={() => doKick(h.id, h.name)}>
+                    <Text style={styles.rosterKickTxt}>{kicking === h.id ? '…' : 'remove'}</Text>
+                  </Pressable>
+                </View>
+              )) : <Text style={styles.rosterEmpty}>no one else here yet.</Text>}
+            </Pressable>
+          </Pressable>
+        )}
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
           <View style={{ flex: 1 }}>
@@ -371,6 +403,12 @@ export default function RoomChat({ room, onBack = () => {} }) {
               </Text>
             ) : null}
           </View>
+          {canModerate ? (
+            <Pressable hitSlop={8} style={[styles.inviteBtn, { marginRight: 8 }]} onPress={() => setRosterOpen(true)}>
+              <Text style={{ fontSize: 12 }}>🛡️</Text>
+              <Text style={styles.inviteText}>manage</Text>
+            </Pressable>
+          ) : null}
           {personas.length ? (
             <Pressable hitSlop={8} style={[styles.inviteBtn, { marginRight: 8 }]}
               onPress={liveAvail ? () => setLiveSession({ id: liveAvail.id, game: liveAvail.game }) : () => setGameMenu((v) => !v)}>
@@ -471,4 +509,13 @@ const styles = StyleSheet.create({
   field: { flex: 1, borderRadius: 22, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },
   input: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 15, paddingHorizontal: 16, paddingVertical: 12, maxHeight: 110 },
   send: { width: 46, height: 46 },
+  rosterScrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
+  rosterSheet: { width: '100%', borderRadius: 18, backgroundColor: N.night2, borderWidth: 1, borderColor: N.hair, padding: 18 },
+  rosterTitle: { fontFamily: 'Fraunces_400Regular', color: N.moon, fontSize: 20 },
+  rosterSub: { fontFamily: 'Figtree_400Regular', color: N.moonDim, fontSize: 13, marginTop: 3, marginBottom: 14 },
+  rosterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: N.hair },
+  rosterName: { fontFamily: 'Figtree_500Medium', color: N.moon, fontSize: 15, flex: 1 },
+  rosterKick: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(220,120,120,0.5)' },
+  rosterKickTxt: { fontFamily: 'Figtree_600SemiBold', color: '#E08A8A', fontSize: 12.5 },
+  rosterEmpty: { fontFamily: 'Figtree_400Regular', color: N.moonFaint, fontSize: 13, paddingVertical: 12, textAlign: 'center' },
 });

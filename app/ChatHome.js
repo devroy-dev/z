@@ -128,7 +128,7 @@ function PublicRooms({ onOpen }) {
         const j = await joinPublicRoom(room.id);
         if (j && j.threadId) threadId = j.threadId;
       }
-      if (threadId) onOpen({ kind: 'room', room: { id: threadId, name: room.name, personas: room.personas || [] } });
+      if (threadId) onOpen({ kind: 'room', room: { id: threadId, name: room.name, personas: room.personas || [], publicRoomId: room.id, youCreated: !!room.youCreated } });
     } catch (e) {}
     setBusy(null);
   };
