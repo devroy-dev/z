@@ -528,7 +528,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   {(m.text || '').trim() === '*buzz*' ? (
                     <Text style={[styles.buzzChip, m.who === 'you' && { alignSelf: 'flex-end' }]}>⚡ buzz</Text>
                   ) : m.who === 'you' ? (
-                    <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end' }}>
+                    <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '82%' }}>
                       {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
                       {m.text ? <View style={[styles.youWrap, !WARM && styles.youWrapMoon, m.imageUri && { marginTop: 4 }]}><Text style={[styles.youText, !WARM && styles.youTextMoon]}>{m.text}</Text></View> : null}
                     </View>

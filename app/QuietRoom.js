@@ -253,7 +253,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
               messages.map((m) => (
                 <View key={m.id} style={{ marginBottom: 20 }}>
                   {m.who === 'you'
-                    ? <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end' }}>
+                    ? <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '80%' }}>
                         {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
                         {m.text ? <View style={[styles.youWrap, m.imageUri && { marginTop: 4 }]}><Text style={styles.youText}>{m.text}</Text></View> : null}
                       </View>
