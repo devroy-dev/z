@@ -29,6 +29,7 @@ import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.j
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
+import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
@@ -1718,6 +1719,7 @@ app.get('/rooms', async (req, res) => {
 // ════════ MULTIPLAYER GAME SESSIONS (server-authoritative) ════════
 const GAME_ENGINES: Record<string, any> = {
   debate_duel: debateDuelAdapter,
+  trivia_duel: triviaDuelAdapter,
   callbreak: callbreakAdapter,
   pusoy: pusoyAdapter,
   poker: pokerAdapter,
@@ -1793,7 +1795,7 @@ app.post('/games/start', async (req, res) => {
     }
     if (seats.length > maxSeats) return res.status(400).json({ error: `too many seats for ${game} (max ${maxSeats})` });
 
-    let state = engine.create(seats);
+    let state = await engine.create(seats, (req.body ?? {}).options || {});
     state = advanceAI(engine, state, seats);
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: roomId, game, state, seats, created_by: user.id,
@@ -1878,15 +1880,17 @@ app.post('/games/session/:id/move', async (req, res) => {
     catch (err: any) { return res.status(400).json({ error: err?.message || 'illegal move' }); }
     state = advanceAI(engine, state, s.seats);
     const over = engine.isOver(state);
-    // a finished duel writes to BOTH debaters' ledgers
-    if (over && s.game === 'debate_duel') {
+    // a finished duel writes to BOTH duellists' ledgers
+    if (over && (s.game === 'debate_duel' || s.game === 'trivia_duel')) {
       try {
         const humanSeats = (s.seats as any[]).map((x2: any, i: number) => ({ ...x2, i })).filter((x2: any) => x2.kind === 'user');
         for (const hs of humanSeats) {
           const w = state.winner === 'draw' ? 'draw' : state.winner === hs.i ? 'you' : 'them';
+          const notes = s.game === 'debate_duel'
+            ? `motion: ${state.motion} — ${String(state.verdict || '').slice(0, 300)}`
+            : `topic: ${state.topic} — ${state.scores?.[hs.i] ?? 0} to ${state.scores?.[1 - hs.i] ?? 0}`;
           await supabase.from('arena_matches').insert({
-            user_id: hs.id, game: 'debate duel', winner: w,
-            notes: `motion: ${state.motion} — ${String(state.verdict || '').slice(0, 300)}`,
+            user_id: hs.id, game: s.game === 'debate_duel' ? 'debate duel' : 'trivia duel', winner: w, notes,
           });
         }
       } catch (e) { console.error('[duel] ledger write failed', e); }

@@ -12,6 +12,7 @@ import PokerLive from './games/poker/Live';
 import PusoyLive from './games/pusoy/Live';
 import LudoLive from './games/ludo/Live';
 import DebateDuelLive from './games/debate/DuelLive';
+import TriviaDuelLive from './games/trivia/DuelLive';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -70,8 +71,8 @@ function PlayWorld({ navigate, target }) {
   const startLiveWithFriend = React.useCallback(async (game, roster) => {
     setOpening(true);
     try {
-      const liveId = game.id === 'debate' ? 'debate_duel' : game.id;
-      const personaKeys = liveId === 'debate_duel' ? [] : (roster || []).map((o) => o.key).slice(0, 3);
+      const liveId = game.id === 'debate' ? 'debate_duel' : game.id === 'trivia' ? 'trivia_duel' : game.id;
+      const personaKeys = (liveId === 'debate_duel' || liveId === 'trivia_duel') ? [] : (roster || []).map((o) => o.key).slice(0, 3);
       // the room needs a SHAREABLE host; some table casts aren't (by doctrine).
       // fall back to the moderator — the house's universal game master —
       // while the GAME still seats the cast the player actually chose.
@@ -112,6 +113,7 @@ function PlayWorld({ navigate, target }) {
   if (mode === 'game' && live) {
     const exitLive = () => { setLive(null); setMode('arena'); };
     if (live.game === 'debate_duel') return <DebateDuelLive sessionId={live.sessionId} onExit={exitLive} />;
+    if (live.game === 'trivia_duel') return <TriviaDuelLive sessionId={live.sessionId} onExit={exitLive} />;
     if (live.game === 'callbreak') return <CallbreakLive sessionId={live.sessionId} onExit={exitLive} />;
     if (live.game === 'poker') return <PokerLive sessionId={live.sessionId} onExit={exitLive} />;
     if (live.game === 'pusoy') return <PusoyLive sessionId={live.sessionId} onExit={exitLive} />;

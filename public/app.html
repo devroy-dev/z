@@ -729,6 +729,27 @@ body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px
 .ld-ring{background:rgba(255,255,255,.05)}.ld-ctr{background:rgba(255,255,255,.10)}
 .ld-tok{position:absolute;width:5.2%;height:5.2%;border-radius:50%;border:1.5px solid rgba(0,0,0,.5);z-index:2;cursor:pointer;transition:left .18s,top .18s}
 .ld-tok.lit{border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.6)}
+/* ── duels: debate + trivia ── */
+#ddtab.on,#tdtab.on{display:flex}
+#ddtab,#tdtab{position:fixed;inset:0;z-index:400;background:linear-gradient(180deg,#12100E,#0D0B09 55%,#0a0908);display:none;flex-direction:column;font-family:inherit}
+.dd-motion{font-family:Fraunces,serif;font-size:17px;color:#f2e9dc;text-align:center;padding:4px 20px;line-height:1.35}
+.dd-mom{height:7px;border-radius:4px;margin:10px 16px 2px;background:rgba(240,112,140,.35);overflow:hidden}
+.dd-momA{height:100%;background:#F0A765;transition:width .5s}
+.dd-momlbl{display:flex;justify-content:space-between;padding:0 16px;font-size:10.5px;color:#9a8f80;letter-spacing:1px}
+.dd-feed{flex:1;overflow-y:auto;padding:10px 16px;display:flex;flex-direction:column;gap:9px}
+.dd-sp{max-width:86%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.45;color:#f2e9dc;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}
+.dd-sp.me{align-self:flex-end;background:rgba(240,167,101,.1);border-color:rgba(240,167,101,.3)}
+.dd-sp .w{display:block;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#9a8f80;margin-bottom:3px}
+.dd-rem{align-self:center;font-style:italic;font-size:12px;color:#C99BE8;text-align:center;max-width:90%}
+.dd-comp{display:flex;gap:8px;padding:10px 14px 16px}
+.dd-ta{flex:1;min-height:64px;max-height:140px;resize:vertical;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);color:#f2e9dc;font-family:inherit;font-size:14px;padding:10px}
+.td-q{font-family:Fraunces,serif;font-size:18px;color:#f2e9dc;text-align:center;padding:6px 22px;line-height:1.4}
+.td-opt{display:block;width:min(88vw,420px);margin:0 auto;padding:12px 14px;border-radius:13px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);color:#f2e9dc;font-size:14px;text-align:left;cursor:pointer}
+.td-opt.right{border-color:#8FD98F;background:rgba(143,217,143,.12)}
+.td-opt.wrong{border-color:#F0708C;background:rgba(240,112,140,.10)}
+.td-opt.mine{box-shadow:inset 0 0 0 1.5px #F0A765}
+.td-opts{display:flex;flex-direction:column;gap:9px;padding:8px 0}
+.td-score{display:flex;justify-content:center;gap:18px;padding:4px 0;font-family:Fraunces,serif;font-size:20px;color:#f2e9dc}
 </style>
 </head>
 <body>
@@ -4130,8 +4151,9 @@ async function ltWatchRoom(){
     const r=await zfetch('/games/room/'+activeRoom.id+'/live',{headers:HDRS()});
     const j=await r.json();
     if(j&&j.id&&j.status==='live'){
-      var opener={liarsdice:ltOpen,callbreak:cbOpen,poker:pkOpen,pusoy:psOpen,ludo:ldOpen}[j.game];
-      var gl={liarsdice:"liar's dice",callbreak:'callbreak',poker:'poker',pusoy:'pusoy dos',ludo:'ludo'}[j.game]||j.game;
+      var opener={liarsdice:ltOpen,callbreak:cbOpen,poker:pkOpen,pusoy:psOpen,ludo:ldOpen,debate_duel:ddOpen,trivia_duel:tdOpen}[j.game];
+      var gl={liarsdice:"liar's dice",callbreak:'callbreak',poker:'poker',pusoy:'pusoy dos',ludo:'ludo',debate_duel:'debate duel',trivia_duel:'trivia duel'}[j.game]||j.game;
+      if(j.game==='debate_duel'||j.game==='trivia_duel'){pill.textContent='\u2694\uFE0F '+gl+' live \u2014 take your side';}
       if(opener){ pill.textContent='\uD83C\uDFB2 '+gl+' live \u2014 take a seat'; pill.style.display='block'; pill.onclick=()=>{pill.style.display='none';opener(j.id);}; }
       else pill.style.display='none';
     }
@@ -4405,6 +4427,94 @@ function ldPaint(){
   <div class="lt-opps" id="ld-opps" style="justify-content:center"></div>
   <div class="ld-wrap"><div class="ld-board" id="ld-board"></div></div>
   <div class="lt-acts" id="ld-acts"></div>
+</div>
+<script>
+/* ═══ THE DUELS — debate + trivia, human v human, the house judging.
+   Same session law as every felt. ═══ */
+
+/* ── DEBATE DUEL ── */
+var DD={sid:null,view:null,ver:0,timer:null,sel:{}};
+var ddOpen=mkTable('dd'),ddClose=mkClose('dd'),ddRefresh=mkRefresh('dd'),ddMove=mkMove('dd');
+function ddSpeak(){
+  var ta=document.getElementById('dd-ta');
+  var t=(ta.value||'').trim();
+  if(t.length<10){alert('say something with weight');return;}
+  ta.value=''; ddMove({type:'speech',text:t});
+}
+function ddPaint(){
+  var v=DD.view,g=v.state,me=v.mySeat;
+  var mySide=me===0?'A':'B';
+  document.getElementById('dd-motion').textContent=g?'\u201C'+g.motion+'\u201D':'taking your side\u2026';
+  var mom=g?g.momentum:50;
+  document.getElementById('dd-momA').style.width=mom+'%';
+  document.getElementById('dd-la').textContent='side A \u00b7 '+gName(DD,0)+(me===0?' (you)':'')+' \u00b7 '+mom;
+  document.getElementById('dd-lb').textContent=(100-mom)+' \u00b7 '+gName(DD,1)+(me===1?' (you)':'')+' \u00b7 side B';
+  var feed=document.getElementById('dd-feed');
+  var html=(g&&g.speeches||[]).map(function(sp){
+    return '<div class="dd-sp'+(sp.seat===me?' me':'')+'"><span class="w">side '+(sp.seat===0?'A':'B')+' \u00b7 '+gName(DD,sp.seat)+'</span>'+sp.text.replace(/</g,'&lt;')+'</div>';
+  }).join('');
+  if(g&&g.lastRemark)html+='<div class="dd-rem">\u2696\uFE0F the moderator: \u201C'+g.lastRemark.replace(/</g,'&lt;')+'\u201D'+(g.lastSwing?' ('+(g.lastSwing>0?'+':'')+g.lastSwing+' to A)':'')+'</div>';
+  if(g&&g.phase==='verdict'){
+    html+='<div class="lt-ban" style="align-self:center;margin-top:6px"><b>'+(g.winner==='draw'?'A DRAW \u2014 THE CHAIR SPLITS IT':(g.winner===me?'THE CHAIR RULES FOR YOU':'THE CHAIR RULES FOR '+gName(DD,g.winner).toUpperCase()))+'</b><div class="sub" style="text-align:left">'+String(g.verdict||'').replace(/</g,'&lt;')+'</div><button class="lt-btn" onclick="ddClose()">back to the room \u2014 it\u2019s on the record</button></div>';
+  }
+  feed.innerHTML=html; feed.scrollTop=feed.scrollHeight;
+  var comp=document.getElementById('dd-comp');
+  var myTurn=g&&g.phase==='debate'&&g.toAct===me;
+  if(!g){comp.innerHTML='<div class="lt-wait" style="margin:0 auto">taking your side\u2026</div>';}
+  else if(g.phase!=='debate'){comp.innerHTML='';}
+  else if(myTurn){comp.innerHTML='<textarea class="dd-ta" id="dd-ta" placeholder="your speech, side '+mySide+'\u2026"></textarea><button class="lt-btn" style="margin:0;align-self:flex-end" onclick="ddSpeak()">speak</button>';}
+  else{comp.innerHTML='<div class="lt-wait" style="margin:0 auto">'+gName(DD,g.toAct)+' has the floor\u2026</div>';}
+}
+
+/* ── TRIVIA DUEL ── */
+var TD={sid:null,view:null,ver:0,timer:null,sel:{}};
+var tdOpen=mkTable('td'),tdClose=mkClose('td'),tdRefresh=mkRefresh('td'),tdMove=mkMove('td');
+function tdPaint(){
+  var v=TD.view,g=v.state,me=v.mySeat;
+  document.getElementById('td-kick').textContent=g?('trivia duel \u00b7 '+g.topic+' \u00b7 q'+Math.min(g.qi+1,g.total)+'/'+g.total):'trivia duel';
+  document.getElementById('td-score').innerHTML=g?('<span'+(me===0?' style="color:#F0A765"':'')+'>'+gName(TD,0)+' '+g.scores[0]+'</span><span style="color:#6f665c">\u00b7</span><span'+(me===1?' style="color:#F0A765"':'')+'>'+g.scores[1]+' '+gName(TD,1)+'</span>'):'';
+  var felt=document.getElementById('td-felt');
+  if(!g){felt.innerHTML='<div class="lt-hint">taking your seat\u2026</div>';return;}
+  if(g.phase==='over'){
+    felt.innerHTML='<div class="lt-ban"><b>'+(g.winner==='draw'?'DEAD LEVEL \u2014 A DRAW':(g.winner===me?'YOU TAKE IT '+g.scores[me]+'\u2013'+g.scores[1-me]:gName(TD,g.winner).toUpperCase()+' TAKES IT '+g.scores[g.winner]+'\u2013'+g.scores[1-g.winner]))+'</b><div class="sub">on the record, both ledgers.</div><button class="lt-btn" onclick="tdClose()">back to the room</button></div>';
+    return;
+  }
+  if(g.phase==='reveal'&&g.lastResult){
+    var lr=g.lastResult;
+    felt.innerHTML='<div class="td-q">'+lr.q.replace(/</g,'&lt;')+'</div><div class="td-opts">'+lr.opts.map(function(o,i){
+      var cls='td-opt'+(i===lr.correct?' right':'')+((lr.picks[me]===i&&i!==lr.correct)?' wrong':'')+((lr.picks[me]===i)?' mine':'');
+      var who=[]; if(lr.picks[0]===i)who.push(gName(TD,0)); if(lr.picks[1]===i)who.push(gName(TD,1));
+      return '<div class="'+cls+'">'+o.replace(/</g,'&lt;')+(who.length?' <span class="gpill">\u2014 '+who.join(', ')+'</span>':'')+'</div>';
+    }).join('')+'</div><button class="lt-btn" onclick="tdMove({type:\'next\'})">next question</button>';
+    return;
+  }
+  // phase: answer
+  // my turn iff I haven't picked AND (I'm first for this q, or the opponent has answered)
+  var first=g.qi%2, myTurn=g.question&&g.myPick==null&&(first===me||g.oppAnswered);
+  if(g.question&&myTurn){
+    felt.innerHTML='<div class="td-q">'+g.question.q.replace(/</g,'&lt;')+'</div><div class="td-opts">'+g.question.opts.map(function(o,i){
+      return '<button class="td-opt" onclick="tdMove({type:\'answer\',pick:'+i+'})">'+o.replace(/</g,'&lt;')+'</button>';
+    }).join('')+'</div>';
+  } else if(g.myPick!=null){
+    felt.innerHTML='<div class="td-q">'+(g.question?g.question.q.replace(/</g,'&lt;'):'')+'</div><div class="lt-wait">answer locked \u2014 waiting on '+gName(TD,1-me)+'\u2026</div>';
+  } else {
+    felt.innerHTML='<div class="lt-hint">'+gName(TD,1-me)+' answers first this one\u2026</div>';
+  }
+}
+</script>
+
+<div id="ddtab">
+  <div class="lt-bar"><span class="lt-kick">debate duel · the moderator presiding</span><button class="lt-x" onclick="ddClose()">×</button></div>
+  <div class="dd-motion" id="dd-motion"></div>
+  <div class="dd-mom"><div class="dd-momA" id="dd-momA" style="width:50%"></div></div>
+  <div class="dd-momlbl"><span id="dd-la"></span><span id="dd-lb"></span></div>
+  <div class="dd-feed" id="dd-feed"></div>
+  <div class="dd-comp" id="dd-comp"></div>
+</div>
+<div id="tdtab">
+  <div class="lt-bar"><span class="lt-kick" id="td-kick">trivia duel</span><button class="lt-x" onclick="tdClose()">×</button></div>
+  <div class="td-score" id="td-score"></div>
+  <div class="lt-felt" id="td-felt"></div>
 </div>
 <button id="lt-join">🎲 game live — take a seat</button>
 <div id="ltab">
