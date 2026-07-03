@@ -6,12 +6,12 @@
 // ════════════════════════════════════════════════════════════════════════
 import * as Updates from 'expo-updates';
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger, getMemory, forgetMemory } from './api';
+import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends } from './api';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -59,6 +59,43 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   const [ledger, setLedger] = React.useState(null);
   React.useEffect(() => { getLedger().then(setLedger).catch(() => {}); }, []);
   const [showMemory, setShowMemory] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+  const [myHandle, setMyHandle] = useState('');
+  const [handleDraft, setHandleDraft] = useState('');
+  const [savingHandle, setSavingHandle] = useState(false);
+  const [findDraft, setFindDraft] = useState('');
+  const [findResult, setFindResult] = useState(null);
+  const [finding, setFinding] = useState(false);
+  const [friends, setFriends] = useState({ friends: [], incoming: [], outgoing: [] });
+  const loadFriends = React.useCallback(() => { getFriends().then((f) => setFriends(f || { friends: [], incoming: [], outgoing: [] })); }, []);
+  React.useEffect(() => { loadFriends(); }, [loadFriends]);
+  const saveHandle = async () => {
+    const h = handleDraft.trim().toLowerCase().replace(/^@/, '');
+    if (!h || savingHandle) return;
+    setSavingHandle(true);
+    const r = await setHandle(h);
+    if (r && r.handle) { setMyHandle(r.handle); setHandleDraft(''); }
+    else Alert.alert('handle', r?.error || 'could not save that handle');
+    setSavingHandle(false);
+  };
+  const doFind = async () => {
+    const h = findDraft.trim().toLowerCase().replace(/^@/, '');
+    if (!h || finding) return;
+    setFinding(true); setFindResult(null);
+    const r = await findByHandle(h);
+    setFindResult(r && !r.error ? r : { error: r?.error || 'no one by that handle' });
+    setFinding(false);
+  };
+  const sendRequest = async (userId) => {
+    const r = await requestFriend(userId);
+    if (r && !r.error) { setFindResult((cur) => cur ? { ...cur, relation: r.status, youRequested: true } : cur); loadFriends(); }
+    else Alert.alert('request', r?.error || 'could not send request');
+  };
+  const respondTo = async (fromId, action) => {
+    const r = await respondFriend(fromId, action);
+    if (r && !r.error) loadFriends();
+    else Alert.alert('respond', r?.error || 'could not respond');
+  };
   const [facts, setFacts] = useState([]);
   const [notes, setNotes] = useState([]);
   React.useEffect(() => {
@@ -69,6 +106,101 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   }, []);
   const forgetFact = (id) => { forgetMemory(id); setTimeout(() => setFacts((f) => f.filter((x) => x.id !== id)), 220); };
   const forgetNote = (id) => { forgetMemory(id); setTimeout(() => setNotes((n) => n.filter((x) => x.id !== id)), 220); };
+
+  if (showFriends) return (
+    <View style={styles.root}>
+      <LinearGradient colors={['#0D1119', '#0A0D14', '#090C12']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={styles.topbar}>
+          <Pressable hitSlop={10} onPress={() => setShowFriends(false)}><Text style={styles.chev}>‹</Text></Pressable>
+          <Text style={styles.topTitle}>friends</Text>
+          <View style={{ width: 26 }} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 24, paddingTop: 8 }}>
+
+          {/* your handle */}
+          <Text style={styles.sectionLabel}>your handle</Text>
+          {myHandle ? (
+            <Text style={styles.friendHandle}>@{myHandle}</Text>
+          ) : (
+            <View style={styles.friendRowInput}>
+              <Text style={styles.atSign}>@</Text>
+              <TextInput value={handleDraft} onChangeText={setHandleDraft} placeholder="pick a handle" placeholderTextColor="rgba(232,236,244,0.3)" autoCapitalize="none" autoCorrect={false} style={styles.friendInput} />
+              <Pressable onPress={saveHandle} style={styles.friendBtn}><Text style={styles.friendBtnTxt}>{savingHandle ? '…' : 'set'}</Text></Pressable>
+            </View>
+          )}
+
+          {/* find someone */}
+          <Text style={[styles.sectionLabel, { marginTop: 26 }]}>add by handle</Text>
+          <View style={styles.friendRowInput}>
+            <Text style={styles.atSign}>@</Text>
+            <TextInput value={findDraft} onChangeText={setFindDraft} placeholder="their handle" placeholderTextColor="rgba(232,236,244,0.3)" autoCapitalize="none" autoCorrect={false} onSubmitEditing={doFind} style={styles.friendInput} />
+            <Pressable onPress={doFind} style={styles.friendBtn}><Text style={styles.friendBtnTxt}>{finding ? '…' : 'find'}</Text></Pressable>
+          </View>
+          {findResult ? (
+            findResult.error ? (
+              <Text style={styles.friendMuted}>{findResult.error}</Text>
+            ) : (
+              <View style={styles.friendCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.friendName}>{findResult.display_name || '@' + findResult.handle}</Text>
+                  <Text style={styles.friendSub}>@{findResult.handle}</Text>
+                </View>
+                {findResult.relation === 'accepted' ? <Text style={styles.friendMuted}>friends ✓</Text>
+                  : findResult.relation === 'pending' ? <Text style={styles.friendMuted}>{findResult.youRequested ? 'requested' : 'wants to add you'}</Text>
+                  : <Pressable onPress={() => sendRequest(findResult.id)} style={styles.friendBtn}><Text style={styles.friendBtnTxt}>add</Text></Pressable>}
+              </View>
+            )
+          ) : null}
+
+          {/* requests waiting on you */}
+          {friends.incoming.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 26 }]}>wants to add you</Text>
+              {friends.incoming.map((u) => (
+                <View key={u.id} style={styles.friendCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
+                    <Text style={styles.friendSub}>@{u.handle}</Text>
+                  </View>
+                  <Pressable onPress={() => respondTo(u.id, 'accept')} style={styles.friendBtn}><Text style={styles.friendBtnTxt}>accept</Text></Pressable>
+                  <Pressable onPress={() => respondTo(u.id, 'decline')} style={styles.friendBtnGhost}><Text style={styles.friendBtnGhostTxt}>✕</Text></Pressable>
+                </View>
+              ))}
+            </>
+          )}
+
+          {/* your friends */}
+          <Text style={[styles.sectionLabel, { marginTop: 26 }]}>your friends</Text>
+          {friends.friends.length === 0 ? (
+            <Text style={styles.friendMuted}>no one yet. share your handle or add someone above.</Text>
+          ) : friends.friends.map((u) => (
+            <View key={u.id} style={styles.friendCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
+                <Text style={styles.friendSub}>@{u.handle}</Text>
+              </View>
+            </View>
+          ))}
+
+          {friends.outgoing.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 26 }]}>you asked</Text>
+              {friends.outgoing.map((u) => (
+                <View key={u.id} style={styles.friendCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
+                    <Text style={styles.friendSub}>@{u.handle}</Text>
+                  </View>
+                  <Text style={styles.friendMuted}>pending</Text>
+                </View>
+              ))}
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
 
   if (showMemory) return (
     <View style={styles.root}>
@@ -161,6 +293,14 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             <Text style={styles.settingChev}>›</Text>
           </Pressable>
 
+          <Pressable style={[styles.settingRow, { marginTop: 4 }]} onPress={() => { setShowFriends(true); loadFriends(); }}>
+            <View>
+              <Text style={styles.settingText}>friends{friends.incoming.length > 0 ? `  ·  ${friends.incoming.length} new` : ''}</Text>
+              <Text style={styles.ledgerSub}>{myHandle ? '@' + myHandle : 'set a handle, add people, play together'}</Text>
+            </View>
+            <Text style={styles.settingChev}>›</Text>
+          </Pressable>
+
           {/* settings, quiet at the bottom */}
           <Text style={[styles.sectionLabel, { marginTop: 28 }]}>settings</Text>
           <Pressable style={styles.settingRow} onPress={checkUpdates}>
@@ -216,4 +356,16 @@ const styles = StyleSheet.create({
   settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
   settingText: { fontFamily: FONTS.body, color: '#E8ECF4', fontSize: 14.5 },
   settingChev: { color: C.faint, fontSize: 20 },
+  friendHandle: { fontFamily: FONTS.medium, color: '#9FC2E8', fontSize: 18, marginBottom: 2 },
+  friendRowInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(233,232,240,0.04)', borderWidth: 1, borderColor: 'rgba(233,232,240,0.10)', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 4 },
+  atSign: { fontFamily: FONTS.medium, color: 'rgba(232,236,244,0.45)', fontSize: 16 },
+  friendInput: { flex: 1, fontFamily: FONTS.body, color: '#E8ECF4', fontSize: 15, paddingVertical: 10, paddingHorizontal: 6 },
+  friendBtn: { backgroundColor: 'rgba(159,194,232,0.16)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.4)', borderRadius: 100, paddingHorizontal: 15, paddingVertical: 7, marginLeft: 6 },
+  friendBtnTxt: { fontFamily: FONTS.semibold, color: '#9FC2E8', fontSize: 13 },
+  friendBtnGhost: { paddingHorizontal: 10, paddingVertical: 7, marginLeft: 4 },
+  friendBtnGhostTxt: { color: 'rgba(232,236,244,0.5)', fontSize: 15 },
+  friendCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  friendName: { fontFamily: FONTS.medium, color: '#E8ECF4', fontSize: 15.5 },
+  friendSub: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 12, marginTop: 1 },
+  friendMuted: { fontFamily: FONTS.body, color: 'rgba(232,236,244,0.4)', fontSize: 13, marginTop: 8 },
 });

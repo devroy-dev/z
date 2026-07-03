@@ -223,16 +223,22 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           <View style={st.divider} />
-          {recents.map((r, i) => (
-            <Row key={i}
-              face={r.kind === 'persona' ? dpFor(r.key) : null}
-              glyph={r.kind === 'room' ? '👥' : null}
-              tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
-              name={r.name} line={r.line} time={ago(r.at)}
-              onPress={() => onOpen(r.kind === 'persona' ? { kind: 'persona', key: r.key } : { kind: 'room', room: r.room })}
-            />
-          ))}
-          {recents.length === 0 && <Text style={st.empty}>no conversations yet — tap ✎ to meet the house.</Text>}
+          {filt === 'friends' ? (
+            <Text style={st.empty}>manage friends in the You tab — set a handle and add people. chatting with them is coming next.</Text>
+          ) : (
+            <>
+              {recents.map((r, i) => (
+                <Row key={i}
+                  face={r.kind === 'persona' ? dpFor(r.key) : null}
+                  glyph={r.kind === 'room' ? '👥' : null}
+                  tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
+                  name={r.name} line={r.line} time={ago(r.at)}
+                  onPress={() => onOpen(r.kind === 'persona' ? { kind: 'persona', key: r.key } : { kind: 'room', room: r.room })}
+                />
+              ))}
+              {recents.length === 0 && <Text style={st.empty}>no conversations yet — tap ✎ to meet the house.</Text>}
+            </>
+          )}
         </ScrollView>
       )}
       {tab === 'updates' && <UpdatesFeed onOpen={onOpen} />}
