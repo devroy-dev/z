@@ -46,9 +46,11 @@ export function Die({ value, rolling, onPress, enabled, tone }) {
   const st = useAnimatedStyle(() => ({
     transform: [{ perspective: 500 }, { rotateX: `${spin.value}deg` }, { rotateZ: `${spin.value * 0.6}deg` }, { scale: scale.value }],
   }));
+  // a die with no value RESTS BLANK — showing a stale face (it used to
+  // default to 6) reads as a real roll and confuses the table.
   const pips = { 1:[[24,24]], 2:[[13,13],[35,35]], 3:[[13,13],[24,24],[35,35]],
     4:[[13,13],[13,35],[35,13],[35,35]], 5:[[13,13],[13,35],[24,24],[35,13],[35,35]],
-    6:[[13,11],[13,24],[13,37],[35,11],[35,24],[35,37]] }[value || 6];
+    6:[[13,11],[13,24],[13,37],[35,11],[35,24],[35,37]] }[value] || [];
   return (
     <Pressable onPress={enabled ? onPress : undefined} hitSlop={10}>
       <Animated.View style={[dieStyles.die, enabled && { borderColor: tone, shadowColor: tone }, st]}>

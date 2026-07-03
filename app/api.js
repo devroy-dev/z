@@ -362,6 +362,11 @@ export async function simOracle() {
   try { return await authedJSON('GET', '/sim/oracle'); } catch (e) { return null; }
 }
 
+// ── thread prefs: pin / favourite / archive (per user) ──
+export async function setThreadPrefs(threadId, prefs) {
+  try { return await authedJSON('POST', '/thread/prefs', { threadId, ...prefs }); } catch (e) { return null; }
+}
+
 // ── fantasy football (house league — EPL + UCL, real data) ──
 export async function ffStatus(league = 'epl') {
   try { return await authedJSON('GET', `/ff/status?league=${league}`); } catch (e) { return null; }

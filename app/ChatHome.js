@@ -10,7 +10,8 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path as SvgPath } from 'react-
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM } from './api';
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs } from './api';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { personaMeta } from './games/personas';
@@ -143,6 +144,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   const [zFace, setZFace] = useState(true);
   const [friendList, setFriendList] = useState([]);
   const [opening, setOpening] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -192,17 +194,46 @@ export default function ChatHome({ onOpen = () => {} }) {
   // like "Nolan's Odyssey") stay in the GROUPS tab. A DM is a shared thread with no
   // persona members → it belongs here, as a normal conversation.
   const isDMRoom = (r) => !r.personas || r.personas.filter(Boolean).length === 0;
-  const recents = [
+  const allRows = [
     ...threads.filter((t) => t.persona_key && !t.is_shared && !t.is_group && !PINNED_KEYS.has(t.persona_key)).map((t) => ({
-      kind: 'persona', key: t.persona_key, name: t.companion_name || nameOf(t.persona_key),
-      at: t.last_active, line: (t.unread ? 'new message' : 'tap to continue'), unread: t.unread || 0,
+      kind: 'persona', key: t.persona_key, threadId: t.id, name: t.companion_name || nameOf(t.persona_key),
+      at: t.last_active,
+      line: t.last_message || (t.unread ? 'new message' : 'tap to continue'),
+      unread: t.unread || 0,
+      pinnedByMe: !!t.pinned, favourite: !!t.favourite, archived: !!t.archived,
     })),
     ...rooms.filter(isDMRoom).map((r) => ({
-      kind: 'dm', room: r, name: r.name || 'a friend', at: r.last_active || r.created_at, line: 'tap to chat', unread: 0,
+      kind: 'dm', room: r, threadId: r.id, name: r.name || 'a friend',
+      at: r.last_active || r.created_at,
+      line: r.last_message || 'tap to chat', unread: 0,
+      pinnedByMe: !!r.pinned, favourite: !!r.favourite, archived: !!r.archived,
     })),
-  ].sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1))
+  ].sort((a, b) => {
+    if (a.pinnedByMe !== b.pinnedByMe) return a.pinnedByMe ? -1 : 1;   // pinned float
+    return String(a.at || '') < String(b.at || '') ? 1 : -1;
+  })
    .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
-   .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : filt === 'unread' ? (r.unread > 0) : true);
+   .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : filt === 'unread' ? (r.unread > 0) : filt === 'fav' ? r.favourite : true);
+  const recents = allRows.filter((r) => !r.archived);
+  const archivedRows = allRows.filter((r) => r.archived);
+
+  const setPref = async (row, prefs) => {
+    if (!row.threadId) return;
+    await setThreadPrefs(row.threadId, prefs);
+    load();
+  };
+  const SwipeAction = ({ label, on, onPress }) => (
+    <Pressable onPress={onPress} style={[st.swAct, on && st.swActOn]}>
+      <Text style={[st.swActTxt, on && { color: MOON.porcelain }]}>{label}</Text>
+    </Pressable>
+  );
+  const rowActions = (row) => () => (
+    <View style={{ flexDirection: 'row' }}>
+      <SwipeAction label={row.pinnedByMe ? 'unpin' : 'pin'} on={row.pinnedByMe} onPress={() => setPref(row, { pinned: !row.pinnedByMe })} />
+      <SwipeAction label={row.favourite ? 'unfav' : 'fav'} on={row.favourite} onPress={() => setPref(row, { favourite: !row.favourite })} />
+      <SwipeAction label={row.archived ? 'unarchive' : 'archive'} on={row.archived} onPress={() => setPref(row, { archived: !row.archived })} />
+    </View>
+  );
 
   return (
     <View style={st.root}>
@@ -222,7 +253,6 @@ export default function ChatHome({ onOpen = () => {} }) {
               </Pressable>
             ))}
           </View>
-          <Row face={dpFor('the_anchor')} tone={MOON.hairStrong} name="the news" line="the bulletin · fact-checks · ask anything" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'desk' })}>
             <View style={[st.ring, { borderColor: 'rgba(231,176,122,0.45)' }]}><DeskEmber /></View>
             <View style={{ flex: 1, marginLeft: 13 }}>
@@ -232,6 +262,7 @@ export default function ChatHome({ onOpen = () => {} }) {
               <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
             </View>
           </Pressable>
+          <Row face={dpFor('the_anchor')} tone={MOON.hairStrong} name="the news" line="the bulletin · fact-checks · ask anything" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
             <View style={[st.ring, { borderColor: MOON.moon }]}>
               {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}
@@ -261,18 +292,40 @@ export default function ChatHome({ onOpen = () => {} }) {
           ) : (
             <>
               {recents.map((r, i) => (
-                <Row key={i}
-                  face={r.kind === 'persona' ? dpFor(r.key) : null}
-                  glyph={r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
-                  tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
-                  name={r.name} line={r.line} time={ago(r.at)} unread={r.unread}
-                  onPress={() => onOpen(
-                    r.kind === 'persona' ? { kind: 'persona', key: r.key }
-                    : r.kind === 'dm' ? { kind: 'dm', threadId: r.room.id, name: r.name }
-                    : { kind: 'room', room: r.room })}
-                />
+                <ReanimatedSwipeable key={r.threadId || i} renderRightActions={rowActions(r)} overshootRight={false} friction={2}>
+                  <Row
+                    face={r.kind === 'persona' ? dpFor(r.key) : null}
+                    glyph={r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
+                    tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
+                    name={r.name} line={r.line} time={ago(r.at)} unread={r.unread} pinned={r.pinnedByMe}
+                    onPress={() => onOpen(
+                      r.kind === 'persona' ? { kind: 'persona', key: r.key }
+                      : r.kind === 'dm' ? { kind: 'dm', threadId: r.room.id, name: r.name }
+                      : { kind: 'room', room: r.room })}
+                  />
+                </ReanimatedSwipeable>
               ))}
               {recents.length === 0 && <Text style={st.empty}>no conversations yet — tap ✎ to meet the house.</Text>}
+              {archivedRows.length > 0 && (
+                <>
+                  <Pressable onPress={() => setShowArchived((v) => !v)} style={st.archiveRow}>
+                    <Text style={st.archiveTxt}>{showArchived ? '▾' : '▸'} archived ({archivedRows.length})</Text>
+                  </Pressable>
+                  {showArchived && archivedRows.map((r, i) => (
+                    <ReanimatedSwipeable key={'a' + (r.threadId || i)} renderRightActions={rowActions(r)} overshootRight={false} friction={2}>
+                      <Row
+                        face={r.kind === 'persona' ? dpFor(r.key) : null}
+                        glyph={r.kind === 'dm' ? '🙂' : null}
+                        tone={MOON.hair}
+                        name={r.name} line={r.line} time={ago(r.at)} unread={0}
+                        onPress={() => onOpen(
+                          r.kind === 'persona' ? { kind: 'persona', key: r.key }
+                          : { kind: 'dm', threadId: r.room.id, name: r.name })}
+                      />
+                    </ReanimatedSwipeable>
+                  ))}
+                </>
+              )}
             </>
           )}
         </ScrollView>
@@ -316,6 +369,11 @@ export default function ChatHome({ onOpen = () => {} }) {
 }
 
 const st = StyleSheet.create({
+  swAct: { width: 74, alignItems: 'center', justifyContent: 'center', backgroundColor: MOON.raise, borderLeftWidth: 1, borderColor: MOON.hair },
+  swActOn: { backgroundColor: 'rgba(159,194,232,0.14)' },
+  swActTxt: { fontFamily: FONTS.medium, color: MOON.mist, fontSize: 12 },
+  archiveRow: { paddingHorizontal: 18, paddingVertical: 12 },
+  archiveTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 12.5 },
   updRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
   updRing: { width: 50, height: 50, borderRadius: 25, borderWidth: 1.5, borderColor: 'rgba(159,194,232,0.45)', alignItems: 'center', justifyContent: 'center' },
   updFace: { width: 44, height: 44, borderRadius: 22 },
@@ -340,7 +398,7 @@ const st = StyleSheet.create({
   chipTxt: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12 },
   chipTxtOn: { color: MOON.moon },
   zMono: { fontFamily: FONTS.display, color: MOON.moon, fontSize: 21 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, backgroundColor: MOON.ground },
   ring: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.4, borderColor: MOON.hair, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: MOON.raise },
   face: { width: 44, height: 44, borderRadius: 22 },
   glyph: { fontSize: 20 },

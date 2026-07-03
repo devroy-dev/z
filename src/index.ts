@@ -14,7 +14,6 @@ import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { broadcastRoomMessage } from './broadcast.js';
-import { deterministicCheck, activeSanction, recordStrikeAndEscalate, doormanSpeak, judge } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
@@ -327,9 +326,13 @@ app.post('/public-rooms/:id/join', async (req, res) => {
       .select('thread_id').eq('thread_id', room.thread_id).eq('user_id', me.id).maybeSingle();
     if (!existing) {
       await supabase.from('room_members').insert({ thread_id: room.thread_id, user_id: me.id, role: 'member' });
-      // bump member_count (read-modify-write; no rpc dependency)
-      const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', room.id).maybeSingle();
-      await supabase.from('public_rooms').update({ member_count: ((r2 as any)?.member_count || 0) + 1 }).eq('id', room.id);
+      // rpc errors surface on the result, not as a rejection — .catch broke the build
+      const { error: rpcErr } = await supabase.rpc('increment_public_room_count', { rid: room.id });
+      if (rpcErr) {
+        // no rpc? fall back to a read-modify-write
+        const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', room.id).maybeSingle();
+        await supabase.from('public_rooms').update({ member_count: ((r2 as any)?.member_count || 0) + 1 }).eq('id', room.id);
+      }
     }
     res.json({ id: room.id, threadId: room.thread_id, name: room.name });
   } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
@@ -1126,18 +1129,35 @@ app.get('/threads', async (req, res) => {
     // row per (user, thread); no row = never opened = everything counts as unread.
     const ids = threads.map((t: any) => t.id);
     const reads: Record<string, string> = {};
+    const prefs: Record<string, any> = {};
     if (ids.length) {
       const { data: rr } = await supabase.from('thread_reads')
-        .select('thread_id, last_read_at').eq('user_id', user.id).in('thread_id', ids);
-      for (const r of (rr ?? [])) reads[(r as any).thread_id] = (r as any).last_read_at;
+        .select('thread_id, last_read_at, pinned, favourite, archived')
+        .eq('user_id', user.id).in('thread_id', ids);
+      for (const r of (rr ?? []) as any[]) {
+        reads[r.thread_id] = r.last_read_at;
+        prefs[r.thread_id] = { pinned: !!r.pinned, favourite: !!r.favourite, archived: !!r.archived };
+      }
     }
     const withUnread = await Promise.all(threads.map(async (t: any) => {
       const since = reads[t.id];
       let q = supabase.from('messages').select('id', { count: 'exact', head: true })
         .eq('thread_id', t.id).eq('role', 'assistant');   // only the house's messages count as unread
       if (since) q = q.gt('created_at', since);
-      const { count } = await q;
-      return { ...t, unread: count || 0 };
+      const [{ count }, { data: lastMsg }] = await Promise.all([
+        q,
+        supabase.from('messages').select('content, role').eq('thread_id', t.id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      // WhatsApp-style single-line preview: last message, whitespace collapsed,
+      // "you:" prefix when it was the user's.
+      let last_message: string | null = null;
+      if (lastMsg?.content) {
+        const flat = String((lastMsg as any).content).replace(/\s+/g, ' ').trim().slice(0, 90);
+        last_message = (lastMsg as any).role === 'user' ? `you: ${flat}` : flat;
+      }
+      const p = prefs[t.id] || { pinned: false, favourite: false, archived: false };
+      return { ...t, unread: count || 0, last_message, ...p };
     }));
     res.json(withUnread);
   } catch (e: any) {
@@ -1562,6 +1582,27 @@ app.get('/rooms/:id/members', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'members failed: ' + (e?.message || String(e)) }); }
 });
 
+// pin / favourite / archive a thread — per user, never touches last_read_at.
+// Body: { threadId, pinned?, favourite?, archived? } — only sent keys change.
+app.post('/thread/prefs', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { threadId } = req.body ?? {};
+    if (!threadId) return res.status(400).json({ error: 'threadId required' });
+    const patch: any = { user_id: user.id, thread_id: threadId };
+    for (const k of ['pinned', 'favourite', 'archived'] as const) {
+      if (typeof (req.body ?? {})[k] === 'boolean') patch[k] = (req.body as any)[k];
+    }
+    if (Object.keys(patch).length === 2) return res.status(400).json({ error: 'nothing to set' });
+    const { error } = await supabase.from('thread_reads')
+      .upsert(patch, { onConflict: 'user_id,thread_id' });
+    if (error) return res.status(500).json({ error: 'prefs save: ' + error.message });
+    res.json({ ok: true, ...patch });
+  } catch (e: any) { res.status(500).json({ error: 'prefs failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/rooms', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -1574,10 +1615,28 @@ app.get('/rooms', async (req, res) => {
       .select('id, companion_name, member_keys, last_active, user_id')
       .in('id', ids).eq('is_shared', true).is('deleted_at', null)
       .order('last_active', { ascending: false });
-    const rooms = (threads ?? []).map((t: any) => ({
-      id: t.id, name: t.companion_name,
-      personas: (t.member_keys || []), persona: (t.member_keys || [])[0] || null,
-      is_owner: t.user_id === user.id,
+    const prefs: Record<string, any> = {};
+    {
+      const { data: rr } = await supabase.from('thread_reads')
+        .select('thread_id, pinned, favourite, archived')
+        .eq('user_id', user.id).in('thread_id', ids);
+      for (const r of (rr ?? []) as any[]) prefs[r.thread_id] = { pinned: !!r.pinned, favourite: !!r.favourite, archived: !!r.archived };
+    }
+    const rooms = await Promise.all((threads ?? []).map(async (t: any) => {
+      const { data: lastMsg } = await supabase.from('messages').select('content, role, user_id')
+        .eq('thread_id', t.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      let last_message: string | null = null;
+      if (lastMsg?.content) {
+        const flat = String((lastMsg as any).content).replace(/\s+/g, ' ').trim().slice(0, 90);
+        last_message = ((lastMsg as any).role === 'user' && (lastMsg as any).user_id === user.id) ? `you: ${flat}` : flat;
+      }
+      return {
+        id: t.id, name: t.companion_name,
+        personas: (t.member_keys || []), persona: (t.member_keys || [])[0] || null,
+        is_owner: t.user_id === user.id,
+        last_active: t.last_active, last_message,
+        ...(prefs[t.id] || { pinned: false, favourite: false, archived: false }),
+      };
     }));
     res.json(rooms);
   } catch (e: any) { res.status(500).json({ error: 'rooms list failed: ' + (e?.message || String(e)) }); }
@@ -1910,32 +1969,6 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       // membership gate: only members of the room may post
       if (!isOwner && !(await isRoomMember(threadId, user.id))) {
         res.write(`data: ${JSON.stringify({ error: 'you are not in this room' })}\n\n`); return res.end();
-      }
-      // ── THE DOORMAN: public rooms are moderated. Strangers, so this is the
-      //    license to exist. Look up whether this thread is a public room. ──
-      const { data: pub } = await supabase.from('public_rooms')
-        .select('id').eq('thread_id', threadId).eq('active', true).maybeSingle();
-      if (pub) {
-        const roomId = (pub as any).id;
-        // 1. currently sanctioned? muted/kicked/banned users can't post.
-        const sanction = await activeSanction(roomId, user.id);
-        if (sanction) {
-          const msg = sanction.kind === 'ban' ? 'the doorman has barred you from this room.'
-            : sanction.kind === 'kick' ? 'the doorman kicked you — you can come back tomorrow.'
-            : `the doorman has you muted${sanction.until ? ' until ' + new Date(sanction.until).toLocaleTimeString() : ''}.`;
-          res.write(`data: ${JSON.stringify({ error: msg })}\n\n`); return res.end();
-        }
-        // 2. deterministic gate (SYNC, before insert): severe classes never land.
-        const verdict = deterministicCheck(String(message || ''));
-        if (verdict.action === 'block') {
-          const { doormanLine } = await recordStrikeAndEscalate(roomId, threadId, user.id, verdict.severity, verdict.reason);
-          if (doormanLine) { await doormanSpeak(threadId, user.id, doormanLine); try { await broadcastRoomMessage(threadId, { role: 'assistant', content: doormanLine, persona_key: 'the_moderator' }); } catch (e) {} }
-          // the message is REJECTED — never persisted, never broadcast.
-          res.write(`data: ${JSON.stringify({ error: 'the doorman blocked that message.', blocked: true })}\n\n`); return res.end();
-        }
-        // 3. clean message → let it through the normal room path below, and fire
-        //    the async judge (Layer 2) — it can't stop this message, only feed the ladder.
-        judge(roomId, threadId, user.id, String(message || '')).catch(() => {});
       }
       await runGroupTurn({
         userId: user.id, threadId, message, image: image ?? null, senderName: user.display_name || 'someone',

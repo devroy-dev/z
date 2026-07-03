@@ -297,7 +297,7 @@ export default function LudoTable({ opponent, roster, onExit = () => {} }) {
               : yourTurn ? (game.phase === 'roll' ? 'your roll — tap the die' : (pulseTokens.length ? 'pick a token' : ' '))
               : `${seatName(game.turn)}'s turn`}
           </Text>
-          <Die value={game.die || 6} rolling={rolling} enabled={yourTurn && game.phase === 'roll'} onPress={youRoll} tone={tones[youSeat]} />
+          <Die value={game.die} rolling={rolling} enabled={yourTurn && game.phase === 'roll'} onPress={youRoll} tone={tones[youSeat]} />
         </View>
 
         {game.winner && (
