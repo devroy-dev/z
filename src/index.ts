@@ -22,6 +22,7 @@ import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
 import { getBulletin, startBulletinScheduler } from './bulletin.js';
+import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
@@ -49,6 +50,7 @@ startBriefScheduler();
 startProgrammeScheduler();
 startPingScheduler();
 startBulletinScheduler();
+startSimScheduler();
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
@@ -1983,4 +1985,6 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
 });
 
 const port = Number(process.env.PORT) || 3000;
+installSimRoutes(app, authUser);
+
 app.listen(port, () => console.log(`[z] engine on :${port}`));
