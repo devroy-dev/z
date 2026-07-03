@@ -13,6 +13,7 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 import { broadcastRoomMessage } from './broadcast.js';
+import { stateBlockFor } from './personaStates.js';
 
 const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -310,7 +311,15 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       }
     }
 
-    const dynamic = `\n\n[${todayLine}${sinceLine(__lastAt)}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${memoryBlock}`;
+    // THE LIFE OUTSIDE — their diary, so "what's up" has a real answer in rooms
+    // too. Skipped in roleplay: an assigned role must not bleed the persona's
+    // own life into the scene. Kept at game tables — that grumbling is texture.
+    let lifeBlock = '';
+    if (!scenarioKey) {
+      try { lifeBlock = await stateBlockFor(key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }
+    }
+
+    const dynamic = `\n\n[${todayLine}${sinceLine(__lastAt)}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${lifeBlock}${memoryBlock}`;
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,

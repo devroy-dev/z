@@ -105,6 +105,9 @@ const splitBursts = (t) => String(t || '').split(/\n\s*\n/).map((x) => x.trim())
 
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
+  // the hero treatment: only the pinned trinity stream live. residents text
+  // like people — typing indicator, then the whole message lands at once.
+  const LIVE_STREAM = KEY === 'the_anchor' || KEY === 'the_front_desk' || KEY === 'z' || KEY === 'z_serious';
   const P = PERSONAS[KEY];
   const rgb = P.rgb;
   const dp = faceFor(KEY);
@@ -249,16 +252,25 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     targetRef.current = '';
     shownRef.current = '';
     streamDoneRef.current = false;
-    pacingRef.current = true;
+    pacingRef.current = LIVE_STREAM;
     const done = () => { sendingRef.current = false; setSending(false); };
-    revealTick(zId, done);
+    if (LIVE_STREAM) revealTick(zId, done);
 
     streamChat({
       threadId: tid,
       message: text,
       persona: KEY,
       onToken: (acc) => { targetRef.current = acc; },
-      onDone: (acc) => { targetRef.current = acc || targetRef.current; streamDoneRef.current = true; },
+      onDone: (acc) => {
+        targetRef.current = acc || targetRef.current;
+        streamDoneRef.current = true;
+        if (!LIVE_STREAM) {
+          const full = targetRef.current;
+          setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: full, typing: false } : m)));
+          scrollDown();
+          done();
+        }
+      },
       onError: (msg) => {
         pacingRef.current = false;
         setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: msg, typing: false } : m));

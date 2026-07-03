@@ -8,6 +8,7 @@ import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
+import { stateBlockFor } from './personaStates.js';
 
 // Use Node's native fetch (undici) instead of the SDK's default node-fetch@2, which
 // premature-closes streaming responses on Node 22 (this engine pins Node 22 for supabase
@@ -121,7 +122,12 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   if (t?.persona_key === 'the_anchor') {
     registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly: "that is a misstatement" / "that forward is fabricated - here is what actually happened." Never soften a correction into ambiguity; never confirm what you have not verified.]';
   }
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${memoryBlock}${registerNote}`;
+  // THE LIFE OUTSIDE — the persona's own diary (written nightly by the state
+  // writer, never before injected: personas were oblivious to their own lives).
+  let lifeBlock = '';
+  try { lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }
+
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${lifeBlock}${memoryBlock}${registerNote}`;
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
