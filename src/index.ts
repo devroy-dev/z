@@ -14,6 +14,7 @@ import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { broadcastRoomMessage } from './broadcast.js';
+import { deterministicCheck, activeSanction, recordStrikeAndEscalate, doormanSpeak, judge } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
@@ -1911,6 +1912,32 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       // membership gate: only members of the room may post
       if (!isOwner && !(await isRoomMember(threadId, user.id))) {
         res.write(`data: ${JSON.stringify({ error: 'you are not in this room' })}\n\n`); return res.end();
+      }
+      // ── THE DOORMAN: public rooms are moderated. Strangers, so this is the
+      //    license to exist. Look up whether this thread is a public room. ──
+      const { data: pub } = await supabase.from('public_rooms')
+        .select('id').eq('thread_id', threadId).eq('active', true).maybeSingle();
+      if (pub) {
+        const roomId = (pub as any).id;
+        // 1. currently sanctioned? muted/kicked/banned users can't post.
+        const sanction = await activeSanction(roomId, user.id);
+        if (sanction) {
+          const msg = sanction.kind === 'ban' ? 'the doorman has barred you from this room.'
+            : sanction.kind === 'kick' ? 'the doorman kicked you — you can come back tomorrow.'
+            : `the doorman has you muted${sanction.until ? ' until ' + new Date(sanction.until).toLocaleTimeString() : ''}.`;
+          res.write(`data: ${JSON.stringify({ error: msg })}\n\n`); return res.end();
+        }
+        // 2. deterministic gate (SYNC, before insert): severe classes never land.
+        const verdict = deterministicCheck(String(message || ''));
+        if (verdict.action === 'block') {
+          const { doormanLine } = await recordStrikeAndEscalate(roomId, threadId, user.id, verdict.severity, verdict.reason);
+          if (doormanLine) { await doormanSpeak(threadId, user.id, doormanLine); try { await broadcastRoomMessage(threadId, { role: 'assistant', content: doormanLine, persona_key: 'the_moderator' }); } catch (e) {} }
+          // the message is REJECTED — never persisted, never broadcast.
+          res.write(`data: ${JSON.stringify({ error: 'the doorman blocked that message.', blocked: true })}\n\n`); return res.end();
+        }
+        // 3. clean message → let it through the normal room path below, and fire
+        //    the async judge (Layer 2) — it can't stop this message, only feed the ladder.
+        judge(roomId, threadId, user.id, String(message || '')).catch(() => {});
       }
       await runGroupTurn({
         userId: user.id, threadId, message, image: image ?? null, senderName: user.display_name || 'someone',
