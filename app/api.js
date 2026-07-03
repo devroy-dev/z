@@ -362,6 +362,24 @@ export async function simOracle() {
   try { return await authedJSON('GET', '/sim/oracle'); } catch (e) { return null; }
 }
 
+// ── build-a-persona: your own people ──
+export async function composeCustomPersona(answers) {
+  await loadSession();
+  const r = await fetch(`${API_BASE}/personas/custom/compose`, { method: 'POST', headers: headers(), body: JSON.stringify(answers) });
+  return r.json().catch(() => ({ error: 'compose failed' }));
+}
+export async function saveCustomPersona(name, codex, tone) {
+  await loadSession();
+  const r = await fetch(`${API_BASE}/personas/custom`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, codex, tone }) });
+  return r.json().catch(() => ({ error: 'save failed' }));
+}
+export async function listCustomPersonas() {
+  try { return await authedJSON('GET', '/personas/custom'); } catch (e) { return { personas: [] }; }
+}
+export async function retireCustomPersona(key) {
+  try { return await authedJSON('POST', `/personas/custom/${key}/retire`, {}); } catch (e) { return null; }
+}
+
 // ── thread prefs: pin / favourite / archive (per user) ──
 export async function setThreadPrefs(threadId, prefs) {
   try { return await authedJSON('POST', '/thread/prefs', { threadId, ...prefs }); } catch (e) { return null; }

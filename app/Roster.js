@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
-import { getPins, togglePin as togglePinApi, listThreads, getPersonaStates } from './api';
+import { getPins, togglePin as togglePinApi, listThreads, getPersonaStates, listCustomPersonas } from './api';
 
 const C = {
   void: '#090C12', ground: '#08070B',            // Moonlight — cold ink, matches the chat
@@ -197,7 +197,7 @@ let PINS_CACHE = [];
 // static defaults so a rename shows up in the list/shelf. Cached to avoid a flash.
 let NAMES_CACHE = {};
 
-export default function Roster({ onOpen = () => {} }) {
+export default function Roster({ onOpen = () => {}, onCreate = () => {} }) {
   const [fontsLoaded, fontError] = useFonts({
     Fraunces_400Regular, Fraunces_400Regular_Italic,
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
@@ -215,6 +215,8 @@ export default function Roster({ onOpen = () => {} }) {
     setRefreshing(false);
   };
   useEffect(() => { getPins().then((p) => { PINS_CACHE = p; setPins(p); }); }, []);
+  const [customs, setCustoms] = useState([]);
+  useEffect(() => { listCustomPersonas().then((r) => setCustoms((r && r.personas) || [])); }, []);
   // overlay your custom companion names on top of the persona defaults
   const [names, setNames] = useState(NAMES_CACHE);
   useEffect(() => {
@@ -272,6 +274,35 @@ export default function Roster({ onOpen = () => {} }) {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#9FC2E8" colors={["#9FC2E8"]} progressBackgroundColor="#100E15" />}>
             {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} names={names} />}
+            {query.trim().length === 0 && (
+              <View style={styles.constellation}>
+                <View style={styles.groupHead}>
+                  <View style={[styles.groupDot, { backgroundColor: '#E7B07A', shadowColor: '#E7B07A' }]} />
+                  <Text style={styles.groupName}>Your People</Text>
+                  <Text style={styles.groupSub}>the ones you made</Text>
+                </View>
+                {customs.map((c) => (
+                  <Pressable key={c.key} style={styles.row} onPress={() => onOpen(c.key)}>
+                    <View style={[styles.faceRing, { width: 46, height: 46, borderRadius: 23, borderColor: c.tone || '#E7B07A', alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={{ fontFamily: 'Fraunces_400Regular', color: c.tone || '#E7B07A', fontSize: 20 }}>{(c.name && c.name[0] ? c.name[0] : '✦').toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.rowText}>
+                      <Text style={styles.rowName}>{c.name}</Text>
+                      <Text style={styles.rowDesc}>made by you · private</Text>
+                    </View>
+                  </Pressable>
+                ))}
+                <Pressable style={styles.row} onPress={onCreate}>
+                  <View style={[styles.faceRing, { width: 46, height: 46, borderRadius: 23, borderColor: 'rgba(233,232,240,0.25)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' }]}>
+                    <Text style={{ color: C.muted, fontSize: 22, lineHeight: 24 }}>+</Text>
+                  </View>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowName}>create someone</Text>
+                    <Text style={styles.rowDesc}>{customs.length >= 3 ? 'the house holds three — retire one to make room' : 'six questions and they exist'}</Text>
+                  </View>
+                </Pressable>
+              </View>
+            )}
             {GROUPS.map((g) => (
               <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} states={states} />
             ))}

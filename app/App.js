@@ -21,6 +21,7 @@ import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600Sem
 
 import Nav, { WorldStub } from './Nav';
 import Roster from './Roster';
+import CreatePersona from './CreatePersona';
 import Chat from './Chat';
 import Play from './Play';
 import Sims from './Sims';
@@ -158,10 +159,13 @@ function DeskWorld({ navigate, onLogout }) {
 
 function GatheringWorld({ navigate, target }) {
   const [openChat, setOpenChat] = React.useState(null); // persona key or null
+  const [creating, setCreating] = React.useState(false);
   useBackLayer(!!openChat, React.useCallback(() => { setOpenChat(null); return true; }, []));
+  useBackLayer(creating, React.useCallback(() => { setCreating(false); return true; }, []));
   React.useEffect(() => { if (target?.persona) setOpenChat(target.persona); }, [target]);
+  if (creating) return <CreatePersona onBack={() => setCreating(false)} onDone={(key) => { setCreating(false); setOpenChat(key); }} />;
   if (openChat) return <Chat key={openChat} personaKey={openChat} initialDraft={target?.persona === openChat ? (target?.draft || '') : ''} autoSend={target?.persona === openChat && !!target?.autoSend} onBack={() => setOpenChat(null)} onRoute={navigate || (() => {})} />;
-  return <Roster onOpen={(pkey) => setOpenChat(pkey)} />;
+  return <Roster onOpen={(pkey) => setOpenChat(pkey)} onCreate={() => setCreating(true)} />;
 }
 
 function RoomsWorld() {

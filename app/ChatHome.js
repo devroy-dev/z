@@ -377,8 +377,8 @@ export default function ChatHome({ onOpen = () => {} }) {
               {recents.map((r, i) => (
                 <ReanimatedSwipeable key={r.threadId || i} renderRightActions={rowActions(r)} overshootRight={false} friction={2}>
                   <Row
-                    face={r.kind === 'persona' ? dpFor(r.key) : null}
-                    glyph={r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
+                    face={r.kind === 'persona' && !r.key.startsWith('custom_') ? dpFor(r.key) : null}
+                    glyph={r.kind === 'persona' && r.key.startsWith('custom_') ? (r.name && r.name[0] ? r.name[0].toUpperCase() : '✦') : r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
                     tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
                     name={r.name} line={r.line} time={ago(r.at)} unread={r.unread} pinned={r.pinnedByMe}
                     onPress={() => onOpen(

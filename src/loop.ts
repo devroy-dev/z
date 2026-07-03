@@ -5,6 +5,8 @@
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './db.js';
+import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPersonas.js';
+import { buildCustomPrefix } from './content.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
@@ -56,8 +58,19 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // recharacterized. Fall back to the stored key only if the persona has none.
   const codexKeys: CodexKey[] = [((persona?.codex as CodexKey) || (t.codex_key as CodexKey))];
 
+  // ── CUSTOM PERSONAS: codex lives in the DB, scoped to its owner; the house
+  // seatbelt rides AFTER the creator's text so it always wins. Missing or
+  // blocked → the retired line (in-fiction kill switch). Customs never get web
+  // (persona is null here, so the webEnabled gates below stay closed for free).
+  let customPrefix: string | null = null;
+  if (!persona && String(t.persona_key || '').startsWith('custom_')) {
+    const c = await getCustomPersona(t.persona_key, t.user_id);
+    const codexRaw = c && c.status === 'live' ? c.codex : RETIRED_CODEX;
+    customPrefix = buildCustomPrefix(t.companion_name, t.companion_gender, codexRaw, CUSTOM_SEATBELT);
+  }
+
   // ── STATIC (cached): soul + name + Codex ──────────────────────────────
-  const staticPrefix = buildStaticPrefix(t.companion_name, t.companion_gender, codexKeys, (thread as any).region ?? null);
+  const staticPrefix = customPrefix ?? buildStaticPrefix(t.companion_name, t.companion_gender, codexKeys, (thread as any).region ?? null);
 
   // ── DYNAMIC (uncached): date + shared memory ──────────────────────────
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;

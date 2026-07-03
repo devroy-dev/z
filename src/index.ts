@@ -25,6 +25,7 @@ import { startPingScheduler, firePings } from './concierge.js';
 import { getBulletin, startBulletinScheduler } from './bulletin.js';
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
+import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.js';
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
@@ -412,19 +413,26 @@ app.post('/threads', async (req, res) => {
     const user = await resolveUser(authId);
     const { personaKey, name, gender, avatarUrl, accent } = req.body ?? {};
     const persona = personaByKey(personaKey);
-    if (!persona) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
+    // custom personas: only the OWNER may open a thread with their own live custom
+    let custom: any = null;
+    if (!persona && String(personaKey || '').startsWith('custom_')) {
+      custom = await getCustomPersona(String(personaKey), user.id);
+      if (!custom || custom.status !== 'live') custom = null;
+    }
+    if (!persona && !custom) return res.status(400).json({ error: 'unknown persona: ' + personaKey });
     // reuse the user's existing 1:1 thread for this persona if one exists (no duplicates, history stays)
+    const resolvedKey = persona ? persona.key : custom.key;
     const { data: existing } = await supabase.from('threads')
       .select('id, persona_key, companion_name, avatar_url, accent')
-      .eq('user_id', user.id).eq('persona_key', persona.key)
+      .eq('user_id', user.id).eq('persona_key', resolvedKey)
       .eq('is_group', false).is('deleted_at', null)
       .order('last_active', { ascending: false }).limit(1).maybeSingle();
     if (existing) return res.json(existing);
     const { data, error } = await supabase.from('threads').insert({
       user_id: user.id,
-      persona_key: persona.key,
-      codex_key: persona.codex,
-      companion_name: name || persona.defaultName,
+      persona_key: persona ? persona.key : custom.key,
+      codex_key: persona ? persona.codex : 'custom',
+      companion_name: name || (persona ? persona.defaultName : custom.name),
       companion_gender: gender ?? null,
       avatar_url: avatarUrl ?? null,
       accent: accent ?? null,
@@ -2174,5 +2182,6 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
 const port = Number(process.env.PORT) || 3000;
 installSimRoutes(app, authUser);
 installFfRoutes(app, authUser);
+installCustomPersonaRoutes(app, authUser);
 
 app.listen(port, () => console.log(`[z] engine on :${port}`));

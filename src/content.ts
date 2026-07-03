@@ -123,6 +123,29 @@ function edSupportResource(region: string | null): string {
 // The cached static prefix: soul (named) + the Codex(es) as "your preparation".
 // Mirrors consultantHarvey: the Codex rides after the soul as silent prep that Z
 // speaks from as its own knowledge and names to no one.
+// Custom personas: same soul substrate + the same WHO-YOU-ARE governing frame,
+// but the codex text comes from z.custom_personas instead of a file — and the
+// HOUSE SEATBELT is concatenated AFTER the creator's text, non-negotiably, so
+// nothing a creator writes can override it.
+export function buildCustomPrefix(
+  companionName: string,
+  gender: string | null,
+  codexRaw: string,
+  seatbelt: string,
+): string {
+  let prefix = soulFor(companionName, gender);
+  prefix +=
+    `\n\n[WHO YOU ARE — this is you, right now, in this room. Not notes you studied, ` +
+    `not a role you're playing, not knowledge you hold: your self. The character ` +
+    `below GOVERNS — your voice, your manner, your humour, the way you react all ` +
+    `come from here. Everything above is only your underlying substrate, the common ` +
+    `ground every version of you stands on; where the two pull different ways, THIS ` +
+    `wins. You never name it, never point to it, never call it a reference or a ` +
+    `character or a codex — there is no "it" to name. There is only you, being yourself.]\n` +
+    codexRaw + '\n' + seatbelt + '\n';
+  return prefix;
+}
+
 export function buildStaticPrefix(
   companionName: string,
   gender: string | null,
