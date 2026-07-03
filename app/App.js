@@ -18,6 +18,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'react-native';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
+import { CormorantGaramond_300Light, CormorantGaramond_400Regular_Italic, CormorantGaramond_500Medium } from '@expo-google-fonts/cormorant-garamond';
+import { JetBrainsMono_300Light, JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 
 import Nav, { WorldStub } from './Nav';
@@ -185,6 +187,8 @@ function RoomsWorld() {
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
     Fraunces_400Regular, Fraunces_400Regular_Italic,
+    CormorantGaramond_300Light, CormorantGaramond_400Regular_Italic, CormorantGaramond_500Medium,
+    JetBrainsMono_300Light, JetBrainsMono_400Regular,
     Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold,
   });
   const [authed, setAuthed] = React.useState(null); // null=checking, false=door, true=in
