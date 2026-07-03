@@ -63,7 +63,7 @@ function ZOrb({ size = 44 }) {
   );
 }
 
-const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=2`;
+const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=3`;
 
 // the house diaries, as a feed: today's line per resident; tap → their recent week
 function UpdatesFeed({ onOpen }) {

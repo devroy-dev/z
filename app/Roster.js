@@ -74,7 +74,7 @@ const PERSONAS = {
   the_economist:{name:'the economist',desc:"why your rent keeps rising. let's make it make sense."},
   the_anchor:{name:'the anchor',desc:"the 9 o'clock bulletin, waiting for your questions."},
 };
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=2`;
+const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=3`;
 const toneFor = (k) => (GROUPS.find(g => g.keys.includes(k))?.tone) || C.ember;
 
 // ── one breathing presence: a face inside a glowing, living ring ──

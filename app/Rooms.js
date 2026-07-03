@@ -21,7 +21,7 @@ const N = {
   candle: '#E7B07A', candleHot: '#F3CFA3', candleGlow: 'rgba(231,176,122,0.45)',
 };
 
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=2`;
+const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=3`;
 
 // persona display names + aura rgb (the room's light comes from who's in it)
 const P = {
