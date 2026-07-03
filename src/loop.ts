@@ -198,9 +198,10 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
 
   // build this turn's user content — text, plus a vision image block when attached
   let userContent: any = message;
-  if (input.image && /^image\/(jpeg|png|gif|webp)$/.test(input.image.media_type)) {
+  const hasImage = !!input.image && /^image\/(jpeg|png|gif|webp)$/.test(input.image.media_type);
+  if (hasImage) {
     userContent = [
-      { type: 'image', source: { type: 'base64', media_type: input.image.media_type, data: input.image.data } },
+      { type: 'image', source: { type: 'base64', media_type: input.image!.media_type, data: input.image!.data } },
       { type: 'text', text: message || 'what do you make of this?' },
     ];
   }
@@ -211,8 +212,11 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   // web_search tool so they can reach live facts (current films, what's streaming, today's
   // references) instead of bluffing from training data. The model runs the search itself;
   // no manual tool round-trip needed. Capped to keep turns tight and cheap.
+  // BUT: the vision image block and web_search CANNOT ride the same request (the API rejects
+  // it — this was the "(z went quiet)" error on a photo to a web-enabled persona like the diva).
+  // On an image turn we drop web; the persona looks now and says it'll check later if needed.
   const tools: any[] = [];
-  if (persona?.webEnabled) {
+  if (persona?.webEnabled && !hasImage) {
     tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 4 });
   }
   const streamArgs: any = { model: MODEL, max_tokens: 1024, system, messages };
