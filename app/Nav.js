@@ -12,6 +12,7 @@ import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
 import { FONTS } from './theme';
 import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
+import ChatHome, { MOON } from './ChatHome';
 
 const N = {
   night: '#0B0A0F', night2: '#100E15',
@@ -107,7 +108,8 @@ export function WorldStub({ title, kicker, line }) {
 
 // ── the shell: holds the active world + nav + cross-app navigation ──
 export default function Nav({ screens }) {
-  const [active, setActive] = useState('desk');   // the Front Desk is home
+  const [world, setWorld] = useState('chat');     // chat | play — the two registers
+  const [active, setActive] = useState('desk');   // legacy tab id for PLAY internals
   const [target, setTarget] = useState(null);     // deep-link for the active tab
   const [overlay, setOverlay] = useState(null);   // full-screen, non-tab destinations
 
@@ -117,11 +119,11 @@ export default function Nav({ screens }) {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (handleBack()) return true;
-      if (active !== 'desk') { setActive('desk'); return true; }
+      if (world === 'play') { setWorld('chat'); return true; }
       return false;                       // bare desk → the system may exit
     });
     return () => sub.remove();
-  }, [active]);
+  }, [world]);
 
   const navigate = (dest) => {
     if (!dest) return;
@@ -130,6 +132,12 @@ export default function Nav({ screens }) {
       setOverlay(typeof dest === 'string' ? { tab } : dest);
       return;
     }
+    if (tab === 'gathering' || tab === 'desk' || tab === 'rooms') {
+      setWorld('chat');
+      setTarget(typeof dest === 'string' ? null : dest);
+      return;
+    }
+    if (tab === 'play') { setWorld('play'); setActive('play'); setTarget(typeof dest === 'string' ? null : dest); return; }
     if (TABS.some((t) => t.id === tab)) {
       setActive(tab);
       setTarget(typeof dest === 'string' ? null : dest);
@@ -162,20 +170,59 @@ export default function Nav({ screens }) {
     );
   }
 
-  const factory = screens[active];
-  const content = factory
-    ? factory({ navigate, target })
-    : <WorldStub kicker="soon" title={active} line="coming alive next." />;
+  // ── CHAT world: the Moonlight surface. deep-links open the right thing ──
+  const openFromChat = (dest) => {
+    if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
+    if (dest.kind === 'desk' || dest.kind === 'z') { setTarget({ tab: 'desk', quiet: dest.kind === 'z' }); setWorld('chat'); setChatOpen({ kind: 'desk' }); return; }
+    if (dest.kind === 'persona') return setChatOpen(dest);
+    if (dest.kind === 'room') return setChatOpen(dest);
+    if (dest.kind === 'roster') return setChatOpen(dest);
+  };
+  const [chatOpen, setChatOpen] = useState(null);
+  useBackLayer(!!chatOpen, React.useCallback(() => { setChatOpen(null); return true; }, []));
+  // persona deep-links (door cards, drop-ins) land here from navigate()
+  useEffect(() => { if (world === 'chat' && target?.persona) { setChatOpen({ kind: 'persona', key: target.persona, draft: target.draft, autoSend: target.autoSend }); } }, [target, world]);
+
+  const chatContent = chatOpen
+    ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
+      : chatOpen.kind === 'roster' ? screens.gathering({ navigate, target: null })
+      : chatOpen.kind === 'room' ? screens.rooms({ navigate, target: { room: chatOpen.room } })
+      : screens.gathering({ navigate, target: { persona: chatOpen.key, draft: chatOpen.draft, autoSend: chatOpen.autoSend } }))
+    : <ChatHome onOpen={openFromChat} />;
+
+  const playFactory = screens[active === 'play' ? 'play' : 'play'];
+  const content = world === 'chat' ? chatContent : playFactory({ navigate, target });
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, world === 'chat' && { backgroundColor: MOON.ground }]}>
+      {/* the shell header: the pill between worlds */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: world === 'chat' ? MOON.ground : 'transparent' }}>
+        {!chatOpen && (
+          <View style={styles.shellBar}>
+            <Text style={[styles.shellMark, world === 'chat' && { color: MOON.porcelain }]}>callme<Text style={{ color: world === 'chat' ? MOON.moon : '#E7B07A' }}>Z</Text></Text>
+            <View style={[styles.pill, world === 'chat' && { borderColor: MOON.hairStrong }]}>
+              {[['chat', 'chat'], ['play', '✦ play']].map(([id, label]) => (
+                <Pressable key={id} onPress={() => setWorld(id)} style={[styles.pillSeg, world === id && (id === 'chat' ? styles.pillOnCool : styles.pillOnWarm)]}>
+                  <Text style={[styles.pillTxt, world === id && { color: id === 'chat' ? MOON.moon : '#F0C990' }]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+      </SafeAreaView>
       <View style={{ flex: 1 }}>{content}</View>
-      <BottomNav active={active} onChange={(tab) => { setActive(tab); setTarget(null); setOverlay(null); }} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  shellBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 },
+  shellMark: { fontFamily: 'Figtree_300Light', color: '#F5ECE1', fontSize: 19, letterSpacing: 0.5 },
+  pill: { flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(231,176,122,0.3)', borderRadius: 999, padding: 3 },
+  pillSeg: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999 },
+  pillOnCool: { backgroundColor: 'rgba(159,194,232,0.12)' },
+  pillOnWarm: { backgroundColor: 'rgba(231,176,122,0.14)' },
+  pillTxt: { fontFamily: 'Figtree_500Medium', color: 'rgba(228,234,242,0.45)', fontSize: 10.5, letterSpacing: 2.5, textTransform: 'uppercase' },
   root: { flex: 1, backgroundColor: N.night },
 
   overlayBack: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },

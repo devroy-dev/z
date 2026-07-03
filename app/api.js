@@ -389,6 +389,9 @@ export async function getRoomSuggestions() {
   try { const j = await authedJSON('GET', '/rooms/suggestions'); return j.items || []; } catch (e) { return []; }
 }
 // the rooms you're a member of → [{ id, name, personas, persona, last_active }]
+export async function getThreads() {
+  try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
+}
 export async function listRooms() {
   try { return await authedJSON('GET', '/rooms'); } catch (e) { return []; }
 }
