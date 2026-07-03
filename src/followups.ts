@@ -120,14 +120,24 @@ async function todaysState(personaKey: string): Promise<{ status_line: string; l
   return (data as any) ?? null;
 }
 
-// a buzz: contentless by design — just "oi." No chat message; a desk card + the log.
+// a buzz: a short, low-effort nudge — "oi, you alive?" — that now lands in the
+// persona's OWN thread (Relocation) so it shows as an unread, not just a desk card.
 async function sendBuzz(userId: string): Promise<boolean> {
   const personaKey = BUZZERS[Math.floor(Math.random() * BUZZERS.length)];
+  const opener = await writePing(userId, personaKey, 'a quick, low-key nudge just to poke the user — one short line, like texting "oi, you alive?" or "thinking of you, that\'s all" — casual, tiny, zero agenda');
+  if (!opener) return false;
+  const threadId = await threadFor(userId, personaKey);
+  if (threadId) {
+    await supabase.from('messages').insert({
+      thread_id: threadId, user_id: userId, role: 'assistant', content: opener, persona_key: personaKey,
+    });
+    await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
+  }
   await supabase.from('ping_log').insert({
-    user_id: userId, persona_key: personaKey, thread_id: null,
-    ping: '(buzz)', kind: 'buzz', sent: true, status: 'sent', seatbelt_ok: null,
+    user_id: userId, persona_key: personaKey, thread_id: threadId,
+    ping: opener, kind: 'buzz', sent: true, status: 'sent', seatbelt_ok: null,
   });
-  console.log('[impulse] buzz →', userId, 'from', personaKey);
+  console.log('[impulse] buzz →', userId, 'from', personaKey, threadId ? '(in-thread)' : '(no thread)');
   return true;
 }
 
@@ -143,12 +153,21 @@ async function offerDropin(userId: string): Promise<boolean> {
   const opener = await writePing(userId, personaKey, about);
   if (!opener) return false;
   const belt = await seatbeltCheck(opener, { personaKey, userId });   // shadow — logged, never blocks
+  // RELOCATION: deliver into the persona's OWN thread so it arrives like a real
+  // message — thread jumps to top (last_active), unread badge (thread_reads).
+  const threadId = await threadFor(userId, personaKey);
+  if (threadId) {
+    await supabase.from('messages').insert({
+      thread_id: threadId, user_id: userId, role: 'assistant', content: opener, persona_key: personaKey,
+    });
+    await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
+  }
   await supabase.from('ping_log').insert({
-    user_id: userId, persona_key: personaKey, thread_id: null,
-    ping: opener, kind: 'dropin', sent: true, status: 'offered',
+    user_id: userId, persona_key: personaKey, thread_id: threadId,
+    ping: opener, kind: 'dropin', sent: true, status: 'sent',
     seatbelt_ok: belt.ok, seatbelt_reason: belt.reason ?? null,
   });
-  console.log('[impulse] drop-in offered →', userId, 'from', personaKey);
+  console.log('[impulse] drop-in →', userId, 'from', personaKey, threadId ? '(in-thread)' : '(no thread)');
   return true;
 }
 

@@ -655,3 +655,7 @@ export async function openDM(friendId) {
   try { return await authedJSON('POST', `/dm/${encodeURIComponent(friendId)}`); }
   catch (e) { return { error: String(e?.message || e) }; }
 }
+
+export async function markThreadRead(threadId) {
+  try { return await authedJSON('POST', `/threads/${threadId}/read`); } catch (e) { return null; }
+}

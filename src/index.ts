@@ -1055,10 +1055,43 @@ app.get('/threads', async (req, res) => {
       .select('id, persona_key, companion_name, avatar_url, accent, last_active')
       .eq('user_id', user.id).is('deleted_at', null)
       .order('last_active', { ascending: false });
-    res.json(data ?? []);
+    const threads = data ?? [];
+    // unread = messages newer than this user's last_read_at for the thread. One read
+    // row per (user, thread); no row = never opened = everything counts as unread.
+    const ids = threads.map((t: any) => t.id);
+    const reads: Record<string, string> = {};
+    if (ids.length) {
+      const { data: rr } = await supabase.from('thread_reads')
+        .select('thread_id, last_read_at').eq('user_id', user.id).in('thread_id', ids);
+      for (const r of (rr ?? [])) reads[(r as any).thread_id] = (r as any).last_read_at;
+    }
+    const withUnread = await Promise.all(threads.map(async (t: any) => {
+      const since = reads[t.id];
+      let q = supabase.from('messages').select('id', { count: 'exact', head: true })
+        .eq('thread_id', t.id).eq('role', 'assistant');   // only the house's messages count as unread
+      if (since) q = q.gt('created_at', since);
+      const { count } = await q;
+      return { ...t, unread: count || 0 };
+    }));
+    res.json(withUnread);
   } catch (e: any) {
     res.status(500).json({ error: 'roster failed: ' + (e?.message || String(e)) });
   }
+});
+
+// mark a thread read up to now — clears its unread badge
+app.post('/threads/:id/read', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const threadId = String(req.params.id || '');
+    if (!threadId) return res.status(400).json({ error: 'no thread' });
+    await supabase.from('thread_reads')
+      .upsert({ user_id: user.id, thread_id: threadId, last_read_at: new Date().toISOString() },
+              { onConflict: 'user_id,thread_id' });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'read failed: ' + (e?.message || String(e)) }); }
 });
 
 // ── FAVOURITES: pinned personas ─────────────────────────────────────────────

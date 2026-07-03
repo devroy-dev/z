@@ -19,7 +19,7 @@ import VideoCall from './VideoCall';
 import Grain from './Grain';
 import RichText from './RichText';
 import * as ImagePicker from 'expo-image-picker';
-import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice } from './api';
+import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice, markThreadRead } from './api';
 import { useVoiceNote } from './voice';
 
 // ── NIGHTFALL palette ──
@@ -221,6 +221,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     loadSession().then(() => openThreadInfo(KEY, P.name)).then((info) => {
       if (!info) return;
       setThreadId(info.id);
+      markThreadRead(info.id);   // opening the chat clears its unread badge
       if (info.name) { NAME_CACHE[KEY] = info.name; setCname(info.name); setNameDraft(info.name); }
       if (info.avatar) { AVATAR_CACHE[KEY] = info.avatar; setAvatar(info.avatar); }
       // the past belongs on the screen: load this thread's saved conversation

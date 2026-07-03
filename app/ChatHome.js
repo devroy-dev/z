@@ -113,7 +113,7 @@ const ago = (t) => {
   return Math.floor(m / 1440) + 'd';
 };
 
-function Row({ face, glyph, tone, name, line, time, pinned, onPress }) {
+function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
   return (
     <Pressable style={st.row} onPress={onPress}>
       <View style={[st.ring, tone && { borderColor: tone }]}>
@@ -121,10 +121,13 @@ function Row({ face, glyph, tone, name, line, time, pinned, onPress }) {
       </View>
       <View style={{ flex: 1, marginLeft: 13 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={st.name} numberOfLines={1}>{name}</Text>
-          <Text style={st.time}>{pinned ? '📌' : time}</Text>
+          <Text style={[st.name, unread ? st.nameUnread : null]} numberOfLines={1}>{name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={st.time}>{pinned ? '📌' : time}</Text>
+            {unread ? <View style={st.badge}><Text style={st.badgeTxt}>{unread > 9 ? '9+' : unread}</Text></View> : null}
+          </View>
         </View>
-        <Text style={st.line} numberOfLines={1}>{line}</Text>
+        <Text style={[st.line, unread ? st.lineUnread : null]} numberOfLines={1}>{line}</Text>
       </View>
     </Pressable>
   );
@@ -192,14 +195,14 @@ export default function ChatHome({ onOpen = () => {} }) {
   const recents = [
     ...threads.filter((t) => t.persona_key && !t.is_shared && !t.is_group && !PINNED_KEYS.has(t.persona_key)).map((t) => ({
       kind: 'persona', key: t.persona_key, name: t.companion_name || nameOf(t.persona_key),
-      at: t.last_active, line: 'tap to continue',
+      at: t.last_active, line: (t.unread ? 'new message' : 'tap to continue'), unread: t.unread || 0,
     })),
     ...rooms.filter(isDMRoom).map((r) => ({
-      kind: 'dm', room: r, name: r.name || 'a friend', at: r.last_active || r.created_at, line: 'tap to chat',
+      kind: 'dm', room: r, name: r.name || 'a friend', at: r.last_active || r.created_at, line: 'tap to chat', unread: 0,
     })),
   ].sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1))
    .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
-   .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : true);
+   .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : filt === 'unread' ? (r.unread > 0) : true);
 
   return (
     <View style={st.root}>
@@ -262,7 +265,7 @@ export default function ChatHome({ onOpen = () => {} }) {
                   face={r.kind === 'persona' ? dpFor(r.key) : null}
                   glyph={r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
                   tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
-                  name={r.name} line={r.line} time={ago(r.at)}
+                  name={r.name} line={r.line} time={ago(r.at)} unread={r.unread}
                   onPress={() => onOpen(
                     r.kind === 'persona' ? { kind: 'persona', key: r.key }
                     : r.kind === 'dm' ? { kind: 'dm', threadId: r.room.id, name: r.name }
@@ -344,6 +347,10 @@ const st = StyleSheet.create({
   name: { fontFamily: FONTS.medium, color: MOON.porcelain, fontSize: 15.5, flex: 1, marginRight: 8 },
   time: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 11.5 },
   line: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 13, marginTop: 2 },
+  nameUnread: { fontFamily: FONTS.semibold, color: MOON.porcelain },
+  lineUnread: { color: MOON.moon },
+  badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: MOON.moon, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, marginLeft: 8 },
+  badgeTxt: { fontFamily: FONTS.semibold, color: '#0A0D14', fontSize: 11.5 },
   divider: { height: 1, backgroundColor: MOON.hair, marginVertical: 6, marginHorizontal: 16 },
   empty: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 13.5, textAlign: 'center', paddingTop: 40 },
   fab: { position: 'absolute', right: 20, bottom: 78, width: 54, height: 54, borderRadius: 27, backgroundColor: MOON.moonDeep, alignItems: 'center', justifyContent: 'center', shadowColor: MOON.moon, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6 },
