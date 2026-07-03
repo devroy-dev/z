@@ -9,14 +9,16 @@
 //  reskinned to an unhurried cadence. Pure JS — ships OTA.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular } from '@expo-google-fonts/figtree';
-import { loadSession, openThreadInfo, streamChat } from './api';
+import { loadSession, openThreadInfo, streamChat, transcribeVoice } from './api';
+import * as ImagePicker from 'expo-image-picker';
+import { useVoiceNote } from './voice';
 
 // ── the moonlit palette — cool, not the warm candle world ──
 const Q = {
@@ -85,6 +87,9 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
   const [fontsLoaded, fontError] = useFonts({ Fraunces_400Regular, Fraunces_400Regular_Italic, Figtree_300Light, Figtree_400Regular });
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
+  const [pendingImage, setPendingImage] = useState(null);
+  const voice = useVoiceNote();
+  const [transcribing, setTranscribing] = useState(false);
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -138,15 +143,44 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
     }
   };
 
+  const pickPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, base64: true });
+      if (res.canceled || !res.assets || !res.assets[0]?.base64) return;
+      const b64 = res.assets[0].base64;
+      setPendingImage({ data: b64, uri: `data:image/jpeg;base64,${b64}` });
+    } catch (e) {}
+  };
+
+  const onMic = async () => {
+    if (voice.recording) {
+      const clip = await voice.stop();
+      if (!clip) return;
+      setTranscribing(true);
+      try {
+        const r = await transcribeVoice(clip.uri, clip.mime);
+        if (r.ok && r.transcript) setDraft((d) => (d ? d + ' ' : '') + r.transcript);
+        else Alert.alert('couldn\u2019t catch that', r.diag || 'no transcript came back \u2014 try again.');
+      } catch (e) { Alert.alert('voice error', String(e?.message || e)); }
+      setTranscribing(false);
+    } else {
+      await voice.start();
+    }
+  };
+
   const doSend = async () => {
     const text = draft.trim();
-    if (!text || sendingRef.current) return;
+    const img = pendingImage;
+    if ((!text && !img) || sendingRef.current) return;
     sendingRef.current = true; setSending(true); setSpeaking(true);
     let tid = threadId;
     if (!tid) { const info = await openThreadInfo('z_serious', 'Z'); tid = info?.id || null; if (tid) setThreadId(tid); }
     if (!tid) { sendingRef.current = false; setSending(false); setSpeaking(false); return; }
     setDraft('');
-    const youMsg = { id: Date.now(), who: 'you', text };
+    setPendingImage(null);
+    const youMsg = { id: Date.now(), who: 'you', text, imageUri: img?.uri || null };
     const zId = Date.now() + 1;
     atBottomRef.current = true;
     setMessages((cur) => [...cur, youMsg, { id: zId, who: 'z', text: '', typing: true }]);
@@ -155,7 +189,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
     const done = () => { sendingRef.current = false; setSending(false); setSpeaking(false); };
     revealTick(zId, done);
     streamChat({
-      threadId: tid, message: text, persona: 'z_serious',
+      threadId: tid, message: text, image: img ? { media_type: 'image/jpeg', data: img.data } : undefined, persona: 'z_serious',
       onToken: (acc) => { targetRef.current = acc; },
       onDone: (acc) => { targetRef.current = acc || targetRef.current; streamDoneRef.current = true; },
       onError: (msg) => {
@@ -219,20 +253,35 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
               messages.map((m) => (
                 <View key={m.id} style={{ marginBottom: 20 }}>
                   {m.who === 'you'
-                    ? <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
+                    ? <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end' }}>
+                        {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
+                        {m.text ? <View style={[styles.youWrap, m.imageUri && { marginTop: 4 }]}><Text style={styles.youText}>{m.text}</Text></View> : null}
+                      </View>
                     : <Text style={styles.zText}>{m.text || (m.typing ? '…' : '')}</Text>}
                 </View>
               ))
             )}
           </ScrollView>
 
+          {pendingImage ? (
+            <View style={styles.pendingStrip}>
+              <Image source={{ uri: pendingImage.uri }} style={styles.pendingThumb} />
+              <Pressable onPress={() => setPendingImage(null)} style={styles.pendingX} hitSlop={8}><Text style={styles.pendingXTxt}>\u2715</Text></Pressable>
+            </View>
+          ) : null}
           <View style={styles.composer}>
-            <View style={styles.field}>
+            <View style={[styles.field, { flexDirection: 'row', alignItems: 'flex-end' }]}>
               <TextInput
                 value={draft} onChangeText={setDraft}
-                placeholder="say it here…" placeholderTextColor={Q.moonFaint}
-                style={styles.input} multiline editable={!sending}
+                placeholder={voice.recording ? 'listening\u2026' : 'say it here\u2026'} placeholderTextColor={Q.moonFaint}
+                style={[styles.input, { flex: 1 }]} multiline editable={!sending}
               />
+              <Pressable style={styles.inlineBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
+                <Text style={styles.inlineBtnTxt}>\uFF0B</Text>
+              </Pressable>
+              <Pressable style={styles.inlineBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
+                <Text style={[styles.inlineMicTxt, voice.recording && styles.micLive]}>{transcribing ? '\u2026' : voice.recording ? '\u25A0' : '\uD83C\uDF99'}</Text>
+              </Pressable>
             </View>
             <Pressable style={styles.send} onPress={doSend} hitSlop={8}>
               <Svg width="44" height="44" viewBox="0 0 44 44">
@@ -265,6 +314,15 @@ const styles = StyleSheet.create({
   rest: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonFaint, fontSize: 19, lineHeight: 30, textAlign: 'center', letterSpacing: 0.2 },
 
   zText: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moon, fontSize: 19, lineHeight: 31, letterSpacing: 0.2 },
+  sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },
+  pendingStrip: { paddingHorizontal: 18, paddingTop: 4, flexDirection: 'row' },
+  pendingThumb: { width: 60, height: 60, borderRadius: 10, resizeMode: 'cover' },
+  pendingX: { position: 'absolute', left: 62, top: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' },
+  pendingXTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  inlineBtn: { paddingHorizontal: 8, paddingBottom: 10, alignItems: 'center', justifyContent: 'flex-end' },
+  inlineBtnTxt: { fontSize: 23, color: 'rgba(159,176,224,0.85)', lineHeight: 25 },
+  inlineMicTxt: { fontSize: 16, color: 'rgba(159,176,224,0.85)', lineHeight: 22 },
+  micLive: { color: '#FF6B5A', fontSize: 18 },
   youWrap: { alignSelf: 'flex-end', maxWidth: '80%', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 18, borderTopRightRadius: 6, backgroundColor: Q.youBubble, borderWidth: 1, borderColor: Q.youBorder },
   youText: { fontFamily: 'Figtree_300Light', color: Q.moon, fontSize: 15, lineHeight: 22 },
 

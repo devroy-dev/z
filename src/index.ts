@@ -31,7 +31,7 @@ import { supabase } from './db.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '256kb' }));
+app.use(express.json({ limit: '20mb' }));   // native picker photos ride as base64 in /chat — 256kb 413'd every real photo
 
 // serve the PWA (single-file B Field surface) from /public
 import { dirname, join } from 'path';

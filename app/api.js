@@ -6,6 +6,8 @@
 //  pattern. Base points at Railway.
 // ════════════════════════════════════════════════════════════════════════
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export const API_BASE = 'https://z-production-c79a.up.railway.app';
 
@@ -567,12 +569,38 @@ export async function streamStage({ threadId, message, onBeat, onVerdict, onTens
 }
 
 // ---- VOICE: record → send raw audio bytes to the proven Sarvam endpoints ----
-// Both /transcribe and /journal take a RAW audio body (express.raw({type:'audio/*'})),
-// so we POST the file bytes with an audio Content-Type + Bearer token — not JSON, not
-// multipart. On Android expo-audio records .m4a (audio/mp4), which the engine maps to
-// 'mp4' and Sarvam accepts. `diag` returns the raw server reply for on-device debugging.
+// Both /transcribe and /journal take a RAW audio body (express.raw({type:'audio/*'})).
+// NATIVE: fetch(uri).blob() crashes on RN ("Creating blobs from 'ArrayBuffer'… not
+// supported"), so we use expo-file-system's uploadAsync with BINARY_CONTENT — streams
+// the file bytes as the raw body. expo-file-system is pinned by expo itself (in the APK).
+// WEB: blob path works fine, kept as the branch.
+
 async function postAudio(path, uri, mime) {
   await loadSession();
+  const authHeaders = _token ? { Authorization: 'Bearer ' + _token } : {};
+
+  if (Platform.OS !== 'web') {
+    const doUpload = () => FileSystem.uploadAsync(`${API_BASE}${path}`, uri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: { 'Content-Type': mime || 'audio/mp4', ...authHeaders },
+    });
+    let r = await doUpload();
+    if (r.status === 401 && (await refreshSession())) {
+      const retryHeaders = _token ? { Authorization: 'Bearer ' + _token } : {};
+      r = await FileSystem.uploadAsync(`${API_BASE}${path}`, uri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: { 'Content-Type': mime || 'audio/mp4', ...retryHeaders },
+      });
+    }
+    const raw = r.body || '';
+    let data = {};
+    try { data = JSON.parse(raw); } catch (_) {}
+    return { ok: r.status >= 200 && r.status < 300, status: r.status, data, raw };
+  }
+
+  // web: blob path (works in browsers; this is what the PWA-equivalent does)
   const res = await fetch(uri);
   const blob = await res.blob();
   const doPost = () => fetch(`${API_BASE}${path}`, {

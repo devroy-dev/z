@@ -102,6 +102,9 @@ function HumanPresence({ name, active }) {
 }
 
 // ── a spoken line ──
+// rooms are the WhatsApp-flat register: personas may emit *emphasis* markdown,
+// which must never render raw. Same strip Chat.js applies to PLAIN personas.
+const flat = (t) => String(t || '').replace(/\*\*?/g, '');
 function RoomLine({ line }) {
   if (line.who === 'you') {
     return (
@@ -129,7 +132,7 @@ function RoomLine({ line }) {
       <View style={{ maxWidth: '84%' }}>
         {line.key ? <Text style={[styles.speaker, { color: `rgb(${rgbOf(line.key)})` }]}>{nameOf(line.key)}</Text> : null}
         <View style={[styles.bubble, styles.bubbleThem]}>
-          <Text style={styles.bubbleText}>{line.typing && !line.text ? '•••' : line.text}</Text>{line.at && !line.typing ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}
+          <Text style={styles.bubbleText}>{line.typing && !line.text ? '•••' : flat(line.text)}</Text>{line.at && !line.typing ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}
         </View>
       </View>
     </View>
@@ -400,14 +403,14 @@ export default function RoomChat({ room, onBack = () => {} }) {
           </View>
         ) : null}
         <View style={styles.composer}>
-          <Pressable style={styles.attachBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
-            <Text style={styles.attachBtnTxt}>＋</Text>
-          </Pressable>
-          <Pressable style={styles.micBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
-            <Text style={[styles.micBtnTxt, voice.recording && styles.micBtnLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎤'}</Text>
-          </Pressable>
-          <View style={styles.field}>
-            <TextInput value={draft} onChangeText={setDraft} placeholder="say something to the room…" placeholderTextColor={N.moonFaint} style={styles.input} multiline editable={!sending} />
+          <View style={[styles.field, { flexDirection: 'row', alignItems: 'flex-end' }]}>
+            <TextInput value={draft} onChangeText={setDraft} placeholder={voice.recording ? 'listening…' : 'say something to the room…'} placeholderTextColor={N.moonFaint} style={[styles.input, { flex: 1 }]} multiline editable={!sending} />
+            <Pressable style={styles.inlineBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
+              <Text style={styles.inlineBtnTxt}>＋</Text>
+            </Pressable>
+            <Pressable style={styles.inlineBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
+              <Text style={[styles.inlineMicTxt, voice.recording && styles.micBtnLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎤'}</Text>
+            </Pressable>
           </View>
           <Pressable style={styles.send} onPress={doSend}>
             <Svg width="46" height="46" viewBox="0 0 46 46">
@@ -450,11 +453,10 @@ const styles = StyleSheet.create({
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.28)', fontSize: 9.5, marginTop: 2, alignSelf: 'flex-end' },
 
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
-  attachBtn: { width: 38, height: 46, alignItems: 'center', justifyContent: 'center' },
-  attachBtnTxt: { fontSize: 26, color: '#F0A765', marginTop: -2 },
-  micBtn: { width: 34, height: 46, alignItems: 'center', justifyContent: 'center' },
-  micBtnTxt: { fontSize: 17, color: '#F0A765' },
-  micBtnLive: { color: '#FF6B5A', fontSize: 19 },
+  inlineBtn: { paddingHorizontal: 8, paddingBottom: 10, alignItems: 'center', justifyContent: 'flex-end' },
+  inlineBtnTxt: { fontSize: 23, color: '#F0A765', lineHeight: 25 },
+  inlineMicTxt: { fontSize: 16, color: '#F0A765', lineHeight: 22 },
+  micBtnLive: { color: '#FF6B5A', fontSize: 18 },
   sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },
   pendingStrip: { paddingHorizontal: 16, paddingTop: 4, flexDirection: 'row' },
   pendingThumb: { width: 60, height: 60, borderRadius: 10, resizeMode: 'cover' },

@@ -570,26 +570,23 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
             </View>
           ) : null}
           <View style={styles.composer}>
-            <Pressable style={styles.attachBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
-              <Text style={styles.attachBtnTxt}>＋</Text>
-            </Pressable>
-            <Pressable style={styles.micBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
-              <Text style={[styles.micBtnTxt, voice.recording && styles.micBtnLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎤'}</Text>
-            </Pressable>
-            <View style={styles.field}>
+            <View style={[styles.field, { flexDirection: 'row', alignItems: 'flex-end' }]}>
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
-                placeholder={`message ${cname}…`}
+                placeholder={voice.recording ? 'listening…' : `message ${cname}…`}
                 placeholderTextColor={N.moonFaint}
-                style={[styles.input, { maxHeight: 120 }]}
+                style={[styles.input, { maxHeight: 120, flex: 1 }]}
                 multiline
                 editable={!sending}
               />
+              <Pressable style={styles.inlineBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
+                <Text style={styles.inlineBtnTxt}>＋</Text>
+              </Pressable>
+              <Pressable style={styles.inlineBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
+                <Text style={[styles.inlineMicTxt, voice.recording && styles.micBtnLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎤'}</Text>
+              </Pressable>
             </View>
-            <Pressable style={styles.buzzBtn} onPress={() => doSend('*buzz*')} hitSlop={6}>
-              <Text style={styles.buzzBtnTxt}>⚡</Text>
-            </Pressable>
             <Pressable style={styles.send} onPress={() => doSend()}>
               <Svg width="48" height="48" viewBox="0 0 48 48">
                 <Defs><RadialGradient id="csend" cx="42%" cy="36%" r="66%">
@@ -610,13 +607,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
 const styles = StyleSheet.create({
   themWrap: { alignSelf: 'flex-start', maxWidth: '88%', backgroundColor: 'rgba(255,255,255,0.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 18, borderTopLeftRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
   buzzChip: { fontFamily: 'Figtree_600SemiBold', color: '#F0A765', fontSize: 13, letterSpacing: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(240,167,101,0.45)', overflow: 'hidden', alignSelf: 'flex-start' },
-  buzzBtn: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
-  buzzBtnTxt: { fontSize: 20, color: '#F0A765' },
-  attachBtn: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
-  attachBtnTxt: { fontSize: 26, color: '#F0A765', marginTop: -2 },
-  micBtn: { width: 36, height: 48, alignItems: 'center', justifyContent: 'center' },
-  micBtnTxt: { fontSize: 18, color: '#F0A765' },
-  micBtnLive: { color: '#FF6B5A', fontSize: 20 },
+  inlineBtn: { paddingHorizontal: 9, paddingBottom: 11, alignItems: 'center', justifyContent: 'flex-end' },
+  inlineBtnTxt: { fontSize: 24, color: '#F0A765', lineHeight: 26 },
+  inlineMicTxt: { fontSize: 17, color: '#F0A765', lineHeight: 24 },
+  micBtnLive: { color: '#FF6B5A', fontSize: 19 },
   sharedPhoto: { width: 200, height: 200, borderRadius: 16, resizeMode: 'cover' },
   pendingStrip: { paddingHorizontal: 16, paddingTop: 4, flexDirection: 'row' },
   pendingThumb: { width: 64, height: 64, borderRadius: 10, resizeMode: 'cover' },

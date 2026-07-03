@@ -172,12 +172,13 @@ export default function ChatHome({ onOpen = () => {} }) {
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const PINNED_KEYS = new Set(['the_front_desk', 'the_anchor', 'z', 'z_serious']);
+  // chats tab = 1:1 threads only. rooms/groups (incl. suggestion-made rooms like
+  // "Nolan's Odyssey") live in the GROUPS tab — they were leaking into this list.
   const recents = [
-    ...threads.filter((t) => t.persona_key && !t.is_shared && !PINNED_KEYS.has(t.persona_key)).map((t) => ({
+    ...threads.filter((t) => t.persona_key && !t.is_shared && !t.is_group && !PINNED_KEYS.has(t.persona_key)).map((t) => ({
       kind: 'persona', key: t.persona_key, name: t.companion_name || nameOf(t.persona_key),
       at: t.last_active, line: 'tap to continue',
     })),
-    ...rooms.map((r) => ({ kind: 'room', room: r, name: r.name || 'a room', at: r.last_active || r.created_at, line: (r.personas || []).map((k) => nameOf(k).replace(/^the /, '')).join(' · ') || 'a shared room' })),
   ].sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1))
    .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
    .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : true);
