@@ -224,8 +224,8 @@ function OppFace({ pkey, tone }) {
 }
 
 // ── the lobby ──
-export default function Arena({ onBack = () => {}, onStartGame = () => {} }) {
-  const [picked, setPicked] = useState(null);
+export default function Arena({ onBack = () => {}, onStartGame = () => {}, initialGameId = null }) {
+  const [picked, setPicked] = useState(() => GAMES.find((g) => g.id === initialGameId) || null); // a programme card lands you AT the table, not the shelf
 
   if (picked) {
     return <OpponentPicker game={picked} onBack={() => setPicked(null)} onStart={(g, o, roster, invited) => onStartGame(g, o, roster, invited)} />;

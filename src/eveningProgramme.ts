@@ -68,7 +68,7 @@ async function programmeFor(userId: string): Promise<string | null> {
   const played = new Set((matches ?? []).map((m: any) => String(m.game)));
   const freshGames = SOLO_GAMES.filter((g) => !played.has(g.id));
   const g = (freshGames.length ? freshGames : SOLO_GAMES)[Math.floor(Math.random() * (freshGames.length || SOLO_GAMES.length))];
-  cards.push({ kind: 'play', title: g.name, line: g.line, goto: 'the_arena' });
+  cards.push({ kind: 'play', title: g.name, line: g.line, goto: `the_arena:${g.id}` });
 
   if (cards.length < 2) return null;
   const material = cards.map((c) => tag(c)).join('\n');

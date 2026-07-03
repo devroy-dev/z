@@ -106,7 +106,7 @@ const splitBursts = (t) => String(t || '').split(/\n\s*\n/).map((x) => x.trim())
 // ── the evening programme's cards: [[CARD: kind | title | line | goto]] lives
 // in the PERSISTED message (cron-written, no stream), parsed at render so
 // weeks of programmes stay tappable in the scroll. ──
-const CARD_RE = /\[\[CARD:\s*([a-z]+)\s*\|([^|\]]+)\|([^|\]]+)\|\s*([a-z_]+)\s*\]\]/gi;
+const CARD_RE = /\[\[CARD:\s*([a-z]+)\s*\|([^|\]]+)\|([^|\]]+)\|\s*([a-z_:]+)\s*\]\]/gi;
 const parseCards = (t) => {
   const cards = [];
   const text = String(t || '').replace(CARD_RE, (_, kind, title, line, goto) => {
@@ -142,7 +142,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   // a tapped card walks them through a door — same mapping the desk lobby used
   const routeTo = (key) => {
     if (key === 'the_anchor') return onRoute({ tab: 'bulletin' });
-    if (key === 'the_arena') return onRoute({ tab: 'play', open: 'arena' });
+    if (key === 'the_arena' || key.startsWith('the_arena:')) return onRoute({ tab: 'play', open: 'arena', game: key.includes(':') ? key.split(':')[1] : null });
     if (key === 'the_stage') return onRoute({ tab: 'stage' });
     if (key === 'the_journal') return onRoute({ tab: 'journal' });
     if (key === 'z_serious') return onRoute({ tab: 'quiet' });
@@ -201,7 +201,12 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         const hist = (j.messages || [])
           .map((m, i) => ({ id: 'h' + (m.id || i), who: m.role === 'user' ? 'you' : 'them', text: m.content || '' }))
           .filter((m) => m.text);
-        if (hist.length) setMessages((cur) => (cur.length ? cur : hist));
+        if (hist.length) {
+          setMessages((cur) => (cur.length ? cur : hist));
+          // the thread opens where the conversation IS — at the end, like any chat app
+          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
+          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 350);
+        }
       }).catch(() => {});
     });
   }, [KEY]);
