@@ -147,6 +147,7 @@ const pcStyles = StyleSheet.create({
   profLabel: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(159,194,232,0.8)', fontSize: 11.5, letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 26, marginTop: 26, marginBottom: 10 },
   profDate: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(232,236,244,0.4)', fontSize: 10, letterSpacing: 0.8 },
   profEntry: { fontFamily: 'Figtree_400Regular', color: 'rgba(232,236,244,0.72)', fontSize: 13.5, lineHeight: 19, marginTop: 2 },
+  profBlurb: { fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(232,236,244,0.8)', fontSize: 15, lineHeight: 24 },
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.30)', fontSize: 10, marginTop: 3, alignSelf: 'flex-start' },
 });
 
@@ -168,7 +169,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   // like people — typing indicator, then the whole message lands at once.
   const [showProfile, setShowProfile] = React.useState(false);
   const [profDiary, setProfDiary] = React.useState(null);
-  const openProfile = () => { setShowProfile(true); if (!profDiary) getPersonaDiary(KEY).then(setProfDiary); };
+  const [profBlurb, setProfBlurb] = React.useState(null);
+  const openProfile = () => { setShowProfile(true); if (profDiary === null) getPersonaDiary(KEY).then((r) => { setProfDiary((r && r.entries) ? r.entries : []); setProfBlurb((r && r.blurb) ? r.blurb : null); }); };
   const LIVE_STREAM = KEY === 'z' || KEY === 'z_serious' || KEY === 'the_anchor';   // Z + the anchor stream live; the desk delivers in blocks
   const WARM = KEY === 'the_anchor' || KEY === 'the_front_desk' || LIVE_STREAM; // trinity keeps the warm register
   const PLAIN = !LIVE_STREAM; // whatsapp-flat: no italics/bold for anyone but Z
@@ -442,6 +444,14 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
             )}
             <Text style={pcStyles.profLine}>{P.desc}</Text>
           </View>
+          {profBlurb ? (
+            <>
+              <Text style={pcStyles.profLabel}>their story</Text>
+              <View style={{ paddingHorizontal: 26 }}>
+                <Text style={pcStyles.profBlurb}>{profBlurb}</Text>
+              </View>
+            </>
+          ) : null}
           <Text style={pcStyles.profLabel}>their week</Text>
           <View style={{ paddingHorizontal: 26 }}>
             {profDiary === null && <Text style={pcStyles.profEntry}>fetching their days…</Text>}

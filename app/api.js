@@ -374,7 +374,7 @@ export async function postJournalText(text) {
   try { return await authedJSON('POST', '/journal/text', { text }); } catch (e) { return null; }
 }
 export async function getPersonaDiary(key) {
-  try { const j = await authedJSON('GET', `/persona-diary/${key}`); return j.entries || []; } catch (e) { return []; }
+  try { const j = await authedJSON('GET', `/persona-diary/${key}`); return { blurb: j.blurb || null, entries: j.entries || [] }; } catch (e) { return { blurb: null, entries: [] }; }
 }
 export async function getLedger() {
   try { return await authedJSON('GET', '/ledger'); } catch (e) { return { headline: null, week: null, feed: [] }; }

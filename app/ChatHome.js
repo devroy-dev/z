@@ -74,7 +74,7 @@ function UpdatesFeed({ onOpen }) {
   const unfold = async (k) => {
     if (open === k) return setOpen(null);
     setOpen(k);
-    if (!diary[k]) { const e = await getPersonaDiary(k); setDiary((d) => ({ ...d, [k]: e })); }
+    if (!diary[k]) { const e = await getPersonaDiary(k); setDiary((d) => ({ ...d, [k]: (e && e.entries) ? e.entries : [] })); }
   };
   if (!keys.length) return <View style={st.soonWrap}><Text style={st.soonLine}>the house is quiet — diaries arrive with the morning.</Text></View>;
   return (

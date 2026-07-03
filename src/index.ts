@@ -1,4 +1,4 @@
-import { buildStaticPrefix } from './content.js';
+import { buildStaticPrefix, readContentFile } from './content.js';
 // index.ts — the Z engine HTTP surface. Express. Verifies the Supabase Auth JWT
 // the PWA sends, resolves the z.users row, and exposes:
 //   POST /threads          create a named companion (persona instance)
@@ -505,7 +505,24 @@ app.get('/persona-diary/:key', async (req, res) => {
     const { data } = await supabase.from('persona_states')
       .select('date, status_line, log_entry').eq('persona_key', key)
       .order('date', { ascending: false }).limit(10);
-    res.json({ key, entries: data ?? [] });
+    // a SHORT life-story blurb for the profile: just the opening paragraph of the
+    // codex's "THE LIFE BEHIND THE VOICE" — the story, not the disposition/self-
+    // awareness/pursuit labels below it. The full life stays private (engine-only).
+    let blurb: string | null = null;
+    try {
+      const codex = personaByKey(key)?.codex;
+      if (codex) {
+        const raw = readContentFile(`codex-${codex.replace(/_/g, '-')}.md`);
+        const i = raw.indexOf('## THE LIFE BEHIND THE VOICE');
+        if (i > -1) {
+          const after = raw.slice(i + '## THE LIFE BEHIND THE VOICE'.length);
+          // first non-empty paragraph, stopping before the first "**label:**" or next heading
+          const para = after.split(/\n\s*\n/).map((s) => s.trim()).find((s) => s && !s.startsWith('**') && !s.startsWith('#'));
+          if (para) blurb = para.replace(/\s+/g, ' ').trim().slice(0, 600);
+        }
+      }
+    } catch (e) { /* blurb is best-effort */ }
+    res.json({ key, blurb, entries: data ?? [] });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 // dev: write today's states now
