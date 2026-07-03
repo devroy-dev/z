@@ -30,7 +30,7 @@ import { C, FONTS } from './theme';
 // fallback). See bible §16b.
 const ANIMATE_CUSTOM_FACES = true;
 
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
+const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=2`;
 
 // rotating caption lines (stand-in for streamed speech + Sarvam voice)
 const SPEECH = [

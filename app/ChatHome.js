@@ -11,6 +11,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Eas
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
 import { getThreads, listRooms, API_BASE } from './api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { personaMeta } from './games/personas';
 
 // ── MOONLIGHT: the cold register ──
@@ -60,7 +61,7 @@ function ZOrb({ size = 44 }) {
   );
 }
 
-const dpFor = (k) => `${API_BASE}/faces/${k}.jpg`;
+const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=2`;
 const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
 const ago = (t) => {
   if (!t) return '';
@@ -98,11 +99,24 @@ export default function ChatHome({ onOpen = () => {} }) {
   const load = useCallback(async () => {
     try {
       const [t, r] = await Promise.all([getThreads(), listRooms()]);
-      setThreads(Array.isArray(t) ? t : []);
-      setRooms(Array.isArray(r) ? r : (r?.rooms || []));
+      const tt = Array.isArray(t) ? t : [];
+      const rr = Array.isArray(r) ? r : (r?.rooms || []);
+      setThreads(tt);
+      setRooms(rr);
+      AsyncStorage.setItem('z_home_cache', JSON.stringify({ t: tt, r: rr })).catch(() => {});
     } catch (e) {}
   }, []);
-  useEffect(() => { load(); }, [load]);
+  // paint the last-known list instantly, then refresh behind it — kills the
+  // pinned-rows-then-blank-wait on every open.
+  useEffect(() => {
+    (async () => {
+      try {
+        const c = await AsyncStorage.getItem('z_home_cache');
+        if (c) { const s = JSON.parse(c); setThreads(s.t || []); setRooms(s.r || []); }
+      } catch (e) {}
+      load();
+    })();
+  }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const recents = [

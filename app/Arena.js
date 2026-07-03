@@ -16,7 +16,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Eas
 import { C, FONTS } from './theme';
 import { TABLE_CAST } from './games/personas';
 
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg`;
+const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=2`;
 
 // ── the games (from PWA + Dev adds), grouped by flavor ──
 const SECTIONS = [

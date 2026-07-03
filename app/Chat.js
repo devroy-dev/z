@@ -64,7 +64,7 @@ const PERSONAS = {
   the_front_desk:{name:'the front desk',desc:"welcome back. i've got your list, and i know which room can help.",rgb:'231,176,122'},
 };
 const DEFAULT_KEY = 'the_brother';
-const faceFor = (key) => `https://callmez.app/faces/${key}.jpg`;
+const faceFor = (key) => `https://callmez.app/faces/${key}.jpg?v=2`;
 
 // ── small circular DP (cover-fit, aura edge, orb fallback) ──
 function MiniDP({ uri, size = 38, rgb, isDesk = false }) {
