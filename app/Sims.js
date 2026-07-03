@@ -50,7 +50,7 @@ export default function Sims({ onBack = () => {}, onOpenFloor = () => {}, onOpen
                 <Text style={[st.live, { color: '#8FD98F' }]}>OPEN</Text>
               </View>
               <Text style={st.fixtureTitle}>Fantasy Football</Text>
-              <Text style={st.fixtureLine}>pick five and a captain from the real EPL pool. real gameweek points, a friends board, and the hustler talking trash at every close.</Text>
+              <Text style={st.fixtureLine}>pick your eleven from the real EPL or Champions League pool. real formations, real points, a friends board — and the hustler talking trash at every close.</Text>
               <Text style={st.disclaimer}>house league · real points · zero real value</Text>
             </LinearGradient>
           </Pressable>

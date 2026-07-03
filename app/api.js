@@ -83,12 +83,6 @@ export async function verifyOtp(phone, code) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.token) return { ok: false, error: j.error || "that code didn't work." };
-    // account switch on this device: if a DIFFERENT user just logged in, wipe the
-    // previous person's cached home list / flags so their data never shows.
-    try {
-      const prevUid = await AsyncStorage.getItem('z_real_uid');
-      if (prevUid && j.userId && prevUid !== j.userId) await clearUserCaches();
-    } catch (e) {}
     _token = j.token;
     _uid = j.userId || null;
     try {
@@ -194,20 +188,13 @@ export async function setMe(displayName) {
   } catch (e) {}
 }
 
-// wipe everything scoped to the CURRENT user's session — the home-list cache,
-// the first-open flag, serious-mode, and (below, in Chat) the in-memory name/avatar
-// caches. Called on logout AND on a fresh login, so one account's data never
-// bleeds onto the next person to log in on this device.
-export async function clearUserCaches() {
-  try {
-    await AsyncStorage.multiRemove(['z_home_cache', 'z_first_open_done', 'z_serious', 'z_me']);
-  } catch (e) {}
-}
-
 export async function logout() {
   _token = null; _uid = null;
   try {
-    await AsyncStorage.multiRemove(['z_token', 'z_refresh', 'z_exp', 'z_real_uid', 'z_home_cache', 'z_first_open_done', 'z_serious', 'z_me']);
+    await AsyncStorage.removeItem('z_token');
+    await AsyncStorage.removeItem('z_refresh');
+    await AsyncStorage.removeItem('z_exp');
+    await AsyncStorage.removeItem('z_real_uid');
   } catch (e) {}
 }
 
@@ -375,24 +362,24 @@ export async function simOracle() {
   try { return await authedJSON('GET', '/sim/oracle'); } catch (e) { return null; }
 }
 
-// ── fantasy football (house league on real EPL data) ──
-export async function ffStatus() {
-  try { return await authedJSON('GET', '/ff/status'); } catch (e) { return null; }
+// ── fantasy football (house league — EPL + UCL, real data) ──
+export async function ffStatus(league = 'epl') {
+  try { return await authedJSON('GET', `/ff/status?league=${league}`); } catch (e) { return null; }
 }
-export async function ffPlayers(q = '', pos = '') {
-  try { return await authedJSON('GET', `/ff/players?q=${encodeURIComponent(q)}&pos=${encodeURIComponent(pos)}`); } catch (e) { return null; }
+export async function ffPlayers(league = 'epl', q = '', pos = '') {
+  try { return await authedJSON('GET', `/ff/players?league=${league}&q=${encodeURIComponent(q)}&pos=${encodeURIComponent(pos)}`); } catch (e) { return null; }
 }
-export async function ffSquad() {
-  try { return await authedJSON('GET', '/ff/squad'); } catch (e) { return null; }
+export async function ffSquad(league = 'epl') {
+  try { return await authedJSON('GET', `/ff/squad?league=${league}`); } catch (e) { return null; }
 }
-export async function ffSaveSquad(playerIds, captain) {
-  return authedJSON('POST', '/ff/squad', { playerIds, captain });
+export async function ffSaveSquad(league, playerIds, captain) {
+  return authedJSON('POST', '/ff/squad', { league, playerIds, captain });
 }
-export async function ffLive() {
-  try { return await authedJSON('GET', '/ff/live'); } catch (e) { return null; }
+export async function ffLive(league = 'epl') {
+  try { return await authedJSON('GET', `/ff/live?league=${league}`); } catch (e) { return null; }
 }
-export async function ffLeaderboard() {
-  try { return await authedJSON('GET', '/ff/leaderboard'); } catch (e) { return null; }
+export async function ffLeaderboard(league = 'epl') {
+  try { return await authedJSON('GET', `/ff/leaderboard?league=${league}`); } catch (e) { return null; }
 }
 
 // ── the anchor's bulletin ──
