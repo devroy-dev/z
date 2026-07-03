@@ -144,6 +144,7 @@ function OpponentPicker({ game, onBack, onStart }) {
     });
   };
   const launch = () => {
+    console.log('[TRACER launch]', JSON.stringify({ invited, chosen: chosen.length, game: game?.id }));
     const roster = chosen.map((o) => ({ ...o, ai: true }));
     // pass first as `opp` for back-compat, full list as `roster`
     onStart(game, chosen[0], roster, invited);

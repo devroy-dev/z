@@ -129,7 +129,7 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {
-    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
+    return <Arena onBack={() => setMode('choose')} onStartGame={(game, opp, roster, invited) => { console.log('[TRACER onStartGame]', JSON.stringify({ invited: !!invited, game: game?.id })); if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'stage') navigate && navigate('stage'); }} />;
 }
