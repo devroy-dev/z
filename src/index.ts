@@ -100,6 +100,134 @@ async function authUser(req: express.Request): Promise<string | null> {
   return data.user.id;
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  FRIENDS v1 — handles + request/accept. Edges are canonical (lo<hi); the
+//  engine (service role) owns writes and enforces "only the non-requester accepts".
+// ════════════════════════════════════════════════════════════════════════
+
+const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
+
+// set / change your @handle
+app.post('/handle', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const raw = String((req.body ?? {}).handle || '').trim().toLowerCase().replace(/^@/, '');
+    if (!HANDLE_RE.test(raw)) return res.status(400).json({ error: 'handle must be 3–20 chars: letters, numbers, underscore' });
+    // taken by someone else?
+    const { data: clash } = await supabase.from('users')
+      .select('id').ilike('handle', raw).is('deleted_at', null).maybeSingle();
+    if (clash && clash.id !== user.id) return res.status(409).json({ error: 'that handle is taken' });
+    const { error } = await supabase.from('users').update({ handle: raw }).eq('id', user.id);
+    if (error) return res.status(500).json({ error: 'handle save: ' + error.message });
+    res.json({ handle: raw });
+  } catch (e: any) { res.status(500).json({ error: 'handle failed: ' + (e?.message || String(e)) }); }
+});
+
+// look someone up by handle (to send a request)
+app.get('/friends/find', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const raw = String(req.query.handle || '').trim().toLowerCase().replace(/^@/, '');
+    if (!HANDLE_RE.test(raw)) return res.status(400).json({ error: 'not a valid handle' });
+    const { data: them } = await supabase.from('users')
+      .select('id, handle, display_name').ilike('handle', raw).is('deleted_at', null).maybeSingle();
+    if (!them) return res.status(404).json({ error: 'no one by that handle' });
+    if (them.id === me.id) return res.status(400).json({ error: "that's you" });
+    // existing edge?
+    const [lo, hi] = me.id < them.id ? [me.id, them.id] : [them.id, me.id];
+    const { data: edge } = await supabase.from('friendships')
+      .select('status, requested_by').eq('user_lo', lo).eq('user_hi', hi).maybeSingle();
+    res.json({ id: them.id, handle: them.handle, display_name: them.display_name,
+      relation: edge ? edge.status : 'none',
+      youRequested: edge ? edge.requested_by === me.id : false });
+  } catch (e: any) { res.status(500).json({ error: 'find failed: ' + (e?.message || String(e)) }); }
+});
+
+// send a friend request (by their user id, from /friends/find)
+app.post('/friends/request', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const targetId = String((req.body ?? {}).userId || '');
+    if (!targetId || targetId === me.id) return res.status(400).json({ error: 'bad target' });
+    const { data: them } = await supabase.from('users').select('id').eq('id', targetId).is('deleted_at', null).maybeSingle();
+    if (!them) return res.status(404).json({ error: 'user not found' });
+    const [lo, hi] = me.id < targetId ? [me.id, targetId] : [targetId, me.id];
+    const { data: existing } = await supabase.from('friendships')
+      .select('id, status').eq('user_lo', lo).eq('user_hi', hi).maybeSingle();
+    if (existing) {
+      if (existing.status === 'accepted') return res.json({ status: 'accepted' });
+      if (existing.status === 'blocked') return res.status(403).json({ error: 'unavailable' });
+      return res.json({ status: 'pending' }); // already pending, idempotent
+    }
+    const { error } = await supabase.from('friendships').insert({
+      user_lo: lo, user_hi: hi, requested_by: me.id, status: 'pending',
+    });
+    if (error) return res.status(500).json({ error: 'request: ' + error.message });
+    // FCM push to the recipient lands here when the notify layer is wired.
+    res.json({ status: 'pending' });
+  } catch (e: any) { res.status(500).json({ error: 'request failed: ' + (e?.message || String(e)) }); }
+});
+
+// accept (or decline/block) a pending request — only the NON-requester may accept
+app.post('/friends/respond', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { fromId, action } = req.body ?? {};
+    if (!fromId || !['accept', 'decline', 'block'].includes(action)) return res.status(400).json({ error: 'bad request' });
+    const [lo, hi] = me.id < fromId ? [me.id, fromId] : [fromId, me.id];
+    const { data: edge } = await supabase.from('friendships')
+      .select('id, status, requested_by').eq('user_lo', lo).eq('user_hi', hi).maybeSingle();
+    if (!edge || edge.status !== 'pending') return res.status(404).json({ error: 'no pending request' });
+    if (edge.requested_by === me.id) return res.status(403).json({ error: "you can't accept your own request" });
+    if (action === 'decline') {
+      await supabase.from('friendships').delete().eq('id', edge.id);
+      return res.json({ status: 'declined' });
+    }
+    const status = action === 'block' ? 'blocked' : 'accepted';
+    const { error } = await supabase.from('friendships')
+      .update({ status, responded_at: new Date().toISOString() }).eq('id', edge.id);
+    if (error) return res.status(500).json({ error: 'respond: ' + error.message });
+    res.json({ status });
+  } catch (e: any) { res.status(500).json({ error: 'respond failed: ' + (e?.message || String(e)) }); }
+});
+
+// my friends + pending requests waiting on me
+app.get('/friends', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: edges } = await supabase.from('friendships')
+      .select('user_lo, user_hi, status, requested_by')
+      .or(`user_lo.eq.${me.id},user_hi.eq.${me.id}`);
+    const rows = edges ?? [];
+    const otherId = (e: any) => (e.user_lo === me.id ? e.user_hi : e.user_lo);
+    const friendIds = rows.filter((e: any) => e.status === 'accepted').map(otherId);
+    const incoming = rows.filter((e: any) => e.status === 'pending' && e.requested_by !== me.id).map(otherId);
+    const outgoing = rows.filter((e: any) => e.status === 'pending' && e.requested_by === me.id).map(otherId);
+    const allIds = [...new Set([...friendIds, ...incoming, ...outgoing])];
+    const byId: Record<string, any> = {};
+    if (allIds.length) {
+      const { data: us } = await supabase.from('users').select('id, handle, display_name').in('id', allIds);
+      for (const u of (us ?? [])) byId[(u as any).id] = u;
+    }
+    const shape = (id: string) => ({ id, handle: byId[id]?.handle || null, display_name: byId[id]?.display_name || null });
+    res.json({
+      friends: friendIds.map(shape),
+      incoming: incoming.map(shape),
+      outgoing: outgoing.map(shape),
+    });
+  } catch (e: any) { res.status(500).json({ error: 'friends failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 // create a companion

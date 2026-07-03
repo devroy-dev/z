@@ -9,6 +9,7 @@ export interface ZUser {
   id: string;
   auth_user_id: string;
   display_name: string | null;
+  handle?: string | null;
   region: string | null;
   locale: string | null;
   timezone: string | null;
@@ -21,7 +22,7 @@ export interface ZUser {
 export async function resolveUser(authUserId: string): Promise<ZUser> {
   const { data: existing } = await supabase
     .from('users')
-    .select('id, auth_user_id, display_name, region, locale, timezone, pin_hash, pin_set_at')
+    .select('id, auth_user_id, display_name, handle, region, locale, timezone, pin_hash, pin_set_at')
     .eq('auth_user_id', authUserId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -34,7 +35,7 @@ export async function resolveUser(authUserId: string): Promise<ZUser> {
   const { data: created, error } = await supabase
     .from('users')
     .insert({ auth_user_id: authUserId })
-    .select('id, auth_user_id, display_name, region, locale, timezone, pin_hash, pin_set_at')
+    .select('id, auth_user_id, display_name, handle, region, locale, timezone, pin_hash, pin_set_at')
     .single();
   if (error) throw new Error('user create failed: ' + error.message);
 

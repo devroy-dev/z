@@ -627,3 +627,25 @@ export async function postJournalAudio(uri, mime) {
   const r = await postAudio('/journal', uri, mime);
   return { entry: r.data || null, ok: r.ok, diag: r.raw ? r.raw.slice(0, 300) : '' };
 }
+
+// ---- FRIENDS v1 ----
+export async function setHandle(handle) {
+  try { return await authedJSON('POST', '/handle', { handle }); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function findByHandle(handle) {
+  try { return await authedJSON('GET', `/friends/find?handle=${encodeURIComponent(handle)}`); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function requestFriend(userId) {
+  try { return await authedJSON('POST', '/friends/request', { userId }); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function respondFriend(fromId, action) {
+  try { return await authedJSON('POST', '/friends/respond', { fromId, action }); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function getFriends() {
+  try { return await authedJSON('GET', '/friends'); }
+  catch (e) { return { friends: [], incoming: [], outgoing: [] }; }
+}
