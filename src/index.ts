@@ -948,10 +948,11 @@ app.get('/me', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     const { data } = await supabase.from('users')
-      .select('display_name, region, dob, sex, serious_mode')
+      .select('display_name, handle, region, dob, sex, serious_mode')
       .eq('id', user.id).maybeSingle();
     res.json({
       displayName: data?.display_name ?? null,
+      handle: (data as any)?.handle ?? null,
       region: data?.region ?? null,
       dob: (data as any)?.dob ?? null,
       sex: (data as any)?.sex ?? null,
