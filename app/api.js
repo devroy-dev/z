@@ -713,3 +713,12 @@ export async function joinPublicRoom(roomId) {
   try { return await authedJSON('POST', `/public-rooms/${roomId}/join`); }
   catch (e) { return { error: String(e?.message || e) }; }
 }
+
+export async function createPublicRoom({ name, theme, personas }) {
+  try { return await authedJSON('POST', '/public-rooms', { name, theme, personas }); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function kickFromRoom(roomId, userId) {
+  try { return await authedJSON('POST', `/public-rooms/${roomId}/kick`, { userId }); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}

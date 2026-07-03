@@ -10,7 +10,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path as SvgPath } from 'react-
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom } from './api';
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom } from './api';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -113,7 +113,12 @@ const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replac
 function PublicRooms({ onOpen }) {
   const [rooms, setRooms] = useState(null);
   const [busy, setBusy] = useState(null);
-  useEffect(() => { getPublicRooms().then((r) => setRooms(Array.isArray(r) ? r : [])); }, []);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newTheme, setNewTheme] = useState('');
+  const [saving, setSaving] = useState(false);
+  const reload = () => getPublicRooms().then((r) => setRooms(Array.isArray(r) ? r : []));
+  useEffect(() => { reload(); }, []);
   const enter = async (room) => {
     if (busy) return;
     setBusy(room.id);
@@ -127,31 +132,60 @@ function PublicRooms({ onOpen }) {
     } catch (e) {}
     setBusy(null);
   };
+  const doCreate = async () => {
+    const name = newName.trim();
+    if (name.length < 3 || saving) return;
+    setSaving(true);
+    const r = await createPublicRoom({ name, theme: newTheme.trim(), personas: [] });
+    setSaving(false);
+    if (r && r.threadId) {
+      setCreating(false); setNewName(''); setNewTheme('');
+      onOpen({ kind: 'room', room: { id: r.threadId, name: r.name, personas: [] } });
+    } else {
+      alert((r && r.error) || 'could not create the room');
+    }
+  };
   if (rooms === null) return (
     <View style={st.soonWrap}><Text style={st.soonLine}>opening the doors…</Text></View>
-  );
-  if (!rooms.length) return (
-    <View style={st.soonWrap}><Text style={st.soonTitle}>communities</Text><Text style={st.soonLine}>no public rooms yet — check back soon.</Text></View>
   );
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 90, paddingTop: 6 }} showsVerticalScrollIndicator={false}>
       <Text style={st.commHead}>communities</Text>
       <Text style={st.commSub}>open rooms — jump in, meet the regulars, keep it civil.</Text>
-      {rooms.map((room) => (
+
+      {creating ? (
+        <View style={st.createCard}>
+          <TextInput value={newName} onChangeText={setNewName} placeholder="room name — e.g. delhi foodies" placeholderTextColor={MOON.faint} style={st.createInput} maxLength={60} />
+          <TextInput value={newTheme} onChangeText={setNewTheme} placeholder="what's it about? (optional)" placeholderTextColor={MOON.faint} style={[st.createInput, { marginTop: 8 }]} maxLength={200} />
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10, gap: 10 }}>
+            <Pressable onPress={() => { setCreating(false); setNewName(''); setNewTheme(''); }}><Text style={st.createCancel}>cancel</Text></Pressable>
+            <Pressable onPress={doCreate} style={st.createBtn}><Text style={st.createBtnTxt}>{saving ? '…' : 'create'}</Text></Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable style={st.createRow} onPress={() => setCreating(true)}>
+          <Text style={st.createPlus}>＋</Text>
+          <Text style={st.createRowTxt}>create a room — your locality, meetup, or interest</Text>
+        </Pressable>
+      )}
+
+      {(rooms || []).map((room) => (
         <Pressable key={room.id} style={st.commCard} onPress={() => enter(room)}>
           <View style={st.commFaces}>
             {(room.personas || []).slice(0, 2).map((k, i) => (
               <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, i > 0 && { marginLeft: -12 }]} />
             ))}
+            {(!room.personas || !room.personas.length) && <View style={[st.commFace, { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(159,194,232,0.1)' }]}><Text style={{ color: MOON.moon, fontSize: 18 }}>◇</Text></View>}
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={st.commName} numberOfLines={1}>{room.name}</Text>
+            <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  ·  yours' : ''}</Text>
             <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>
-            <Text style={st.commMeta}>{room.memberCount || 0} in the room · the doorman keeps order</Text>
+            <Text style={st.commMeta}>{room.memberCount || 0} in the room{room.isHouse ? ' · a house room' : ''}</Text>
           </View>
           <Text style={st.commGo}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>
         </Pressable>
       ))}
+      {(!rooms || !rooms.length) && <Text style={[st.commSub, { textAlign: 'center', marginTop: 30 }]}>no rooms yet — be the first to create one.</Text>}
     </ScrollView>
   );
 }
@@ -474,4 +508,12 @@ const st = StyleSheet.create({
   commTheme: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12.5, marginTop: 2, lineHeight: 17 },
   commMeta: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 11, marginTop: 5 },
   commGo: { fontFamily: FONTS.semibold, color: MOON.moon, fontSize: 13, marginLeft: 10 },
+  createRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(159,194,232,0.25)', borderStyle: 'dashed' },
+  createPlus: { color: MOON.moon, fontSize: 20, marginRight: 10 },
+  createRowTxt: { fontFamily: FONTS.medium, color: MOON.moon, fontSize: 13.5, flex: 1 },
+  createCard: { marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.06)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.18)' },
+  createInput: { fontFamily: FONTS.body, color: MOON.porcelain, fontSize: 15, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  createCancel: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 14, paddingVertical: 8, paddingHorizontal: 6 },
+  createBtn: { backgroundColor: 'rgba(159,194,232,0.16)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.4)', borderRadius: 100, paddingHorizontal: 18, paddingVertical: 8 },
+  createBtnTxt: { fontFamily: FONTS.semibold, color: MOON.moon, fontSize: 13 },
 });

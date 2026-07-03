@@ -14,6 +14,7 @@ import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { broadcastRoomMessage } from './broadcast.js';
+import { deterministicCheck } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
@@ -282,14 +283,76 @@ app.post('/dm/:friendId', async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════
 
 // the directory — every active public room, with live member count + residents
+// a user creates a public room (locality, meetup, interest). The CREATOR is its
+// moderator. Name/theme run through the deterministic gate so the directory can't
+// be named abusively. Residents: 1-2 personas the user picks (the_moderator is
+// always added as the doorman).
+app.post('/public-rooms', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const name = String((req.body ?? {}).name || '').trim().slice(0, 60);
+    const theme = String((req.body ?? {}).theme || '').trim().slice(0, 200);
+    if (name.length < 3) return res.status(400).json({ error: 'give your room a name (3+ characters)' });
+    // name/theme gate: the deterministic check (slurs/doxx) on the visible text.
+    const nameCheck = deterministicCheck(name + ' ' + theme);
+    if (nameCheck.action === 'block') return res.status(400).json({ error: "that name won't fly — pick something civil." });
+    // residents: up to 2 user-picked personas + the doorman
+    let picks: string[] = Array.isArray((req.body ?? {}).personas) ? (req.body as any).personas : [];
+    picks = [...new Set(picks.filter((k: any) => typeof k === 'string' && SHAREABLE_PERSONAS.has(k) && k !== 'the_moderator'))].slice(0, 2);
+    const residents = [...picks, 'the_moderator'];
+    // slug from the name (unique-ish; append a short random if taken)
+    let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'room';
+    const { data: clash } = await supabase.from('public_rooms').select('id').eq('slug', slug).maybeSingle();
+    if (clash) slug = slug + '-' + Math.random().toString(36).slice(2, 6);
+    // create the thread + the public_rooms row + creator membership
+    const { data: thread, error: te } = await supabase.from('threads').insert({
+      user_id: me.id, is_group: true, is_shared: true, member_keys: residents, companion_name: name,
+    }).select('id').single();
+    if (te || !thread) return res.status(500).json({ error: 'room create: ' + (te?.message || 'failed') });
+    const { data: room, error: re } = await supabase.from('public_rooms').insert({
+      thread_id: thread.id, slug, name, theme: theme || 'a room for good conversation',
+      persona_keys: residents, created_by: me.id, is_house: false, member_count: 1,
+      sort_order: 100,
+    }).select('id, thread_id').single();
+    if (re || !room) return res.status(500).json({ error: 'room register: ' + (re?.message || 'failed') });
+    await supabase.from('room_members').insert({ thread_id: thread.id, user_id: me.id, role: 'owner' });
+    res.json({ id: room.id, threadId: room.thread_id, name, slug });
+  } catch (e: any) { res.status(500).json({ error: 'create failed: ' + (e?.message || String(e)) }); }
+});
+
+// the room CREATOR (moderator) kicks a member. 24h kick via room_sanctions.
+app.post('/public-rooms/:id/kick', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const targetId = String((req.body ?? {}).userId || '');
+    const { data: room } = await supabase.from('public_rooms')
+      .select('id, thread_id, created_by, is_house').eq('id', req.params.id).maybeSingle();
+    if (!room) return res.status(404).json({ error: 'no such room' });
+    // only the creator moderates their own room (house rooms have no user-mod yet)
+    if (room.is_house || room.created_by !== me.id) return res.status(403).json({ error: 'only the room’s creator can do that.' });
+    if (!targetId || targetId === me.id) return res.status(400).json({ error: 'pick someone else to remove.' });
+    // record a 24h kick sanction + remove from the thread
+    await supabase.from('room_sanctions').insert({
+      room_id: room.id, user_id: targetId, kind: 'kick',
+      until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), reason: 'creator-kick',
+    });
+    await supabase.from('room_members').delete().eq('thread_id', room.thread_id).eq('user_id', targetId);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'kick failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/public-rooms', async (req, res) => {
   try {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const me = await resolveUser(authId);
     const { data: rooms } = await supabase.from('public_rooms')
-      .select('id, thread_id, slug, name, theme, persona_keys, member_count, sort_order')
-      .eq('active', true).order('sort_order', { ascending: true });
+      .select('id, thread_id, slug, name, theme, persona_keys, member_count, sort_order, created_by, is_house')
+      .eq('active', true).order('is_house', { ascending: false }).order('sort_order', { ascending: true });
     // which of these has the user already joined?
     const threadIds = (rooms ?? []).map((r: any) => r.thread_id);
     const joined = new Set<string>();
@@ -303,6 +366,7 @@ app.get('/public-rooms', async (req, res) => {
       personas: (r.persona_keys || []).filter((k: string) => k !== 'the_moderator'),
       doorman: 'the_moderator',
       memberCount: r.member_count, joined: joined.has(r.thread_id),
+      isHouse: !!r.is_house, youCreated: r.created_by === me.id,
     })));
   } catch (e: any) { res.status(500).json({ error: 'public rooms failed: ' + (e?.message || String(e)) }); }
 });
