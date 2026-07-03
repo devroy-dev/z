@@ -67,7 +67,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // the cached soul. Z greets and reasons knowing the actual person.
   const { data: owner } = await supabase
     .from('users')
-    .select('display_name, region, serious_mode, dob')
+    .select('display_name, region, serious_mode, dob, onboarding_stage, created_at')
     .eq('id', userId).maybeSingle();
   let ownerLine = '';
   if (owner && (owner.display_name || owner.region)) {
@@ -117,6 +117,31 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     const listText = list.length ? `\nTheir open list right now:\n${list.join('\n')}` : '\nTheir list is empty right now.';
     frontDeskBlock = `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nYou open already engaged, mid-thought about them; you never ask 'how are you' or 'what's on your mind' — you offer, you don't ask. When you see where someone belongs, name that room warmly in your own words and drop its GOTO tag on its own line (two or three at most, only when they truly fit). For the personal, heavy, or advice-shaped thing, you draw them inward with a [[GOTO: z_serious]] tag — the quiet room, just you and them, not a hand-off. When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags.]`;
     frontDeskBlock += manifestBlock();
+    // ── THE ONBOARDING INTERVIEW: their first minutes in the house. Staged on
+    // users.onboarding_stage (0..3 = mid-interview, -1 = retired). Each user
+    // message to the desk advances the stage; memory harvest catches the
+    // answers; the manifest above powers the payoffs. ──
+    const stage = (owner as any)?.onboarding_stage;
+    if (typeof stage === 'number' && stage >= 0) {
+      const beats = [
+        `THIS IS THEIR FIRST MOMENT IN THE HOUSE. Welcome them briefly and warmly — one breath on what this place is (a house of people: friends to talk to, tables to play at, a stage, the news, and you at the desk). Then ask ONE natural question: what their days are mostly about right now (work? studying? building something?). Just that.`,
+        `SECOND BEAT. React to what they just told you like it genuinely landed — and PAY IT OFF: from the house list above, name ONE door that fits what they said (a person, a table, the stage) in a sentence, with its GOTO chip if it has one. Then ask question two, naturally: what's been eating them or exciting them lately.`,
+        `THIRD BEAT. Again — react like a person, pay it off with ONE fitting door or the quiet room if it was heavy. Then the last question: one thing they'd quietly like to get better at.`,
+        `FINAL BEAT. Whatever they named, the dean's catalog above almost certainly has a course near it — offer it personally (coach, days, the final), OR if nothing fits, the closest person. Then WALK THEM THROUGH A DOOR: one warm closing line and the single most fitting GOTO chip. Do not ask anything more — the interview is over; you're theirs from tomorrow morning.`,
+      ];
+      frontDeskBlock += `\n\n[THE ARRIVAL INTERVIEW — you are mid-welcome; this overlay overrides your usual opening. ${beats[Math.min(stage, 3)]} LAWS: one question at a time, never a form, never list your features — reveal the house through their answers. Keep each message short and warm.]`;
+      // advance the stage now — the reply about to be written IS this beat.
+      const next = stage >= 3 ? -1 : stage + 1;
+      supabase.from('users').update({ onboarding_stage: next } as any).eq('id', userId)
+        .then(({ error }) => { if (error) console.error('[onboard] stage advance failed:', error.message); });
+    } else {
+      // the first-week tour: one door a day, woven in, never a manual
+      const ageDays = (owner as any)?.created_at ? Math.floor((Date.now() - new Date((owner as any).created_at).getTime()) / 864e5) : 99;
+      if (ageDays >= 0 && ageDays < 7) {
+        const tour = ['the stage — a full scene with a cast, judged', 'the arena — sit anyone down at a table', "the anchor's bulletin — news you can interrogate", 'rooms — personas and real friends in one chat', 'the quiet room — z alone, for the heavy nights', 'the ledger in You — every verdict on the record', 'the dean\'s courses — a few days of coaching, then a graded final'];
+        frontDeskBlock += `\n\n[FIRST-WEEK TOUR: they're new here. If it fits naturally this conversation (and you haven't already in this thread today), let them discover ONE thing: ${tour[ageDays]}. Woven in, one sentence, never a tour-guide voice.]`;
+      }
+    }
     // the house lives: today's one-liner per resident, so "how's the brother
     // doing?" and routing choices are answered from real diaries — on request,
     // never as unprompted gossip.

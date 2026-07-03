@@ -103,8 +103,51 @@ function DeskOrb({ size = 40 }) {
 // texting register: an assistant reply with blank lines becomes several bubbles
 const splitBursts = (t) => String(t || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
 
-export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false }) {
+// ── the evening programme's cards: [[CARD: kind | title | line | goto]] lives
+// in the PERSISTED message (cron-written, no stream), parsed at render so
+// weeks of programmes stay tappable in the scroll. ──
+const CARD_RE = /\[\[CARD:\s*([a-z]+)\s*\|([^|\]]+)\|([^|\]]+)\|\s*([a-z_]+)\s*\]\]/gi;
+const parseCards = (t) => {
+  const cards = [];
+  const text = String(t || '').replace(CARD_RE, (_, kind, title, line, goto) => {
+    cards.push({ kind: kind.trim(), title: title.trim(), line: line.trim(), goto: goto.trim() });
+    return '';
+  }).replace(/\n{3,}/g, '\n\n').trim();
+  return { text, cards };
+};
+const CARD_TINT = { social: '159,194,232', growth: '231,176,122', play: '143,217,143' };
+function ProgrammeCard({ card, onPress }) {
+  const tint = CARD_TINT[card.kind] || '231,176,122';
+  return (
+    <Pressable onPress={onPress} style={[pcStyles.card, { borderLeftColor: `rgba(${tint},0.8)` }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[pcStyles.kind, { color: `rgba(${tint},0.9)` }]}>{card.kind}</Text>
+        <Text style={pcStyles.title}>{card.title}</Text>
+        <Text style={pcStyles.line}>{card.line}</Text>
+      </View>
+      <Text style={pcStyles.chev}>›</Text>
+    </Pressable>
+  );
+}
+const pcStyles = StyleSheet.create({
+  card: { flexDirection: 'row', alignItems: 'center', marginTop: 8, padding: 13, borderRadius: 12, borderWidth: 1, borderLeftWidth: 3, borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.03)', maxWidth: '88%' },
+  kind: { fontFamily: 'Figtree_600SemiBold', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { fontFamily: 'Figtree_500Medium', color: 'rgba(245,236,225,0.92)', fontSize: 14.5, marginTop: 2 },
+  line: { fontFamily: 'Figtree_300Light', color: 'rgba(245,236,225,0.55)', fontSize: 12.5, marginTop: 2, lineHeight: 17 },
+  chev: { color: 'rgba(245,236,225,0.4)', fontSize: 22, paddingLeft: 10 },
+});
+
+export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false, onRoute = () => {} }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
+  // a tapped card walks them through a door — same mapping the desk lobby used
+  const routeTo = (key) => {
+    if (key === 'the_anchor') return onRoute({ tab: 'bulletin' });
+    if (key === 'the_arena') return onRoute({ tab: 'play', open: 'arena' });
+    if (key === 'the_stage') return onRoute({ tab: 'stage' });
+    if (key === 'the_journal') return onRoute({ tab: 'journal' });
+    if (key === 'z_serious') return onRoute({ tab: 'quiet' });
+    return onRoute({ tab: 'gathering', persona: key });
+  };
   // the hero treatment: only the pinned trinity stream live. residents text
   // like people — typing indicator, then the whole message lands at once.
   const LIVE_STREAM = KEY === 'the_anchor' || KEY === 'the_front_desk' || KEY === 'z' || KEY === 'z_serious';
@@ -388,12 +431,17 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   ) : m.who === 'you' ? (
                     <View style={styles.youWrap}><Text style={styles.youText}>{m.text}</Text></View>
                   ) : m.text ? (
-                    <>
-                      {splitBursts(m.text).map((burst, bi) => (
-                        <View key={bi} style={[styles.themWrap, bi > 0 && { marginTop: 5 }]}><RichText text={burst} style={styles.themText} /></View>
-                      ))}
-                      {m.typing ? <Text style={[styles.themText, { marginTop: 5 }]}>…</Text> : null}
-                    </>
+                    (() => { const parsed = parseCards(m.text); return (
+                      <>
+                        {splitBursts(parsed.text).map((burst, bi) => (
+                          <View key={bi} style={[styles.themWrap, bi > 0 && { marginTop: 5 }]}><RichText text={burst} style={styles.themText} /></View>
+                        ))}
+                        {parsed.cards.map((c, ci) => (
+                          <ProgrammeCard key={ci} card={c} onPress={() => routeTo(c.goto)} />
+                        ))}
+                        {m.typing ? <Text style={[styles.themText, { marginTop: 5 }]}>…</Text> : null}
+                      </>
+                    ); })()
                   ) : (
                     <Text style={styles.themText}>{m.typing ? '…' : ''}</Text>
                   )}

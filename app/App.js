@@ -145,7 +145,7 @@ function GatheringWorld({ navigate, target }) {
   const [openChat, setOpenChat] = React.useState(null); // persona key or null
   useBackLayer(!!openChat, React.useCallback(() => { setOpenChat(null); return true; }, []));
   React.useEffect(() => { if (target?.persona) setOpenChat(target.persona); }, [target]);
-  if (openChat) return <Chat personaKey={openChat} initialDraft={target?.persona === openChat ? (target?.draft || '') : ''} autoSend={target?.persona === openChat && !!target?.autoSend} onBack={() => setOpenChat(null)} />;
+  if (openChat) return <Chat personaKey={openChat} initialDraft={target?.persona === openChat ? (target?.draft || '') : ''} autoSend={target?.persona === openChat && !!target?.autoSend} onBack={() => setOpenChat(null)} onRoute={navigate || (() => {})} />;
   return <Roster onOpen={(pkey) => setOpenChat(pkey)} />;
 }
 
