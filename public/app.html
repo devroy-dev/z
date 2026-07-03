@@ -1190,6 +1190,23 @@ async function zfetch(url,opts){
   return r;
 }
 
+// ── invite links: capture ?join=TOKEN at arrival; it survives login/OTP and
+// redeems the moment we're authed, landing the user inside the room.
+(function(){ try{ const t=new URLSearchParams(location.search).get('join'); if(t){ localStorage.setItem('z_pending_join', t); history.replaceState({},'',location.pathname); } }catch(e){} })();
+async function redeemPendingJoin(){
+  const t=localStorage.getItem('z_pending_join');
+  if(!t || !localStorage.getItem('z_token')) return;
+  try{
+    const r=await zfetch('/join/'+encodeURIComponent(t),{method:'POST',headers:HDRS(),body:'{}'});
+    const j=await r.json();
+    localStorage.removeItem('z_pending_join');
+    if(j && j.threadId){
+      await loadRooms();
+      const room=(rooms||[]).find(x=>x.id===j.threadId);
+      if(room){ openRoom(room); }
+    } else if(j && j.error){ alert(j.error); }
+  }catch(e){ localStorage.removeItem('z_pending_join'); }
+}
 const HDRS=()=>{const h={'Content-Type':'application/json'};const tok=localStorage.getItem('z_token');if(tok){h['Authorization']='Bearer '+tok;}else{const u=localStorage.getItem('z_uid');if(u)h['x-z-user']=u;}return h;};
 let ME={name:'',region:''}, threads={}, active=null, dpData={};
 let MY_DP=null; // user's display picture (base64 data-url, resized)
@@ -2305,7 +2322,7 @@ async function verifyOtp(){
 function afterAuthRoute(hasName){
   if(hasName){
     localStorage.setItem('z_onboarded','1');
-    renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();landOnDesk();
+    renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();landOnDesk();redeemPendingJoin();
     const pj=localStorage.getItem('z_pending_join'); if(pj){localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl();}
   } else { show('onboard'); }
 }
@@ -2420,7 +2437,7 @@ function startWelcome(){
 }
 function finishWelcome(){
   localStorage.setItem('z_welcomed','1');
-  renderContacts(); refreshProfile(); show('list'); loadThreads(); loadGroups(); loadRooms(); landOnDesk();
+  renderContacts(); refreshProfile(); show('list'); loadThreads(); loadGroups(); loadRooms(); landOnDesk(); redeemPendingJoin();
   // honor a pending room-join after the tour
   const pj=localStorage.getItem('z_pending_join');
   if(pj){ localStorage.removeItem('z_pending_join'); const u=new URL(location.href); u.searchParams.set('join',pj); history.replaceState({},'',u.toString()); tryJoinFromUrl(); }
@@ -2447,6 +2464,7 @@ $('ob-go').onclick=async()=>{
   localStorage.setItem('z_onboarded','1');
   // preload data quietly, then run Z's warm welcome tour (first-time only)
   loadThreads(); loadGroups(); loadRooms();
+  redeemPendingJoin();
   startWelcome();
 };
 
@@ -3964,7 +3982,7 @@ loadMyDp();
   }
   if(tokenLive && localStorage.getItem('z_onboarded')){
     scheduleRefresh();
-    renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();landOnDesk();
+    renderContacts();refreshProfile();show('list');loadThreads();loadGroups();loadRooms();landOnDesk();redeemPendingJoin();
     syncMe();
     if(hasJoin) tryJoinFromUrl();
   } else if(tokenLive){
