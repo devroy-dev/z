@@ -342,6 +342,26 @@ export async function sendGameMove(id, move, version) {
   return authedJSON('POST', `/games/session/${id}/move`, { move, version });
 }
 
+// ── the trading floor (paper trading — phantom money, real prices) ──
+export async function simMarket() {
+  try { return await authedJSON('GET', '/sim/market'); } catch (e) { return null; }
+}
+export async function simPortfolio() {
+  try { return await authedJSON('GET', '/sim/portfolio'); } catch (e) { return null; }
+}
+export async function simTrade(symbol, side, qty) {
+  return authedJSON('POST', '/sim/trade', { symbol, side, qty });
+}
+export async function simRemark() {
+  try { return await authedJSON('POST', '/sim/remark'); } catch (e) { return null; }
+}
+export async function simLeaderboard() {
+  try { return await authedJSON('GET', '/sim/leaderboard'); } catch (e) { return null; }
+}
+export async function simOracle() {
+  try { return await authedJSON('GET', '/sim/oracle'); } catch (e) { return null; }
+}
+
 // ── the anchor's bulletin ──
 export async function getBulletinFeed() {
   try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }

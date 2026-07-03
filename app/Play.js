@@ -25,7 +25,7 @@ function Door({ tone, kicker, title, line, glyph, onPress, delay = 0 }) {
         style={styles.doorInner}
       >
         <Animated.View style={[styles.doorOrb, orb]}>
-          <Svg width="90" height="90" viewBox="0 0 90 90">
+          <Svg width="64" height="64" viewBox="0 0 90 90">
             <Defs>
               <RadialGradient id={`door_${title}`} cx="50%" cy="50%" r="50%">
                 <Stop offset="0%" stopColor={tone} stopOpacity="0.5" />
@@ -55,7 +55,7 @@ export default function Play({ onEnter = () => {} }) {
         <View style={styles.header}>
           <Text style={styles.kicker}>together, at play</Text>
           <Text style={styles.title}>the play</Text>
-          <Text style={styles.intro}>two ways in. compete across a board, or step into a scene and live out the fantasy.</Text>
+          <Text style={styles.intro}>three ways in. compete across a board, step into a scene, or run a slice of the real world.</Text>
         </View>
 
         <View style={styles.doors}>
@@ -81,6 +81,17 @@ export default function Play({ onEnter = () => {} }) {
               </Svg>
             }
           />
+          <Door
+            tone="#6FC9E0" kicker="simulate" title="Sims" delay={1200}
+            line="real-world emulators with the house inside them. trade a crypto book with phantom money — the economist is watching."
+            onPress={() => onEnter('sims')}
+            glyph={
+              <Svg width="34" height="34" viewBox="0 0 24 24">
+                <Path d="M3 18l5-6 4 3 6-8M15 7h4v4"
+                  stroke="#6FC9E0" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+            }
+          />
         </View>
       </SafeAreaView>
     </View>
@@ -94,12 +105,12 @@ const styles = StyleSheet.create({
   title: { fontFamily: FONTS.display, color: C.cream, fontSize: 34, marginTop: 2 },
   intro: { fontFamily: FONTS.light, color: C.muted, fontSize: 14, lineHeight: 21, marginTop: 10, maxWidth: 330 },
 
-  doors: { flex: 1, paddingHorizontal: 20, paddingTop: 14, gap: 18 },
+  doors: { flex: 1, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10, gap: 14 },
   door: { flex: 1 },
-  doorInner: { flex: 1, borderRadius: 26, borderWidth: 1, borderColor: 'rgba(255,240,228,0.09)', padding: 24, justifyContent: 'center', overflow: 'hidden' },
-  doorOrb: { width: 90, height: 90, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  doorInner: { flex: 1, borderRadius: 26, borderWidth: 1, borderColor: 'rgba(255,240,228,0.09)', padding: 18, justifyContent: 'center', overflow: 'hidden' },
+  doorOrb: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   glyphHolder: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   doorKicker: { fontFamily: FONTS.body, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
-  doorTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 28, marginTop: 3 },
-  doorLine: { fontFamily: FONTS.light, color: C.muted, fontSize: 13.5, lineHeight: 20, marginTop: 8, maxWidth: 300 },
+  doorTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 24, marginTop: 3 },
+  doorLine: { fontFamily: FONTS.light, color: C.muted, fontSize: 12.5, lineHeight: 18, marginTop: 6, maxWidth: 300 },
 });
