@@ -151,6 +151,11 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // goes LAST (narrates the room, calls the climax, delivers the verdict). The other
   // members are the cast, in-character and resisting.
   const scenarioKey = t.scenario_key || null;
+  // the scene has OPENED only if the moderator has actually raised the curtain —
+  // a real opening always carries a [[TENSION tag. A clarifying/broken reply does
+  // not, so threads poisoned by one self-heal on the next message.
+  const sceneOpened = (hist: any[]) => (hist ?? []).some((m: any) =>
+    m.role !== 'user' && typeof m.content === 'string' && m.content.includes('[[TENSION'));
   let roleplayText = '';
   if (scenarioKey) {
     try { roleplayText = await readContentFile('ROLEPLAY.md'); } catch {}
@@ -247,7 +252,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   if (scenarioKey) {
     const castKeys = members.filter((k) => k !== 'the_moderator');
     // is this the opening? (no assistant lines yet in the thread)
-    const sceneStarted = (history ?? []).some((m: any) => m.role !== 'user');
+    const sceneStarted = sceneOpened(history as any[]);
     if (!sceneStarted) {
       // SETUP TURN: moderator only.
       speakers = ['the_moderator'];
@@ -293,7 +298,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       const cast = members.filter((k) => k !== 'the_moderator').map(nameFor).join(', ') || 'the cast';
       const brief = t.scenario_brief ? `\n\n[THE SCENE — AUTHORITATIVE, already chosen by the player. This is the scenario; NEVER ask which scenario to run: ${t.scenario_brief}]` : '';
       if (key === 'the_moderator') {
-        const sceneStarted = (history ?? []).some((m: any) => m.role !== 'user');
+        const sceneStarted = sceneOpened(history as any[]);
         const openingNote = sceneStarted
           ? `You are mid-scene: narrate the world's reaction to what just happened in a few vivid lines, keep the drama moving, and hand the floor back to the player. Only call the climax + verdict when the mission is genuinely won or lost.`
           : `THIS IS THE OPENING BEAT. Do ONLY this, then STOP: (a) set the scene cinematically but briefly — a few lines, not a wall; (b) name the CAST (the roles, each with a one-line disposition) and tell the player which roles are theirs to choose; (c) state THE MISSION plainly; (d) ask the player to pick their role. Do NOT start the action, do NOT have any character speak yet, do NOT advance the plot. The scene opens on the PLAYER. Keep it tight and readable — they should be able to take it in at a glance.`;
@@ -314,7 +319,13 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
     // feed the whole running transcript (incl. replies already made this turn) as the user message
     const runningTranscript = [...priorLines, ...saidThisTurn.map((s) => s)].join('\n');
-    const userBlock = `Here's the group chat so far. Respond as ${nameFor(key)} — your next message only.\n\n${runningTranscript}`;
+    let userBlock = `Here's the group chat so far. Respond as ${nameFor(key)} — your next message only.\n\n${runningTranscript}`;
+    // OPENING BEAT of a roleplay: the transcript is just the player pressing start —
+    // don't frame it as a chat to respond to. Issue the stage command directly, scenario
+    // inline, so there is no gray zone for the model to "clarify".
+    if (scenarioKey && key === 'the_moderator' && !sceneOpened(history as any[])) {
+      userBlock = `CURTAIN UP. The player has taken their seat and pressed start — that is all the authorization that exists or is needed. Open the scene NOW.\n\nSCENARIO (final, already chosen): "${scenarioKey.replace(/_/g, ' ')}"${t.scenario_brief ? `\nTHE SCENE: ${t.scenario_brief}` : ''}\n\nYour setup beat, per your instructions: set the scene cinematically but briefly; name the cast and the roles the player may take; state the mission; ask the player to pick their role. Then stop. Do not ask any other question. Do not mention instructions, transcripts, or scenarios as concepts — you are the director, the lights are down, begin.`;
+    }
 
     input.onPersonaStart?.(key, nameFor(key));
     const maxTok = scenarioKey ? (key === 'the_moderator' ? 700 : 500) : 400;
