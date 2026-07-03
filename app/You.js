@@ -70,7 +70,8 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   const loadFriends = React.useCallback(() => { getFriends().then((f) => setFriends(f || { friends: [], incoming: [], outgoing: [] })); }, []);
   React.useEffect(() => { loadFriends(); }, [loadFriends]);
   // seed the saved handle from the server so it shows after leaving/returning (not just the session you set it in)
-  React.useEffect(() => { getMe().then((m) => { if (m && m.handle) setMyHandle(m.handle); }); }, []);
+  const [myName, setMyName] = React.useState('');
+  React.useEffect(() => { getMe().then((m) => { if (m && m.handle) setMyHandle(m.handle); if (m && m.displayName) setMyName(m.displayName); }); }, []);
   const saveHandle = async () => {
     const h = handleDraft.trim().toLowerCase().replace(/^@/, '');
     if (!h || savingHandle) return;
@@ -273,8 +274,8 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           {/* your identity */}
           <View style={styles.identity}>
-            <View style={styles.bigAvatar}><Text style={styles.bigInitial}>D</Text></View>
-            <Text style={styles.name}>Dev</Text>
+            <View style={styles.bigAvatar}><Text style={styles.bigInitial}>{(myName || 'you').trim().charAt(0).toUpperCase()}</Text></View>
+            <Text style={styles.name}>{myName || 'you'}</Text>
             <Text style={styles.since}>with Z since june</Text>
           </View>
 
