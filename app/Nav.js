@@ -13,6 +13,8 @@ import { FONTS } from './theme';
 import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
 import QuietRoom from './QuietRoom';
+import Chat from './Chat';
+import RoomChat from './RoomChat';
 import ChatHome, { MOON } from './ChatHome';
 import You from './You';
 
@@ -194,8 +196,8 @@ export default function Nav({ screens, onLogout = () => {} }) {
   const chatContent = chatOpen
     ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
       : chatOpen.kind === 'roster' ? screens.gathering({ navigate, target: null })
-      : chatOpen.kind === 'room' ? screens.rooms({ navigate, target: { room: chatOpen.room } })
-      : screens.gathering({ navigate, target: { persona: chatOpen.key, draft: chatOpen.draft, autoSend: chatOpen.autoSend } }))
+      : chatOpen.kind === 'room' ? <RoomChat room={chatOpen.room} onBack={() => setChatOpen(null)} />
+      : <Chat key={chatOpen.key} personaKey={chatOpen.key} initialDraft={chatOpen.draft || ''} autoSend={!!chatOpen.autoSend} onBack={() => setChatOpen(null)} onRoute={navigate} />)
     : <ChatHome onOpen={openFromChat} />;
 
   const playFactory = screens[active === 'play' ? 'play' : 'play'];

@@ -155,8 +155,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   };
   // the hero treatment: only the pinned trinity stream live. residents text
   // like people — typing indicator, then the whole message lands at once.
-  const LIVE_STREAM = KEY === 'the_anchor' || KEY === 'the_front_desk' || KEY === 'z' || KEY === 'z_serious';
-  const WARM = LIVE_STREAM; // desk/anchor/Z keep the warm serif register — deliberate exception
+  const LIVE_STREAM = KEY === 'z' || KEY === 'z_serious';   // only the hero streams live
+  const WARM = KEY === 'the_anchor' || KEY === 'the_front_desk' || LIVE_STREAM; // trinity keeps the warm register
+  const PLAIN = !LIVE_STREAM; // whatsapp-flat: no italics/bold for anyone but Z
+  const flat = (t) => PLAIN ? String(t || '').replace(/\*\*?/g, '') : t;
   const P = PERSONAS[KEY];
   const rgb = P.rgb;
   const dp = faceFor(KEY);
@@ -277,7 +279,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: parts.slice(0, n).join('\n\n'), typing: !isLast } : m)));
       scrollDown();
       if (isLast) { pacingRef.current = false; finalize && finalize(); return; }
-      setTimeout(() => burstTick(zId, finalize), 420 + Math.random() * 320);
+      const justLanded = parts[n - 1] || '';
+      setTimeout(() => burstTick(zId, finalize), Math.min(6000, Math.max(3000, 2600 + justLanded.length * 22)));
     } else if (done) {
       pacingRef.current = false;
       setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: targetRef.current, typing: false } : m)));
@@ -367,7 +370,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       {/* the room's own light — this persona's aura, falling from the top */}
-      <LinearGradient colors={WARM ? [`rgba(${rgb},0.17)`, `rgba(${rgb},0.05)`, N.night] : [`rgba(${rgb},0.05)`, N.ink2, N.ink]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <LinearGradient colors={WARM ? [`rgba(${rgb},0.17)`, `rgba(${rgb},0.05)`, N.night] : [N.ink2, N.ink, N.ink]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <Grain />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
@@ -449,7 +452,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                     (() => { const parsed = parseCards(m.text); return (
                       <>
                         {splitBursts(parsed.text).map((burst, bi) => (
-                          <View key={bi} style={[styles.themWrap, !WARM && styles.themWrapMoon, bi > 0 && { marginTop: 4 }]}><RichText text={burst} style={WARM ? styles.themText : styles.themTextMoon} /></View>
+                          <View key={bi} style={[styles.themWrap, !WARM && styles.themWrapMoon, bi > 0 && { marginTop: 4 }]}><RichText text={flat(burst)} style={WARM ? styles.themText : styles.themTextMoon} /></View>
                         ))}
                         {parsed.cards.map((c, ci) => (
                           <ProgrammeCard key={ci} card={c} onPress={() => routeTo(c.goto)} />
