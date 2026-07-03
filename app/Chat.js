@@ -104,6 +104,7 @@ function DeskOrb({ size = 40 }) {
 }
 
 // texting register: an assistant reply with blank lines becomes several bubbles
+const fmtTime = (at) => { const d = at ? new Date(at) : null; return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : ''; };
 const splitBursts = (t) => String(t || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
 
 // ── the evening programme's cards: [[CARD: kind | title | line | goto]] lives
@@ -140,6 +141,7 @@ const pcStyles = StyleSheet.create({
   chev: { color: 'rgba(245,236,225,0.4)', fontSize: 22, paddingLeft: 10 },
   chip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(231,176,122,0.4)', backgroundColor: 'rgba(231,176,122,0.07)' },
   chipTxt: { fontFamily: 'Figtree_500Medium', color: 'rgba(240,201,144,0.95)', fontSize: 12.5 },
+  stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.30)', fontSize: 10, marginTop: 3, alignSelf: 'flex-start' },
 });
 
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false, onRoute = () => {} }) {
@@ -207,7 +209,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       // the past belongs on the screen: load this thread's saved conversation
       getRoomMessages(info.id).then((j) => {
         const hist = (j.messages || [])
-          .map((m, i) => ({ id: 'h' + (m.id || i), who: m.role === 'user' ? 'you' : 'them', text: m.content || '' }))
+          .map((m, i) => ({ id: 'h' + (m.id || i), who: m.role === 'user' ? 'you' : 'them', text: m.content || '', at: m.created_at }))
           .filter((m) => m.text);
         if (hist.length) {
           setMessages((cur) => (cur.length ? cur : hist));
@@ -326,10 +328,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     if (!tid) { const info = await openThreadInfo(KEY, P.name); tid = info?.id || null; if (tid) setThreadId(tid); }
     if (!tid) { sendingRef.current = false; setSending(false); return; }
     setDraft('');
-    const youMsg = { id: Date.now(), who: 'you', text };
+    const youMsg = { id: Date.now(), who: 'you', text, at: Date.now() };
     const zId = Date.now() + 1;
     atBottomRef.current = true;
-    setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true }]);
+    setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true, at: Date.now() }]);
     scrollDown();
 
     targetRef.current = '';
@@ -444,6 +446,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
             ) : (
               messages.map((m, mi) => (
                 <View key={m.id} style={{ marginBottom: messages[mi + 1] && messages[mi + 1].who === m.who ? 4 : 14 }}>
+                  {null}
                   {(m.text || '').trim() === '*buzz*' ? (
                     <Text style={[styles.buzzChip, m.who === 'you' && { alignSelf: 'flex-end' }]}>⚡ buzz</Text>
                   ) : m.who === 'you' ? (
@@ -470,6 +473,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   ) : (
                     <Text style={styles.themText}>{m.typing ? '…' : ''}</Text>
                   )}
+                  {m.at && !m.typing ? <Text style={[pcStyles.stamp, m.who === 'you' && { alignSelf: 'flex-end' }]}>{fmtTime(m.at)}</Text> : null}
                 </View>
               ))
             )}

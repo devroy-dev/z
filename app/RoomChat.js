@@ -25,6 +25,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Eas
 import { subscribeRoom, unsubscribe } from './realtime';
 import Grain from './Grain';
 import { streamChat, getRoomMembers, getRoomMessages, inviteToRoom, API_BASE } from './api';
+const fmtTime = (at) => { const d = at ? new Date(at) : null; return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : ''; };
 
 const N = {
   night: '#0B0A0F', night2: '#100E15',
@@ -103,7 +104,7 @@ function RoomLine({ line }) {
   if (line.who === 'you') {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-end' }]}>
-        <View style={[styles.bubble, styles.bubbleYou]}><Text style={styles.bubbleText}>{line.text}</Text></View>
+        <View style={[styles.bubble, styles.bubbleYou]}><Text style={styles.bubbleText}>{line.text}</Text>{line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}</View>
       </View>
     );
   }
@@ -123,7 +124,7 @@ function RoomLine({ line }) {
       <View style={{ maxWidth: '84%' }}>
         {line.key ? <Text style={[styles.speaker, { color: `rgb(${rgbOf(line.key)})` }]}>{nameOf(line.key)}</Text> : null}
         <View style={[styles.bubble, styles.bubbleThem]}>
-          <Text style={styles.bubbleText}>{line.typing && !line.text ? '•••' : line.text}</Text>
+          <Text style={styles.bubbleText}>{line.typing && !line.text ? '•••' : line.text}</Text>{line.at && !line.typing ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}
         </View>
       </View>
     </View>
@@ -196,9 +197,9 @@ export default function RoomChat({ room, onBack = () => {} }) {
         renderedRef.current.add(k);
         if (m.role === 'user') {
           const mine = m.mine || (m.sender_user_id && m.sender_user_id === meIdRef.current);
-          seed.push({ id: k, who: mine ? 'you' : 'human', name: m.sender_name || (mem.members || {})[m.sender_user_id] || 'someone', text: m.content || '' });
+          seed.push({ id: k, who: mine ? 'you' : 'human', name: m.sender_name || (mem.members || {})[m.sender_user_id] || 'someone', text: m.content || '', at: m.created_at });
         } else {
-          seed.push({ id: k, who: 'them', key: m.persona_key, text: m.content || '' });
+          seed.push({ id: k, who: 'them', key: m.persona_key, text: m.content || '', at: m.created_at });
         }
       });
       setLines(seed);
@@ -396,6 +397,7 @@ const styles = StyleSheet.create({
   bubbleYou: { backgroundColor: 'rgba(159,194,232,0.10)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.18)', borderBottomRightRadius: 5, maxWidth: '84%' },
   bubbleHuman: { backgroundColor: 'rgba(159,176,206,0.10)', borderWidth: 1, borderColor: 'rgba(159,176,206,0.2)', borderTopLeftRadius: 6 },
   bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 19 },
+  stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.28)', fontSize: 9.5, marginTop: 2, alignSelf: 'flex-end' },
 
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
   field: { flex: 1, borderRadius: 22, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },

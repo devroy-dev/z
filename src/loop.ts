@@ -10,6 +10,7 @@ import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 import { stateBlockFor, currentStates } from './personaStates.js';
 import { manifestBlock } from './manifest.js';
+import { executeConciergeTags, parseWhen } from './concierge.js';
 
 // Use Node's native fetch (undici) instead of the SDK's default node-fetch@2, which
 // premature-closes streaming responses on Node 22 (this engine pins Node 22 for supabase
@@ -136,7 +137,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       supabase.from('users').update({ onboarding_stage: next } as any).eq('id', userId)
         .then(({ error }) => { if (error) console.error('[onboard] stage advance failed:', error.message); });
     }
-    frontDeskBlock = interviewBlock + `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nTO HAND THEM A CARD (a rich tappable card in the chat — use when they ask for a card/shortcut, or when you're setting one concrete plan in front of them; at most one per message, on its OWN line):\n  • [[CARD: play | Riddle Me | a riddle gauntlet — call it when you dare | the_arena:riddle]]   (kind: social/growth/play; goto: a persona key, the_stage, the_arena, or the_arena:<game id>)\n${conversationLaws} When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags. NEVER send a message that is only tags — always at least one human line of text with them.]`;
+    frontDeskBlock = interviewBlock + `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nTO HAND THEM A CARD (a rich tappable card in the chat — use when they ask for a card/shortcut, or when you're setting one concrete plan in front of them; at most one per message, on its OWN line):\n  • [[CARD: play | Riddle Me | a riddle gauntlet — call it when you dare | the_arena:riddle]]   (kind: social/growth/play; goto: a persona key, the_stage, the_arena, or the_arena:<game id>)\nYOUR CONCIERGE POWERS (each on its OWN line; confirm warmly in your text what you set up — never promise what you didn't tag):\n  • book a table:      [[BOOK: poker | the_wannabe | 9pm]]   → creates the room now, pings them at the hour (game id | persona key | time like "9pm" / "tomorrow 5pm" / "in 2 hours")\n  • set a reminder:    [[REMIND: call the lawyer | tomorrow 11am]]\n  • log their complaint/suggestion for the maker: [[FEEDBACK: their words, faithfully]]\n${conversationLaws} When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags. NEVER send a message that is only tags — always at least one human line of text with them.]`;
     frontDeskBlock += manifestBlock();
     if (!interviewing) {
       // the first-week tour: one door a day, woven in, never a manual
@@ -242,7 +243,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       for (const p of parts.slice(1)) {
         const dm = p.match(/^due:\s*(.+)$/i);
         const rm = p.match(/^room:\s*(.+)$/i);
-        if (dm) { const d = new Date(dm[1]); if (!isNaN(d.getTime())) row.due_at = d.toISOString(); }
+        if (dm) { const d = parseWhen(dm[1]) || (isNaN(new Date(dm[1]).getTime()) ? null : new Date(dm[1])); if (d) row.due_at = d.toISOString(); }
         if (rm) row.suggested_persona = rm[1].replace(/[^a-z_]/gi, '').slice(0, 40);
       }
       try { await supabase.from('tasks').insert(row); } catch { /* non-fatal */ }
@@ -255,6 +256,8 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     }
     // strip ALL task tags (and tidy leftover blank lines) from what the user sees + what we persist
     reply = reply.replace(/\[\[TASK_(?:ADD|DONE):[^\]]*\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    // the concierge's hands: bookings, reminders, feedback — executed then stripped
+    try { reply = await executeConciergeTags(reply, userId); } catch (e: any) { console.error('[concierge] failed:', e?.message || e); }
   }
 
   // ── THE FRONT DESK: pull [[GOTO: key]] routing suggestions into tappable chips ──

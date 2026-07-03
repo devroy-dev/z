@@ -19,6 +19,7 @@ import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
 import { runStateWriter, currentStates, startStateScheduler } from './personaStates.js';
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
+import { startPingScheduler, firePings } from './concierge.js';
 import { getBulletin, startBulletinScheduler } from './bulletin.js';
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
@@ -45,6 +46,7 @@ startFollowupScheduler();
 startStateScheduler();
 startBriefScheduler();
 startProgrammeScheduler();
+startPingScheduler();
 startBulletinScheduler();
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
@@ -269,6 +271,16 @@ app.post('/dev/morning-brief', async (req, res) => {
     if (!key) return res.status(404).json({ error: 'not found' });
     if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
     res.json(await runMorningBriefs(req.body?.userId ? { onlyUserId: req.body.userId } : undefined));
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// dev trigger: sweep due pings now
+app.post('/dev/fire-pings', async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key) return res.status(404).json({ error: 'not found' });
+    if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    res.json(await firePings());
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
