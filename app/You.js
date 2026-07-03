@@ -145,7 +145,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             <Text style={styles.settingText}>{updState || 'check for updates'}</Text>
             <Text style={styles.settingChev}>›</Text>
           </Pressable>
-          <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(232,236,244,0.35)', fontSize: 10.5, paddingHorizontal: 4, paddingBottom: 6 }}>
+          <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(232,236,244,0.32)', fontSize: 10.5, marginHorizontal: 20, marginTop: -8, paddingBottom: 10 }}>
             {Updates.createdAt ? 'updated ' + new Date(Updates.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) + ', ' + new Date(Updates.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : 'built-in bundle'}{Updates.updateId ? '  ·  ' + Updates.updateId.slice(0, 8) : ''}
           </Text>
           {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
