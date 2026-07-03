@@ -704,3 +704,12 @@ export async function openDM(friendId) {
 export async function markThreadRead(threadId) {
   try { return await authedJSON('POST', `/threads/${threadId}/read`); } catch (e) { return null; }
 }
+
+// ---- PUBLIC ROOMS (communities) ----
+export async function getPublicRooms() {
+  try { return await authedJSON('GET', '/public-rooms'); } catch (e) { return []; }
+}
+export async function joinPublicRoom(roomId) {
+  try { return await authedJSON('POST', `/public-rooms/${roomId}/join`); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}

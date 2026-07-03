@@ -10,7 +10,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path as SvgPath } from 'react-
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs } from './api';
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom } from './api';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -107,6 +107,55 @@ function UpdatesFeed({ onOpen }) {
   );
 }
 const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
+
+// the communities directory — curated public rooms anyone can join. Opens the
+// existing group-chat surface (RoomChat) pointed at the room's shared thread.
+function PublicRooms({ onOpen }) {
+  const [rooms, setRooms] = useState(null);
+  const [busy, setBusy] = useState(null);
+  useEffect(() => { getPublicRooms().then((r) => setRooms(Array.isArray(r) ? r : [])); }, []);
+  const enter = async (room) => {
+    if (busy) return;
+    setBusy(room.id);
+    try {
+      let threadId = room.threadId;
+      if (!room.joined) {
+        const j = await joinPublicRoom(room.id);
+        if (j && j.threadId) threadId = j.threadId;
+      }
+      if (threadId) onOpen({ kind: 'room', room: { id: threadId, name: room.name, personas: room.personas || [] } });
+    } catch (e) {}
+    setBusy(null);
+  };
+  if (rooms === null) return (
+    <View style={st.soonWrap}><Text style={st.soonLine}>opening the doors…</Text></View>
+  );
+  if (!rooms.length) return (
+    <View style={st.soonWrap}><Text style={st.soonTitle}>communities</Text><Text style={st.soonLine}>no public rooms yet — check back soon.</Text></View>
+  );
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 90, paddingTop: 6 }} showsVerticalScrollIndicator={false}>
+      <Text style={st.commHead}>communities</Text>
+      <Text style={st.commSub}>open rooms — jump in, meet the regulars, keep it civil.</Text>
+      {rooms.map((room) => (
+        <Pressable key={room.id} style={st.commCard} onPress={() => enter(room)}>
+          <View style={st.commFaces}>
+            {(room.personas || []).slice(0, 2).map((k, i) => (
+              <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, i > 0 && { marginLeft: -12 }]} />
+            ))}
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={st.commName} numberOfLines={1}>{room.name}</Text>
+            <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>
+            <Text style={st.commMeta}>{room.memberCount || 0} in the room · the doorman keeps order</Text>
+          </View>
+          <Text style={st.commGo}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 const ago = (t) => {
   if (!t) return '';
   const m = Math.floor((Date.now() - new Date(t).getTime()) / 60000);
@@ -332,12 +381,7 @@ export default function ChatHome({ onOpen = () => {} }) {
       )}
       {tab === 'updates' && <UpdatesFeed onOpen={onOpen} />}
       {tab === 'groups' && <Rooms onOpen={(r) => onOpen({ kind: 'room', room: r })} />}
-      {tab === 'rooms' && (
-        <View style={st.soonWrap}>
-          <Text style={st.soonTitle}>rooms</Text>
-          <Text style={st.soonLine}>the public rooms — opening soon.</Text>
-        </View>
-      )}
+      {tab === 'rooms' && <PublicRooms onOpen={onOpen} />}
 
       {/* compose */}
       {tab === 'chats' && (
@@ -418,4 +462,16 @@ const st = StyleSheet.create({
   tabTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 13.5 },
   tabOn: { color: MOON.moon },
   tabDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: MOON.moon },
+  soonWrap: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 40 },
+  soonTitle: { fontFamily: FONTS.display, color: MOON.porcelain, fontSize: 22, marginBottom: 8 },
+  soonLine: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 14, textAlign: 'center', lineHeight: 21 },
+  commHead: { fontFamily: FONTS.display, color: MOON.porcelain, fontSize: 24, marginHorizontal: 20, marginTop: 10 },
+  commSub: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 13, marginHorizontal: 20, marginTop: 3, marginBottom: 14 },
+  commCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.05)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.12)' },
+  commFaces: { flexDirection: 'row', width: 56, alignItems: 'center' },
+  commFace: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: MOON.ground },
+  commName: { fontFamily: FONTS.medium, color: MOON.porcelain, fontSize: 16 },
+  commTheme: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12.5, marginTop: 2, lineHeight: 17 },
+  commMeta: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 11, marginTop: 5 },
+  commGo: { fontFamily: FONTS.semibold, color: MOON.moon, fontSize: 13, marginLeft: 10 },
 });
