@@ -183,6 +183,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   const [inCall, setInCall] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
+  const [pendingImage, setPendingImage] = useState(null);  // { data, uri } — a photo staged to send
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   // the name YOU gave this companion (seed from cache so no default-name flash on reopen)
@@ -259,6 +260,20 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     } catch (e) {}
   };
 
+  // pick a photo to SHARE into the chat (distinct from the avatar picker above).
+  const pickPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], quality: 0.5, base64: true,
+      });
+      if (res.canceled || !res.assets || !res.assets[0]?.base64) return;
+      const b64 = res.assets[0].base64;
+      setPendingImage({ data: b64, uri: `data:image/jpeg;base64,${b64}` });
+    } catch (e) {}
+  };
+
   const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
 
   const doClear = () => {
@@ -332,14 +347,16 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
 
   const doSend = async (overrideText) => {
     const text = (typeof overrideText === 'string' ? overrideText : draft).trim();
-    if (!text || sendingRef.current) return;
+    const img = pendingImage;                     // capture before we clear it
+    if ((!text && !img) || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
     let tid = threadId;
     if (!tid) { const info = await openThreadInfo(KEY, P.name); tid = info?.id || null; if (tid) setThreadId(tid); }
     if (!tid) { sendingRef.current = false; setSending(false); return; }
     setDraft('');
-    const youMsg = { id: Date.now(), who: 'you', text, at: Date.now() };
+    setPendingImage(null);
+    const youMsg = { id: Date.now(), who: 'you', text, imageUri: img?.uri || null, at: Date.now() };
     const zId = Date.now() + 1;
     atBottomRef.current = true;
     setMessages((cur) => [...cur, youMsg, { id: zId, who: 'them', text: '', typing: true, at: Date.now() }]);
@@ -356,6 +373,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     streamChat({
       threadId: tid,
       message: text,
+      image: img ? { media_type: 'image/jpeg', data: img.data } : undefined,
       persona: KEY,
       onToken: (acc) => { targetRef.current = acc; },
       onDone: (acc) => {
@@ -485,7 +503,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   {(m.text || '').trim() === '*buzz*' ? (
                     <Text style={[styles.buzzChip, m.who === 'you' && { alignSelf: 'flex-end' }]}>⚡ buzz</Text>
                   ) : m.who === 'you' ? (
-                    <View style={[styles.youWrap, !WARM && styles.youWrapMoon]}><Text style={[styles.youText, !WARM && styles.youTextMoon]}>{m.text}</Text></View>
+                    <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end' }}>
+                      {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
+                      {m.text ? <View style={[styles.youWrap, !WARM && styles.youWrapMoon, m.imageUri && { marginTop: 4 }]}><Text style={[styles.youText, !WARM && styles.youTextMoon]}>{m.text}</Text></View> : null}
+                    </View>
                   ) : m.text ? (
                     (() => { const parsed = parseCards(m.text); return (
                       <>
@@ -515,7 +536,18 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
           </ScrollView>
 
           {/* composer */}
+          {pendingImage ? (
+            <View style={styles.pendingStrip}>
+              <Image source={{ uri: pendingImage.uri }} style={styles.pendingThumb} />
+              <Pressable onPress={() => setPendingImage(null)} style={styles.pendingX} hitSlop={8}>
+                <Text style={styles.pendingXTxt}>✕</Text>
+              </Pressable>
+            </View>
+          ) : null}
           <View style={styles.composer}>
+            <Pressable style={styles.attachBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
+              <Text style={styles.attachBtnTxt}>＋</Text>
+            </Pressable>
             <View style={styles.field}>
               <TextInput
                 value={draft}
@@ -552,6 +584,13 @@ const styles = StyleSheet.create({
   buzzChip: { fontFamily: 'Figtree_600SemiBold', color: '#F0A765', fontSize: 13, letterSpacing: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(240,167,101,0.45)', overflow: 'hidden', alignSelf: 'flex-start' },
   buzzBtn: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
   buzzBtnTxt: { fontSize: 20, color: '#F0A765' },
+  attachBtn: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
+  attachBtnTxt: { fontSize: 26, color: '#F0A765', marginTop: -2 },
+  sharedPhoto: { width: 200, height: 200, borderRadius: 16, resizeMode: 'cover' },
+  pendingStrip: { paddingHorizontal: 16, paddingTop: 4, flexDirection: 'row' },
+  pendingThumb: { width: 64, height: 64, borderRadius: 10, resizeMode: 'cover' },
+  pendingX: { position: 'absolute', left: 68, top: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' },
+  pendingXTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
   root: { flex: 1, backgroundColor: N.night },
 
   topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8 },

@@ -20,6 +20,7 @@ import LudoLive from './games/ludo/Live';
 import DebateDuelLive from './games/debate/DuelLive';
 import { startGameSession, getLiveGame } from './api';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { subscribeRoom, unsubscribe } from './realtime';
@@ -104,7 +105,10 @@ function RoomLine({ line }) {
   if (line.who === 'you') {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-end' }]}>
-        <View style={[styles.bubble, styles.bubbleYou]}><Text style={styles.bubbleText}>{line.text}</Text>{line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}</View>
+        <View style={{ alignItems: 'flex-end' }}>
+          {line.imageUri ? <Image source={{ uri: line.imageUri }} style={styles.sharedPhoto} /> : null}
+          {line.text ? <View style={[styles.bubble, styles.bubbleYou, line.imageUri && { marginTop: 4 }]}><Text style={styles.bubbleText}>{line.text}</Text>{line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}</View> : null}
+        </View>
       </View>
     );
   }
@@ -166,6 +170,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const [rtRendered, setRtRendered] = useState(0); // DIAG: how many actually painted
   const [addressed, setAddressed] = useState([]);  // personas you tapped/@mentioned for the next send
   const [draft, setDraft] = useState('');
+  const [pendingImage, setPendingImage] = useState(null);
   const [sending, setSending] = useState(false);
 
   const scrollRef = useRef(null);
@@ -243,11 +248,24 @@ export default function RoomChat({ room, onBack = () => {} }) {
     scrollDown();
   }, [roomId, members]);
 
+  const pickPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, base64: true });
+      if (res.canceled || !res.assets || !res.assets[0]?.base64) return;
+      const b64 = res.assets[0].base64;
+      setPendingImage({ data: b64, uri: `data:image/jpeg;base64,${b64}` });
+    } catch (e) {}
+  };
+
   const doSend = async () => {
     const text = draft.trim();
-    if (!text || sendingRef.current || !roomId) return;
+    const img = pendingImage;
+    if ((!text && !img) || sendingRef.current || !roomId) return;
     sendingRef.current = true; setSending(true);
     setDraft('');
+    setPendingImage(null);
     // who did they address? tapped faces + @mentions in the text → those personas answer.
     const atKeys = personas.filter((k) => {
       const short = nameOf(k).replace(/^the /, '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -258,11 +276,12 @@ export default function RoomChat({ room, onBack = () => {} }) {
     const myId = 'me_' + Date.now();
     const pid = 'p_' + Date.now();
     pendingRef.current = pid;
-    setLines((cur) => [...cur, { id: myId, who: 'you', text }, { id: pid, who: 'them', text: '', typing: true }]);
+    setLines((cur) => [...cur, { id: myId, who: 'you', text, imageUri: img?.uri || null }, { id: pid, who: 'them', text: '', typing: true }]);
     scrollDown();
     // trigger the turn; ignore streamed tokens — realtime renders the saved reply once.
     streamChat({
       threadId: roomId, message: text,
+      image: img ? { media_type: 'image/jpeg', data: img.data } : undefined,
       addressed: addr.length ? addr : undefined,
       onToken: () => {},
       onDone: () => {
@@ -355,7 +374,16 @@ export default function RoomChat({ room, onBack = () => {} }) {
             : lines.map((l) => <RoomLine key={l.id} line={l} />)}
         </ScrollView>
 
+        {pendingImage ? (
+          <View style={styles.pendingStrip}>
+            <Image source={{ uri: pendingImage.uri }} style={styles.pendingThumb} />
+            <Pressable onPress={() => setPendingImage(null)} style={styles.pendingX} hitSlop={8}><Text style={styles.pendingXTxt}>✕</Text></Pressable>
+          </View>
+        ) : null}
         <View style={styles.composer}>
+          <Pressable style={styles.attachBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
+            <Text style={styles.attachBtnTxt}>＋</Text>
+          </Pressable>
           <View style={styles.field}>
             <TextInput value={draft} onChangeText={setDraft} placeholder="say something to the room…" placeholderTextColor={N.moonFaint} style={styles.input} multiline editable={!sending} />
           </View>
@@ -400,6 +428,13 @@ const styles = StyleSheet.create({
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.28)', fontSize: 9.5, marginTop: 2, alignSelf: 'flex-end' },
 
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
+  attachBtn: { width: 38, height: 46, alignItems: 'center', justifyContent: 'center' },
+  attachBtnTxt: { fontSize: 26, color: '#F0A765', marginTop: -2 },
+  sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },
+  pendingStrip: { paddingHorizontal: 16, paddingTop: 4, flexDirection: 'row' },
+  pendingThumb: { width: 60, height: 60, borderRadius: 10, resizeMode: 'cover' },
+  pendingX: { position: 'absolute', left: 62, top: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' },
+  pendingXTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
   field: { flex: 1, borderRadius: 22, borderWidth: 1, borderColor: N.hair, backgroundColor: N.night2 },
   input: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 15, paddingHorizontal: 16, paddingVertical: 12, maxHeight: 110 },
   send: { width: 46, height: 46 },

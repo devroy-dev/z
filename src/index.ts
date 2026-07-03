@@ -1580,7 +1580,8 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   }
 
   const { threadId, message, image, addressed } = req.body ?? {};
-  if (!threadId || !message) return res.status(400).json({ error: 'threadId and message required' });
+  const hasImage = !!image && typeof image === 'object' && typeof image.data === 'string';
+  if (!threadId || (!message && !hasImage)) return res.status(400).json({ error: 'threadId and message (or image) required' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1599,7 +1600,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         res.write(`data: ${JSON.stringify({ error: 'you are not in this room' })}\n\n`); return res.end();
       }
       await runGroupTurn({
-        userId: user.id, threadId, message, senderName: user.display_name || 'someone',
+        userId: user.id, threadId, message, image: image ?? null, senderName: user.display_name || 'someone',
         addressed: Array.isArray(addressed) ? addressed : undefined,
         onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
         onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),

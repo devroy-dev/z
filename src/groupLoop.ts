@@ -112,6 +112,7 @@ export interface GroupTurnInput {
   threadId: string;
   message: string;
   senderName?: string;   // in a shared room: the human who just spoke
+  image?: { media_type: string; data: string } | null;  // a shared photo, base64 — seen by every persona this turn
   addressed?: string[];  // explicit  / tapped faces — those personas answer
   onPersonaStart?: (personaKey: string, name: string) => void;
   onToken?: (personaKey: string, t: string) => void;
@@ -204,10 +205,12 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     }
   }
 
-  // persist the user message
-  await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: message, sender_user_id: userId });
+  // persist the user message (mark an attached photo so the transcript shows it)
+  const imgOk = !!input.image && /^image\/(jpeg|png|gif|webp)$/.test(input.image.media_type);
+  const storedContent = imgOk ? (message ? message + '\n[shared a photo]' : '[shared a photo]') : message;
+  await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: storedContent, sender_user_id: userId });
   if (t.is_shared) {
-    await broadcastRoomMessage(threadId, { role: 'user', content: message, sender_user_id: userId, sender_name: input.senderName ?? null });
+    await broadcastRoomMessage(threadId, { role: 'user', content: storedContent, sender_user_id: userId, sender_name: input.senderName ?? null });
   }
 
   // build a readable transcript: each assistant line prefixed with WHO said it (by name),
@@ -342,12 +345,22 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
     input.onPersonaStart?.(key, nameFor(key));
     const maxTok = scenarioKey ? (key === 'the_moderator' ? 700 : 500) : 400;
+    // a shared photo rides on THIS turn's content for every persona (they all see it, like a
+    // real group). the vision block + web_search can't ride the same request, so an image turn
+    // drops web — the persona just says it'll look something up next turn (that's a natural line).
+    const turnHasImage = imgOk && !scenarioKey;
+    const turnContent: any = turnHasImage
+      ? [
+          { type: 'image', source: { type: 'base64', media_type: input.image!.media_type, data: input.image!.data } },
+          { type: 'text', text: userBlock },
+        ]
+      : userBlock;
     // web access for web-enabled personas (e.g. the moderator running "Ripped from the Headlines").
     const streamArgs: any = {
       model: MODEL, max_tokens: maxTok, system,
-      messages: [{ role: 'user', content: userBlock }],
+      messages: [{ role: 'user', content: turnContent }],
     };
-    if (persona?.webEnabled) {
+    if (persona?.webEnabled && !turnHasImage) {
       streamArgs.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }];
     }
     const stream = anthropic.messages.stream(streamArgs);

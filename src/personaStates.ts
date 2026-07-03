@@ -31,9 +31,11 @@ Make it a SERIAL, not a slot machine: small real progress, setbacks, digressions
 
 Ground the life in Indian / Southeast Asian everyday texture — rupees not dollars, chai not estate sales, local rhythms — without turning it into a costume. Vary your rhythms across days: not every entry begins with "Started" or a clock time.
 
+Write PLAINLY. A diary is not a poem — it is a person jotting their own day in the simplest words that are true. Say what happened and how it felt, straight, the way you'd tell a friend over chai. Everyday words, short and direct. No reaching for beauty, no "the light fell golden," no lyrical flourish — if a line sounds like a poet wrote it, it's wrong, so write it again the plain way.
+
 Output EXACTLY two lines, nothing else:
-STATUS: <a fuller, nostalgic messenger-style status line, 8–18 words, first person, in the persona's voice — evocative, specific to today, the kind of line that makes someone want to ask. No hashtags.>
-LOG: <2–3 sentences of their private diary for today — what actually happened with the pursuit, concrete and alive.>`;
+STATUS: <a status line, 8–18 words, first person, in the persona's voice — plain and specific to today, the kind of ordinary line a real person puts on a messenger. No hashtags.>
+LOG: <2–3 sentences of their private diary for today — what actually happened with the pursuit, plain and concrete, the way someone writes to themselves.>`;
 
 async function writeState(personaKey: string, pursuit: string): Promise<boolean> {
   const today = new Date().toISOString().slice(0, 10);
