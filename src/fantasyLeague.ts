@@ -40,6 +40,7 @@ async function fplGet(path: string): Promise<any> {
 
 // ── sync: bootstrap → players + gameweeks (keep last on any failure) ──────
 export async function syncFpl(): Promise<{ players: number; gameweeks: number }> {
+  const syncStart = new Date().toISOString();
   const boot = await fplGet('/bootstrap-static/');
   const teams: Record<number, string> = {};
   for (const t of boot.teams ?? []) teams[t.id] = t.short_name;
@@ -66,12 +67,24 @@ export async function syncFpl(): Promise<{ players: number; gameweeks: number }>
 
   let gameweeks = 0;
   for (const ev of boot.events ?? []) {
-    const { error } = await supabase.from('ff_gameweeks').upsert({
+    // season-rollover law: an UNFINISHED gameweek can never be legitimately
+    // scored — reset our marker so a reused gw number (new season) gets
+    // scored fresh instead of being skipped by last season's true.
+    const row: any = {
       gw: ev.id, deadline: ev.deadline_time, finished: !!ev.finished,
       is_current: !!ev.is_current, updated_at: new Date().toISOString(),
-    });
+    };
+    if (!ev.finished) row.scored = false;
+    const { error } = await supabase.from('ff_gameweeks').upsert(row);
     if (!error) gameweeks++;
   }
+
+  // prune players who left the pool (rollover / transfers out of the league):
+  // every row we just upserted carries a fresh updated_at; anything older is gone.
+  const { error: pruneErr } = await supabase.from('ff_players')
+    .delete().lt('updated_at', syncStart);
+  if (pruneErr) console.error('[ff] prune failed:', pruneErr.message);
+
   return { players, gameweeks };
 }
 
