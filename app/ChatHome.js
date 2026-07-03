@@ -5,6 +5,9 @@
 //  Updates · Groups · Rooms.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useCallback, useEffect, useState } from 'react';
+import { TextInput } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
 import { getThreads, listRooms, API_BASE } from './api';
@@ -22,6 +25,27 @@ export const MOON = {
   moon: '#9FC2E8',
   moonDeep: '#6E93BD',
 };
+
+function ZOrb({ size = 44 }) {
+  const b = useSharedValue(0.5);
+  React.useEffect(() => { b.value = withRepeat(withTiming(1, { duration: 4600, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
+  const halo = useAnimatedStyle(() => ({ opacity: 0.35 + b.value * 0.45, transform: [{ scale: 0.94 + b.value * 0.1 }] }));
+  const core = useAnimatedStyle(() => ({ opacity: 0.8 + b.value * 0.2, transform: [{ scale: 0.94 + b.value * 0.1 }] }));
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View style={[{ position: 'absolute' }, halo]}>
+        <Svg width={size * 1.5} height={size * 1.5}><Defs><RadialGradient id="zh" cx="50%" cy="50%" r="50%">
+          <Stop offset="0%" stopColor="#8F9FE8" stopOpacity="0.4" /><Stop offset="100%" stopColor="#8F9FE8" stopOpacity="0" />
+        </RadialGradient></Defs><Circle cx={size * 0.75} cy={size * 0.75} r={size * 0.75} fill="url(#zh)" /></Svg>
+      </Animated.View>
+      <Animated.View style={core}>
+        <Svg width={size * 0.62} height={size * 0.62} viewBox="0 0 40 40"><Defs><RadialGradient id="zc" cx="38%" cy="32%" r="72%">
+          <Stop offset="0%" stopColor="#E8EEFF" /><Stop offset="50%" stopColor="#9FB2E8" /><Stop offset="100%" stopColor="#5E6FA8" />
+        </RadialGradient></Defs><Circle cx="20" cy="20" r="15" fill="url(#zc)" /></Svg>
+      </Animated.View>
+    </View>
+  );
+}
 
 const dpFor = (k) => `${API_BASE}/faces/${k}.jpg`;
 const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
@@ -54,6 +78,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   const [threads, setThreads] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [q, setQ] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -71,7 +96,8 @@ export default function ChatHome({ onOpen = () => {} }) {
       at: t.last_active, line: 'tap to continue',
     })),
     ...rooms.map((r) => ({ kind: 'room', room: r, name: r.name || 'a room', at: r.last_active || r.created_at, line: (r.personas || []).map((k) => nameOf(k).replace(/^the /, '')).join(' · ') || 'a shared room' })),
-  ].sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1));
+  ].sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1))
+   .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
     <View style={st.root}>
@@ -80,9 +106,24 @@ export default function ChatHome({ onOpen = () => {} }) {
         <ScrollView
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={MOON.moon} />}
           contentContainerStyle={{ paddingBottom: 90 }} showsVerticalScrollIndicator={false}>
-          <Row glyph="📰" tone={MOON.hairStrong} face={dpFor('the_anchor')} name="the news" line="the bulletin, fact-checks, ask about anything" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row glyph="🔔" tone={MOON.hairStrong} name="the front desk" line="set it down — i've got it" pinned onPress={() => onOpen({ kind: 'desk' })} />
-          <Row glyph="🌙" tone={MOON.hairStrong} name="Z" line="the quiet room — for what's actually on your mind" pinned onPress={() => onOpen({ kind: 'z' })} />
+          <View style={st.searchWrap}>
+            <Text style={st.searchIcon}>⌕</Text>
+            <TextInput value={q} onChangeText={setQ} placeholder="search the house…" placeholderTextColor={MOON.faint} style={st.searchInput} />
+          </View>
+          <View style={st.pinRow}>
+            <Pressable style={st.pinTile} onPress={() => onOpen({ kind: 'bulletin' })}>
+              <Image source={{ uri: dpFor('the_anchor') }} style={st.pinFace} />
+              <Text style={st.pinName}>the news</Text>
+            </Pressable>
+            <Pressable style={st.pinTile} onPress={() => onOpen({ kind: 'desk' })}>
+              <View style={st.pinBell}><Text style={{ fontSize: 21 }}>🔔</Text></View>
+              <Text style={st.pinName}>front desk</Text>
+            </Pressable>
+            <Pressable style={st.pinTile} onPress={() => onOpen({ kind: 'z' })}>
+              <ZOrb size={46} />
+              <Text style={st.pinName}>Z</Text>
+            </Pressable>
+          </View>
           <View style={st.divider} />
           {recents.map((r, i) => (
             <Row key={i}
@@ -125,6 +166,14 @@ export default function ChatHome({ onOpen = () => {} }) {
 
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: MOON.ground },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 4, marginBottom: 10, borderWidth: 1, borderColor: MOON.hair, borderRadius: 22, paddingHorizontal: 14, backgroundColor: MOON.raise },
+  searchIcon: { color: MOON.faint, fontSize: 17, marginRight: 8 },
+  searchInput: { flex: 1, fontFamily: FONTS.body, color: MOON.porcelain, fontSize: 14, paddingVertical: 9 },
+  pinRow: { flexDirection: 'row', justifyContent: 'space-evenly', paddingVertical: 6 },
+  pinTile: { alignItems: 'center', gap: 6, width: 92 },
+  pinFace: { width: 46, height: 46, borderRadius: 23, borderWidth: 1.2, borderColor: MOON.hairStrong },
+  pinBell: { width: 46, height: 46, borderRadius: 23, borderWidth: 1.2, borderColor: MOON.hairStrong, alignItems: 'center', justifyContent: 'center', backgroundColor: MOON.raise },
+  pinName: { fontFamily: FONTS.medium, color: MOON.mist, fontSize: 11.5 },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11 },
   ring: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.4, borderColor: MOON.hair, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: MOON.raise },
   face: { width: 44, height: 44, borderRadius: 22 },

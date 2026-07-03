@@ -217,7 +217,7 @@ export default function Nav({ screens }) {
 
 const styles = StyleSheet.create({
   shellBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 },
-  shellMark: { fontFamily: 'Figtree_300Light', color: '#F5ECE1', fontSize: 19, letterSpacing: 0.5 },
+  shellMark: { fontFamily: 'Fraunces_400Regular', color: '#F5ECE1', fontSize: 22, letterSpacing: 0.3 },
   pill: { flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(231,176,122,0.3)', borderRadius: 999, padding: 3 },
   pillSeg: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999 },
   pillOnCool: { backgroundColor: 'rgba(159,194,232,0.12)' },
