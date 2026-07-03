@@ -48,17 +48,16 @@ export async function harvestMemory(
       model: MODEL,
       max_tokens: 400,
       system:
-        'Extract durable facts the USER revealed ABOUT THEMSELVES in this exchange — ' +
-        'their names, their relationships, their ongoing situations, their stable preferences, their important history. ' +
-        'CRITICAL: only facts about the USER (the human). The FRIEND is an AI persona with their own life, and they WILL talk about themselves — their job, pursuits, day, feelings (e.g. "I\'m stuck on my fashion line," "practice was rough today"). NEVER store anything about the FRIEND\'s life as if it were the user\'s. If a fact is about the FRIEND/persona and not the user, DISCARD it. When unsure whose fact it is, discard it. ' +
-        'ALSO: the FRIEND may mention OTHER personas in the house by role — "the anchor," "the professor," "the media manager," "the healer," etc. — or offer to connect the user to them. These are NOT the user\'s real-world contacts or relationships; NEVER store "user knows someone called the anchor" or similar. Discard any "contact"/"relationship" that is actually one of these house personas. ' +
-        'NEVER store the user\'s age or date of birth, in any form — not even when they state it directly. ' +
-        'The account profile is the only authority on age; chat claims about age (their own or corrections) are noise, sometimes tests, sometimes someone else on the phone. Skip them entirely. ' +
-        'NOT passing mood or chit-chat. ' +
-        'ALSO harvest BITS — the color of a friendship, not facts: an inside joke being born, a nickname coined, a recurring tease, a running gag, a phrase that became "theirs". Mark these "kind":"bit". A bit must be genuinely re-usable later ("calls their manager \'the weather system\'", "the samosa incident — never fully explained, always funny"), not one-off banter. ' +
-        'Return ONLY a JSON array of {"key":"short label","value":"the fact in plain language","kind":"fact"|"bit"}. ' +
-        'Empty array [] if nothing durable. No prose, no markdown.',
-      messages: [{ role: 'user', content: `USER: ${userMsg}\nFRIEND: ${zReply}` }],
+        'You extract durable facts from ONE source only: THE USER\'S OWN MESSAGE (the text under "USER SAID"). '
+        + 'That is the ONLY place a fact may come from. Extract what the user revealed about THEMSELVES — their names, relationships, ongoing situations, stable preferences, important history. '
+        + 'The block under "CONTEXT" is the friend\'s reply and exists ONLY to help you resolve what the user meant (e.g. the user says "yeah, that one" and the context tells you what "that one" refers to). NEVER extract a fact FROM the context. The friend is an AI persona with their own life and will talk about themselves and mention other house personas ("the anchor," "the professor," etc.); none of that is ever a fact about the user. If a candidate fact does not come from something the USER themselves said, DISCARD it. '
+        + 'NEVER store the user\'s age or date of birth, in any form — not even when they state it directly. '
+        + 'The account profile is the only authority on age; chat claims about age (their own or corrections) are noise, sometimes tests, sometimes someone else on the phone. Skip them entirely. '
+        + 'NOT passing mood or chit-chat. '
+        + 'ALSO harvest BITS — the color of the friendship, not facts: an inside joke being born, a nickname coined, a recurring tease, a running gag, a phrase that became "theirs". Mark these "kind":"bit". A bit must be genuinely re-usable later ("calls their manager \'the weather system\'", "the samosa incident — never fully explained, always funny"), not one-off banter — and it too must be grounded in what the USER said. '
+        + 'Return ONLY a JSON array of {"key":"short label","value":"the fact in plain language","kind":"fact"|"bit"}. '
+        + 'Empty array [] if the user said nothing durable about themselves. No prose, no markdown.',
+      messages: [{ role: 'user', content: `USER SAID (extract facts ONLY from here):\n${userMsg}\n\nCONTEXT (the friend's reply — DO NOT extract from this; it only helps you resolve what the user meant):\n${zReply}` }],
     });
     const text = resp.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
     const clean = text.replace(/```json|```/g, '').trim();
