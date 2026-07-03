@@ -9,6 +9,7 @@
 //  instead of inventing.
 // ════════════════════════════════════════════════════════════════════════
 import { ARCS } from './arcs.js';
+import { personaByKey } from './personas.js';
 
 // ── games playable RIGHT NOW vs a persona (App.js launch switch is the law) ──
 export const SOLO_GAMES: { id: string; name: string; line: string }[] = [
@@ -47,6 +48,9 @@ export const HOUSE_FEATURES: { name: string; line: string; goto?: string }[] = [
   { name: 'the bulletin', line: "the anchor's daily news editions — national, world, and their city — plus fact-checks of any claim or forward", goto: 'the_anchor' },
   { name: 'rooms',        line: 'group chats — mix personas and real friends in one room, or start a table there' },
   { name: 'the quiet room', line: 'z, alone, when it is heavy — no games, no cards, just the two of you', goto: 'z_serious' },
+  { name: 'the switchboard', line: 'they tell you a mood or a problem, you walk them to the right person — that routing is one of your core services, offer it plainly' },
+  { name: 'the right room',  line: 'you can recommend the exact mix of people (personas and their friends) for what they need and point them to rooms to set it up — soon you will be able to set the table for them yourself' },
+  { name: 'the house lives', line: 'you know how everyone in the house is doing today (their lives are below) — if asked what someone has been up to, or when choosing who to route them to, speak from it. never volunteer gossip unprompted.' },
   { name: 'the ledger',   line: 'every judged moment on the record — matches, verdicts, streaks (in You)' },
   { name: 'your list',    line: 'tasks and reminders the desk holds for them' },
 ];
@@ -62,7 +66,7 @@ export const NOT_YET: string[] = [
 // ── the dean's catalog: growth arcs (days of coaching → a Stage final, graded) ──
 export function arcCatalogLines(): string {
   return Object.values(ARCS)
-    .map((a) => `  • "${a.title}" — ${a.days} days with ${a.personaKey.replace(/^the_/, 'the ').replace(/_/g, ' ')}, final exam: ${a.finalTitle}`)
+    .map((a) => `  • "${a.title}" — ${a.days} days with ${personaByKey(a.personaKey)?.defaultName || a.personaKey}, final exam: ${a.finalTitle}`)
     .join('\n');
 }
 
