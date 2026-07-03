@@ -26,6 +26,19 @@ export const MOON = {
   moonDeep: '#6E93BD',
 };
 
+function DeskEmber() {
+  const b = useSharedValue(0.5);
+  React.useEffect(() => { b.value = withRepeat(withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
+  const a = useAnimatedStyle(() => ({ opacity: 0.7 + b.value * 0.3, transform: [{ scale: 0.92 + b.value * 0.12 }] }));
+  return (
+    <Animated.View style={a}>
+      <Svg width="30" height="30" viewBox="0 0 30 30"><Defs><RadialGradient id="dsk" cx="40%" cy="34%" r="70%">
+        <Stop offset="0%" stopColor="#FFE6C4" /><Stop offset="50%" stopColor="#E7B07A" /><Stop offset="100%" stopColor="#8A5A2B" />
+      </RadialGradient></Defs><Circle cx="15" cy="15" r="11" fill="url(#dsk)" /></Svg>
+    </Animated.View>
+  );
+}
+
 function ZOrb({ size = 44 }) {
   const b = useSharedValue(0.5);
   React.useEffect(() => { b.value = withRepeat(withTiming(1, { duration: 4600, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
@@ -79,6 +92,8 @@ export default function ChatHome({ onOpen = () => {} }) {
   const [rooms, setRooms] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState('');
+  const [filt, setFilt] = useState('all');
+  const [zFace, setZFace] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -97,7 +112,8 @@ export default function ChatHome({ onOpen = () => {} }) {
     })),
     ...rooms.map((r) => ({ kind: 'room', room: r, name: r.name || 'a room', at: r.last_active || r.created_at, line: (r.personas || []).map((k) => nameOf(k).replace(/^the /, '')).join(' · ') || 'a shared room' })),
   ].sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1))
-   .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()));
+   .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
+   .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : true);
 
   return (
     <View style={st.root}>
@@ -110,20 +126,34 @@ export default function ChatHome({ onOpen = () => {} }) {
             <Text style={st.searchIcon}>⌕</Text>
             <TextInput value={q} onChangeText={setQ} placeholder="search the house…" placeholderTextColor={MOON.faint} style={st.searchInput} />
           </View>
-          <View style={st.pinRow}>
-            <Pressable style={st.pinTile} onPress={() => onOpen({ kind: 'bulletin' })}>
-              <Image source={{ uri: dpFor('the_anchor') }} style={st.pinFace} />
-              <Text style={st.pinName}>the news</Text>
-            </Pressable>
-            <Pressable style={st.pinTile} onPress={() => onOpen({ kind: 'desk' })}>
-              <View style={st.pinBell}><Text style={{ fontSize: 21 }}>🔔</Text></View>
-              <Text style={st.pinName}>front desk</Text>
-            </Pressable>
-            <Pressable style={st.pinTile} onPress={() => onOpen({ kind: 'z' })}>
-              <ZOrb size={46} />
-              <Text style={st.pinName}>Z</Text>
-            </Pressable>
+          <View style={st.chips}>
+            {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['friends','friends']].map(([id,label]) => (
+              <Pressable key={id} style={[st.chip, filt === id && st.chipOn]} onPress={() => setFilt(id)}>
+                <Text style={[st.chipTxt, filt === id && st.chipTxtOn]}>{label}</Text>
+              </Pressable>
+            ))}
           </View>
+          <Row face={dpFor('the_anchor')} tone={MOON.hairStrong} name="the news" line="the bulletin · fact-checks · ask anything" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
+          <Pressable style={st.row} onPress={() => onOpen({ kind: 'desk' })}>
+            <View style={[st.ring, { borderColor: 'rgba(231,176,122,0.45)' }]}><DeskEmber /></View>
+            <View style={{ flex: 1, marginLeft: 13 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={st.name}>the front desk</Text><Text style={st.time}>📌</Text>
+              </View>
+              <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
+            </View>
+          </Pressable>
+          <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
+            <View style={[st.ring, { borderColor: MOON.moon }]}>
+              {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}
+            </View>
+            <View style={{ flex: 1, marginLeft: 13 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={st.name}>Z</Text><Text style={st.time}>📌</Text>
+              </View>
+              <Text style={st.line} numberOfLines={1}>the quiet room — for what's actually on your mind</Text>
+            </View>
+          </Pressable>
           <View style={st.divider} />
           {recents.map((r, i) => (
             <Row key={i}
@@ -174,6 +204,12 @@ const st = StyleSheet.create({
   pinFace: { width: 46, height: 46, borderRadius: 23, borderWidth: 1.2, borderColor: MOON.hairStrong },
   pinBell: { width: 46, height: 46, borderRadius: 23, borderWidth: 1.2, borderColor: MOON.hairStrong, alignItems: 'center', justifyContent: 'center', backgroundColor: MOON.raise },
   pinName: { fontFamily: FONTS.medium, color: MOON.mist, fontSize: 11.5 },
+  chips: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12, flexWrap: 'wrap' },
+  chip: { paddingHorizontal: 13, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: MOON.hair },
+  chipOn: { backgroundColor: 'rgba(159,194,232,0.14)', borderColor: MOON.hairStrong },
+  chipTxt: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12 },
+  chipTxtOn: { color: MOON.moon },
+  zMono: { fontFamily: FONTS.display, color: MOON.moon, fontSize: 21 },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11 },
   ring: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.4, borderColor: MOON.hair, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: MOON.raise },
   face: { width: 44, height: 44, borderRadius: 22 },
@@ -185,9 +221,9 @@ const st = StyleSheet.create({
   empty: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 13.5, textAlign: 'center', paddingTop: 40 },
   fab: { position: 'absolute', right: 20, bottom: 78, width: 54, height: 54, borderRadius: 27, backgroundColor: MOON.moonDeep, alignItems: 'center', justifyContent: 'center', shadowColor: MOON.moon, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6 },
   fabTxt: { color: '#0A0D12', fontSize: 22 },
-  tabs: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: MOON.raise, borderTopWidth: 1, borderTopColor: MOON.hair, paddingBottom: 14, paddingTop: 9 },
+  tabs: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: MOON.raise, borderTopWidth: 1, borderTopColor: MOON.hair, paddingBottom: 22, paddingTop: 14 },
   tabBtn: { flex: 1, alignItems: 'center', gap: 4 },
-  tabTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 12.5 },
+  tabTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 13.5 },
   tabOn: { color: MOON.moon },
   tabDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: MOON.moon },
 });
