@@ -189,7 +189,7 @@ export default function App() {
         {authed === null ? (
           <View style={{ flex: 1, backgroundColor: C.void }} />
         ) : authed ? (
-          <Nav screens={screens} />
+          <Nav screens={screens} onLogout={doLogout} />
         ) : (
           <Door onEnter={() => setAuthed(true)} />
         )}

@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useCallback, useEffect, useState } from 'react';
 import { TextInput } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Circle, Path as SvgPath } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
@@ -183,12 +183,21 @@ export default function ChatHome({ onOpen = () => {} }) {
 
       {/* the inner tabs */}
       <View style={st.tabs}>
-        {[['chats', 'chats'], ['updates', 'updates'], ['groups', 'groups'], ['rooms', 'rooms']].map(([id, label]) => (
-          <Pressable key={id} style={st.tabBtn} onPress={() => setTab(id)}>
-            <Text style={[st.tabTxt, tab === id && st.tabOn]}>{label}</Text>
-            {tab === id && <View style={st.tabDot} />}
-          </Pressable>
-        ))}
+        {[['chats', 'chats'], ['updates', 'updates'], ['groups', 'groups'], ['rooms', 'rooms']].map(([id, label]) => {
+          const on = tab === id;
+          const stroke = on ? MOON.moon : MOON.faint;
+          return (
+            <Pressable key={id} style={st.tabBtn} onPress={() => setTab(id)}>
+              <Svg width="22" height="22" viewBox="0 0 24 24">
+                {id === 'chats' && <><Circle cx="12" cy="11" r="7.5" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M7 20 L9 15.5" stroke={stroke} strokeWidth="1.6" fill="none" strokeLinecap="round" /></>}
+                {id === 'updates' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" strokeDasharray="4 3" /><Circle cx="12" cy="12" r="3" fill={stroke} /></>}
+                {id === 'groups' && <><Circle cx="9" cy="9.5" r="3.4" stroke={stroke} strokeWidth="1.6" fill="none" /><Circle cx="16.5" cy="10.5" r="2.6" stroke={stroke} strokeWidth="1.4" fill="none" /><SvgPath d="M3.5 19 Q9 13.5 14.5 19" stroke={stroke} strokeWidth="1.6" fill="none" strokeLinecap="round" /><SvgPath d="M15 18 Q17.5 15.5 21 18" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" /></>}
+                {id === 'rooms' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M4.5 12 H19.5 M12 4.5 C9 8, 9 16, 12 19.5 M12 4.5 C15 8, 15 16, 12 19.5" stroke={stroke} strokeWidth="1.2" fill="none" /></>}
+              </Svg>
+              <Text style={[st.tabTxt, on && st.tabOn]}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );

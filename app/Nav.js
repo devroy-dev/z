@@ -13,6 +13,7 @@ import { FONTS } from './theme';
 import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
 import ChatHome, { MOON } from './ChatHome';
+import You from './You';
 
 const N = {
   night: '#0B0A0F', night2: '#100E15',
@@ -107,7 +108,7 @@ export function WorldStub({ title, kicker, line }) {
 }
 
 // ── the shell: holds the active world + nav + cross-app navigation ──
-export default function Nav({ screens }) {
+export default function Nav({ screens, onLogout = () => {} }) {
   const [world, setWorld] = useState('chat');     // chat | play — the two registers
   const [active, setActive] = useState('desk');   // legacy tab id for PLAY internals
   const [target, setTarget] = useState(null);     // deep-link for the active tab
@@ -146,6 +147,7 @@ export default function Nav({ screens }) {
 
   if (overlay) {
     if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
+    if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} />;
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}
@@ -200,12 +202,17 @@ export default function Nav({ screens }) {
         {!chatOpen && (
           <View style={styles.shellBar}>
             <Text style={[styles.shellMark, world === 'chat' && { color: MOON.porcelain }]}>callme<Text style={{ color: world === 'chat' ? MOON.moon : '#E7B07A' }}>Z</Text></Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={[styles.pill, world === 'chat' && { borderColor: MOON.hairStrong }]}>
               {[['chat', 'chat'], ['play', '✦ play']].map(([id, label]) => (
                 <Pressable key={id} onPress={() => setWorld(id)} style={[styles.pillSeg, world === id && (id === 'chat' ? styles.pillOnCool : styles.pillOnWarm)]}>
                   <Text style={[styles.pillTxt, world === id && { color: id === 'chat' ? MOON.moon : '#F0C990' }]}>{label}</Text>
                 </Pressable>
               ))}
+            </View>
+            <Pressable hitSlop={10} onPress={() => setOverlay({ tab: 'you' })}>
+              <Text style={{ color: world === 'chat' ? MOON.mist : 'rgba(245,236,225,0.6)', fontSize: 21, marginTop: -2 }}>⋮</Text>
+            </Pressable>
             </View>
           </View>
         )}
