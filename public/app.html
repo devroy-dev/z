@@ -677,6 +677,40 @@ body.z-theme .z-mark .z-zee{ text-shadow:0 0 30px rgba(201,160,245,.55),0 0 64px
 .desk-mood .dm-q{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:16px}
 .desk-mood .dm-go{color:var(--accent2);font-size:18px}
 
+
+/* ── live table (multiplayer felt) ── */
+#ltab{position:fixed;inset:0;z-index:400;background:linear-gradient(180deg,#12100E,#0D0B09 55%,#0a0908);display:none;flex-direction:column;font-family:inherit}
+#ltab.on{display:flex}
+.lt-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+.lt-kick{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#F0A765;opacity:.85}
+.lt-x{color:#9a8f80;font-size:26px;background:none;border:0;cursor:pointer;line-height:1}
+.lt-opps{display:flex;justify-content:space-evenly;flex-wrap:wrap;padding-top:6px}
+.lt-seat{width:96px;text-align:center}
+.lt-face{width:44px;height:44px;border-radius:50%;overflow:hidden;margin:0 auto;border:1.5px solid rgba(255,255,255,.18)}
+.lt-face.act{border-color:#E8842C}
+.lt-face svg,.lt-face img{width:100%;height:100%;object-fit:cover}
+.lt-face.hum{display:flex;align-items:center;justify-content:center;background:rgba(240,167,101,.12);font-size:19px;color:#F0A765}
+.lt-nm{font-size:10.5px;color:rgba(245,236,225,.85);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lt-cup{font-size:12px;color:#9a8f80;margin-top:1px}
+.lt-mini{font-size:16px;color:rgba(245,236,225,.55)} .lt-mini b{color:#F0A765;font-weight:400}
+.lt-felt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0 18px;text-align:center}
+.lt-bid{font-family:Fraunces,serif;font-size:42px;color:#f2e9dc}
+.lt-who{font-style:italic;color:#9a8f80;font-size:13px}
+.lt-hint{font-style:italic;color:#9a8f80;font-size:14px}
+.lt-ban{border:1px solid rgba(240,167,101,.4);background:rgba(0,0,0,.35);border-radius:16px;padding:13px 18px;max-width:420px}
+.lt-ban b{font-family:Fraunces,serif;font-weight:500;color:#f2e9dc;font-size:15.5px}
+.lt-ban .sub{font-size:12px;color:#9a8f80;margin-top:4px}
+.lt-btn{margin-top:10px;padding:10px 18px;border-radius:14px;border:1px solid rgba(240,167,101,.5);background:rgba(240,167,101,.1);color:#F0A765;font-weight:600;font-size:13.5px;cursor:pointer}
+.lt-you{ text-align:center;padding-bottom:6px}
+.lt-youl{font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:#6f665c}
+.lt-dice{display:flex;gap:6px;justify-content:center;margin-top:5px;font-size:38px;color:#F0A765}
+.lt-acts{min-height:66px;display:flex;gap:7px;justify-content:center;align-items:center;flex-wrap:wrap;padding:0 14px 16px}
+.lt-f{width:44px;height:46px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:none;color:#f2e9dc;font-size:24px;cursor:pointer}
+.lt-f.lit{border-color:#F0A765;background:rgba(240,167,101,.1)}
+.lt-q{width:38px;height:46px;border-radius:12px;border:1px solid rgba(240,167,101,.45);background:rgba(240,167,101,.07);color:#F0A765;font-family:Fraunces,serif;font-size:17px;cursor:pointer}
+.lt-liar{padding:0 15px;height:46px;border-radius:12px;border:1.5px solid rgba(240,112,140,.6);background:rgba(240,112,140,.08);color:#F0708C;font-weight:600;letter-spacing:2px;cursor:pointer}
+.lt-wait{font-style:italic;color:#9a8f80;font-size:13.5px}
+#lt-join{position:absolute;right:14px;top:64px;z-index:40;padding:8px 13px;border-radius:12px;border:1px solid rgba(240,167,101,.5);background:rgba(20,14,8,.92);color:#F0A765;font-weight:600;font-size:12px;cursor:pointer;display:none}
 </style>
 </head>
 <body>
@@ -3999,6 +4033,98 @@ loadMyDp();
   }
 })();
 
+
+/* ═══ LIVE TABLE — liar's dice over the multiplayer sessions API ═══ */
+const LT_GLYPH=['','\u2680','\u2681','\u2682','\u2683','\u2684','\u2685'];
+let LT={sid:null,view:null,ver:0,timer:null,face:0,roomPoll:null};
+function ltName(i){const st=LT.view&&LT.view.seats&&LT.view.seats[i];if(!st)return '?';
+  if(st.kind==='persona')return (CAT[st.id]?CAT[st.id].name:st.id).replace(/^the /,'');
+  if(i===LT.view.mySeat)return 'you'; if(st.kind==='open')return 'open seat'; return 'friend';}
+async function ltRefresh(){
+  if(!LT.sid)return;
+  try{
+    const r=await zfetch('/games/session/'+LT.sid,{headers:HDRS()});
+    const j=await r.json();
+    if(j&&j.error&&/not seated/.test(j.error)){ // claim the open chair, then look again
+      const c=await zfetch('/games/session/'+LT.sid+'/claim',{method:'POST',headers:HDRS(),body:'{}'});
+      const cj=await c.json(); if(cj&&cj.error){ ltClose(); alert(cj.error); return; }
+      return ltRefresh();
+    }
+    if(j&&j.version&&j.version!==LT.ver){ LT.ver=j.version; LT.view=j; ltPaint(); }
+  }catch(e){}
+}
+async function ltMove(m){
+  try{ await zfetch('/games/session/'+LT.sid+'/move',{method:'POST',headers:HDRS(),body:JSON.stringify({move:m,version:LT.ver})}); }catch(e){}
+  ltRefresh();
+}
+function ltOpen(sid){ LT={sid,view:null,ver:0,timer:null,face:0,roomPoll:LT.roomPoll};
+  document.getElementById('ltab').classList.add('on');
+  ltRefresh(); LT.timer=setInterval(ltRefresh,1600); }
+function ltClose(){ document.getElementById('ltab').classList.remove('on'); if(LT.timer)clearInterval(LT.timer); LT.sid=null; }
+function ltPaint(){
+  const v=LT.view,g=v.state,me=v.mySeat;
+  const opps=document.getElementById('lt-opps');
+  opps.innerHTML=(v.seats||[]).map((st,i)=>{
+    if(i===me)return '';
+    const acting=g&&g.phase==='bidding'&&g.toAct===i;
+    const isOut=g&&g.out&&g.out[i];
+    const reveal=g&&g.phase!=='bidding'&&g.lastResult&&g.lastResult.cupsShown;
+    const face= st.kind==='persona' ? '<div class="lt-face'+(acting?' act':'')+'">'+dpFor(st.id)+'</div>'
+              : '<div class="lt-face hum'+(acting?' act':'')+'">'+(st.kind==='open'?'?':'\u263A')+'</div>';
+    let line;
+    if(isOut)line='<div class="lt-cup" style="font-style:italic">out</div>';
+    else if(reveal)line='<div class="lt-mini">'+(g.lastResult.cupsShown[i]||[]).map(d=>d===g.lastResult.bid.face?'<b>'+LT_GLYPH[d]+'</b>':LT_GLYPH[d]).join('')+'</div>';
+    else line='<div class="lt-cup">\uD83E\uDD64 \u00D7'+(g?g.dice[i]:5)+'</div>';
+    return '<div class="lt-seat" style="'+(isOut?'opacity:.35':'')+'">'+face+'<div class="lt-nm">'+ltName(i)+'</div>'+line+'</div>';
+  }).join('');
+  const felt=document.getElementById('lt-felt');
+  const myTurn=g&&g.phase==='bidding'&&g.toAct===me;
+  if(!g){felt.innerHTML='<div class="lt-hint">taking your seat\u2026</div>';}
+  else if(g.phase==='over'){
+    felt.innerHTML='<div class="lt-ban"><b>'+(g.winner===me?'LAST CUP STANDING \u2014 YOU':ltName(g.winner).toUpperCase()+' OUTLASTS THE TABLE')+'</b><br><button class="lt-btn" onclick="ltClose()">back to the room</button></div>';
+  }else if(g.phase==='reveal'&&g.lastResult){
+    const lr=g.lastResult;
+    felt.innerHTML='<div class="lt-ban"><b>\u201C'+lr.bid.qty+' \u00D7 '+LT_GLYPH[lr.bid.face]+'\u201D \u2014 there were '+lr.actual+'. '+(lr.truthful?ltName(lr.caller).toUpperCase()+' CALLED WRONG':ltName(lr.bidder).toUpperCase()+' WAS LYING')+'</b><div class="sub">'+ltName(lr.loser)+' loses a die'+(lr.eliminated?' \u2014 and is OUT':'')+'</div><button class="lt-btn" onclick="ltMove({type:\'next\'})">next round</button></div>';
+  }else if(g.bid){
+    felt.innerHTML='<div class="lt-bid">'+g.bid.qty+' \u00D7 '+LT_GLYPH[g.bid.face]+'</div><div class="lt-who">'+ltName(g.bid.by)+' claims it</div>'+(!myTurn?'<div class="lt-wait">'+ltName(g.toAct)+' to act</div>':'');
+  }else{
+    felt.innerHTML='<div class="lt-hint">'+(myTurn?'open the bidding':ltName(g.toAct)+' opens\u2026')+'</div>';
+  }
+  document.getElementById('lt-mydice').innerHTML=(g&&me>=0&&Array.isArray(g.cups[me])?g.cups[me]:[]).map(d=>LT_GLYPH[d]||'\u2686').join(' ');
+  const acts=document.getElementById('lt-acts');
+  if(myTurn){
+    if(!LT.face){
+      acts.innerHTML=[1,2,3,4,5,6].map(f=>'<button class="lt-f" onclick="LT.face='+f+';ltPaint()">'+LT_GLYPH[f]+'</button>').join('')+(g.bid?'<button class="lt-liar" onclick="ltMove({type:\'liar\'})">LIAR</button>':'');
+    }else{
+      const total=g.dice.reduce((a,b,i)=>a+(g.out[i]?0:b),0);
+      const min=!g.bid?1:(LT.face>g.bid.face?g.bid.qty:g.bid.qty+1);
+      let qs='';for(let q=min;q<=Math.min(total,min+5);q++)qs+='<button class="lt-q" onclick="ltMove({type:\'bid\',qty:'+q+',face:'+LT.face+'});LT.face=0">'+q+'</button>';
+      acts.innerHTML='<button class="lt-f lit">'+LT_GLYPH[LT.face]+'</button>'+qs+'<button class="lt-f" style="border:none;font-size:20px" onclick="LT.face=0;ltPaint()">\u2039</button>';
+    }
+  }else if(g&&g.phase==='bidding'){acts.innerHTML='<div class="lt-wait">'+ltName(g.toAct)+' is weighing it\u2026</div>';}
+  else acts.innerHTML='';
+}
+/* the join pill: while a room is open, watch for a live game in it */
+async function ltWatchRoom(){
+  const pill=document.getElementById('lt-join');
+  if(!activeRoom){pill.style.display='none';return;}
+  try{
+    const r=await zfetch('/games/room/'+activeRoom.id+'/live',{headers:HDRS()});
+    const j=await r.json();
+    if(j&&j.id&&j.status==='live'){ pill.style.display='block'; pill.onclick=()=>{pill.style.display='none';ltOpen(j.id);}; }
+    else pill.style.display='none';
+  }catch(e){pill.style.display='none';}
+}
+setInterval(ltWatchRoom,5000);
 </script>
+
+<button id="lt-join">🎲 game live — take a seat</button>
+<div id="ltab">
+  <div class="lt-bar"><span class="lt-kick">liar's dice · live table</span><button class="lt-x" onclick="ltClose()">×</button></div>
+  <div class="lt-opps" id="lt-opps"></div>
+  <div class="lt-felt" id="lt-felt"></div>
+  <div class="lt-you"><div class="lt-youl">under your cup</div><div class="lt-dice" id="lt-mydice"></div></div>
+  <div class="lt-acts" id="lt-acts"></div>
+</div>
 </body>
 </html>

@@ -1281,7 +1281,7 @@ app.post('/games/start', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const { roomId, game, personaSeats, reserveSeats } = req.body ?? {};
+    const { roomId, game, personaSeats, reserveSeat, reserveSeats } = req.body ?? {};
     const engine = GAME_ENGINES[game];
     if (!engine) return res.status(400).json({ error: 'unknown game: ' + game });
     const { data: thread } = await supabase.from('threads')
@@ -1297,7 +1297,7 @@ app.post('/games/start', async (req, res) => {
     if (engine.humanOnly) {
       while (seats.length < (engine.maxSeats || 2)) seats.push({ kind: 'open', id: null });
     } else {
-      const want = Math.max(0, Math.min((reserveSeats | 0) || 0, (engine.maxSeats || 6) - seats.length - 1));
+      const want = Math.max(0, Math.min(((reserveSeats | 0) || (reserveSeat ? 1 : 0)), (engine.maxSeats || 6) - seats.length - 1));
       for (let k = 0; k < want; k++) seats.push({ kind: 'open', id: null });
     }
     const seatCap = (engine.maxSeats || 6) - seats.length;
