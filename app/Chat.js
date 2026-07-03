@@ -19,7 +19,7 @@ import VideoCall from './VideoCall';
 import Grain from './Grain';
 import RichText from './RichText';
 import * as ImagePicker from 'expo-image-picker';
-import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages } from './api';
+import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary } from './api';
 
 // ── NIGHTFALL palette ──
 const N = {
@@ -141,6 +141,11 @@ const pcStyles = StyleSheet.create({
   chev: { color: 'rgba(245,236,225,0.4)', fontSize: 22, paddingLeft: 10 },
   chip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(231,176,122,0.4)', backgroundColor: 'rgba(231,176,122,0.07)' },
   chipTxt: { fontFamily: 'Figtree_500Medium', color: 'rgba(240,201,144,0.95)', fontSize: 12.5 },
+  profHint: { fontFamily: 'Figtree_300Light', color: 'rgba(232,236,244,0.35)', fontSize: 10.5, textAlign: 'center', marginTop: 6 },
+  profLine: { fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(232,236,244,0.55)', fontSize: 14.5, lineHeight: 21, textAlign: 'center', paddingHorizontal: 40, marginTop: 10 },
+  profLabel: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(159,194,232,0.8)', fontSize: 11.5, letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 26, marginTop: 26, marginBottom: 10 },
+  profDate: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(232,236,244,0.4)', fontSize: 10, letterSpacing: 0.8 },
+  profEntry: { fontFamily: 'Figtree_400Regular', color: 'rgba(232,236,244,0.72)', fontSize: 13.5, lineHeight: 19, marginTop: 2 },
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.30)', fontSize: 10, marginTop: 3, alignSelf: 'flex-start' },
 });
 
@@ -149,7 +154,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   // a tapped card walks them through a door — same mapping the desk lobby used
   const routeTo = (key) => {
     if (key === 'the_anchor') return onRoute({ tab: 'bulletin' });
-    if (key === 'the_arena' || key.startsWith('the_arena:')) return onRoute({ tab: 'play', open: 'arena', game: key.includes(':') ? key.split(':')[1] : null });
+    if (key === 'the_arena' || key.startsWith('the_arena:')) {
+      const seg = key.split(':');
+      return onRoute({ tab: 'play', open: 'arena', game: seg[1] || null, opp: seg[2] || null });
+    }
     if (key === 'the_stage') return onRoute({ tab: 'stage' });
     if (key === 'the_journal') return onRoute({ tab: 'journal' });
     if (key === 'z_serious') return onRoute({ tab: 'quiet' });
@@ -157,6 +165,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   };
   // the hero treatment: only the pinned trinity stream live. residents text
   // like people — typing indicator, then the whole message lands at once.
+  const [showProfile, setShowProfile] = React.useState(false);
+  const [profDiary, setProfDiary] = React.useState(null);
+  const openProfile = () => { setShowProfile(true); if (!profDiary) getPersonaDiary(KEY).then(setProfDiary); };
   const LIVE_STREAM = KEY === 'z' || KEY === 'z_serious' || KEY === 'the_anchor';   // Z + the anchor stream live; the desk delivers in blocks
   const WARM = KEY === 'the_anchor' || KEY === 'the_front_desk' || LIVE_STREAM; // trinity keeps the warm register
   const PLAIN = !LIVE_STREAM; // whatsapp-flat: no italics/bold for anyone but Z
@@ -364,6 +375,45 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   };
 
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: WARM ? N.night : N.ink }} />;
+
+  if (showProfile) return (
+    <View style={{ flex: 1, backgroundColor: N.ink }}>
+      <LinearGradient colors={[`rgba(${rgb},0.10)`, N.ink2, N.ink]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
+          <Pressable hitSlop={12} onPress={() => setShowProfile(false)}><Text style={styles.chev}>‹</Text></Pressable>
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          <View style={{ alignItems: 'center', paddingTop: 6 }}>
+            <Pressable onPress={pickAvatar}>
+              <Image source={{ uri: avatar || dp }} style={{ width: 108, height: 108, borderRadius: 54, borderWidth: 2, borderColor: `rgba(${rgb},0.55)` }} />
+              <Text style={pcStyles.profHint}>tap to change photo</Text>
+            </Pressable>
+            {editingName ? (
+              <TextInput value={nameDraft} onChangeText={setNameDraft} onSubmitEditing={commitName} onBlur={commitName} autoFocus returnKeyType="done" style={[styles.nameEdit, { fontSize: 24, marginTop: 14, textAlign: 'center' }]} maxLength={40} />
+            ) : (
+              <Pressable onPress={() => { setNameDraft(cname); setEditingName(true); }}>
+                <Text style={{ fontFamily: 'Fraunces_400Regular', color: N.porcelain, fontSize: 26, marginTop: 14 }}>{cname}</Text>
+                <Text style={pcStyles.profHint}>tap to rename</Text>
+              </Pressable>
+            )}
+            <Text style={pcStyles.profLine}>{P.desc}</Text>
+          </View>
+          <Text style={pcStyles.profLabel}>their week</Text>
+          <View style={{ paddingHorizontal: 26 }}>
+            {profDiary === null && <Text style={pcStyles.profEntry}>fetching their days…</Text>}
+            {Array.isArray(profDiary) && !profDiary.length && <Text style={pcStyles.profEntry}>their diary starts with tomorrow's morning.</Text>}
+            {(profDiary || []).map((e) => (
+              <View key={e.date} style={{ marginBottom: 12, paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: `rgba(${rgb},0.35)` }}>
+                <Text style={pcStyles.profDate}>{e.date}</Text>
+                <Text style={pcStyles.profEntry}>{e.log_entry}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
   if (inCall) return <VideoCall persona={{ key: KEY, name: cname }} onEnd={() => setInCall(false)} />;
 
   const empty = messages.length === 0;
@@ -382,27 +432,12 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
           <View style={styles.topbar}>
             <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
             <View style={styles.topWho}>
-              <Pressable onPress={pickAvatar} hitSlop={6}><MiniDP uri={avatar || dp} rgb={rgb} isDesk={KEY === 'the_front_desk'} /></Pressable>
+              <Pressable onPress={openProfile} hitSlop={6}><MiniDP uri={avatar || dp} rgb={rgb} isDesk={KEY === 'the_front_desk'} /></Pressable>
               <View style={{ marginLeft: 11, flex: 1 }}>
-                {editingName ? (
-                  <TextInput
-                    value={nameDraft}
-                    onChangeText={setNameDraft}
-                    onSubmitEditing={commitName}
-                    onBlur={commitName}
-                    autoFocus
-                    returnKeyType="done"
-                    placeholder={P.name}
-                    placeholderTextColor={N.moonFaint}
-                    style={styles.nameEdit}
-                    maxLength={40}
-                  />
-                ) : (
-                  <Pressable hitSlop={6} onPress={() => { setNameDraft(cname); setEditingName(true); }}>
-                    <Text style={styles.topName} numberOfLines={1}>{cname}</Text>
-                    <Text style={styles.topStatus}>tap to rename</Text>
-                  </Pressable>
-                )}
+                <Pressable hitSlop={6} onPress={openProfile}>
+                  <Text style={styles.topName} numberOfLines={1}>{cname}</Text>
+                  <Text style={styles.topStatus}>tap for profile</Text>
+                </Pressable>
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>

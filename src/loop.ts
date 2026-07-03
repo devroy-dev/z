@@ -126,7 +126,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     // header names this contract). Never author manner here; she has an author.
     let interviewBlock = '';
     if (interviewing) {
-      const step = ['their days — what they are mostly about right now', 'what has been eating them, or exciting them, lately', 'the one thing they would quietly like to get better at', 'nothing more to learn — offer the nearest course from the catalog below (or the nearest person), then walk them through the fittest door, chip in hand'][Math.min(stage, 3)];
+      const step = ['their NAME (ask it warmly — [[NAME: what they say]] on its own line when they give it), and their days — what they are mostly about right now', 'what has been eating them, or exciting them, lately', 'the one thing they would quietly like to get better at', 'nothing more to learn — offer the nearest course from the catalog below (or the nearest person), then walk them through the fittest door, chip in hand'][Math.min(stage, 3)];
       interviewBlock = `\n\n[TONIGHT IS THE NEWCOMER'S WELCOME — the one you take real pleasure in. This is exchange ${Math.min(stage, 3) + 1} of about four. Getting to know them tonight, one thing at a time, paying each answer off at once with the single door it points to: this exchange, ${step}. Everything they tell you, you keep — it is how you will take care of them from tomorrow's morning note on.]`;
       const next = stage >= 3 ? -1 : stage + 1;
       supabase.from('users').update({ onboarding_stage: next } as any).eq('id', userId)
@@ -140,6 +140,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   • [[CARD: play | Teen Patti | the desi bluff classic | the_arena:teenpatti]] — one concrete plan set in front of them; for games always the_arena:<game id> — the card seats them at that table where THEY pick their company, so suggest a pairing, never promise one
   • [[BOOK: poker | the_wannabe | 9pm]] — real: the room exists the moment you tag it, and you ping them at the hour
   • [[REMIND: call the lawyer | tomorrow 11am]]
+  • [[NAME: Dev]] — when they tell you their name (the interview, or any time), tag it once; the house learns it
   • [[FEEDBACK: their words, faithfully]] — the maker reads these himself]`;
     frontDeskBlock += manifestBlock();
     if (!interviewing) {
@@ -273,6 +274,14 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
       if (!routes.includes(key)) routes.push(key);
     }
     routes = routes.slice(0, 4);
+    // [[NAME: their name]] — the house learns who it's hosting
+    const nm = reply.match(/\[\[NAME:\s*([^\]]{1,40})\]\]/i);
+    if (nm) {
+      const clean = nm[1].trim().replace(/["'\n]/g, '').slice(0, 40);
+      if (clean) supabase.from('users').update({ display_name: clean } as any).eq('id', userId)
+        .then(({ error }) => { if (error) console.error('[name] save failed:', error.message); });
+      reply = reply.replace(/\[\[NAME:[^\]]*\]\]/gi, '');
+    }
     // strip the raw GOTO tags from the visible/persisted text — the chips carry them now
     reply = reply.replace(/\[\[GOTO:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     // never persist silence: a tags-only reply becomes a short human line

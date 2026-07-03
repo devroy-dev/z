@@ -246,7 +246,7 @@ export default function Roster({ onOpen = () => {} }) {
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={styles.header}>
             <Text style={styles.kicker}>your people</Text>
-            <Text style={styles.title}>the gathering</Text>
+            <Text style={styles.title}>contacts</Text>
           </View>
           <View style={styles.searchWrap}>
             <Svg width="16" height="16" viewBox="0 0 24 24" style={{ marginRight: 9 }}>

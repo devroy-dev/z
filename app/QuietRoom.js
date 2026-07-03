@@ -81,7 +81,7 @@ function ZLight({ speaking }) {
   );
 }
 
-export default function QuietRoom({ onBack = () => {} }) {
+export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
   const [fontsLoaded, fontError] = useFonts({ Fraunces_400Regular, Fraunces_400Regular_Italic, Figtree_300Light, Figtree_400Regular });
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -192,6 +192,9 @@ export default function QuietRoom({ onBack = () => {} }) {
           {/* draw the curtain back */}
           <Pressable style={styles.back} onPress={onBack} hitSlop={14}>
             <Text style={styles.backTxt}>‹  step out</Text>
+          </Pressable>
+          <Pressable onPress={onJournal} hitSlop={12} style={{ position: 'absolute', right: 20, top: 14 }}>
+            <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.5)', fontSize: 13.5 }}>the journal ›</Text>
           </Pressable>
 
           {/* Z, as light */}

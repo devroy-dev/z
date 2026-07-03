@@ -131,9 +131,9 @@ function GameGlyph({ id, tone }) {
 }
 
 // ── the opponent picker (appears after a game is chosen) — MULTI-SELECT ──
-function OpponentPicker({ game, onBack, onStart }) {
+function OpponentPicker({ game, onBack, onStart, preChosen = null }) {
   const [invited, setInvited] = useState(false);
-  const [chosen, setChosen] = useState([]);   // array of opponent keys
+  const [chosen, setChosen] = useState(preChosen ? [preChosen] : []);   // array of opponent keys
   // board games + card games can seat up to 3 others; verbal duels up to 3 (2v2 mixes)
   const maxOthers = game?.id === 'poker' ? 4 : 3;   // hold'em seats five
   const toggle = (o) => {
@@ -224,11 +224,11 @@ function OppFace({ pkey, tone }) {
 }
 
 // ── the lobby ──
-export default function Arena({ onBack = () => {}, onStartGame = () => {}, initialGameId = null, onOpenStage = () => {} }) {
+export default function Arena({ onBack = () => {}, onStartGame = () => {}, initialGameId = null, initialOpponent = null, onOpenStage = () => {} }) {
   const [picked, setPicked] = useState(() => GAMES.find((g) => g.id === initialGameId) || null); // a programme card lands you AT the table, not the shelf
 
   if (picked) {
-    return <OpponentPicker game={picked} onBack={() => setPicked(null)} onStart={(g, o, roster, invited) => onStartGame(g, o, roster, invited)} />;
+    return <OpponentPicker game={picked} preChosen={initialOpponent} onBack={() => setPicked(null)} onStart={(g, o, roster, invited) => onStartGame(g, o, roster, invited)} />;
   }
 
   return (

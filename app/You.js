@@ -41,6 +41,7 @@ function MemoryCard({ item, isFact, onForget }) {
 }
 
 export default function You({ onBack = () => {}, onLogout = () => {} }) {
+  const [showLedger, setShowLedger] = React.useState(false);
   // ── the update lever: no more guessing which bundle the device runs ──
   const [updState, setUpdState] = React.useState(null);
   const checkUpdates = async () => {
@@ -62,6 +63,36 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   const forgetFact = (id) => setTimeout(() => setFacts((f) => f.filter((x) => x.id !== id)), 220);
   const forgetNote = (id) => setTimeout(() => setNotes((n) => n.filter((x) => x.id !== id)), 220);
 
+  if (showLedger) return (
+    <View style={styles.root}>
+      <LinearGradient colors={['#0D1119', '#0A0D14', '#090C12']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={styles.topbar}>
+          <Pressable hitSlop={10} onPress={() => setShowLedger(false)}><Text style={styles.chev}>‹</Text></Pressable>
+          <Text style={styles.topTitle}>the ledger</Text>
+          <View style={{ width: 26 }} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 24, paddingTop: 8 }}>
+          {(!ledger || !ledger.feed || ledger.feed.length === 0) ? (
+            <Text style={styles.ledgerEmpty}>nothing on the record yet. win a scene or take a match — it lands here.</Text>
+          ) : ledger.feed.slice(0, 60).map((e, i) => (
+            <View key={i} style={styles.ledgerRow}>
+              <Text style={[styles.ledgerOutcome, { color: e.outcome === 'win' ? '#8FD98F' : e.outcome === 'loss' ? '#F0708C' : 'rgba(232,236,244,0.5)' }]}>
+                {e.outcome === 'win' ? 'W' : e.outcome === 'loss' ? 'L' : '–'}
+              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ledgerTitle}>
+                  {e.kind === 'stage' ? `${(e.title || 'a scene').replace(/_/g, ' ')} · the stage` : `${e.title}${e.persona ? ` vs ${String(e.persona).replace(/^the_/, 'the ').replace(/_/g, ' ')}` : ''}${e.you != null ? ` · ${e.you}–${e.z}` : ''}`}
+                </Text>
+                {e.kind === 'stage' && e.notes ? <Text style={styles.ledgerNotes} numberOfLines={3}>“{e.notes}”</Text> : null}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+
   return (
     <View style={styles.root}>
       <LinearGradient colors={['#0D1119', '#0A0D14', '#090C12']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -80,28 +111,16 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             <Text style={styles.since}>with Z since june</Text>
           </View>
 
-          {/* WHAT Z REMEMBERS — the heart */}
-          <View style={styles.memHead}>
-            <Text style={styles.memTitle}>the ledger</Text>
-            <Text style={styles.memSub}>every judged moment — scenes, matches, verdicts. proof you showed up.</Text>
-            {(!ledger || !ledger.feed || ledger.feed.length === 0) ? (
-              <Text style={styles.ledgerEmpty}>nothing on the record yet. win a scene or take a match — it lands here.</Text>
-            ) : ledger.feed.slice(0, 25).map((e, i) => (
-              <View key={i} style={styles.ledgerRow}>
-                <Text style={[styles.ledgerOutcome, { color: e.outcome === 'win' ? '#8FD98F' : e.outcome === 'loss' ? '#F0708C' : 'rgba(245,236,225,0.5)' }]}>
-                  {e.outcome === 'win' ? 'W' : e.outcome === 'loss' ? 'L' : '–'}
-                </Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.ledgerTitle}>
-                    {e.kind === 'stage' ? `${(e.title || 'a scene').replace(/_/g, ' ')} · the stage` : `${e.title}${e.persona ? ` vs ${String(e.persona).replace(/^the_/, 'the ').replace(/_/g, ' ')}` : ''}${e.you != null ? ` · ${e.you}–${e.z}` : ''}`}
-                  </Text>
-                  {e.kind === 'stage' && e.notes ? <Text style={styles.ledgerNotes} numberOfLines={3}>“{e.notes}”</Text> : null}
-                </View>
-              </View>
-            ))}
-          </View>
+          {/* the ledger: its own room now */}
+          <Pressable style={[styles.settingRow, { marginTop: 4 }]} onPress={() => setShowLedger(true)}>
+            <View>
+              <Text style={styles.settingText}>the ledger</Text>
+              <Text style={styles.ledgerSub}>every judged moment — scenes, matches, verdicts</Text>
+            </View>
+            <Text style={styles.settingChev}>›</Text>
+          </Pressable>
 
-
+          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>what z remembers</Text>
           {(facts.length > 0 || notes.length > 0) ? (
             <>
               {facts.length > 0 && <Text style={styles.sectionLabel}>what i know about you</Text>}
@@ -121,7 +140,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             <Text style={styles.settingChev}>›</Text>
           </Pressable>
           <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(232,236,244,0.35)', fontSize: 10.5, paddingHorizontal: 4, paddingBottom: 6 }}>
-            bundle: {Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'}{Updates.createdAt ? ' · ' + new Date(Updates.createdAt).toLocaleString() : ''}
+            {Updates.createdAt ? 'updated ' + new Date(Updates.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) + ', ' + new Date(Updates.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : 'built-in bundle'}{Updates.updateId ? '  ·  ' + Updates.updateId.slice(0, 8) : ''}
           </Text>
           {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
             <Pressable key={s} style={styles.settingRow} onPress={s === 'sign out' ? onLogout : undefined}>
@@ -165,6 +184,7 @@ const styles = StyleSheet.create({
 
   empty: { fontFamily: FONTS.displayItalic, color: C.faint, fontSize: 15, textAlign: 'center', paddingHorizontal: 40, paddingVertical: 30, lineHeight: 23 },
 
+  ledgerSub: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 11.5, marginTop: 2 },
   settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
   settingText: { fontFamily: FONTS.body, color: '#E8ECF4', fontSize: 14.5 },
   settingChev: { color: C.faint, fontSize: 20 },

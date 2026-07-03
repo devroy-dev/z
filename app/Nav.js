@@ -13,6 +13,7 @@ import { FONTS } from './theme';
 import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
 import QuietRoom from './QuietRoom';
+import Journal from './Journal';
 import Chat from './Chat';
 import RoomChat from './RoomChat';
 import ChatHome, { MOON } from './ChatHome';
@@ -168,7 +169,8 @@ export default function Nav({ screens, onLogout = () => {} }) {
   if (overlay) {
     if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} />;
-    if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} />;
+    if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} onJournal={() => setOverlay({ tab: 'journal' })} />;
+    if (overlay.tab === 'journal') return <Journal onBack={() => setOverlay({ tab: 'quiet' })} />;
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}

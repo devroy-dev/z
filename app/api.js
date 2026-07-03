@@ -359,6 +359,12 @@ export async function getRecentPings() {
   try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
 }
 
+export async function getJournal() {
+  try { const j = await authedJSON('GET', '/journal'); return Array.isArray(j) ? j : (j.entries || []); } catch (e) { return []; }
+}
+export async function postJournalText(text) {
+  try { return await authedJSON('POST', '/journal/text', { text }); } catch (e) { return null; }
+}
 export async function getPersonaDiary(key) {
   try { const j = await authedJSON('GET', `/persona-diary/${key}`); return j.entries || []; } catch (e) { return []; }
 }

@@ -91,7 +91,7 @@ function PlayWorld({ navigate, target }) {
     setOpening(false);
   }, []);
   useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));
-  useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
+  useBackLayer(mode === 'arena', React.useCallback(() => { navigate && navigate({ tab: 'gathering' }); return true; }, [navigate]));
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (opening && !live) {
@@ -129,7 +129,7 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'arena') {
-    return <Arena initialGameId={target?.game || null} onOpenStage={() => navigate && navigate('stage')} onBack={() => { navigate && navigate({ tab: 'gathering' }); }} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
+    return <Arena initialGameId={target?.game || null} initialOpponent={target?.opp || null} onOpenStage={() => navigate && navigate('stage')} onBack={() => { navigate && navigate({ tab: 'gathering' }); }} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'stage') navigate && navigate('stage'); }} />;
 }

@@ -158,6 +158,15 @@ export default function ChatHome({ onOpen = () => {} }) {
         if (c) { const s = JSON.parse(c); setThreads(s.t || []); setRooms(s.r || []); }
       } catch (e) {}
       load();
+      // a brand-new guest doesn't face an empty lobby — the desk greets them
+      try {
+        const seen = await AsyncStorage.getItem('z_first_open_done');
+        if (!seen) {
+          const t = await getThreads();
+          if (!Array.isArray(t) || !t.length) { await AsyncStorage.setItem('z_first_open_done', '1'); onOpen({ kind: 'desk' }); }
+          else await AsyncStorage.setItem('z_first_open_done', '1');
+        }
+      } catch (e) {}
     })();
   }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
