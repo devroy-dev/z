@@ -297,8 +297,11 @@ export default function RoomChat({ room, onBack = () => {} }) {
     setAddressed([]);
     const myId = 'me_' + Date.now();
     const pid = 'p_' + Date.now();
-    pendingRef.current = pid;
-    setLines((cur) => [...cur, { id: myId, who: 'you', text, imageUri: img?.uri || null }, { id: pid, who: 'them', text: '', typing: true }]);
+    const isDM = personas.length === 0;   // a DM has no persona to reply → no typing bubble
+    if (!isDM) pendingRef.current = pid;
+    setLines((cur) => isDM
+      ? [...cur, { id: myId, who: 'you', text, imageUri: img?.uri || null }]
+      : [...cur, { id: myId, who: 'you', text, imageUri: img?.uri || null }, { id: pid, who: 'them', text: '', typing: true }]);
     scrollDown();
     // trigger the turn; ignore streamed tokens — realtime renders the saved reply once.
     streamChat({

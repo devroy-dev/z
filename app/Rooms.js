@@ -119,7 +119,7 @@ export default function Rooms({ onOpen = () => {} }) {
 
   useEffect(() => {
     getRoomSuggestions().then((items) => { setSuggestions(items); setSuggShown(shuffle(items)); setLoadingSugg(false); });
-    listRooms().then((r) => setRooms(Array.isArray(r) ? r : []));
+    listRooms().then((r) => setRooms(Array.isArray(r) ? r.filter((x) => (x.personas || []).filter(Boolean).length > 0) : []));
   }, []);
 
   const reroll = useCallback(() => { setSuggShown((cur) => shuffle(cur.length ? cur : suggestions)); }, [suggestions]);
@@ -139,7 +139,7 @@ export default function Rooms({ onOpen = () => {} }) {
           // the server also soft-deletes the thread if you own it.
           await leaveRoom(room.id);
           const fresh = await listRooms();                          // reconcile with server truth
-          if (Array.isArray(fresh)) setRooms(fresh);
+          if (Array.isArray(fresh)) setRooms(fresh.filter((x) => (x.personas || []).filter(Boolean).length > 0));
         } },
       ],
     );

@@ -185,12 +185,17 @@ export default function ChatHome({ onOpen = () => {} }) {
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const PINNED_KEYS = new Set(['the_front_desk', 'the_anchor', 'z', 'z_serious']);
-  // chats tab = 1:1 threads only. rooms/groups (incl. suggestion-made rooms like
-  // "Nolan's Odyssey") live in the GROUPS tab — they were leaking into this list.
+  // chats tab = 1:1 persona threads + human DMs. Persona ROOMS (with persona members,
+  // like "Nolan's Odyssey") stay in the GROUPS tab. A DM is a shared thread with no
+  // persona members → it belongs here, as a normal conversation.
+  const isDMRoom = (r) => !r.personas || r.personas.filter(Boolean).length === 0;
   const recents = [
     ...threads.filter((t) => t.persona_key && !t.is_shared && !t.is_group && !PINNED_KEYS.has(t.persona_key)).map((t) => ({
       kind: 'persona', key: t.persona_key, name: t.companion_name || nameOf(t.persona_key),
       at: t.last_active, line: 'tap to continue',
+    })),
+    ...rooms.filter(isDMRoom).map((r) => ({
+      kind: 'dm', room: r, name: r.name || 'a friend', at: r.last_active || r.created_at, line: 'tap to chat',
     })),
   ].sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1))
    .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
@@ -255,10 +260,13 @@ export default function ChatHome({ onOpen = () => {} }) {
               {recents.map((r, i) => (
                 <Row key={i}
                   face={r.kind === 'persona' ? dpFor(r.key) : null}
-                  glyph={r.kind === 'room' ? '👥' : null}
+                  glyph={r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
                   tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
                   name={r.name} line={r.line} time={ago(r.at)}
-                  onPress={() => onOpen(r.kind === 'persona' ? { kind: 'persona', key: r.key } : { kind: 'room', room: r.room })}
+                  onPress={() => onOpen(
+                    r.kind === 'persona' ? { kind: 'persona', key: r.key }
+                    : r.kind === 'dm' ? { kind: 'dm', threadId: r.room.id, name: r.name }
+                    : { kind: 'room', room: r.room })}
                 />
               ))}
               {recents.length === 0 && <Text style={st.empty}>no conversations yet — tap ✎ to meet the house.</Text>}
