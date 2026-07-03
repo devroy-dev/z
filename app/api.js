@@ -565,3 +565,37 @@ export async function streamStage({ threadId, message, onBeat, onVerdict, onTens
     onError && onError('(no connection — check your network)');
   }
 }
+
+// ---- VOICE: record → send raw audio bytes to the proven Sarvam endpoints ----
+// Both /transcribe and /journal take a RAW audio body (express.raw({type:'audio/*'})),
+// so we POST the file bytes with an audio Content-Type + Bearer token — not JSON, not
+// multipart. On Android expo-audio records .m4a (audio/mp4), which the engine maps to
+// 'mp4' and Sarvam accepts. `diag` returns the raw server reply for on-device debugging.
+async function postAudio(path, uri, mime) {
+  await loadSession();
+  const res = await fetch(uri);
+  const blob = await res.blob();
+  const doPost = () => fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': mime || 'audio/mp4', ...(_token ? { Authorization: 'Bearer ' + _token } : {}) },
+    body: blob,
+  });
+  let r = await doPost();
+  if (r.status === 401 && (await refreshSession())) r = await doPost();
+  const raw = await r.text();
+  let data = {};
+  try { data = JSON.parse(raw); } catch (_) {}
+  return { ok: r.ok, status: r.status, data, raw };
+}
+
+// chat voice note: transcribe only, returns text for the composer. stores nothing.
+export async function transcribeVoice(uri, mime) {
+  const r = await postAudio('/transcribe', uri, mime);
+  return { transcript: (r.data && r.data.transcript) || '', ok: r.ok, diag: r.raw ? r.raw.slice(0, 300) : '' };
+}
+
+// audio journal: stores AND transcribes server-side, returns the saved entry.
+export async function postJournalAudio(uri, mime) {
+  const r = await postAudio('/journal', uri, mime);
+  return { entry: r.data || null, ok: r.ok, diag: r.raw ? r.raw.slice(0, 300) : '' };
+}

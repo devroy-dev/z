@@ -19,7 +19,8 @@ import VideoCall from './VideoCall';
 import Grain from './Grain';
 import RichText from './RichText';
 import * as ImagePicker from 'expo-image-picker';
-import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary } from './api';
+import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice } from './api';
+import { useVoiceNote } from './voice';
 
 // ── NIGHTFALL palette ──
 const N = {
@@ -184,6 +185,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [pendingImage, setPendingImage] = useState(null);  // { data, uri } — a photo staged to send
+  const voice = useVoiceNote();
+  const [transcribing, setTranscribing] = useState(false);
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   // the name YOU gave this companion (seed from cache so no default-name flash on reopen)
@@ -272,6 +275,28 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       const b64 = res.assets[0].base64;
       setPendingImage({ data: b64, uri: `data:image/jpeg;base64,${b64}` });
     } catch (e) {}
+  };
+
+  // mic: tap to record, tap again to stop → Sarvam transcript FILLS the draft (you review, then send).
+  const onMic = async () => {
+    if (voice.recording) {
+      const clip = await voice.stop();
+      if (!clip) return;
+      setTranscribing(true);
+      try {
+        const r = await transcribeVoice(clip.uri, clip.mime);
+        if (r.ok && r.transcript) {
+          setDraft((d) => (d ? d + ' ' : '') + r.transcript);
+        } else {
+          Alert.alert('couldn’t catch that', r.diag || 'no transcript came back — try again.');
+        }
+      } catch (e) {
+        Alert.alert('voice error', String(e?.message || e));
+      }
+      setTranscribing(false);
+    } else {
+      await voice.start();
+    }
   };
 
   const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
@@ -548,6 +573,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
             <Pressable style={styles.attachBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
               <Text style={styles.attachBtnTxt}>＋</Text>
             </Pressable>
+            <Pressable style={styles.micBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
+              <Text style={[styles.micBtnTxt, voice.recording && styles.micBtnLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎤'}</Text>
+            </Pressable>
             <View style={styles.field}>
               <TextInput
                 value={draft}
@@ -586,6 +614,9 @@ const styles = StyleSheet.create({
   buzzBtnTxt: { fontSize: 20, color: '#F0A765' },
   attachBtn: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
   attachBtnTxt: { fontSize: 26, color: '#F0A765', marginTop: -2 },
+  micBtn: { width: 36, height: 48, alignItems: 'center', justifyContent: 'center' },
+  micBtnTxt: { fontSize: 18, color: '#F0A765' },
+  micBtnLive: { color: '#FF6B5A', fontSize: 20 },
   sharedPhoto: { width: 200, height: 200, borderRadius: 16, resizeMode: 'cover' },
   pendingStrip: { paddingHorizontal: 16, paddingTop: 4, flexDirection: 'row' },
   pendingThumb: { width: 64, height: 64, borderRadius: 10, resizeMode: 'cover' },

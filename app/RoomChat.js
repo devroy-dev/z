@@ -10,7 +10,7 @@
 //  comes — we drop the typing bubble after a short grace.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput, Share } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput, Share, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiarsDiceLive from './games/liarsdice/Live';
 import CallbreakLive from './games/callbreak/Live';
@@ -25,7 +25,8 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg'
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { subscribeRoom, unsubscribe } from './realtime';
 import Grain from './Grain';
-import { streamChat, getRoomMembers, getRoomMessages, inviteToRoom, API_BASE } from './api';
+import { streamChat, getRoomMembers, getRoomMessages, inviteToRoom, API_BASE, transcribeVoice } from './api';
+import { useVoiceNote } from './voice';
 const fmtTime = (at) => { const d = at ? new Date(at) : null; return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : ''; };
 
 const N = {
@@ -171,6 +172,8 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const [addressed, setAddressed] = useState([]);  // personas you tapped/@mentioned for the next send
   const [draft, setDraft] = useState('');
   const [pendingImage, setPendingImage] = useState(null);
+  const voice = useVoiceNote();
+  const [transcribing, setTranscribing] = useState(false);
   const [sending, setSending] = useState(false);
 
   const scrollRef = useRef(null);
@@ -247,6 +250,22 @@ export default function RoomChat({ room, onBack = () => {} }) {
     setRtRendered((n) => n + 1);
     scrollDown();
   }, [roomId, members]);
+
+  const onMic = async () => {
+    if (voice.recording) {
+      const clip = await voice.stop();
+      if (!clip) return;
+      setTranscribing(true);
+      try {
+        const r = await transcribeVoice(clip.uri, clip.mime);
+        if (r.ok && r.transcript) setDraft((d) => (d ? d + ' ' : '') + r.transcript);
+        else Alert.alert('couldn’t catch that', r.diag || 'no transcript came back — try again.');
+      } catch (e) { Alert.alert('voice error', String(e?.message || e)); }
+      setTranscribing(false);
+    } else {
+      await voice.start();
+    }
+  };
 
   const pickPhoto = async () => {
     try {
@@ -384,6 +403,9 @@ export default function RoomChat({ room, onBack = () => {} }) {
           <Pressable style={styles.attachBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
             <Text style={styles.attachBtnTxt}>＋</Text>
           </Pressable>
+          <Pressable style={styles.micBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
+            <Text style={[styles.micBtnTxt, voice.recording && styles.micBtnLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎤'}</Text>
+          </Pressable>
           <View style={styles.field}>
             <TextInput value={draft} onChangeText={setDraft} placeholder="say something to the room…" placeholderTextColor={N.moonFaint} style={styles.input} multiline editable={!sending} />
           </View>
@@ -430,6 +452,9 @@ const styles = StyleSheet.create({
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
   attachBtn: { width: 38, height: 46, alignItems: 'center', justifyContent: 'center' },
   attachBtnTxt: { fontSize: 26, color: '#F0A765', marginTop: -2 },
+  micBtn: { width: 34, height: 46, alignItems: 'center', justifyContent: 'center' },
+  micBtnTxt: { fontSize: 17, color: '#F0A765' },
+  micBtnLive: { color: '#FF6B5A', fontSize: 19 },
   sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },
   pendingStrip: { paddingHorizontal: 16, paddingTop: 4, flexDirection: 'row' },
   pendingThumb: { width: 60, height: 60, borderRadius: 10, resizeMode: 'cover' },
