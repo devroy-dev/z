@@ -9,23 +9,32 @@ import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './db.js';
 import { personaByKey } from './personas.js';
 import { logUsage } from './usage.js';
+import { ARCS } from './arcs.js';
 
 const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
 const RUN_HOUR_IST = 7;                      // after the diarist (5), before the day
 
-const VOICE = `You are the front desk of a warm, alive house of AI personas, leaving the user their MORNING NOTE. You get raw morning material; write ONE note, 25–50 words, warm and unhurried, morning register, in first person as the desk. Mention at most: one or two house moments (by persona name), the user's due item(s) if any, and yesterday's win if there was one. End with something gently forward-looking (the anchor's bulletin, or the day itself). No lists, no headers. Output ONLY the note.`;
+const VOICE = `You are the front desk of a warm, alive house of AI personas, leaving the user their MORNING NOTE. You get raw morning material; write ONE note, 25–55 words, warm and unhurried, morning register, in first person as the desk. Mention at most: one or two house moments (by persona name), the user's due item(s) if any, their course progress if any, and yesterday's win if there was one. THE PLAIN-WORDS LAW: never use system jargon, codes, or countdown formats — say "you're two days into the pitch course with the orator, one session left" like a person would, never "SPEAK UP DAY 2 OF 3". No lists, no headers, no shouting. End with something gently forward-looking (the anchor's bulletin, or the day itself). Output ONLY the note.`;
 
 async function briefFor(userId: string): Promise<string | null> {
   const today = new Date().toISOString().slice(0, 10);
   const yday = new Date(Date.now() - 864e5).toISOString();
-  const [{ data: states }, { data: tasks }, { data: runs }, { data: matches }] = await Promise.all([
+  const [{ data: states }, { data: tasks }, { data: runs }, { data: matches }, { data: arcRows }] = await Promise.all([
     supabase.from('persona_states').select('persona_key, status_line').eq('date', today).limit(40),
     supabase.from('tasks').select('title, due_at').eq('user_id', userId).eq('status', 'open')
       .not('due_at', 'is', null).lte('due_at', new Date(Date.now() + 36 * 3600e3).toISOString()).limit(3),
     supabase.from('roleplay_runs').select('scenario, outcome').eq('user_id', userId).gte('created_at', yday).limit(5),
     supabase.from('arena_matches').select('game, winner').eq('user_id', userId).gte('created_at', yday).limit(5),
+    supabase.from('arc_progress').select('arc_id, day, status').eq('user_id', userId).neq('status', 'done').limit(3),
   ]);
+  const arcLines = (arcRows ?? []).map((p: any) => {
+    const def = ARCS[p.arc_id]; if (!def) return null;
+    const coach = personaByKey(def.personaKey)?.defaultName || def.personaKey;
+    if (p.status === 'final_ready') return `their "${def.title}" course with ${coach} is complete — the final, ${def.finalTitle}, is waiting on the stage whenever they're ready`;
+    const left = def.days - p.day;
+    return `they're on day ${p.day} of the ${def.days}-day "${def.title}" course with ${coach}${left > 0 ? ` — ${left} session${left > 1 ? 's' : ''} to go, today's just a conversation with ${coach}` : ''}`;
+  }).filter(Boolean) as string[];
   const pool = (states ?? []).slice();
   const picks: string[] = [];
   while (pool.length && picks.length < 2) {
@@ -42,6 +51,7 @@ async function briefFor(userId: string): Promise<string | null> {
     picks.length ? `HOUSE THIS MORNING:\n${picks.join('\n')}` : '',
     tasks?.length ? `DUE ON THEIR LIST:\n${tasks.map((t: any) => `- ${t.title} (due ${String(t.due_at).slice(0, 10)})`).join('\n')}` : '',
     wins.length ? `YESTERDAY THEY: ${wins.slice(0, 2).join('; ')}` : '',
+    arcLines.length ? `THEIR COURSE (say it in plain words):\n${arcLines.join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
   if (!material) return null;
 

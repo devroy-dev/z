@@ -29,6 +29,48 @@ export const ARCS: Record<string, ArcDef> = {
     finalTitle: 'The Pitch',
     finalBrief: 'You have ten minutes with an investor who has heard a thousand pitches this month. Win real interest — survive the hard questions, hold the room, and land a next step.',
   },
+  hold_your_ground: {
+    id: 'hold_your_ground',
+    title: 'hold your ground',
+    personaKey: 'the_leader_opp',
+    days: 3,
+    focus: [
+      "Day 1 — the position: make them state, in two sentences, what they believe on a live issue THEY pick and the single strongest reason. Then attack it once, fairly, and coach them to answer without retreating or getting hot.",
+      "Day 2 — the counters: teach the three moves people fold to — the confident misstatement, the emotional reframe, the gish gallop. Run each at them once; coach the calm answer to each.",
+      "Day 3 — the room: play a majority against them. They must disagree with you while keeping you engaged — concede what's true, hold what matters, never sneer. Coach the difference between stubborn and steady.",
+    ],
+    finalScenario: 'juryroom',
+    finalTitle: 'The Twelfth Chair',
+    finalBrief: 'Eleven jurors want to convict tonight and go home. You are the holdout. Turn the room one juror at a time — with reasoning, not volume.',
+  },
+  steel_mind: {
+    id: 'steel_mind',
+    title: 'steel mind',
+    personaKey: 'the_brainiac',
+    days: 3,
+    focus: [
+      "Day 1 — the flaw hunt: give them three short claims (one sound, two subtly broken) and coach them to say precisely WHERE each breaks. Not vibes — the exact step that doesn't follow.",
+      "Day 2 — the questions: teach the two questions that crack most bad reasoning — 'what would change your mind?' and 'what else would we expect to see if this were true?' Make them use both on a claim you defend.",
+      "Day 3 — under fog: give a small mystery with a red herring baked in. Coach them to separate what they KNOW from what they've assumed, out loud, before naming an answer.",
+    ],
+    finalScenario: 'whodunit',
+    finalTitle: 'The Locked Room',
+    finalBrief: 'A body, a storm, five suspects, and one of them lying to your face. Find the killer — and show the reasoning that gets you there.',
+  },
+  read_the_room: {
+    id: 'read_the_room',
+    title: 'read the room',
+    personaKey: 'the_wingman',
+    days: 3,
+    focus: [
+      "Day 1 — the opener: kill their canned lines. Coach the observational opener — something true about the moment — and make them produce three, live, for scenes you set.",
+      "Day 2 — the listen: teach the callback — carrying a thread the other person dropped two exchanges ago. Roleplay a short chat and grade them on what they caught vs missed.",
+      "Day 3 — the exits and the asks: coach reading when someone's warm vs polite, how to leave well, and how to ask for the next thing without weight. Run both endings.",
+    ],
+    finalScenario: 'reunion',
+    finalTitle: 'The Reunion',
+    finalBrief: 'Ten years, one villa, a host dead at the bottom of the stairs — and a room full of old friends performing grief. Read them. Find what happened before the police arrive.',
+  },
 };
 
 export type ArcProgress = {
