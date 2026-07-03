@@ -37,6 +37,12 @@ real memory on You, Opus's 31-persona CODEX DEPTH installed + diary writer feeds
   (pin/archive/fav) still unbuilt (needs thread-state migration).
 
 ## DEBTS / WATCH ITEMS
+- ROOMS KNOWLEDGE SEAM (found live, 3 Jul eve): suggestion engine creates topical rooms with
+  current-events knowledge the personas lack (e.g. Nolan's 2026 Odyssey). Patch shipped: room
+  name injected as standing premise + no-fake-checking law in groupLoop. REAL FIX PENDING a
+  design call: grant web tools in group turns to webEnabled personas (brainiac, anchor, oracle,
+  screen_junkie...) so rooms can verify — cost/latency tradeoff, Dev to rule. Also: store the
+  suggestion BLURB on created rooms so the premise is richer than the title.
 - migration 0023 used text user_id (inconsistent with uuid core) — fix in 0024.
 - the_addict pursuit line parked in CODEX_DEPTH_NOTES.md (add only when circulating).
 - Desk suggestions breadth + interview quality: judge post-codex-depth before more prompt surgery.
