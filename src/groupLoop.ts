@@ -278,7 +278,10 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       ? ` REAL PEOPLE are in this room with you — not personas. Address them by name, react to what they actually said, be a guest in their conversation. Don't dominate, don't speak for them.`
       : '';
     const roomPremise = (t.companion_name && t.companion_name !== 'the room') ? ` THIS ROOM WAS GATHERED AROUND: "${t.companion_name}" — that is the standing topic; you know what the room is about.` : '';
-    let groupNote = `\n\n[THIS IS A GROUP CHAT.${roomPremise} In the room with you: ${others}. You are "${nameFor(key)}". You cannot browse or check anything from inside a room — if something is past what you know, say so plainly; NEVER claim to have just checked or verified something. Speak only as yourself — short, like a real group chat, react to what was just said. Don't speak for the others. Don't narrate. One natural message.${sharedNote}]`;
+    const webNote = persona?.webEnabled
+      ? ` You HAVE live web search here — when something is past your knowledge or contested (a new release, a claim, a score), SEARCH before you pronounce; never declare a thing nonexistent or false without actually checking, and never bluff a check you did not run.`
+      : ` You cannot browse or check anything from inside a room — if something is past what you know, say so plainly and let someone who can check carry it; NEVER claim to have just checked or verified something.`;
+    let groupNote = `\n\n[THIS IS A GROUP CHAT.${roomPremise}${webNote} In the room with you: ${others}. You are "${nameFor(key)}". Speak only as yourself — short, like a real group chat, react to what was just said. Don't speak for the others. Don't narrate. One natural message.${sharedNote}]`;
 
     // ARENA roles
     let gameBlock = '';
