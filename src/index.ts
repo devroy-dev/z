@@ -327,11 +327,9 @@ app.post('/public-rooms/:id/join', async (req, res) => {
       .select('thread_id').eq('thread_id', room.thread_id).eq('user_id', me.id).maybeSingle();
     if (!existing) {
       await supabase.from('room_members').insert({ thread_id: room.thread_id, user_id: me.id, role: 'member' });
-      await supabase.rpc('increment_public_room_count', { rid: room.id }).catch(async () => {
-        // no rpc? fall back to a read-modify-write
-        const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', room.id).maybeSingle();
-        await supabase.from('public_rooms').update({ member_count: ((r2 as any)?.member_count || 0) + 1 }).eq('id', room.id);
-      });
+      // bump member_count (read-modify-write; no rpc dependency)
+      const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', room.id).maybeSingle();
+      await supabase.from('public_rooms').update({ member_count: ((r2 as any)?.member_count || 0) + 1 }).eq('id', room.id);
     }
     res.json({ id: room.id, threadId: room.thread_id, name: room.name });
   } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
