@@ -520,7 +520,10 @@ app.get('/persona-diary/:key', async (req, res) => {
           const after = raw.slice(i + '## THE LIFE BEHIND THE VOICE'.length);
           // first non-empty paragraph, stopping before the first "**label:**" or next heading
           const para = after.split(/\n\s*\n/).map((s) => s.trim()).find((s) => s && !s.startsWith('**') && !s.startsWith('#'));
-          if (para) blurb = para.replace(/\s+/g, ' ').trim().slice(0, 600);
+          if (para) {
+            let b = para.replace(/\s+/g, ' ').trim().replace(/\*+/g, '');   // strip markdown emphasis
+            blurb = b.slice(0, 600);
+          }
         }
       }
     } catch (e) { /* blurb is best-effort */ }

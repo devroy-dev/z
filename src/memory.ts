@@ -48,8 +48,10 @@ export async function harvestMemory(
       model: MODEL,
       max_tokens: 400,
       system:
-        'Extract durable facts worth remembering about the user from this exchange — ' +
-        'names, relationships, ongoing situations, stable preferences, important history. ' +
+        'Extract durable facts the USER revealed ABOUT THEMSELVES in this exchange — ' +
+        'their names, their relationships, their ongoing situations, their stable preferences, their important history. ' +
+        'CRITICAL: only facts about the USER (the human). The FRIEND is an AI persona with their own life, and they WILL talk about themselves — their job, pursuits, day, feelings (e.g. "I\'m stuck on my fashion line," "practice was rough today"). NEVER store anything about the FRIEND\'s life as if it were the user\'s. If a fact is about the FRIEND/persona and not the user, DISCARD it. When unsure whose fact it is, discard it. ' +
+        'ALSO: the FRIEND may mention OTHER personas in the house by role — "the anchor," "the professor," "the media manager," "the healer," etc. — or offer to connect the user to them. These are NOT the user\'s real-world contacts or relationships; NEVER store "user knows someone called the anchor" or similar. Discard any "contact"/"relationship" that is actually one of these house personas. ' +
         'NEVER store the user\'s age or date of birth, in any form — not even when they state it directly. ' +
         'The account profile is the only authority on age; chat claims about age (their own or corrections) are noise, sometimes tests, sometimes someone else on the phone. Skip them entirely. ' +
         'NOT passing mood or chit-chat. ' +
