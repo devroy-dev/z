@@ -350,7 +350,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
         {/* header: the presence + your corner */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Orb size={40} />
+            <Avatar pkey="the_front_desk" size={40} />
             <View style={{ marginLeft: 12 }}>
               <Text style={styles.deskTitle}>the front desk</Text>
               <Text style={styles.deskSub}>set it down — i’ve got it.</Text>
@@ -454,7 +454,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
                 {notes.map((n, i) => {
                   if (n.kind === 'buzz') return (
                     <Pressable key={n.id || i} style={[styles.noteRow, styles.buzzRow]} onPress={() => routeTo(n.persona_key)}>
-                      {n.persona_key === 'the_front_desk' ? <Orb size={34} /> : <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />}
+                      <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.noteWho}>⚡ {nameFallback(n.persona_key)} buzzed you</Text>
                         <Text style={styles.noteTxt}>no message. that's the point. buzz back.</Text>
@@ -464,7 +464,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
                   );
                   if (n.kind === 'dropin' && n.status === 'offered') return (
                     <View key={n.id || i} style={[styles.noteRow, styles.doorRow]}>
-                      {n.persona_key === 'the_front_desk' ? <Orb size={34} /> : <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />}
+                      <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.noteWho}>🚪 {nameFallback(n.persona_key)} is at the door</Text>
                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
@@ -480,7 +480,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
                   );
                   return (
                     <Pressable key={n.id || i} style={styles.noteRow} onPress={() => routeTo(n.persona_key)}>
-                      {n.persona_key === 'the_front_desk' ? <Orb size={34} /> : <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />}
+                      <Avatar pkey={n.persona_key} uri={dpFor(n.persona_key)} size={34} />
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.noteWho}>{nameFallback(n.persona_key)}</Text>
                         <Text style={styles.noteTxt} numberOfLines={6}>“{n.ping}”</Text>

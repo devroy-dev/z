@@ -225,6 +225,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   const [q, setQ] = useState('');
   const [filt, setFilt] = useState('all');
   const [zFace, setZFace] = useState(true);
+  const [deskFace, setDeskFace] = useState(true);
   const [friendList, setFriendList] = useState([]);
   const [opening, setOpening] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -337,7 +338,9 @@ export default function ChatHome({ onOpen = () => {} }) {
             ))}
           </View>
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'desk' })}>
-            <View style={[st.ring, { borderColor: 'rgba(231,176,122,0.45)' }]}><DeskEmber /></View>
+            <View style={[st.ring, { borderColor: 'rgba(231,176,122,0.45)' }]}>
+              {deskFace ? <Image source={{ uri: dpFor('the_front_desk') }} style={st.face} onError={() => setDeskFace(false)} /> : <DeskEmber />}
+            </View>
             <View style={{ flex: 1, marginLeft: 13 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={st.name}>the front desk</Text><Text style={st.time}>📌</Text>
