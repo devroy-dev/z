@@ -75,7 +75,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
       <LinearGradient colors={['#0D1119', '#0A0D14', '#090C12']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.topbar}>
-          <Pressable hitSlop={10} onPress={() => setShowMemory(false)}><Text style={styles.chev}>\u2039</Text></Pressable>
+          <Pressable hitSlop={10} onPress={() => setShowMemory(false)}><Text style={styles.chev}>‹</Text></Pressable>
           <Text style={styles.topTitle}>what z remembers</Text>
           <View style={{ width: 26 }} />
         </View>
@@ -156,9 +156,9 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
           <Pressable style={[styles.settingRow, { marginTop: 4 }]} onPress={() => setShowMemory(true)}>
             <View>
               <Text style={styles.settingText}>what z remembers</Text>
-              <Text style={styles.ledgerSub}>the facts z knows + moments noticed \u2014 with forget buttons</Text>
+              <Text style={styles.ledgerSub}>the facts z knows + moments noticed — with forget buttons</Text>
             </View>
-            <Text style={styles.settingChev}>\u203a</Text>
+            <Text style={styles.settingChev}>›</Text>
           </Pressable>
 
           {/* settings, quiet at the bottom */}

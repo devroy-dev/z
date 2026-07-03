@@ -162,7 +162,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
       try {
         const r = await transcribeVoice(clip.uri, clip.mime);
         if (r.ok && r.transcript) setDraft((d) => (d ? d + ' ' : '') + r.transcript);
-        else Alert.alert('couldn\u2019t catch that', r.diag || 'no transcript came back \u2014 try again.');
+        else Alert.alert('couldn’t catch that', r.diag || 'no transcript came back — try again.');
       } catch (e) { Alert.alert('voice error', String(e?.message || e)); }
       setTranscribing(false);
     } else {
@@ -266,21 +266,21 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
           {pendingImage ? (
             <View style={styles.pendingStrip}>
               <Image source={{ uri: pendingImage.uri }} style={styles.pendingThumb} />
-              <Pressable onPress={() => setPendingImage(null)} style={styles.pendingX} hitSlop={8}><Text style={styles.pendingXTxt}>\u2715</Text></Pressable>
+              <Pressable onPress={() => setPendingImage(null)} style={styles.pendingX} hitSlop={8}><Text style={styles.pendingXTxt}>✕</Text></Pressable>
             </View>
           ) : null}
           <View style={styles.composer}>
             <View style={[styles.field, { flexDirection: 'row', alignItems: 'flex-end' }]}>
               <TextInput
                 value={draft} onChangeText={setDraft}
-                placeholder={voice.recording ? 'listening\u2026' : 'say it here\u2026'} placeholderTextColor={Q.moonFaint}
+                placeholder={voice.recording ? 'listening…' : 'say it here…'} placeholderTextColor={Q.moonFaint}
                 style={[styles.input, { flex: 1 }]} multiline editable={!sending}
               />
               <Pressable style={styles.inlineBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
-                <Text style={styles.inlineBtnTxt}>\uFF0B</Text>
+                <Text style={styles.inlineBtnTxt}>＋</Text>
               </Pressable>
               <Pressable style={styles.inlineBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
-                <Text style={[styles.inlineMicTxt, voice.recording && styles.micLive]}>{transcribing ? '\u2026' : voice.recording ? '\u25A0' : '\uD83C\uDF99'}</Text>
+                <Text style={[styles.inlineMicTxt, voice.recording && styles.micLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎙'}</Text>
               </Pressable>
             </View>
             <Pressable style={styles.send} onPress={doSend} hitSlop={8}>
