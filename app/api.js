@@ -362,6 +362,26 @@ export async function simOracle() {
   try { return await authedJSON('GET', '/sim/oracle'); } catch (e) { return null; }
 }
 
+// ── fantasy football (house league on real EPL data) ──
+export async function ffStatus() {
+  try { return await authedJSON('GET', '/ff/status'); } catch (e) { return null; }
+}
+export async function ffPlayers(q = '', pos = '') {
+  try { return await authedJSON('GET', `/ff/players?q=${encodeURIComponent(q)}&pos=${encodeURIComponent(pos)}`); } catch (e) { return null; }
+}
+export async function ffSquad() {
+  try { return await authedJSON('GET', '/ff/squad'); } catch (e) { return null; }
+}
+export async function ffSaveSquad(playerIds, captain) {
+  return authedJSON('POST', '/ff/squad', { playerIds, captain });
+}
+export async function ffLive() {
+  try { return await authedJSON('GET', '/ff/live'); } catch (e) { return null; }
+}
+export async function ffLeaderboard() {
+  try { return await authedJSON('GET', '/ff/leaderboard'); } catch (e) { return null; }
+}
+
 // ── the anchor's bulletin ──
 export async function getBulletinFeed() {
   try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }

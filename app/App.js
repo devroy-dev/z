@@ -25,6 +25,7 @@ import Chat from './Chat';
 import Play from './Play';
 import Sims from './Sims';
 import TradingFloor from './TradingFloor';
+import FantasyLeague from './FantasyLeague';
 import Arena from './Arena';
 import Uno from './games/uno/Table';
 import GameBoundary from './games/Boundary';
@@ -96,6 +97,7 @@ function PlayWorld({ navigate, target }) {
   useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'sims', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'floor', React.useCallback(() => { setMode('sims'); return true; }, []));
+  useBackLayer(mode === 'ffl', React.useCallback(() => { setMode('sims'); return true; }, []));
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); }, [target]);
   // Games rebuilt one at a time, each verified on device. UNO is the first real one.
   if (opening && !live) {
@@ -136,10 +138,13 @@ function PlayWorld({ navigate, target }) {
     return <Arena initialGameId={target?.game || null} initialOpponent={target?.opp || null} onOpenStage={() => navigate && navigate('stage')} onBack={() => setMode('choose')} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
   }
   if (mode === 'sims') {
-    return <Sims onBack={() => setMode('choose')} onOpenFloor={() => setMode('floor')} />;
+    return <Sims onBack={() => setMode('choose')} onOpenFloor={() => setMode('floor')} onOpenLeague={() => setMode('ffl')} />;
   }
   if (mode === 'floor') {
     return <TradingFloor onExit={() => setMode('sims')} />;
+  }
+  if (mode === 'ffl') {
+    return <FantasyLeague onExit={() => setMode('sims')} />;
   }
   return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'stage') navigate && navigate('stage'); else if (door === 'sims') setMode('sims'); }} />;
 }

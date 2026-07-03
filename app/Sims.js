@@ -13,7 +13,7 @@ import { NIGHT as C, FONTS } from './theme';
 
 const TEAL = '#6FC9E0';
 
-export default function Sims({ onBack = () => {}, onOpenFloor = () => {} }) {
+export default function Sims({ onBack = () => {}, onOpenFloor = () => {}, onOpenLeague = () => {} }) {
   return (
     <View style={st.root}>
       <LinearGradient colors={['#0C1216', '#0A0D12', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -38,6 +38,20 @@ export default function Sims({ onBack = () => {}, onOpenFloor = () => {} }) {
               <Text style={st.fixtureTitle}>The Trading Floor</Text>
               <Text style={st.fixtureLine}>₹10,00,000 phantom. real crypto prices. build a book, climb the board — the economist reads your close every night.</Text>
               <Text style={st.disclaimer}>phantom money · real prices · zero real value</Text>
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable style={st.fixture} onPress={onOpenLeague}>
+            <LinearGradient colors={['rgba(143,217,143,0.10)', 'rgba(143,217,143,0.02)']} style={[st.fixtureInner, { borderColor: 'rgba(143,217,143,0.22)' }]}>
+              <View style={st.fixtureTop}>
+                <Svg width="30" height="30" viewBox="0 0 24 24">
+                  <Path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 8l3 2.2-1.1 3.6h-3.8L9 10.2 12 8z" stroke="#8FD98F" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
+                </Svg>
+                <Text style={[st.live, { color: '#8FD98F' }]}>OPEN</Text>
+              </View>
+              <Text style={st.fixtureTitle}>Fantasy Football</Text>
+              <Text style={st.fixtureLine}>pick five and a captain from the real EPL pool. real gameweek points, a friends board, and the hustler talking trash at every close.</Text>
+              <Text style={st.disclaimer}>house league · real points · zero real value</Text>
             </LinearGradient>
           </Pressable>
 

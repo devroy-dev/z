@@ -23,6 +23,7 @@ import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramm
 import { startPingScheduler, firePings } from './concierge.js';
 import { getBulletin, startBulletinScheduler } from './bulletin.js';
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
+import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
@@ -51,6 +52,7 @@ startProgrammeScheduler();
 startPingScheduler();
 startBulletinScheduler();
 startSimScheduler();
+startFfScheduler();
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
@@ -520,10 +522,7 @@ app.get('/persona-diary/:key', async (req, res) => {
           const after = raw.slice(i + '## THE LIFE BEHIND THE VOICE'.length);
           // first non-empty paragraph, stopping before the first "**label:**" or next heading
           const para = after.split(/\n\s*\n/).map((s) => s.trim()).find((s) => s && !s.startsWith('**') && !s.startsWith('#'));
-          if (para) {
-            let b = para.replace(/\s+/g, ' ').trim().replace(/\*+/g, '');   // strip markdown emphasis
-            blurb = b.slice(0, 600);
-          }
+          if (para) blurb = para.replace(/\s+/g, ' ').trim().slice(0, 600);
         }
       }
     } catch (e) { /* blurb is best-effort */ }
@@ -1989,5 +1988,6 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
 
 const port = Number(process.env.PORT) || 3000;
 installSimRoutes(app, authUser);
+installFfRoutes(app, authUser);
 
 app.listen(port, () => console.log(`[z] engine on :${port}`));
