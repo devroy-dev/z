@@ -157,7 +157,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   };
   // the hero treatment: only the pinned trinity stream live. residents text
   // like people — typing indicator, then the whole message lands at once.
-  const LIVE_STREAM = KEY === 'z' || KEY === 'z_serious';   // only the hero streams live
+  const LIVE_STREAM = KEY === 'z' || KEY === 'z_serious' || KEY === 'the_anchor';   // Z + the anchor stream live; the desk delivers in blocks
   const WARM = KEY === 'the_anchor' || KEY === 'the_front_desk' || LIVE_STREAM; // trinity keeps the warm register
   const PLAIN = !LIVE_STREAM; // whatsapp-flat: no italics/bold for anyone but Z
   const flat = (t) => PLAIN ? String(t || '').replace(/\*\*?/g, '') : t;
@@ -455,7 +455,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                     (() => { const parsed = parseCards(m.text); return (
                       <>
                         {splitBursts(parsed.text).map((burst, bi) => (
-                          <View key={bi} style={[styles.themWrap, !WARM && styles.themWrapMoon, bi > 0 && { marginTop: 4 }]}><RichText text={flat(burst)} style={WARM ? styles.themText : styles.themTextMoon} /></View>
+                          <View key={bi} style={[styles.themWrap, !WARM && styles.themWrapMoon, bi > 0 && { marginTop: 4 }]}><RichText text={flat(burst)} style={(KEY === 'z' || KEY === 'z_serious') ? styles.themText : WARM ? styles.themTextWarm : styles.themTextMoon} /></View>
                         ))}
                         {parsed.cards.map((c, ci) => (
                           <ProgrammeCard key={ci} card={c} onPress={() => routeTo(c.goto)} />
@@ -540,6 +540,7 @@ const styles = StyleSheet.create({
   themText: { fontFamily: 'Fraunces_400Regular_Italic', color: N.moon, fontSize: 18, lineHeight: 28, letterSpacing: 0.1 },
   youWrap: { alignSelf: 'flex-end', maxWidth: '82%', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 18, borderTopRightRadius: 6, backgroundColor: 'rgba(231,176,122,0.10)', borderWidth: 1, borderColor: 'rgba(231,176,122,0.16)' },
   youText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 15, lineHeight: 22 },
+  themTextWarm: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 15, lineHeight: 21, letterSpacing: 0.1 },
   themWrapMoon: { backgroundColor: 'rgba(232,236,244,0.05)', borderColor: 'rgba(232,236,244,0.08)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 15, borderTopLeftRadius: 5 },
   themTextMoon: { fontFamily: 'Figtree_400Regular', color: N.porcelain, fontSize: 14.5, lineHeight: 19, letterSpacing: 0 },
   youWrapMoon: { backgroundColor: 'rgba(159,194,232,0.10)', borderColor: 'rgba(159,194,232,0.18)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 15, borderTopRightRadius: 5 },

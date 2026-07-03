@@ -121,23 +121,26 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
     // during the interview the desk's standing "never ask, only offer" opener law
     // is REPLACED — last time they fought, the standing law won and the interview
     // never happened. Outside the interview, the usual laws hold.
-    const conversationLaws = interviewing
-      ? `Right now you are RUNNING THE ARRIVAL INTERVIEW (the commands at the TOP of this block) — those commands outrank every other instinct you have.`
-      : `You open already engaged, mid-thought about them; you never ask 'how are you' or 'what's on your mind' — you offer, you don't ask. THE PROPOSAL LAW: never end a message with "what's on your mind?", "what do you want to do?", or any open shrug — when they're undecided, YOU propose one concrete thing (a person, a table, a scene) and ask if it lands. When you see where someone belongs, name that room warmly in your own words and drop its GOTO tag on its own line (two or three at most, only when they truly fit). For the personal, heavy, or advice-shaped thing, you draw them inward with a [[GOTO: z_serious]] tag — the quiet room, just you and them, not a hand-off.`;
+    // The codex (codex-front-desk.md) owns WHO SHE IS — this block feeds only
+    // what the codex can't know: live facts and the tag mechanics (its own
+    // header names this contract). Never author manner here; she has an author.
     let interviewBlock = '';
     if (interviewing) {
-      const beats = [
-        `YOUR NEXT MESSAGE MUST DO EXACTLY THIS: (1) welcome them by name, warmly, two or three short lines; (2) tell them plainly what this house IS and what you can do — people to talk to who have real lives of their own, tables to play at, a stage for full judged scenes, the anchor's daily news, courses that coach a skill over days, and you: their concierge who books tables, holds their list, sets reminders, and walks them to the right person; (3) end with EXACTLY ONE question: what their days are mostly about right now. Nothing else.`,
-        `YOUR NEXT MESSAGE MUST: (1) react to their answer specifically — and if it was thin, ask ONE natural follow-up to actually learn something (their answers are how you'll take care of them; gather real detail); (2) pay it off — name ONE door in this house that fits what they said, one sentence, with its GOTO chip; (3) end with EXACTLY ONE question: what's been eating them or exciting them lately.`,
-        `YOUR NEXT MESSAGE MUST: (1) react like a person who heard it — dig one follow-up if there's more there; (2) pay it off with ONE fitting door (the quiet room chip if it was heavy); (3) end with EXACTLY ONE question: one thing they'd quietly like to get better at.`,
-        `YOUR NEXT MESSAGE MUST: (1) take what they named and offer the nearest course from the dean's catalog personally — coach, days, the final — or the closest person if no course fits; (2) close with one warm line telling them you'll be here every morning with their day, and WALK THEM THROUGH A DOOR: the single most fitting GOTO chip. NO further questions — the interview ends here.`,
-      ];
-      interviewBlock = `\n\n[THE ARRIVAL INTERVIEW — HIGHEST PRIORITY, RUN IT NOW regardless of anything else in this thread. This is beat ${Math.min(stage, 3) + 1} of 4. ${beats[Math.min(stage, 3)]} LAWS: one question per message, never a form, short warm lines.]`;
+      const step = ['their days — what they are mostly about right now', 'what has been eating them, or exciting them, lately', 'the one thing they would quietly like to get better at', 'nothing more to learn — offer the nearest course from the catalog below (or the nearest person), then walk them through the fittest door, chip in hand'][Math.min(stage, 3)];
+      interviewBlock = `\n\n[TONIGHT IS THE NEWCOMER'S WELCOME — the one you take real pleasure in. This is exchange ${Math.min(stage, 3) + 1} of about four. Getting to know them tonight, one thing at a time, paying each answer off at once with the single door it points to: this exchange, ${step}. Everything they tell you, you keep — it is how you will take care of them from tomorrow's morning note on.]`;
       const next = stage >= 3 ? -1 : stage + 1;
       supabase.from('users').update({ onboarding_stage: next } as any).eq('id', userId)
         .then(({ error }) => { if (error) console.error('[onboard] stage advance failed:', error.message); });
     }
-    frontDeskBlock = interviewBlock + `\n\n[THE LIST YOU HOLD — these are the user's open tasks.${listText}\n\nTO MANAGE THE LIST, emit a tag on its OWN line (the app reads these; the user never sees the raw tag):\n  • add a task:    [[TASK_ADD: the task title | due: tomorrow 5pm | room: the_orator]]   (due and room optional)\n  • mark it done:  [[TASK_DONE: <the {id} of the task>]]\nTO SUGGEST PEOPLE TO TALK TO (your concierge routing), emit one tag per suggested persona on its OWN line — the app turns each into a tappable chip:\n  • [[GOTO: the_brother]]   (use the persona key; also valid: the_stage for roleplay, the_arena for games)\nTO HAND THEM A CARD (a rich tappable card in the chat — use when they ask for a card/shortcut, or when you're setting one concrete plan in front of them; at most one per message, on its OWN line):\n  • [[CARD: play | Riddle Me | a riddle gauntlet — call it when you dare | the_arena:riddle]]   (kind: social/growth/play; goto: a persona key, the_stage, the_arena, or the_arena:<game id>)\nYOUR CONCIERGE POWERS (each on its OWN line; confirm warmly in your text what you set up — never promise what you didn't tag):\n  • book a table:      [[BOOK: poker | the_wannabe | 9pm]]   → creates the room now, pings them at the hour (game id | persona key | time like "9pm" / "tomorrow 5pm" / "in 2 hours")\n  • set a reminder:    [[REMIND: call the lawyer | tomorrow 11am]]\n  • log their complaint/suggestion for the maker: [[FEEDBACK: their words, faithfully]]\n${conversationLaws} When you add/complete a task, still say it warmly ("added — it's on your list"). Emit at most a couple of tags per turn. Never show the user the {id} or the raw tags. NEVER send a message that is only tags — always at least one human line of text with them.]`;
+    frontDeskBlock = interviewBlock + `\n\n[THE LIST YOU HOLD:${listText}
+
+YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest never sees the raw tag (so always at least one human line of text with them; never promise in words what you didn't tag):
+  • [[TASK_ADD: title | due: tomorrow 5pm | room: the_orator]] · [[TASK_DONE: {id}]]
+  • [[GOTO: the_brother]] — a tappable chip (also: the_stage, the_arena, z_serious for the quiet room)
+  • [[CARD: play | Teen Patti | the desi bluff classic | the_arena:teenpatti]] — one concrete plan set in front of them; for games always the_arena:<game id> — the card seats them at that table where THEY pick their company, so suggest a pairing, never promise one
+  • [[BOOK: poker | the_wannabe | 9pm]] — real: the room exists the moment you tag it, and you ping them at the hour
+  • [[REMIND: call the lawyer | tomorrow 11am]]
+  • [[FEEDBACK: their words, faithfully]] — the maker reads these himself]`;
     frontDeskBlock += manifestBlock();
     if (!interviewing) {
       // the first-week tour: one door a day, woven in, never a manual
