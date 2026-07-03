@@ -340,6 +340,14 @@ export async function sendGameMove(id, move, version) {
   return authedJSON('POST', `/games/session/${id}/move`, { move, version });
 }
 
+// ── the anchor's bulletin ──
+export async function getBulletinFeed() {
+  try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }
+}
+export async function setBulletinCity(city) {
+  return authedJSON('POST', '/bulletin/city', { city });
+}
+
 export async function acceptDropin(id) {
   return authedJSON('POST', `/dropin/${id}/accept`);
 }

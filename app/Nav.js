@@ -11,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { FONTS } from './theme';
 import Stage from './stage/Stage';
+import Bulletin from './Bulletin';
 
 const N = {
   night: '#0B0A0F', night2: '#100E15',
@@ -125,7 +126,7 @@ export default function Nav({ screens }) {
   const navigate = (dest) => {
     if (!dest) return;
     const tab = typeof dest === 'string' ? dest : dest.tab;
-    if (tab === 'quiet' || tab === 'stage' || tab === 'journal') {
+    if (tab === 'quiet' || tab === 'stage' || tab === 'journal' || tab === 'bulletin') {
       setOverlay(typeof dest === 'string' ? { tab } : dest);
       return;
     }
@@ -137,6 +138,12 @@ export default function Nav({ screens }) {
 
   if (overlay) {
     if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
+    if (overlay.tab === 'bulletin') return (
+      <Bulletin
+        onBack={() => setOverlay(null)}
+        onAskAnchor={(text, send) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_anchor', draft: text, autoSend: !!send }); }}
+      />
+    );
     const titles = { quiet: 'The Quiet Room', stage: 'The Stage', journal: 'The Journal' };
     const lines = {
       quiet: 'a moonlit room where Z just listens. opening next.',

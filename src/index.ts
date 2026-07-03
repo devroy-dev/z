@@ -18,6 +18,7 @@ import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
 import { runStateWriter, currentStates, startStateScheduler } from './personaStates.js';
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
+import { getBulletin, startBulletinScheduler } from './bulletin.js';
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
@@ -42,6 +43,7 @@ const anthropicShared = new Anthropic({ fetch: globalThis.fetch as any });
 startFollowupScheduler();
 startStateScheduler();
 startBriefScheduler();
+startBulletinScheduler();
 // no-cache for HTML so a deploy is always reflected on next load (ends stale-cache confusion)
 app.use((req, res, next) => {
   if (req.path === '/' || req.path.endsWith('.html')) {
@@ -1417,6 +1419,36 @@ app.post('/games/session/:id/move', async (req, res) => {
       .select('version').maybeSingle();
     if (error || !upd) return res.status(409).json({ error: 'lost the race', version: s.version });
     res.json({ ok: true, version: upd.version, over });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// ════════ THE BULLETIN — the anchor's daily editions ════════
+const citySlug = (c: string) => c.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+
+app.get('/bulletin', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: u } = await supabase.from('users').select('city').eq('id', user.id).maybeSingle();
+    const [national, local] = await Promise.all([
+      getBulletin('in'),
+      u?.city ? getBulletin('city:' + citySlug(u.city), u.city) : Promise.resolve(null),
+    ]);
+    res.json({ city: u?.city ?? null, local: local ?? [], national: national ?? [] });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// set your city for the local desk
+app.post('/bulletin/city', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const city = String(req.body?.city || '').trim().slice(0, 60);
+    if (!city) return res.status(400).json({ error: 'name the city' });
+    await supabase.from('users').update({ city }).eq('id', user.id);
+    res.json({ ok: true, city });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 

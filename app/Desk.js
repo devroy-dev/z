@@ -251,6 +251,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 
   // where each route key takes you
   const routeTo = (key) => {
+    if (key === 'the_anchor') return onRoute({ tab: 'bulletin' });
     if (key === 'the_arena') return onRoute({ tab: 'play', open: 'arena' });
     if (key === 'the_stage') return onRoute({ tab: 'stage' });
     if (key === 'the_journal') return onRoute({ tab: 'journal' });

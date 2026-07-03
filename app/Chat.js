@@ -100,7 +100,7 @@ function DeskOrb({ size = 40 }) {
   );
 }
 
-export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
+export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
   const P = PERSONAS[KEY];
   const rgb = P.rgb;
@@ -124,6 +124,13 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {} }) {
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !initialDraft) return;
+    seededRef.current = true;
+    if (autoSend) { setTimeout(() => doSend(initialDraft), 600); }
+    else setDraft(initialDraft);
+  }, []);
   const targetRef = useRef('');
   const shownRef = useRef('');
   const streamDoneRef = useRef(false);

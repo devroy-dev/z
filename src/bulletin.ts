@@ -1,0 +1,81 @@
+// ════════════════════════════════════════════════════════════════════════
+//  yourZ — THE BULLETIN. The anchor compiles the day: one national+world
+//  edition each morning, local editions per city on demand (cached for the
+//  day). Stories are structured; the anchor's voice does the writing; the
+//  reader can walk into his studio and interrogate any of them.
+// ════════════════════════════════════════════════════════════════════════
+import Anthropic from '@anthropic-ai/sdk';
+import { supabase } from './db.js';
+import { logUsage } from './usage.js';
+
+const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const MODEL = 'claude-haiku-4-5-20251001';
+
+const istToday = () => {
+  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+};
+
+const ANCHOR_SYS = `You are THE ANCHOR — an old-school, straight-backed news anchor with a dry wit, compiling today's bulletin. You have web search: USE IT to find what is ACTUALLY happening today. Never invent stories, names, or numbers — everything must come from what you find.
+
+Write each story as EXACTLY this block, nothing between blocks:
+[[STORY]]
+KICKER: <one word category: INDIA / WORLD / BUSINESS / TECH / SPORT / CITY>
+HEADLINE: <the story in under 12 words, your phrasing>
+BRIEF: <two sentences in your anchor's voice: what happened, why it matters. Dry, precise, human.>
+
+Rules: no markdown, no numbering, no preamble or sign-off — only the blocks.`;
+
+export function parseStories(text: string) {
+  const out: any[] = [];
+  for (const block of text.split('[[STORY]]').slice(1)) {
+    const kicker = /KICKER:\s*(.+)/.exec(block)?.[1]?.trim().toUpperCase().slice(0, 12);
+    const headline = /HEADLINE:\s*(.+)/.exec(block)?.[1]?.trim().slice(0, 120);
+    const brief = /BRIEF:\s*([\s\S]+?)(?=(KICKER:|HEADLINE:|$))/.exec(block)?.[1]?.trim().slice(0, 400);
+    if (kicker && headline && brief) out.push({ id: out.length + 1, kicker, headline, brief });
+  }
+  return out;
+}
+
+async function generate(prompt: string): Promise<any[]> {
+  const msg = await anthropic.messages.create({
+    model: MODEL, max_tokens: 1400, system: ANCHOR_SYS,
+    messages: [{ role: 'user', content: prompt }],
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as any],
+  });
+  logUsage({ userId: 'bulletin', surface: 'other', model: MODEL, usage: (msg as any).usage });
+  const text = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+  return parseStories(text);
+}
+
+export async function getBulletin(scope: string, cityName?: string): Promise<any[] | null> {
+  const day = istToday();
+  const { data: hit } = await supabase.from('bulletins').select('stories').eq('scope', scope).eq('day', day).maybeSingle();
+  if (hit?.stories) return hit.stories as any[];
+
+  const prompt = scope === 'in'
+    ? `Compile today's bulletin (${day}). Search the web for today's most important news. Give me 8 stories: 3 INDIA (national), 2 WORLD, 1 BUSINESS, 1 TECH, 1 SPORT. Today's real news only.`
+    : `Compile today's LOCAL desk for ${cityName}, India (${day}). Search the web for "${cityName} news today" and related. Give me 3-4 CITY stories that actually matter to someone living there — civic, local events, infrastructure, weather if severe. If genuinely nothing local surfaced, give the most relevant regional stories instead. KICKER for all: CITY.`;
+
+  try {
+    const stories = await generate(prompt);
+    if (!stories.length) return null;
+    await supabase.from('bulletins').insert({ scope, day, stories }).select().maybeSingle();
+    return stories;
+  } catch (e: any) {
+    console.error('[bulletin] generation failed for', scope, e?.message || e);
+    return null;
+  }
+}
+
+// the morning edition, compiled before the house wakes
+export function startBulletinScheduler() {
+  const RUN_HOUR_IST = 6;
+  const tick = async () => {
+    const istHour = Math.floor((new Date().getUTCHours() + 5.5) % 24);
+    if (istHour !== RUN_HOUR_IST) return;
+    try { await getBulletin('in'); } catch (e: any) { console.error('[bulletin] morning run failed:', e?.message || e); }
+  };
+  setInterval(tick, 55 * 60 * 1000);
+  console.log('[bulletin] the anchor clocks in at', RUN_HOUR_IST, 'IST');
+}
