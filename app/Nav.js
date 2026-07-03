@@ -145,6 +145,22 @@ export default function Nav({ screens, onLogout = () => {} }) {
     }
   };
 
+  // ── CHAT world: the Moonlight surface. deep-links open the right thing ──
+  const openFromChat = (dest) => {
+    if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
+    if (dest.kind === 'desk' || dest.kind === 'z') { setTarget({ tab: 'desk', quiet: dest.kind === 'z' }); setWorld('chat'); setChatOpen({ kind: 'desk' }); return; }
+    if (dest.kind === 'persona') return setChatOpen(dest);
+    if (dest.kind === 'room') return setChatOpen(dest);
+    if (dest.kind === 'roster') return setChatOpen(dest);
+  };
+  const [chatOpen, setChatOpen] = useState(null);
+  useBackLayer(!!chatOpen, React.useCallback(() => { setChatOpen(null); return true; }, []));
+  // persona deep-links (door cards, drop-ins) land here from navigate()
+  useEffect(() => { if (world === 'chat' && target?.persona) { setChatOpen({ kind: 'persona', key: target.persona, draft: target.draft, autoSend: target.autoSend }); } }, [target, world]);
+
+  // ── full-screen overlays: rendered AFTER every hook has run. this block
+  // once sat above the chatOpen hooks as an early return — tapping ⋮ then
+  // rendered fewer hooks than the previous pass and crashed the app. ──
   if (overlay) {
     if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} />;
@@ -171,19 +187,6 @@ export default function Nav({ screens, onLogout = () => {} }) {
       </View>
     );
   }
-
-  // ── CHAT world: the Moonlight surface. deep-links open the right thing ──
-  const openFromChat = (dest) => {
-    if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
-    if (dest.kind === 'desk' || dest.kind === 'z') { setTarget({ tab: 'desk', quiet: dest.kind === 'z' }); setWorld('chat'); setChatOpen({ kind: 'desk' }); return; }
-    if (dest.kind === 'persona') return setChatOpen(dest);
-    if (dest.kind === 'room') return setChatOpen(dest);
-    if (dest.kind === 'roster') return setChatOpen(dest);
-  };
-  const [chatOpen, setChatOpen] = useState(null);
-  useBackLayer(!!chatOpen, React.useCallback(() => { setChatOpen(null); return true; }, []));
-  // persona deep-links (door cards, drop-ins) land here from navigate()
-  useEffect(() => { if (world === 'chat' && target?.persona) { setChatOpen({ kind: 'persona', key: target.persona, draft: target.draft, autoSend: target.autoSend }); } }, [target, world]);
 
   const chatContent = chatOpen
     ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
