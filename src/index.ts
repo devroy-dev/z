@@ -1150,7 +1150,7 @@ app.get('/me', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     const { data } = await supabase.from('users')
-      .select('display_name, handle, region, dob, sex, serious_mode')
+      .select('display_name, handle, region, dob, sex, serious_mode, avatar_url')
       .eq('id', user.id).maybeSingle();
     res.json({
       displayName: data?.display_name ?? null,
@@ -1158,6 +1158,7 @@ app.get('/me', async (req, res) => {
       region: data?.region ?? null,
       dob: (data as any)?.dob ?? null,
       sex: (data as any)?.sex ?? null,
+      avatarUrl: (data as any)?.avatar_url ?? null,
       seriousMode: !!(data as any)?.serious_mode,
     });
   } catch (e: any) {
@@ -1177,6 +1178,12 @@ app.post('/me', async (req, res) => {
     if (typeof region === 'string') patch.region = region.trim().slice(0, 120) || null;
     if (typeof req.body?.dob === 'string') patch.dob = req.body.dob.trim() || null;   // 'YYYY-MM-DD'
     if (typeof req.body?.sex === 'string' && ['female','male','na'].includes(req.body.sex)) patch.sex = req.body.sex;
+    // user profile photo — a data-URI (same pattern as thread avatars). Capped so a
+    // huge base64 can't bloat the row; the client downsizes before sending.
+    if (typeof req.body?.avatarUrl === 'string') {
+      const a = req.body.avatarUrl.trim();
+      patch.avatar_url = a ? a.slice(0, 700000) : null;   // ~500KB image ceiling
+    }
     if (Object.keys(patch).length) {
       const { error } = await supabase.from('users').update(patch).eq('id', user.id);
       if (error) return res.status(500).json({ error: 'me update: ' + error.message });
@@ -1184,6 +1191,61 @@ app.post('/me', async (req, res) => {
     res.json({ id: user.id, displayName: patch.display_name ?? user.display_name, region: patch.region ?? user.region });
   } catch (e: any) {
     res.status(500).json({ error: 'me failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// ── DATA EXPORT (right to portability). Gathers everything we hold about the
+// user into one JSON blob the client can save/share. Read-only. ──
+app.post('/me/export', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const uid = user.id;
+    const grab = async (table: string, col = 'user_id') => {
+      try { const { data } = await supabase.from(table).select('*').eq(col, uid); return data ?? []; }
+      catch { return []; }
+    };
+    const [profile] = await Promise.all([
+      supabase.from('users').select('display_name, handle, region, dob, sex, avatar_url, created_at').eq('id', uid).maybeSingle().then((r) => r.data),
+    ]);
+    const [threads, messages, memory, journal, tasks, matches, roleplay, notes, summaries, customPersonas, friendships] = await Promise.all([
+      grab('threads'), grab('messages'), grab('memory'), grab('journal_entries'), grab('tasks'),
+      grab('arena_matches'), grab('roleplay_runs'), grab('user_notes'), grab('user_summaries'),
+      grab('custom_personas'), grab('friendships', 'a'),
+    ]);
+    res.json({
+      exported_at: new Date().toISOString(),
+      account: profile,
+      threads, messages, memory, journal, tasks,
+      games: { arena_matches: matches, roleplay_runs: roleplay },
+      notes, summaries, custom_personas: customPersonas, friendships,
+      note: 'This is all the data callmeZ holds about you. Contact help@callmez.app with questions.',
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: 'export failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// ── ACCOUNT DELETION (soft-delete). Marks the account deleted NOW — it becomes
+// inaccessible immediately (every query gates on deleted_at is null) — and a
+// purge job removes it permanently after 30 days. Recoverable in that window via
+// help@callmez.app. Requires an explicit confirm flag so it can't fire by accident. ──
+app.post('/me/delete', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const { confirm } = req.body ?? {};
+    if (confirm !== 'DELETE') return res.status(400).json({ error: 'confirmation required' });
+    const user = await resolveUser(authId);
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('users').update({ deleted_at: now }).eq('id', user.id);
+    if (error) return res.status(500).json({ error: 'delete failed: ' + error.message });
+    // also mark their threads deleted so nothing lingers visibly
+    await supabase.from('threads').update({ deleted_at: now }).eq('user_id', user.id);
+    res.json({ ok: true, deleted_at: now, purge_after_days: 30 });
+  } catch (e: any) {
+    res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) });
   }
 });
 

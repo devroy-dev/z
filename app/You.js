@@ -5,13 +5,14 @@
 //  Also: your name/DP, pinned people, settings.
 // ════════════════════════════════════════════════════════════════════════
 import * as Updates from 'expo-updates';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert, Image, Linking, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag } from './api';
+import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount } from './api';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -60,6 +61,93 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   React.useEffect(() => { getLedger().then(setLedger).catch(() => {}); }, []);
   const [showMemory, setShowMemory] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
+  // profile editor (name · photo · handle)
+  const [showProfile, setShowProfile] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [privacyBusy, setPrivacyBusy] = useState('');
+
+  const doExport = async () => {
+    setPrivacyBusy('export'); 
+    const r = await exportMyData();
+    setPrivacyBusy('');
+    if (!r.ok) { Alert.alert('export failed', r.error); return; }
+    try {
+      await Share.share({ message: JSON.stringify(r.data, null, 2), title: 'your callmeZ data' });
+    } catch (e) { Alert.alert('could not share', 'try again.'); }
+  };
+
+  const doDelete = () => {
+    Alert.alert(
+      'delete your account?',
+      "this deactivates your account now and permanently erases everything after 30 days. within that window, email help@callmez.app to recover it. this can't be undone after 30 days.",
+      [
+        { text: 'keep my account', style: 'cancel' },
+        { text: 'delete', style: 'destructive', onPress: () => {
+          // second confirm — deletion is irreversible after the window
+          Alert.alert(
+            'are you sure?',
+            'your conversations, memories, and everything Z knows about you will be gone.',
+            [
+              { text: 'cancel', style: 'cancel' },
+              { text: 'delete forever', style: 'destructive', onPress: async () => {
+                setPrivacyBusy('delete');
+                const r = await deleteMyAccount();
+                setPrivacyBusy('');
+                if (!r.ok) { Alert.alert('could not delete', r.error); return; }
+                onLogout();   // sign out into the door
+              } },
+            ],
+          );
+        } },
+      ],
+    );
+  };
+  const [pName, setPName] = useState('');
+  const [pAvatar, setPAvatar] = useState(null);
+  const [pHandle, setPHandle] = useState('');
+  const [pHandleLocked, setPHandleLocked] = useState(false);
+  const [pSaving, setPSaving] = useState(false);
+  const [pNote, setPNote] = useState('');
+
+  const openProfile = async () => {
+    setPNote('');
+    const me = await getMe();
+    if (me) {
+      setPName(me.displayName || '');
+      setPAvatar(me.avatarUrl || null);
+      setPHandle(me.handle || '');
+      setPHandleLocked(!!me.handle);   // handle is set-once; lock it if already set
+    }
+    setShowProfile(true);
+  };
+
+  const pickProfilePhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { setPNote('photo permission needed.'); return; }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true, aspect: [1, 1], quality: 0.4, base64: true,
+      });
+      if (res.canceled || !res.assets || !res.assets[0]?.base64) return;
+      setPAvatar(`data:image/jpeg;base64,${res.assets[0].base64}`);
+    } catch (e) { setPNote('could not open photos.'); }
+  };
+
+  const saveProfile = async () => {
+    setPSaving(true); setPNote('saving…');
+    // name + avatar via /me
+    const r = await updateProfile({ displayName: pName.trim(), avatarUrl: pAvatar || '' });
+    // handle (only if not already locked and something was typed)
+    if (!pHandleLocked && pHandle.trim()) {
+      const hr = await setHandle(pHandle.trim().replace(/^@/, ''));
+      if (hr?.error) { setPSaving(false); setPNote(hr.error); return; }
+    }
+    setPSaving(false);
+    if (!r.ok) { setPNote(r.error); return; }
+    setPNote('saved.');
+    setTimeout(() => setShowProfile(false), 600);
+  };
   const [myHandle, setMyHandle] = useState('');
   const [handleDraft, setHandleDraft] = useState('');
   const [savingHandle, setSavingHandle] = useState(false);
@@ -205,6 +293,103 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
     </View>
   );
 
+  if (showProfile) return (
+    <View style={styles.root}>
+      <LinearGradient colors={[C.void, '#0d0d10', C.void]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <View style={styles.topBar}>
+          <Pressable hitSlop={10} onPress={() => setShowProfile(false)}><Text style={styles.chev}>‹</Text></Pressable>
+          <Text style={styles.topTitle}>your name & photo</Text>
+          <View style={{ width: 26 }} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 24, paddingTop: 8 }}>
+
+          {/* photo */}
+          <View style={{ alignItems: 'center', marginTop: 12, marginBottom: 8 }}>
+            <Pressable onPress={pickProfilePhoto} style={styles.pAvatarRing}>
+              {pAvatar ? (
+                <Image source={{ uri: pAvatar }} style={styles.pAvatarImg} />
+              ) : (
+                <Text style={styles.pAvatarLetter}>{(pName || 'you').slice(0, 1).toUpperCase()}</Text>
+              )}
+            </Pressable>
+            <Pressable onPress={pickProfilePhoto}><Text style={styles.pPhotoHint}>tap to change photo</Text></Pressable>
+          </View>
+
+          {/* name */}
+          <Text style={[styles.sectionLabel, { marginTop: 18 }]}>your name</Text>
+          <TextInput
+            value={pName} onChangeText={setPName}
+            placeholder="what should we call you?" placeholderTextColor="rgba(232,236,244,0.3)"
+            style={styles.pInput} maxLength={40}
+          />
+
+          {/* handle */}
+          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>your handle</Text>
+          {pHandleLocked ? (
+            <Text style={styles.pHandleLocked}>@{pHandle}  <Text style={styles.pHandleNote}>· set once, can't change</Text></Text>
+          ) : (
+            <View style={styles.pHandleRow}>
+              <Text style={styles.pAt}>@</Text>
+              <TextInput
+                value={pHandle} onChangeText={(t) => setPHandle(t.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase())}
+                placeholder="pick a handle" placeholderTextColor="rgba(232,236,244,0.3)"
+                autoCapitalize="none" autoCorrect={false} style={[styles.pInput, { flex: 1, marginTop: 0 }]} maxLength={20}
+              />
+            </View>
+          )}
+
+          <Pressable style={styles.pSaveBtn} onPress={saveProfile} disabled={pSaving}>
+            <Text style={styles.pSaveTxt}>{pSaving ? 'saving…' : 'save'}</Text>
+          </Pressable>
+          {pNote ? <Text style={styles.pNote}>{pNote}</Text> : null}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+
+  if (showPrivacy) return (
+    <View style={styles.root}>
+      <LinearGradient colors={[C.void, '#0d0d10', C.void]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <View style={styles.topBar}>
+          <Pressable hitSlop={10} onPress={() => setShowPrivacy(false)}><Text style={styles.chev}>‹</Text></Pressable>
+          <Text style={styles.topTitle}>privacy & data</Text>
+          <View style={{ width: 26 }} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 24, paddingTop: 8 }}>
+
+          <Text style={styles.pvIntro}>your conversations are yours. here's what you can do with your data.</Text>
+
+          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>the policies</Text>
+          <Pressable style={styles.pvRow} onPress={() => Linking.openURL('https://callmez.app/privacy')}>
+            <Text style={styles.pvRowText}>privacy policy</Text>
+            <Text style={styles.settingChev}>↗</Text>
+          </Pressable>
+          <Pressable style={styles.pvRow} onPress={() => Linking.openURL('https://callmez.app/terms')}>
+            <Text style={styles.pvRowText}>terms of service</Text>
+            <Text style={styles.settingChev}>↗</Text>
+          </Pressable>
+
+          <Text style={[styles.sectionLabel, { marginTop: 26 }]}>your data</Text>
+          <Pressable style={styles.pvRow} onPress={doExport} disabled={!!privacyBusy}>
+            <Text style={styles.pvRowText}>{privacyBusy === 'export' ? 'gathering…' : 'export my data'}</Text>
+            <Text style={styles.settingChev}>›</Text>
+          </Pressable>
+          <Text style={styles.pvHint}>download everything callmeZ holds about you, as a file you can keep.</Text>
+
+          <Text style={[styles.sectionLabel, { marginTop: 26 }]}>danger zone</Text>
+          <Pressable style={[styles.pvRow, styles.pvDanger]} onPress={doDelete} disabled={!!privacyBusy}>
+            <Text style={[styles.pvRowText, { color: '#E0A0A0' }]}>{privacyBusy === 'delete' ? 'deleting…' : 'delete my account'}</Text>
+            <Text style={[styles.settingChev, { color: '#E0A0A0' }]}>›</Text>
+          </Pressable>
+          <Text style={styles.pvHint}>deactivates now, permanently erased after 30 days. within that window, email help@callmez.app to recover.</Text>
+
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+
   if (showMemory) return (
     <View style={styles.root}>
       <LinearGradient colors={['#0D1119', '#0A0D14', '#090C12']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -317,8 +502,16 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
           <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(232,236,244,0.32)', fontSize: 10.5, marginHorizontal: 20, marginTop: -8, paddingBottom: 10 }}>
             {Updates.createdAt ? 'updated ' + new Date(Updates.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) + ', ' + new Date(Updates.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : 'built-in bundle'}{Updates.updateId ? '  ·  ' + Updates.updateId.slice(0, 8) : ''}
           </Text>
-          {['your name & photo', 'notifications', 'privacy & data', 'sign out'].map((s) => (
-            <Pressable key={s} style={styles.settingRow} onPress={s === 'sign out' ? onLogout : undefined}>
+          <Pressable style={styles.settingRow} onPress={openProfile}>
+            <Text style={styles.settingText}>your name & photo</Text>
+            <Text style={styles.settingChev}>›</Text>
+          </Pressable>
+          {['notifications', 'privacy & data', 'sign out'].map((s) => (
+            <Pressable key={s} style={styles.settingRow} onPress={
+              s === 'sign out' ? onLogout
+              : s === 'privacy & data' ? () => setShowPrivacy(true)
+              : undefined
+            }>
               <Text style={[styles.settingText, s === 'sign out' && { color: '#E0A0A0' }]}>{s}</Text>
               <Text style={styles.settingChev}>›</Text>
             </Pressable>
@@ -330,6 +523,11 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
 }
 
 const styles = StyleSheet.create({
+  pvIntro: { fontFamily: FONTS.regular, color: 'rgba(232,236,244,0.6)', fontSize: 14, lineHeight: 21, marginTop: 8 },
+  pvRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  pvRowText: { fontFamily: FONTS.regular, color: '#E8ECF4', fontSize: 16 },
+  pvHint: { fontFamily: FONTS.regular, color: 'rgba(232,236,244,0.4)', fontSize: 12.5, lineHeight: 18, marginTop: 8 },
+  pvDanger: { borderBottomColor: 'rgba(224,160,160,0.2)' },
   ledgerEmpty: { fontFamily: FONTS.light, color: 'rgba(231,215,199,0.45)', fontSize: 13, marginTop: 10, fontStyle: 'italic' },
   ledgerRow: { flexDirection: 'row', gap: 12, marginTop: 14, alignItems: 'flex-start' },
   ledgerOutcome: { fontFamily: FONTS.display, fontSize: 16, width: 18, textAlign: 'center', marginTop: 1 },
@@ -363,6 +561,19 @@ const styles = StyleSheet.create({
   settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
   settingText: { fontFamily: FONTS.body, color: '#E8ECF4', fontSize: 14.5 },
   settingChev: { color: C.faint, fontSize: 20 },
+  // profile editor
+  pAvatarRing: { width: 108, height: 108, borderRadius: 54, borderWidth: 1.5, borderColor: 'rgba(159,194,232,0.4)', backgroundColor: 'rgba(159,194,232,0.06)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  pAvatarImg: { width: '100%', height: '100%' },
+  pAvatarLetter: { fontFamily: FONTS.display, color: 'rgba(159,194,232,0.85)', fontSize: 44 },
+  pPhotoHint: { fontFamily: FONTS.body, color: 'rgba(232,236,244,0.4)', fontSize: 13, marginTop: 12 },
+  pInput: { fontFamily: FONTS.body, color: '#F1E7DC', fontSize: 17, borderBottomWidth: 1, borderBottomColor: 'rgba(159,194,232,0.3)', paddingVertical: 10, marginHorizontal: 24, marginTop: 4 },
+  pHandleRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 24 },
+  pAt: { fontFamily: FONTS.display, color: 'rgba(159,194,232,0.7)', fontSize: 20, marginRight: 4 },
+  pHandleLocked: { fontFamily: FONTS.body, color: '#F1E7DC', fontSize: 17, marginHorizontal: 24, marginTop: 6 },
+  pHandleNote: { fontFamily: FONTS.body, color: 'rgba(232,236,244,0.35)', fontSize: 13 },
+  pSaveBtn: { marginTop: 34, marginHorizontal: 24, paddingVertical: 15, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(159,194,232,0.3)', backgroundColor: 'rgba(159,194,232,0.08)', alignItems: 'center' },
+  pSaveTxt: { fontFamily: FONTS.semibold, color: '#F1E7DC', fontSize: 14, letterSpacing: 2, textTransform: 'uppercase' },
+  pNote: { fontFamily: FONTS.body, color: 'rgba(159,194,232,0.8)', fontSize: 14, textAlign: 'center', marginTop: 16 },
   friendHandle: { fontFamily: FONTS.medium, color: '#9FC2E8', fontSize: 18, marginBottom: 2 },
   friendRowInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(233,232,240,0.04)', borderWidth: 1, borderColor: 'rgba(233,232,240,0.10)', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 4 },
   atSign: { fontFamily: FONTS.medium, color: 'rgba(232,236,244,0.45)', fontSize: 16 },

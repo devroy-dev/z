@@ -214,6 +214,19 @@ export async function refreshSession() {
 export async function getMe() {
   try { return await authedJSON('GET', '/me'); } catch (e) { return null; }
 }
+
+// update the user's own profile: display name and/or avatar (data-URI) in one /me call.
+// handle is set separately (it has its own uniqueness-checked endpoint).
+export async function updateProfile({ displayName, avatarUrl }) {
+  try {
+    const body = {};
+    if (typeof displayName === 'string') body.displayName = displayName;
+    if (typeof avatarUrl === 'string') body.avatarUrl = avatarUrl;
+    const r = await fetch(`${API_BASE}/me`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, error: j.error || 'could not save' }; }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: 'no connection. try again.' }; }
+}
 export async function setMe(displayName) {
   try {
     await fetch(`${API_BASE}/me`, {
@@ -794,4 +807,25 @@ export async function authDiag() {
     knownDevice: known ? 'YES → should offer PIN' : 'NO → forces OTP',
     why: known ? 'ok' : (!uid ? 'z_real_uid missing' : 'z_refresh missing'),
   };
+}
+
+// ── PRIVACY & DATA ──
+// export everything we hold about the user (right to portability).
+export async function exportMyData() {
+  try {
+    const r = await fetch(`${API_BASE}/me/export`, { method: 'POST', headers: headers() });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, error: j.error || 'export failed' }; }
+    return { ok: true, data: await r.json() };
+  } catch (e) { return { ok: false, error: 'no connection. try again.' }; }
+}
+
+// soft-delete the account (inaccessible now, purged after 30 days). Needs confirm.
+export async function deleteMyAccount() {
+  try {
+    const r = await fetch(`${API_BASE}/me/delete`, {
+      method: 'POST', headers: headers(), body: JSON.stringify({ confirm: 'DELETE' }),
+    });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, error: j.error || 'delete failed' }; }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: 'no connection. try again.' }; }
 }
