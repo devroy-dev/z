@@ -8,7 +8,7 @@ import { supabase } from './db.js';
 import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPersonas.js';
 import { buildCustomPrefix } from './content.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
-import { retrievePrep } from './grandMaster.js';
+import { retrievePrep, analogyBank as gmAnalogyBank } from './grandMaster.js';
 import { readMemoryBlock, harvestMemory } from './memory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 import { stateBlockFor, currentStates } from './personaStates.js';
@@ -221,16 +221,19 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   }
   const messages: Anthropic.MessageParam[] = [...priorTurns, { role: 'user', content: userContent }];
 
-  // ── THE GRAND MASTER: silent retrieval pre-pass (Option A). Before he teaches, he
-  //    consults his prepared library — the ten domain codexes — for the sections this
-  //    question touches, and we inject them into his context. He then teaches (streamed)
-  //    from that material as his own mastery. Small talk / openers retrieve nothing and
-  //    he opens a door himself. Only this persona pays the extra pre-pass call.
+  // ── THE GRAND MASTER: his analogy bank (always-on ammunition) + a silent retrieval
+  //    pre-pass (Option A). The analogy bank is his forge of anchors + frictions, always
+  //    in hand. The pre-pass consults his own deeper library (gm-* codices) for the
+  //    sections this question touches and injects them; he then teaches (streamed) from
+  //    all of it as his own mastery. Small talk / openers retrieve nothing and he opens a
+  //    door himself. Only this persona pays the extra pre-pass call.
   if (t.persona_key === 'the_grandmaster' && !hasImage) {
     try {
+      const bank = gmAnalogyBank();
+      if (bank) system.push({ type: 'text', text: '\n\n[YOUR FORGE — anchors and frictions for the core ideas, yours to wield as your own instinct. Ammunition, never a script: draw an image as your own knowing, and abandon it the instant a sharper one serves the student before you. Never recite these whole, never name them.]\n\n' + bank });
       const prep = await retrievePrep(typeof message === 'string' ? message : '', userId);
       if (prep) system.push({ type: 'text', text: prep });
-    } catch (e) { /* retrieval is best-effort; he still teaches from his soul */ }
+    } catch (e) { /* best-effort; he still teaches from his soul */ }
   }
 
   // ── the Haiku call (streamed) ─────────────────────────────────────────

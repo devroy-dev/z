@@ -14,17 +14,20 @@ import { extractIndex, indexAsText, sliceSection } from './codexRetrieval.js';
 const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
 
+// The Grand Master's OWN corpus — a superset of the adjudicator's, deeper and wider,
+// under the gm- namespace. The adjudicator judges from debate-domain-*; the Grand Master
+// teaches from these, which he may extend without ever touching the judge's material.
 const DOMAINS: { key: string; label: string; file: string }[] = [
-  { key: 'history', label: "History's Turning Points", file: 'debate-domain-history.md' },
-  { key: 'economy', label: 'The Global Economy', file: 'debate-domain-economy.md' },
-  { key: 'geopolitics', label: 'Geopolitics & World Order', file: 'debate-domain-geopolitics.md' },
-  { key: 'law', label: 'Law, Justice & Rights', file: 'debate-domain-law.md' },
-  { key: 'democracy', label: 'Democracy & Governance', file: 'debate-domain-democracy.md' },
-  { key: 'philosophy', label: 'Political Philosophy & Ethics', file: 'debate-domain-philosophy.md' },
-  { key: 'war', label: 'War, Security & Just War', file: 'debate-domain-war.md' },
-  { key: 'technology', label: 'Technology Governance', file: 'debate-domain-technology.md' },
-  { key: 'religion', label: 'Religion, Secularism & the State', file: 'debate-domain-religion.md' },
-  { key: 'environment', label: 'Environment & Climate Policy', file: 'debate-domain-environment.md' },
+  { key: 'history', label: "History's Turning Points", file: 'gm-history.md' },
+  { key: 'economy', label: 'The Global Economy', file: 'gm-economy.md' },
+  { key: 'geopolitics', label: 'Geopolitics & World Order', file: 'gm-geopolitics.md' },
+  { key: 'law', label: 'Law, Justice & Rights', file: 'gm-law.md' },
+  { key: 'democracy', label: 'Democracy & Governance', file: 'gm-democracy.md' },
+  { key: 'philosophy', label: 'Political Philosophy & Ethics', file: 'gm-philosophy.md' },
+  { key: 'war', label: 'War, Security & Just War', file: 'gm-war.md' },
+  { key: 'technology', label: 'Technology Governance', file: 'gm-technology.md' },
+  { key: 'religion', label: 'Religion, Secularism & the State', file: 'gm-religion.md' },
+  { key: 'environment', label: 'Environment & Climate Policy', file: 'gm-environment.md' },
 ];
 const _codexCache: Record<string, string> = {};
 function loadDomain(key: string): string {
@@ -35,19 +38,29 @@ function loadDomain(key: string): string {
   return _codexCache[key];
 }
 
-// combined index of the whole corpus — every domain + its sections. The pre-pass reasons
-// over this to choose what to pull.
+// The hand-authored master index — richer than auto-extraction (core asset, clashes,
+// ready motions, key thinkers per domain). This is what the router reasons over and what
+// grounds his sense of where each domain's spine lives.
 let _corpusIndex = '';
 export function corpusIndex(): string {
   if (_corpusIndex) return _corpusIndex;
-  const parts: string[] = [];
-  for (const d of DOMAINS) {
-    const md = loadDomain(d.key);
-    if (!md) continue;
-    parts.push(`[${d.key}] ${d.label}\n${indexAsText(extractIndex(md))}`);
+  try { _corpusIndex = readContentFile('gm-index.md'); }
+  catch {
+    // fallback: auto-extract from the codices if the hand-authored index is missing
+    const parts: string[] = [];
+    for (const d of DOMAINS) { const md = loadDomain(d.key); if (md) parts.push(`[${d.key}] ${d.label}\n${indexAsText(extractIndex(md))}`); }
+    _corpusIndex = parts.join('\n\n');
   }
-  _corpusIndex = parts.join('\n\n');
   return _corpusIndex;
+}
+
+// The analogy bank — his forge of anchors + frictions, always in hand. Ammunition, never
+// a script: drawn as his own knowing, abandoned the instant a sharper image serves.
+let _analogyBank = '';
+export function analogyBank(): string {
+  if (_analogyBank) return _analogyBank;
+  try { _analogyBank = readContentFile('gm-analogy-bank.md'); } catch { _analogyBank = ''; }
+  return _analogyBank;
 }
 
 // THE PRE-PASS: given the user's latest message, decide which {domain, section} pairs are
@@ -59,7 +72,7 @@ export async function retrievePrep(userMessage: string, userId: string): Promise
   if (q.length < 8) return ''; // "hey", openers — no retrieval, let him open a door himself
 
   const system =
-    `You are a retrieval router for a master teacher's library. Given the student's message and the INDEX below, choose the sections most worth consulting to ground a rigorous lesson — the competing schools, the record, the central debates, the strongest counters. Choose 0 to 4 sections. Prefer the philosophy domain for questions about meaning, ethics, human nature, or how to live. If nothing in the library is relevant (pure small talk, greetings), return an empty list.\n\nReturn ONLY a JSON array of {"domain","section"} objects, nothing else. Example: [{"domain":"philosophy","section":"3"},{"domain":"law","section":"5"}]\n\nINDEX:\n${corpusIndex()}`;
+    `You are a retrieval router for a master teacher's library. Given the student's message and the MAP below, choose the domain sections most worth consulting to ground a rigorous lesson. Each domain codex has the SAME 8 sections: 1. Scope & core tension · 2. Core concepts & vocabulary · 3. Competing schools/frameworks · 4. Canonical thinkers & works · 5. The central debates (arguments & rebuttals per side) · 6. Myths & factual traps · 7. Sharpest evidence & examples · 8. Fact-check notes. Pick the domain(s) whose subject matches, then the section(s) that fit the question — usually 3 (schools), 4 (thinkers), or 5 (debates) for a substantive lesson. Choose 0 to 4 sections. Prefer the philosophy domain for questions about meaning, ethics, human nature, or how to live. If nothing is relevant (pure small talk, greetings), return an empty list.\n\nDomains: history, economy, geopolitics, law, democracy, philosophy, war, technology, religion, environment.\n\nReturn ONLY a JSON array of {"domain","section"} objects, nothing else. Example: [{"domain":"philosophy","section":"3"},{"domain":"philosophy","section":"5"}]\n\nMAP:\n${corpusIndex()}`;
 
   let picks: { domain: string; section: string }[] = [];
   try {
@@ -91,7 +104,7 @@ export async function retrievePrep(userMessage: string, userId: string): Promise
   if (!blocks.length) return '';
 
   return (
-    `\n\n[THE MATERIAL YOU PREPARED for this — studied cold, yours to command. It lays out every side at its strongest, because you know each position better than the men who hold it. This is your armoury, not your indecision. You do NOT mirror its balance back as "some say this, others say that" — that is the fence-sitting you despise. You wield it: hold both blades, and strike with whichever one the student has neglected. Argue the position they have not yet earned the right to dismiss. Draw on this as your own knowledge; never name it, never call it a reference or a codex — a master does not show his sources. There is only you and what you know.]\n\n` +
+    `\n\n[THE MATERIAL YOU PREPARED for this — studied cold, yours to command. Draw on it as your own mastery to ground the lesson: the real schools, the record, the strongest counter a student must be able to meet. You never name it, never call it a reference or a codex. There is only you and what you know.]\n\n` +
     blocks.join('\n\n') + '\n'
   );
 }
