@@ -63,7 +63,7 @@ function ZOrb({ size = 44 }) {
   );
 }
 
-const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=3`;
+const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=4`;
 
 // the house diaries, as a feed: today's line per resident; tap → their recent week
 function UpdatesFeed({ onOpen }) {
@@ -348,7 +348,7 @@ export default function ChatHome({ onOpen = () => {} }) {
               <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
             </View>
           </Pressable>
-          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=3`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
+          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
             <View style={[st.ring, { borderColor: MOON.moon }]}>
               {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}

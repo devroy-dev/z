@@ -55,7 +55,7 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
             <Text style={st.masthead}>THE BULLETIN</Text>
             <Text style={st.edition}>{edition} · with the anchor</Text>
           </View>
-          <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=3` }} style={st.face} />
+          <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=4` }} style={st.face} />
         </View>
 
         {!feed ? (

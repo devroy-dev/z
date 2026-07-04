@@ -37,7 +37,7 @@ const N = {
 };
 const aura = (rgb, a) => `rgba(${rgb},${a})`;
 
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=3`;
+const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=4`;
 
 // full persona registry — name · tagline · aura rgb (from the PWA, the source of truth)
 const PERSONA_META = {

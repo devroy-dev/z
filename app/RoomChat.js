@@ -36,7 +36,7 @@ const N = {
   candle: '#E7B07A', candleHot: '#F3CFA3',
   human: '#9FB0CE',
 };
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=3`;
+const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=4`;
 const P = {
   the_guru:['the guru','230,190,90'], the_oracle:['the oracle','110,200,200'], the_brainiac:['the brainiac','90,200,230'],
   the_brother:['the brother','200,120,80'], the_healer:['the healer','124,92,220'], the_comic:['the comic','240,180,70'],
