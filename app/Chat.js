@@ -104,9 +104,30 @@ function DeskOrb({ size = 40 }) {
   );
 }
 
-// texting register: an assistant reply with blank lines becomes several bubbles
+// texting register: an assistant reply with blank lines becomes several bubbles.
+// BUT a bullet/numbered list must never be split across bubbles — a blank line
+// before or inside a list would otherwise orphan the markers from their text
+// (the "empty bubble with a lone dot" bug). So after splitting on blank lines we
+// re-merge any segment that is (or starts as) a list back onto the segment before
+// it, and merge consecutive list chunks together.
 const fmtTime = (at) => { const d = at ? new Date(at) : null; return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : ''; };
-const splitBursts = (t) => String(t || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+const _isListLine = (s) => /^\s*(?:[-*\u2022]|\d+[.)])\s+/.test(s);
+const _startsAsList = (seg) => _isListLine(String(seg).split('\n')[0] || '');
+const _isListy = (seg) => String(seg).split('\n').some(_isListLine);
+const splitBursts = (t) => {
+  const raw = String(t || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+  const out = [];
+  for (const seg of raw) {
+    // a segment that begins as a list, OR a list-containing segment following a
+    // list/lead-in, sticks to the previous bubble instead of starting a new one.
+    if (out.length && (_startsAsList(seg) || (_isListy(seg) && _isListy(out[out.length - 1])))) {
+      out[out.length - 1] += '\n' + seg;
+    } else {
+      out.push(seg);
+    }
+  }
+  return out;
+};
 
 // ── the evening programme's cards: [[CARD: kind | title | line | goto]] lives
 // in the PERSISTED message (cron-written, no stream), parsed at render so
@@ -326,7 +347,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   const burstTick = (zId, finalize) => {
     if (!pacingRef.current) return;
     const done = streamDoneRef.current;
-    const parts = targetRef.current.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+    const parts = splitBursts(targetRef.current);
     const complete = done ? parts.length : Math.max(0, parts.length - 1);
     if (shownBurstsRef.current < complete) {
       const n = shownBurstsRef.current + 1;
