@@ -60,7 +60,18 @@ export default function Play({ onEnter = () => {} }) {
 
         <View style={styles.doors}>
           <Door
-            tone="#F0A765" kicker="compete" title="Arena"
+            tone="#E0576F" kicker="argue it out" title="The Battlefield" delay={0}
+            line="1v1 debate, judged by the adjudicator. reason over retrieval, truth over confidence. tournaments coming."
+            onPress={() => onEnter('battlefield')}
+            glyph={
+              <Svg width="34" height="34" viewBox="0 0 24 24">
+                <Path d="M5 4l10 10M4 5l1-1 2 2-1 1zM14 14l1.5 1.5a2 2 0 002.8 0M19 4L9 14M20 5l-1-1-2 2 1 1zM10 14l-1.5 1.5a2 2 0 01-2.8 0"
+                  stroke="#E0576F" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+            }
+          />
+          <Door
+            tone="#F0A765" kicker="compete" title="Arena" delay={600}
             line="games with friends — and always one of them. backgammon, bluff, and more."
             onPress={() => onEnter('arena')}
             glyph={
@@ -71,7 +82,7 @@ export default function Play({ onEnter = () => {} }) {
             }
           />
           <Door
-            tone="#C99BE8" kicker="live it out" title="Stage" delay={600}
+            tone="#C99BE8" kicker="live it out" title="Stage" delay={1200}
             line="a courtroom, a geopolitical standoff, a whodunnit, today's headlines — step in and live it out."
             onPress={() => onEnter('stage')}
             glyph={
@@ -82,7 +93,7 @@ export default function Play({ onEnter = () => {} }) {
             }
           />
           <Door
-            tone="#6FC9E0" kicker="simulate" title="Sims" delay={1200}
+            tone="#6FC9E0" kicker="simulate" title="Sims" delay={1800}
             line="real-world emulators with the house inside them. trade a crypto book with phantom money — the economist is watching."
             onPress={() => onEnter('sims')}
             glyph={
