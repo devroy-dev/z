@@ -273,7 +273,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
-  const PINNED_KEYS = new Set(['the_front_desk', 'z', 'z_serious']);
+  const PINNED_KEYS = new Set(['the_front_desk', 'z', 'z_serious', 'the_grandmaster']);
   // chats tab = 1:1 persona threads + human DMs. Persona ROOMS (with persona members,
   // like "Nolan's Odyssey") stay in the GROUPS tab. A DM is a shared thread with no
   // persona members → it belongs here, as a normal conversation.
@@ -349,7 +349,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row face={`https://callmez.app/faces/the_consult.jpg?v=4`} tone={MOON.hairStrong} name="Expert Consultation" line="sit with Victor — the expert. by thedreamai" pinned onPress={() => onOpen({ kind: 'consult' })} />
+          <Row face={`https://callmez.app/faces/the_consult.jpg?v=4`} tone={MOON.hairStrong} name="The Consultant" line="sit with Victor — the expert. by thedreamai" pinned onPress={() => onOpen({ kind: 'consult' })} />
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
             <View style={[st.ring, { borderColor: MOON.moon }]}>
               {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}
@@ -361,6 +361,7 @@ export default function ChatHome({ onOpen = () => {} }) {
               <Text style={st.line} numberOfLines={1}>the quiet room — for what's actually on your mind</Text>
             </View>
           </Pressable>
+          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=4`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'persona', key: 'the_grandmaster' })} />
           <View style={st.divider} />
           {filt === 'friends' ? (
             friendList.length === 0 ? (
