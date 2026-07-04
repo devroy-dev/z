@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import React, { useCallback, useEffect, useState } from 'react';
 import { TextInput } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Circle, Path as SvgPath } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path as SvgPath } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
 import { FONTS } from './theme';
@@ -39,6 +39,30 @@ function DeskEmber() {
         <Stop offset="0%" stopColor="#FFE6C4" /><Stop offset="50%" stopColor="#E7B07A" /><Stop offset="100%" stopColor="#8A5A2B" />
       </RadialGradient></Defs><Circle cx="15" cy="15" r="11" fill="url(#dsk)" /></Svg>
     </Animated.View>
+  );
+}
+
+// THE CONSULTANT's DP — the DreamAI mark, rendered: the deep-blue ground and the
+// saturn-ring ember blob (the icon of the lockup — legible at avatar size, where the
+// full wordmark would be unreadable). Fills the pinned ring; no image hosting needed.
+function ConsultLogo() {
+  const b = useSharedValue(0.4);
+  React.useEffect(() => { b.value = withRepeat(withTiming(1, { duration: 3800, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
+  const glow = useAnimatedStyle(() => ({ opacity: 0.7 + b.value * 0.3, transform: [{ scale: 0.96 + b.value * 0.08 }] }));
+  return (
+    <View style={st.consultDP}>
+      <Animated.View style={glow}>
+        <Svg width="34" height="34" viewBox="0 0 34 34">
+          <Defs><RadialGradient id="emb" cx="42%" cy="38%" r="62%">
+            <Stop offset="0%" stopColor="#FBDFB0" /><Stop offset="52%" stopColor="#E8A24A" /><Stop offset="100%" stopColor="#9E6A2A" />
+          </RadialGradient></Defs>
+          {/* the saturn ring */}
+          <Ellipse cx="17" cy="17" rx="15" ry="5" fill="none" stroke="#E8A24A" strokeOpacity="0.5" strokeWidth="1" transform="rotate(-22 17 17)" />
+          {/* the ember orb */}
+          <Circle cx="17" cy="17" r="7.5" fill="url(#emb)" />
+        </Svg>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -349,7 +373,17 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row face={`https://callmez.app/faces/the_consult.jpg?v=4`} tone={MOON.hairStrong} name="The Consultant" line="sit with Victor — the expert. by thedreamai" pinned onPress={() => onOpen({ kind: 'consult' })} />
+          <Pressable style={st.row} onPress={() => onOpen({ kind: 'consult' })}>
+            <View style={[st.ring, { borderColor: 'rgba(232,162,74,0.4)', backgroundColor: '#0E1524' }]}>
+              <ConsultLogo />
+            </View>
+            <View style={{ flex: 1, marginLeft: 13 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={st.name}>The Consultant</Text><Text style={st.time}>📌</Text>
+              </View>
+              <Text style={st.line} numberOfLines={1}>sit with Victor — the expert. by thedreamai</Text>
+            </View>
+          </Pressable>
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
             <View style={[st.ring, { borderColor: MOON.moon }]}>
               {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}
@@ -486,6 +520,7 @@ const st = StyleSheet.create({
   ring: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.4, borderColor: MOON.hair, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: MOON.raise },
   face: { width: 44, height: 44, borderRadius: 22 },
   glyph: { fontSize: 20 },
+  consultDP: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0E1524' },
   name: { fontFamily: FONTS.medium, color: MOON.porcelain, fontSize: 15.5, flex: 1, marginRight: 8 },
   time: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 11.5 },
   line: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 13, marginTop: 2 },
