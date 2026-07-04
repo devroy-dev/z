@@ -42,6 +42,20 @@ function DeskEmber() {
   );
 }
 
+// THE CONSULTANT's DP — the DreamAI lockup exactly as it renders at the top-left of the
+// Consult page: the ember dot + "the"(light serif) + "dreamai"(italic serif), cream on
+// the deep-blue ground. The real in-app mark, not a screenshot — sized for the avatar.
+function ConsultLogo() {
+  return (
+    <View style={st.consultDP}>
+      <View style={st.consultDot} />
+      <Text style={st.consultWord} numberOfLines={1} adjustsFontSizeToFit>
+        the<Text style={st.consultWordIt}>dreamai</Text>
+      </Text>
+    </View>
+  );
+}
+
 function ZOrb({ size = 44 }) {
   const b = useSharedValue(0.5);
   React.useEffect(() => { b.value = withRepeat(withTiming(1, { duration: 4600, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
@@ -349,7 +363,17 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row face={`https://callmez.app/faces/the_consult.jpg?v=5`} tone={MOON.hairStrong} name="The Consultant" line="sit with Victor — the expert. by thedreamai" pinned onPress={() => onOpen({ kind: 'consult' })} />
+          <Pressable style={st.row} onPress={() => onOpen({ kind: 'consult' })}>
+            <View style={[st.ring, { borderColor: 'rgba(232,162,74,0.35)', backgroundColor: '#101427' }]}>
+              <ConsultLogo />
+            </View>
+            <View style={{ flex: 1, marginLeft: 13 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={st.name}>The Consultant</Text><Text style={st.time}>📌</Text>
+              </View>
+              <Text style={st.line} numberOfLines={1}>sit with Victor — the expert. by thedreamai</Text>
+            </View>
+          </Pressable>
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
             <View style={[st.ring, { borderColor: MOON.moon }]}>
               {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}
@@ -486,6 +510,10 @@ const st = StyleSheet.create({
   ring: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.4, borderColor: MOON.hair, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: MOON.raise },
   face: { width: 44, height: 44, borderRadius: 22 },
   glyph: { fontSize: 20 },
+  consultDP: { width: 44, height: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#101427', paddingHorizontal: 3 },
+  consultDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#E8A24A', marginRight: 3, shadowColor: '#E8A24A', shadowOpacity: 0.9, shadowRadius: 4 },
+  consultWord: { fontFamily: 'CormorantGaramond_300Light', color: 'rgba(245,240,232,0.94)', fontSize: 12, flexShrink: 1 },
+  consultWordIt: { fontFamily: 'CormorantGaramond_400Regular_Italic', color: '#F5F0E8' },
   name: { fontFamily: FONTS.medium, color: MOON.porcelain, fontSize: 15.5, flex: 1, marginRight: 8 },
   time: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 11.5 },
   line: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 13, marginTop: 2 },
