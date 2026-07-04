@@ -38,7 +38,7 @@ function Phase({ n, name, who, note }) {
   );
 }
 
-export default function Battlefield({ onBack = () => {} }) {
+export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {} }) {
   return (
     <View style={styles.root}>
       <LinearGradient colors={['#1A0A10', '#12070C', INK]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -114,11 +114,12 @@ export default function Battlefield({ onBack = () => {} }) {
             <Text style={styles.twoGap}>When they disagree — that's the whole point. Eloquence can mask a weak argument. It can't survive a factual audit.</Text>
           </View>
 
-          {/* status */}
-          <View style={styles.soonBar}>
-            <Text style={styles.soonTitle}>The floor is being prepared.</Text>
-            <Text style={styles.soonSub}>1v1 duels and tournaments — with real enrollment, live spectators, and college moot courts — are coming to The Battlefield. Practice against the house is on its way first.</Text>
-          </View>
+          {/* enter a practice duel */}
+          <Pressable style={styles.enterBtn} onPress={onEnterDuel}>
+            <Swords size={20} color={INK} />
+            <Text style={styles.enterTxt}>Try a practice duel</Text>
+          </Pressable>
+          <Text style={styles.enterSub}>Take an assigned side against the house, and face the adjudicator. 1v1 duels, live spectators, and college tournaments are on their way.</Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -174,4 +175,8 @@ const styles = StyleSheet.create({
   soonBar: { marginTop: 34, borderWidth: 1, borderColor: 'rgba(224,87,111,0.25)', borderRadius: 18, padding: 20, backgroundColor: 'rgba(224,87,111,0.05)' },
   soonTitle: { fontFamily: FONTS.display, color: '#F5ECE1', fontSize: 19 },
   soonSub: { fontFamily: FONTS.light, color: 'rgba(245,236,225,0.62)', fontSize: 14.5, lineHeight: 22, marginTop: 8 },
+
+  enterBtn: { marginTop: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: CRIMSON, borderRadius: 14, paddingVertical: 16 },
+  enterTxt: { fontFamily: FONTS.semibold, color: INK, fontSize: 16, letterSpacing: 0.3 },
+  enterSub: { fontFamily: FONTS.light, color: 'rgba(245,236,225,0.55)', fontSize: 13.5, lineHeight: 20, marginTop: 14, textAlign: 'center', paddingHorizontal: 8 },
 });
