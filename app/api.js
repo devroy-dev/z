@@ -150,7 +150,14 @@ export async function knownDevice() {
   } catch (e) { return false; }
 }
 
-export async function refreshSession() {
+// SINGLE-FLIGHT refresh. Supabase rotates refresh tokens (each is single-use), so
+// if several API calls hit 401 at once (e.g. on app open / after an OTA reload) and
+// each fires its own refresh, they race: the first consumes the token, the rest send
+// an already-used token and Supabase kills the whole session -> silent logout. Guard:
+// the first caller runs the refresh and everyone else awaits the SAME promise.
+let _refreshInFlight = null;
+
+async function _doRefresh() {
   let rt = null;
   try { rt = await AsyncStorage.getItem('z_refresh'); } catch (e) {}
   if (!rt) return false;
@@ -172,6 +179,13 @@ export async function refreshSession() {
     }
   } catch (e) {}
   return false;
+}
+
+export async function refreshSession() {
+  // if a refresh is already running, everyone waits on it instead of starting their own
+  if (_refreshInFlight) return _refreshInFlight;
+  _refreshInFlight = _doRefresh().finally(() => { _refreshInFlight = null; });
+  return _refreshInFlight;
 }
 
 // set the profile name (server wants it, esp. for rooms)
