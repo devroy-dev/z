@@ -841,3 +841,17 @@ export async function deleteMyAccount() {
     return { ok: true };
   } catch (e) { return { ok: false, error: 'no connection. try again.' }; }
 }
+
+// ── NOTIFICATIONS ──
+export async function savePush({ pushToken, prefs }) {
+  try {
+    const body = {};
+    if (pushToken) body.pushToken = pushToken;
+    if (prefs) body.prefs = prefs;
+    const r = await fetch(`${API_BASE}/me/push`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+    return { ok: r.ok };
+  } catch (e) { return { ok: false }; }
+}
+export async function getPushPrefs() {
+  try { const j = await authedJSON('GET', '/me/push'); return j?.prefs || {}; } catch (e) { return {}; }
+}

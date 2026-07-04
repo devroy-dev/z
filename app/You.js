@@ -12,7 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName } from './api';
+import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName, savePush, getPushPrefs } from './api';
+import { registerForPush, pushPermission } from './push';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -64,6 +65,33 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   // profile editor (name · photo · handle)
   const [showProfile, setShowProfile] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [notifPerm, setNotifPerm] = useState('undetermined');
+  const [notifPrefs, setNotifPrefs] = useState({ friend_requests: true, follow_ups: true, buzzes: true, room_invites: true });
+  const [notifBusy, setNotifBusy] = useState(false);
+
+  const openNotifs = async () => {
+    setShowNotifs(true);
+    const perm = await pushPermission();
+    setNotifPerm(perm);
+    const prefs = await getPushPrefs();
+    if (prefs && Object.keys(prefs).length) setNotifPrefs((cur) => ({ ...cur, ...prefs }));
+  };
+
+  const enableNotifs = async () => {
+    setNotifBusy(true);
+    const { granted, token } = await registerForPush();
+    setNotifBusy(false);
+    setNotifPerm(granted ? 'granted' : 'denied');
+    if (granted && token) { await savePush({ pushToken: token, prefs: notifPrefs }); }
+    else if (!granted) { Alert.alert('notifications off', 'you can turn them on in your phone settings for callmeZ anytime.'); }
+  };
+
+  const toggleNotif = async (key) => {
+    const next = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(next);
+    await savePush({ prefs: next });
+  };
   const [privacyBusy, setPrivacyBusy] = useState('');
 
   const doExport = async () => {
@@ -391,6 +419,53 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
     </View>
   );
 
+  if (showNotifs) return (
+    <View style={styles.root}>
+      <LinearGradient colors={[C.void, '#0d0d10', C.void]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <View style={styles.topBar}>
+          <Pressable hitSlop={10} onPress={() => setShowNotifs(false)}><Text style={styles.chev}>‹</Text></Pressable>
+          <Text style={styles.topTitle}>notifications</Text>
+          <View style={{ width: 26 }} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 24, paddingTop: 8 }}>
+
+          {notifPerm !== 'granted' ? (
+            <>
+              <Text style={styles.pvIntro}>let the house reach you — a friend request, a persona following up, an invite. never spam, always yours to turn off.</Text>
+              <Pressable style={styles.nfEnable} onPress={enableNotifs} disabled={notifBusy}>
+                <Text style={styles.nfEnableTxt}>{notifBusy ? 'turning on…' : 'turn on notifications'}</Text>
+              </Pressable>
+              {notifPerm === 'denied' ? (
+                <Text style={styles.pvHint}>notifications are off in your phone settings. open settings › callmeZ › notifications to allow.</Text>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.pvIntro}>choose what the house can reach you about.</Text>
+              {[
+                ['friend_requests', 'friend requests', 'when someone adds you'],
+                ['follow_ups', 'persona follow-ups', 'when a persona checks in — like "did you take the interview?"'],
+                ['buzzes', 'buzzes', 'when a persona buzzes you'],
+                ['room_invites', 'room invites', "when you're invited to a room"],
+              ].map(([key, label, hint]) => (
+                <Pressable key={key} style={styles.nfToggleRow} onPress={() => toggleNotif(key)}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nfLabel}>{label}</Text>
+                    <Text style={styles.nfHint}>{hint}</Text>
+                  </View>
+                  <View style={[styles.nfSwitch, notifPrefs[key] && styles.nfSwitchOn]}>
+                    <View style={[styles.nfKnob, notifPrefs[key] && styles.nfKnobOn]} />
+                  </View>
+                </Pressable>
+              ))}
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+
   if (showMemory) return (
     <View style={styles.root}>
       <LinearGradient colors={['#0D1119', '#0A0D14', '#090C12']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -511,6 +586,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             <Pressable key={s} style={styles.settingRow} onPress={
               s === 'sign out' ? onLogout
               : s === 'privacy & data' ? () => setShowPrivacy(true)
+              : s === 'notifications' ? openNotifs
               : undefined
             }>
               <Text style={[styles.settingText, s === 'sign out' && { color: '#E0A0A0' }]}>{s}</Text>
@@ -529,6 +605,15 @@ const styles = StyleSheet.create({
   pvRowText: { fontFamily: FONTS.regular, color: '#E8ECF4', fontSize: 16 },
   pvHint: { fontFamily: FONTS.regular, color: 'rgba(232,236,244,0.4)', fontSize: 12.5, lineHeight: 18, marginTop: 8 },
   pvDanger: { borderBottomColor: 'rgba(224,160,160,0.2)' },
+  nfEnable: { marginTop: 24, paddingVertical: 15, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(159,194,232,0.35)', backgroundColor: 'rgba(159,194,232,0.08)', alignItems: 'center' },
+  nfEnableTxt: { fontFamily: FONTS.semibold, color: '#9FC2E8', fontSize: 15 },
+  nfToggleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  nfLabel: { fontFamily: FONTS.regular, color: '#E8ECF4', fontSize: 15.5 },
+  nfHint: { fontFamily: FONTS.regular, color: 'rgba(232,236,244,0.42)', fontSize: 12.5, marginTop: 2, lineHeight: 17 },
+  nfSwitch: { width: 46, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.10)', padding: 3, justifyContent: 'center', marginLeft: 12 },
+  nfSwitchOn: { backgroundColor: 'rgba(159,194,232,0.55)' },
+  nfKnob: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#E8ECF4' },
+  nfKnobOn: { alignSelf: 'flex-end' },
   ledgerEmpty: { fontFamily: FONTS.light, color: 'rgba(231,215,199,0.45)', fontSize: 13, marginTop: 10, fontStyle: 'italic' },
   ledgerRow: { flexDirection: 'row', gap: 12, marginTop: 14, alignItems: 'flex-start' },
   ledgerOutcome: { fontFamily: FONTS.display, fontSize: 16, width: 18, textAlign: 'center', marginTop: 1 },

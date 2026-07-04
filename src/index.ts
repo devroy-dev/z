@@ -1249,6 +1249,40 @@ app.post('/me/delete', async (req, res) => {
   }
 });
 
+// ── NOTIFICATIONS: store the device's push token + the user's on/off prefs.
+// Called on app open (token) and from the settings toggles (prefs). Sending the
+// actual pushes rides the scheduled_pings clock + the seatbelt — not here. ──
+app.post('/me/push', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { pushToken, prefs } = req.body ?? {};
+    const patch: Record<string, unknown> = {};
+    if (typeof pushToken === 'string' && pushToken.trim()) patch.push_token = pushToken.trim().slice(0, 300);
+    if (prefs && typeof prefs === 'object') patch.notif_prefs = prefs;
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from('users').update(patch).eq('id', user.id);
+      if (error) return res.status(500).json({ error: 'push update: ' + error.message });
+    }
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: 'push failed: ' + (e?.message || String(e)) });
+  }
+});
+
+app.get('/me/push', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('users').select('notif_prefs').eq('id', user.id).maybeSingle();
+    res.json({ prefs: (data as any)?.notif_prefs ?? {} });
+  } catch (e: any) {
+    res.status(500).json({ error: 'push read failed: ' + (e?.message || String(e)) });
+  }
+});
+
 // list roster
 app.get('/threads', async (req, res) => {
   try {

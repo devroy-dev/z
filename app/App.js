@@ -50,7 +50,8 @@ import RoomChat from './RoomChat';
 import Desk from './Desk';
 import You from './You';
 import Door from './Door';
-import { isLoggedIn, refreshSession, logout } from './api';
+import { isLoggedIn, refreshSession, logout, savePush } from './api';
+import { registerForPush, pushPermission } from './push';
 import PublicRoom from './PublicRoom';
 import { C } from './theme';
 
@@ -200,6 +201,21 @@ export default function App() {
       setAuthed(false);
     })();
   }, []);
+
+  // once we're in, if notifications are already granted, quietly keep the push
+  // token fresh (tokens rotate). never blocks the UI; ignores failures.
+  React.useEffect(() => {
+    if (authed !== true) return;
+    (async () => {
+      try {
+        const perm = await pushPermission();
+        if (perm === 'granted') {
+          const { token } = await registerForPush();
+          if (token) await savePush({ pushToken: token });
+        }
+      } catch (e) {}
+    })();
+  }, [authed]);
 
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: C.void }} />;
 
