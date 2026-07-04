@@ -111,7 +111,7 @@ export async function finalVerdict(args: {
     `\n\n[TASK: The debate has concluded. Deliver your FINAL ADJUDICATION in your voice, mobile-legible (no drawn boxes). Judge the debating, not the position; identical standard for PRO and CON regardless of assigned side. Use Matter (50%: logic, evidence, factual accuracy — apply the iron fact-check rule) and Manner (50%: delivery, structure, control).\nOutput EXACTLY these labelled lines, nothing else:\nWINNER: <PRO or CON>\nSUMMARY: <2-3 sentences — the core clash and where it was decided>\nMATTER: <2-3 sentences — the substance/fact audit; name any fabrication struck or any claim left unverified>\nMANNER: <2-3 sentences — the delivery audit for both sides>\nVERDICT: <one line — who wins on Matter and why>\nCLOSING: <one sharp closing line>]`;
   try {
     const msg = await anthropic.messages.create({
-      model: MODEL, max_tokens: 600, system,
+      model: MODEL, max_tokens: 1100, system,
       messages: [{ role: 'user', content: `MOTION: ${args.motion}\n\nFULL TRANSCRIPT:\n${transcript}` }],
     });
     logUsage({ userId: 'battlefield', surface: 'other', model: MODEL, usage: (msg as any).usage });
@@ -120,12 +120,12 @@ export async function finalVerdict(args: {
     const w = grab('WINNER').toUpperCase().includes('PRO') ? 'PRO' : 'CON';
     return {
       winner: w as 'PRO' | 'CON',
-      summary: grab('SUMMARY').slice(0, 600),
-      matter: grab('MATTER').slice(0, 600),
-      manner: grab('MANNER').slice(0, 600),
-      adjVerdict: grab('VERDICT').slice(0, 300),
-      closing: grab('CLOSING').slice(0, 300),
-      raw: text.slice(0, 2000),
+      summary: grab('SUMMARY').slice(0, 1200),
+      matter: grab('MATTER').slice(0, 1200),
+      manner: grab('MANNER').slice(0, 1200),
+      adjVerdict: grab('VERDICT').slice(0, 600),
+      closing: grab('CLOSING').slice(0, 400),
+      raw: text.slice(0, 4000),
     };
   } catch {
     return { winner: 'PRO', summary: 'The adjudicator retires to chambers.', matter: '', manner: '', adjVerdict: '', closing: 'The floor is cleared.', raw: '' };

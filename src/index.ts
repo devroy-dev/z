@@ -1273,12 +1273,9 @@ app.post('/me/push', async (req, res) => {
 });
 
 // ── THE BATTLEFIELD: adjudicator diagnostics (temp — for pressure-testing the judge) ──
-// GET /battlefield/ready — did the soul + core + domain codexes load?
 app.get('/battlefield/ready', (_req, res) => {
   res.json(adjudicatorReady());
 });
-// POST /battlefield/test-verdict — run a real adjudication on a supplied transcript.
-// body: { domain, motion, transcript: [{seat:0|1, role, text}] }
 app.post('/battlefield/test-verdict', async (req, res) => {
   try {
     const { domain, motion, transcript } = req.body ?? {};
