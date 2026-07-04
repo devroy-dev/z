@@ -91,7 +91,7 @@ export async function retrievePrep(userMessage: string, userId: string): Promise
   if (!blocks.length) return '';
 
   return (
-    `\n\n[THE MATERIAL YOU PREPARED for this — studied cold, yours to command. Draw on it as your own mastery to ground the lesson: the real schools, the record, the strongest counter a student must be able to meet. You never name it, never call it a reference or a codex. There is only you and what you know.]\n\n` +
+    `\n\n[THE MATERIAL YOU PREPARED for this — studied cold, yours to command. It lays out every side at its strongest, because you know each position better than the men who hold it. This is your armoury, not your indecision. You do NOT mirror its balance back as "some say this, others say that" — that is the fence-sitting you despise. You wield it: hold both blades, and strike with whichever one the student has neglected. Argue the position they have not yet earned the right to dismiss. Draw on this as your own knowledge; never name it, never call it a reference or a codex — a master does not show his sources. There is only you and what you know.]\n\n` +
     blocks.join('\n\n') + '\n'
   );
 }
