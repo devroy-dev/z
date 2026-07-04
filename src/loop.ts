@@ -71,7 +71,16 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   }
 
   // ── STATIC (cached): soul + name + Codex ──────────────────────────────
-  const staticPrefix = customPrefix ?? buildStaticPrefix(t.companion_name, t.companion_gender, codexKeys, (thread as any).region ?? null);
+  let staticPrefix = customPrefix ?? buildStaticPrefix(t.companion_name, t.companion_gender, codexKeys, (thread as any).region ?? null);
+
+  // THE GRAND MASTER: his analogy bank is identical every turn, so it rides INSIDE the
+  // cached prefix (read at ~10% cost) rather than being re-sent full-price. His forge,
+  // always in hand — and cheap. (The per-question retrieval prep stays uncached below,
+  // since it changes with the question.)
+  if (t.persona_key === 'the_grandmaster') {
+    const bank = gmAnalogyBank();
+    if (bank) staticPrefix += '\n\n[YOUR FORGE — anchors and frictions for the core ideas, yours to wield as your own instinct. Ammunition, never a script: draw an image as your own knowing, and abandon it the instant a sharper one serves the student before you. Never recite these whole, never name them.]\n\n' + bank;
+  }
 
   // ── DYNAMIC (uncached): date + shared memory ──────────────────────────
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
@@ -221,19 +230,16 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   }
   const messages: Anthropic.MessageParam[] = [...priorTurns, { role: 'user', content: userContent }];
 
-  // ── THE GRAND MASTER: his analogy bank (always-on ammunition) + a silent retrieval
-  //    pre-pass (Option A). The analogy bank is his forge of anchors + frictions, always
-  //    in hand. The pre-pass consults his own deeper library (gm-* codices) for the
-  //    sections this question touches and injects them; he then teaches (streamed) from
-  //    all of it as his own mastery. Small talk / openers retrieve nothing and he opens a
-  //    door himself. Only this persona pays the extra pre-pass call.
+  // ── THE GRAND MASTER: silent retrieval pre-pass (Option A). His analogy bank already
+  //    rides in the cached prefix above. Here he consults his own deeper library (gm-*
+  //    codices) for the sections this question touches, injected uncached (it changes per
+  //    question). He then teaches (streamed) from all of it as his own mastery. Small talk
+  //    retrieves nothing and he opens a door himself. Only this persona pays the pre-pass.
   if (t.persona_key === 'the_grandmaster' && !hasImage) {
     try {
-      const bank = gmAnalogyBank();
-      if (bank) system.push({ type: 'text', text: '\n\n[YOUR FORGE — anchors and frictions for the core ideas, yours to wield as your own instinct. Ammunition, never a script: draw an image as your own knowing, and abandon it the instant a sharper one serves the student before you. Never recite these whole, never name them.]\n\n' + bank });
       const prep = await retrievePrep(typeof message === 'string' ? message : '', userId);
       if (prep) system.push({ type: 'text', text: prep });
-    } catch (e) { /* best-effort; he still teaches from his soul */ }
+    } catch (e) { /* best-effort; he still teaches from his soul + forge */ }
   }
 
   // ── the Haiku call (streamed) ─────────────────────────────────────────
