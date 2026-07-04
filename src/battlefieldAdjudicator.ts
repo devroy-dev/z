@@ -91,26 +91,73 @@ const ADJ_TOOLS = [
   },
 ];
 
-// run the tool-use loop: let the adjudicator retrieve/search until it delivers text.
-async function runWithTools(domain: DebateDomain, system: string, userContent: string, maxTokens: number, userId: string): Promise<string> {
+// The verdict is returned as STRUCTURED DATA via this tool — never parsed from prose.
+// The winner is an explicit enum, so it can never disagree with the reasoning or drift
+// with the model's formatting. This is the root fix for the winner-flip.
+const SUBMIT_VERDICT_TOOL = {
+  name: 'submit_verdict',
+  description: 'Submit your final adjudication as structured data. Call this exactly once, at the very end, after you have consulted whatever material you needed. The winner MUST be the side your matter and manner audits favour.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      winner: { type: 'string', enum: ['PRO', 'CON'], description: 'The side that won the debate on the merits. Must match your audits.' },
+      summary: { type: 'string', description: '2-3 sentences: the core clash and where it was decided.' },
+      matter: { type: 'string', description: '2-3 sentences: the substance/fact audit; name any fabrication struck or any claim left unverified.' },
+      manner: { type: 'string', description: '2-3 sentences: the delivery audit for both sides.' },
+      verdict_line: { type: 'string', description: 'One line: who wins on Matter and why.' },
+      closing: { type: 'string', description: 'One sharp closing line, in your voice.' },
+    },
+    required: ['winner', 'summary', 'matter', 'manner', 'verdict_line', 'closing'],
+  },
+};
+
+// The verdict loop: retrieval tools + web_search are available for the adjudicator to
+// consult, and the debate ENDS when it calls submit_verdict with structured data. The
+// winner is read from the enum field — NEVER parsed from prose. On failure we throw
+// loudly (the caller surfaces it); we never fabricate a default winner.
+async function runVerdictWithTools(domain: DebateDomain, system: string, userContent: string, userId: string): Promise<Verdict> {
   const messages: any[] = [{ role: 'user', content: userContent }];
   const codex = domainCodex(domain);
-  for (let hop = 0; hop < 5; hop++) {
+  const tools = [...ADJ_TOOLS, SUBMIT_VERDICT_TOOL];
+  let sawText = '';
+  for (let hop = 0; hop < 6; hop++) {
+    const forceVerdict = hop === 5; // last hop: force the verdict tool
     const msg: any = await anthropic.messages.create({
-      model: MODEL, max_tokens: maxTokens, temperature: 0, system,
-      tools: ADJ_TOOLS as any,
+      model: MODEL, max_tokens: 1400, temperature: 0, system,
+      tools: tools as any,
+      tool_choice: forceVerdict ? ({ type: 'tool', name: 'submit_verdict' } as any) : ({ type: 'auto' } as any),
       messages,
     });
     logUsage({ userId, surface: 'other', model: MODEL, usage: msg.usage });
-    const toolUses = (msg.content || []).filter((b: any) => b.type === 'tool_use');
-    if (!toolUses.length) {
-      // done — return the text
-      return (msg.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+    const blocks = msg.content || [];
+    sawText = blocks.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n') || sawText;
+    const verdictCall = blocks.find((b: any) => b.type === 'tool_use' && b.name === 'submit_verdict');
+    if (verdictCall) {
+      const v = (verdictCall as any).input || {};
+      const winner = String(v.winner || '').toUpperCase() === 'CON' ? 'CON'
+                   : String(v.winner || '').toUpperCase() === 'PRO' ? 'PRO' : null;
+      if (!winner) throw new Error('submit_verdict returned no valid winner enum: ' + JSON.stringify(v).slice(0, 300));
+      return {
+        winner,
+        summary: String(v.summary || '').slice(0, 1200),
+        matter: String(v.matter || '').slice(0, 1200),
+        manner: String(v.manner || '').slice(0, 1200),
+        adjVerdict: String(v.verdict_line || '').slice(0, 600),
+        closing: String(v.closing || '').slice(0, 400),
+        raw: JSON.stringify(v).slice(0, 4000),
+      };
     }
-    // execute the tools, feed results back
-    messages.push({ role: 'assistant', content: msg.content });
+    const otherTools = blocks.filter((b: any) => b.type === 'tool_use' && b.name !== 'submit_verdict');
+    if (!otherTools.length) {
+      // model produced text but didn't submit — nudge it to submit on the next hop
+      messages.push({ role: 'assistant', content: blocks });
+      messages.push({ role: 'user', content: 'Now call submit_verdict with your structured adjudication.' });
+      continue;
+    }
+    // execute retrieval/search tools, feed results back
+    messages.push({ role: 'assistant', content: blocks });
     const results: any[] = [];
-    for (const tu of toolUses) {
+    for (const tu of otherTools) {
       let out = '';
       try {
         if (tu.name === 'read_section') {
@@ -124,13 +171,8 @@ async function runWithTools(domain: DebateDomain, system: string, userContent: s
     }
     messages.push({ role: 'user', content: results });
   }
-  // ran out of hops — force a final answer without tools
-  const final: any = await anthropic.messages.create({
-    model: MODEL, max_tokens: maxTokens, temperature: 0, system,
-    messages: [...messages, { role: 'user', content: 'Deliver your final answer now, in the required format, using no further tools.' }],
-  });
-  logUsage({ userId, surface: 'other', model: MODEL, usage: final.usage });
-  return (final.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+  // exhausted hops without a structured verdict — do NOT fabricate a winner.
+  throw new Error('adjudicator did not submit a structured verdict after 6 hops. last text: ' + sawText.slice(0, 300));
 }
 
 // minimal web search via the same tool the rest of the engine uses, if present; else
@@ -192,45 +234,17 @@ export async function finalVerdict(args: {
   const transcript = args.fullTranscript
     .map((s) => `${s.seat === 0 ? 'PRO' : 'CON'} (${s.role}): ${s.text}`).join('\n\n');
   const system = staticPrefix(args.domain) +
-    `\n\n[TASK: The debate has concluded. Before you rule, CONSULT your prepared material: read the sections you need to verify the key factual claims and check the strongest counters (start with section 8, your fact-check notes, whenever a factual claim is in play). Then deliver your FINAL ADJUDICATION in your voice, mobile-legible. Judge the debating, not the position; identical standard for PRO and CON regardless of assigned side. Use Matter (50%: logic, evidence, factual accuracy — apply the iron fact-check rule) and Manner (50%: delivery, structure, control).
+    `\n\n[TASK: The debate has concluded. Before you rule, CONSULT your prepared material with read_section: verify the key factual claims and check the strongest counters (start with section 8, your fact-check notes, whenever a factual claim is in play; use web_search only for live facts the material does not cover). Judge the debating, not the position; identical standard for PRO and CON regardless of assigned side. Weigh Matter (50%: logic, evidence, factual accuracy — apply the iron fact-check rule) and Manner (50%: delivery, structure, control).
 
-CRITICAL OUTPUT RULES:
-- Decide the winner FIRST and put it on the first line.
-- Use PLAIN labels exactly as shown. NO markdown, NO asterisks, NO bold. Each label starts a new line.
-- Your WINNER line must agree with your reasoning: whichever side your Matter+Manner audit favours IS the winner.
-
-Output EXACTLY these labelled lines and nothing else:
-WINNER: PRO
-SUMMARY: <2-3 sentences — the core clash and where it was decided>
-MATTER: <2-3 sentences — the substance/fact audit; name any fabrication struck or any claim left unverified>
-MANNER: <2-3 sentences — the delivery audit for both sides>
-VERDICT: <one line — who wins on Matter and why>
-CLOSING: <one sharp closing line>
-
-(Replace PRO on the WINNER line with CON if CON won. No other text.)]`;
+When you have finished consulting, call submit_verdict exactly once with your structured adjudication. The winner field MUST be the side your matter and manner audits favour — it cannot contradict your own reasoning. Write the prose fields (summary, matter, manner, verdict_line, closing) in your own forensic voice.]`;
   try {
-    const text = await runWithTools(args.domain, system, `MOTION: ${args.motion}\n\nFULL TRANSCRIPT:\n${transcript}`, 1200, 'battlefield');
-    const clean = text.replace(/\*\*/g, '');
-    const LABELS = ['WINNER', 'SUMMARY', 'MATTER', 'MANNER', 'VERDICT', 'CLOSING'];
-    const grab = (label: string) => {
-      const re = new RegExp(`^\\s*${label}\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:${LABELS.join('|')})\\s*:|$)`, 'im');
-      return (re.exec(clean)?.[1] ?? '').trim();
-    };
-    const winnerRaw = grab('WINNER').toUpperCase();
-    const w = /\bCON\b/.test(winnerRaw) && !/\bPRO\b/.test(winnerRaw) ? 'CON'
-            : /\bPRO\b/.test(winnerRaw) && !/\bCON\b/.test(winnerRaw) ? 'PRO'
-            : /\bCON\b/.test(winnerRaw) ? 'CON' : 'PRO';
-    return {
-      winner: w as 'PRO' | 'CON',
-      summary: grab('SUMMARY').slice(0, 1200),
-      matter: grab('MATTER').slice(0, 1200),
-      manner: grab('MANNER').slice(0, 1200),
-      adjVerdict: grab('VERDICT').slice(0, 600),
-      closing: grab('CLOSING').slice(0, 400),
-      raw: clean.slice(0, 4000),
-    };
-  } catch (e) {
-    return { winner: 'PRO', summary: 'The adjudicator retires to chambers.', matter: '', manner: '', adjVerdict: '', closing: 'The floor is cleared.', raw: '' };
+    const v = await runVerdictWithTools(args.domain, system, `MOTION: ${args.motion}\n\nFULL TRANSCRIPT:\n${transcript}`, 'battlefield');
+    return v;
+  } catch (e: any) {
+    // NEVER fabricate a winner on failure. Surface the error loudly so it can't be
+    // laundered into a real-looking verdict.
+    console.error('[battlefield] verdict failed — NOT defaulting a winner:', e?.message || e);
+    throw new Error('adjudication_failed: ' + (e?.message || String(e)));
   }
 }
 
