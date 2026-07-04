@@ -273,7 +273,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
-  const PINNED_KEYS = new Set(['the_front_desk', 'the_anchor', 'z', 'z_serious']);
+  const PINNED_KEYS = new Set(['the_front_desk', 'z', 'z_serious']);
   // chats tab = 1:1 persona threads + human DMs. Persona ROOMS (with persona members,
   // like "Nolan's Odyssey") stay in the GROUPS tab. A DM is a shared thread with no
   // persona members → it belongs here, as a normal conversation.
@@ -298,7 +298,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   })
    .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
    .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : filt === 'unread' ? (r.unread > 0) : filt === 'fav' ? r.favourite : true);
-  const recents = allRows.filter((r) => !r.archived);
+  const recents = filt === 'archived' ? allRows.filter((r) => r.archived) : allRows.filter((r) => !r.archived);
   const archivedRows = allRows.filter((r) => r.archived);
 
   const setPref = async (row, prefs) => {
@@ -331,7 +331,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             <TextInput value={q} onChangeText={setQ} placeholder="search the house…" placeholderTextColor={MOON.faint} style={st.searchInput} />
           </View>
           <View style={st.chips}>
-            {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['friends','live friends']].map(([id,label]) => (
+            {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['friends','live friends'],['archived','archived']].map(([id,label]) => (
               <Pressable key={id} style={[st.chip, filt === id && st.chipOn]} onPress={() => setFilt(id)}>
                 <Text style={[st.chipTxt, filt === id && st.chipTxtOn]}>{label}</Text>
               </Pressable>
@@ -348,7 +348,7 @@ export default function ChatHome({ onOpen = () => {} }) {
               <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
             </View>
           </Pressable>
-          <Row face={dpFor('the_anchor')} tone={MOON.hairStrong} name="the news" line="the bulletin · fact-checks · ask anything" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
+          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=3`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
             <View style={[st.ring, { borderColor: MOON.moon }]}>
               {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}
@@ -392,7 +392,7 @@ export default function ChatHome({ onOpen = () => {} }) {
                 </ReanimatedSwipeable>
               ))}
               {recents.length === 0 && <Text style={st.empty}>no conversations yet — tap ✎ to meet the house.</Text>}
-              {archivedRows.length > 0 && (
+              {filt !== 'archived' && archivedRows.length > 0 && (
                 <>
                   <Pressable onPress={() => setShowArchived((v) => !v)} style={st.archiveRow}>
                     <Text style={st.archiveTxt}>{showArchived ? '▾' : '▸'} archived ({archivedRows.length})</Text>

@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount } from './api';
+import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName } from './api';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -159,6 +159,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   React.useEffect(() => { loadFriends(); }, [loadFriends]);
   // seed the saved handle from the server so it shows after leaving/returning (not just the session you set it in)
   const [myName, setMyName] = React.useState('');
+  React.useEffect(() => { cachedName().then((n) => { if (n) setMyName((cur) => cur || n); }); }, []);
   React.useEffect(() => { getMe().then((m) => { if (m && m.handle) setMyHandle(m.handle); if (m && m.displayName) setMyName(m.displayName); }); }, []);
   const saveHandle = async () => {
     const h = handleDraft.trim().toLowerCase().replace(/^@/, '');

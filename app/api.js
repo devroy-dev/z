@@ -212,7 +212,18 @@ export async function refreshSession() {
 
 // set the profile name (server wants it, esp. for rooms)
 export async function getMe() {
-  try { return await authedJSON('GET', '/me'); } catch (e) { return null; }
+  try {
+    const me = await authedJSON('GET', '/me');
+    try {
+      if (me && typeof me.displayName === 'string') await AsyncStorage.setItem('z_name', me.displayName);
+    } catch (e) {}
+    return me;
+  } catch (e) { return null; }
+}
+
+// last-known display name, read from cache to avoid the "you" placeholder flash.
+export async function cachedName() {
+  try { return (await AsyncStorage.getItem('z_name')) || ''; } catch (e) { return ''; }
 }
 
 // update the user's own profile: display name and/or avatar (data-URI) in one /me call.
@@ -244,6 +255,7 @@ export async function logout() {
     await AsyncStorage.removeItem('z_refresh');
     await AsyncStorage.removeItem('z_exp');
     await AsyncStorage.removeItem('z_real_uid');
+    await AsyncStorage.removeItem('z_name');
   } catch (e) {}
 }
 
