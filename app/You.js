@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe } from './api';
+import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag } from './api';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
 const SEED_FACTS = [
@@ -308,6 +308,10 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
           <Text style={[styles.sectionLabel, { marginTop: 28 }]}>settings</Text>
           <Pressable style={styles.settingRow} onPress={checkUpdates}>
             <Text style={styles.settingText}>{updState || 'check for updates'}</Text>
+            <Text style={styles.settingChev}>›</Text>
+          </Pressable>
+          <Pressable style={styles.settingRow} onPress={async () => { const d = await authDiag(); alert('AUTH STATE\n\nz_real_uid: ' + d.z_real_uid + '\nz_refresh: ' + d.z_refresh + '\nz_token: ' + d.z_token + '\nz_exp: ' + d.z_exp + '\n\nknownDevice: ' + d.knownDevice + '\n(' + d.why + ')'); }}>
+            <Text style={[styles.settingText, { color: 'rgba(159,194,232,0.7)' }]}>◈ auth diagnostic (temp)</Text>
             <Text style={styles.settingChev}>›</Text>
           </Pressable>
           <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(232,236,244,0.32)', fontSize: 10.5, marginHorizontal: 20, marginTop: -8, paddingBottom: 10 }}>

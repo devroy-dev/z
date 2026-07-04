@@ -23,10 +23,32 @@ export async function loadSession() {
   return { token: _token, userId: _uid };
 }
 
-export async function isLoggedIn() {
+// does a token merely EXIST in storage? (cheap, local — not a validity check)
+export async function hasStoredToken() {
   if (_token) return true;
   try { _token = await AsyncStorage.getItem('z_token'); } catch (e) {}
   return !!_token;
+}
+
+// is the session actually USABLE? verifies the token works against the server, so a
+// stale/expired token can't fake a logged-in state (that was the blank "you" bug:
+// a dead token existed -> app showed the house -> getMe() returned nothing -> "you"
+// + empty chats). If the token is dead but a refresh succeeds, we're good; otherwise
+// the caller should show the door, not a hollow house.
+export async function isLoggedIn() {
+  if (!(await hasStoredToken())) return false;
+  try {
+    const r = await fetch(`${API_BASE}/me`, { headers: headers() });
+    if (r.ok) return true;              // token valid
+    if (r.status === 401) {             // token dead -> try one refresh
+      return await refreshSession();
+    }
+  } catch (e) {
+    // network error: don't nuke a possibly-good session over a blip — treat as logged in
+    // and let per-request 401 handling sort it out once connectivity returns.
+    return true;
+  }
+  return false;
 }
 
 function headers() {
@@ -753,4 +775,23 @@ export async function createPublicRoom({ name, theme, personas }) {
 export async function kickFromRoom(roomId, userId) {
   try { return await authedJSON('POST', `/public-rooms/${roomId}/kick`, { userId }); }
   catch (e) { return { error: String(e?.message || e) }; }
+}
+
+// TEMP DIAGNOSTIC — dumps the exact auth-storage state so we can see why PIN
+// is / isn't offered. knownDevice() needs BOTH z_real_uid AND z_refresh.
+export async function authDiag() {
+  const g = async (k) => { try { return await AsyncStorage.getItem(k); } catch (e) { return null; } };
+  const uid = await g('z_real_uid');
+  const rt = await g('z_refresh');
+  const tok = await g('z_token');
+  const exp = await g('z_exp');
+  const known = !!(uid && rt);
+  return {
+    z_real_uid: uid ? uid.slice(0, 8) + '…' : 'MISSING',
+    z_refresh: rt ? 'present (' + rt.length + ' chars)' : 'MISSING',
+    z_token: tok ? 'present' : 'MISSING',
+    z_exp: exp ? new Date(Number(exp)).toLocaleTimeString() : 'MISSING',
+    knownDevice: known ? 'YES → should offer PIN' : 'NO → forces OTP',
+    why: known ? 'ok' : (!uid ? 'z_real_uid missing' : 'z_refresh missing'),
+  };
 }
