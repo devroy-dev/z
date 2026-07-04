@@ -25,21 +25,19 @@ const SECTIONS = [
     { id: 'poker', name: "Hold'em", tone: '#E0C088', blurb: 'five-handed. all in, or fold.' },
     { id: 'callbreak', name: 'Callbreak', tone: '#8FD98F', blurb: 'call your tricks. spades rule.' },
     { id: 'pusoy', name: 'Pusoy Dos', tone: '#6FC9E0', blurb: 'thirteen cards. diamonds are boss.' },
-    { id: 'rummy', name: 'Rummy', tone: '#F0708C', blurb: 'sets, sequences, sharp memory.' },
+    { id: 'rummy', name: 'Rummy', tone: '#F0708C', blurb: 'sets, sequences, sharp memory.', soon: true },
     { id: 'blackjack', name: 'Blackjack', tone: '#8FD98F', blurb: 'beat the house, baby.' },
     { id: 'bluff', name: 'Bluff', tone: '#F0708C', blurb: 'lie, call, get read.' },
     { id: 'uno', name: 'UNO', tone: '#6FC9E0', blurb: 'first to empty wins.' },
   ]},
   { label: 'the board', games: [
     { id: 'ludo', name: 'Ludo', tone: '#F0A765', blurb: 'the desi classic. race home.' },
-    { id: 'carrom', name: 'Carrom', tone: '#E0C088', blurb: 'flick, pocket, win.' },
-    { id: 'chess', name: 'Chess', tone: '#C99BE8', blurb: 'the long game.' },
+    { id: 'chess', name: 'Chess', tone: '#C99BE8', blurb: 'the long game.', soon: true },
     { id: 'snakes', name: 'Snakes & Ladders', tone: '#8FD98F', blurb: 'saanp seedhi, baby.' },
   ]},
   { label: 'fast hands', games: [
     { id: 'liarsdice', name: "Liar's Dice", tone: '#F0A765', blurb: 'five dice, one straight face.' },
-    { id: 'airhockey', name: 'Air Hockey', tone: '#6FC9E0', blurb: 'fast hands win.' },
-    { id: 'hangman', name: 'Hangman', tone: '#E0C088', blurb: "guess before it's too late." },
+    { id: 'hangman', name: 'Hangman', tone: '#E0C088', blurb: "guess before it's too late.", soon: true },
   ]},
   { label: 'mind duels', games: [
     { id: 'trivia', name: 'Trivia Duel', tone: '#6FC9E0', blurb: 'pick a topic. how many?' },
@@ -64,9 +62,10 @@ function GameCard({ game, onPick }) {
   const b = useSharedValue(0.5);
   useEffect(() => { b.value = withRepeat(withTiming(1, { duration: 3000 + game.name.length * 90, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
   const glow = useAnimatedStyle(() => ({ opacity: 0.45 + b.value * 0.45, transform: [{ scale: 0.95 + b.value * 0.1 }] }));
+  const soon = !!game.soon;
   return (
-    <Pressable style={styles.gameCard} onPress={() => onPick(game)}>
-      <View style={[styles.gameInner, { borderColor: hexA(game.tone, 0.28) }]}>
+    <Pressable style={styles.gameCard} onPress={() => soon ? null : onPick(game)}>
+      <View style={[styles.gameInner, { borderColor: hexA(game.tone, soon ? 0.14 : 0.28) }, soon && { opacity: 0.55 }]}>
         {/* tinted tactile ground per game */}
         <LinearGradient
           colors={[hexA(game.tone, 0.16), hexA(game.tone, 0.05), 'rgba(10,7,16,0.4)']}
@@ -86,6 +85,7 @@ function GameCard({ game, onPick }) {
           <Text style={styles.gameBlurb} numberOfLines={1}>{game.blurb}</Text>
         </View>
       </View>
+      {soon && <View style={styles.soonBadge}><Text style={styles.soonTxt}>soon</Text></View>}
     </Pressable>
   );
 }
@@ -271,6 +271,8 @@ const styles = StyleSheet.create({
   secLabel: { fontFamily: FONTS.semibold, color: C.accentSoft, fontSize: 11.5, letterSpacing: 2, textTransform: 'uppercase', paddingHorizontal: 22, marginBottom: 10, marginTop: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 16 },
   gameCard: { width: '48%', marginBottom: 13 },
+  soonBadge: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(20,16,26,0.82)', borderWidth: 1, borderColor: 'rgba(240,201,144,0.4)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3 },
+  soonTxt: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(240,201,144,0.92)', fontSize: 10.5, letterSpacing: 0.8, textTransform: 'uppercase' },
   gameInner: { borderRadius: 22, borderWidth: 1, height: 138, overflow: 'hidden', justifyContent: 'flex-end' },
   gameBloom: { position: 'absolute', top: -30, right: -30 },
   glyphHolder: { position: 'absolute', top: 20, left: 18 },
