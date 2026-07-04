@@ -33,6 +33,7 @@ import FantasyLeague from './FantasyLeague';
 import Arena from './Arena';
 import Battlefield from './Battlefield';
 import DuelRoom from './DuelRoom';
+import Gallery from './Gallery';
 import Uno from './games/uno/Table';
 import GameBoundary from './games/Boundary';
 import LudoTable from './games/ludo/Table';
@@ -104,6 +105,7 @@ function PlayWorld({ navigate, target }) {
   useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'battlefield', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'duel', React.useCallback(() => { setMode('battlefield'); return true; }, []));
+  useBackLayer(mode === 'gallery', React.useCallback(() => { setMode('battlefield'); return true; }, []));
   useBackLayer(mode === 'sims', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'floor', React.useCallback(() => { setMode('sims'); return true; }, []));
   useBackLayer(mode === 'ffl', React.useCallback(() => { setMode('sims'); return true; }, []));
@@ -145,10 +147,13 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'battlefield') {
-    return <Battlefield onBack={() => setMode('choose')} onEnterDuel={() => setMode('duel')} />;
+    return <Battlefield onBack={() => setMode('choose')} onEnterDuel={() => setMode('duel')} onWatch={() => setMode('gallery')} />;
   }
   if (mode === 'duel') {
     return <DuelRoom onBack={() => setMode('battlefield')} />;
+  }
+  if (mode === 'gallery') {
+    return <Gallery onBack={() => setMode('battlefield')} />;
   }
   if (mode === 'arena') {
     return <Arena initialGameId={target?.game || null} initialOpponent={target?.opp || null} onOpenStage={() => navigate && navigate('stage')} onBack={() => setMode('choose')} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;

@@ -38,7 +38,7 @@ function Phase({ n, name, who, note }) {
   );
 }
 
-export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {} }) {
+export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {}, onWatch = () => {} }) {
   return (
     <View style={styles.root}>
       <LinearGradient colors={['#1A0A10', '#12070C', INK]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -114,12 +114,15 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {} 
             <Text style={styles.twoGap}>When they disagree — that's the whole point. Eloquence can mask a weak argument. It can't survive a factual audit.</Text>
           </View>
 
-          {/* enter a practice duel */}
+          {/* enter a practice duel, or watch one live */}
           <Pressable style={styles.enterBtn} onPress={onEnterDuel}>
             <Swords size={20} color={INK} />
             <Text style={styles.enterTxt}>Try a practice duel</Text>
           </Pressable>
-          <Text style={styles.enterSub}>Take an assigned side against the house, and face the adjudicator. 1v1 duels, live spectators, and college tournaments are on their way.</Text>
+          <Pressable style={styles.watchBtn} onPress={onWatch}>
+            <Text style={styles.watchTxt}>Watch a live duel</Text>
+          </Pressable>
+          <Text style={styles.enterSub}>Take an assigned side against the house, or watch two debaters go head to head and vote on the winner. 1v1 duels, live spectators, and college tournaments are on their way.</Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -178,5 +181,7 @@ const styles = StyleSheet.create({
 
   enterBtn: { marginTop: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: CRIMSON, borderRadius: 14, paddingVertical: 16 },
   enterTxt: { fontFamily: FONTS.semibold, color: INK, fontSize: 16, letterSpacing: 0.3 },
+  watchBtn: { marginTop: 12, borderWidth: 1, borderColor: 'rgba(224,87,111,0.5)', borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
+  watchTxt: { fontFamily: FONTS.semibold, color: CRIMSON, fontSize: 15, letterSpacing: 0.3 },
   enterSub: { fontFamily: FONTS.light, color: 'rgba(245,236,225,0.55)', fontSize: 13.5, lineHeight: 20, marginTop: 14, textAlign: 'center', paddingHorizontal: 8 },
 });
