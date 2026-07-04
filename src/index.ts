@@ -43,6 +43,7 @@ app.use(express.json({ limit: '20mb' }));   // native picker photos ride as base
 // serve the PWA (single-file B Field surface) from /public
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { finalVerdict as bfVerdict, runningNote as bfNote, adjudicatorReady, DOMAIN_LABELS, type DebateDomain } from './battlefieldAdjudicator.js';
 const __dirname2 = dirname(fileURLToPath(import.meta.url));
 // ONE shared Anthropic client, created at boot (like loop.ts) — reused across requests.
 // Per-request `new Anthropic()` via dynamic import was causing "Premature close" on /banter.
@@ -1268,6 +1269,25 @@ app.post('/me/push', async (req, res) => {
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: 'push failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// ── THE BATTLEFIELD: adjudicator diagnostics (temp — for pressure-testing the judge) ──
+// GET /battlefield/ready — did the soul + core + domain codexes load?
+app.get('/battlefield/ready', (_req, res) => {
+  res.json(adjudicatorReady());
+});
+// POST /battlefield/test-verdict — run a real adjudication on a supplied transcript.
+// body: { domain, motion, transcript: [{seat:0|1, role, text}] }
+app.post('/battlefield/test-verdict', async (req, res) => {
+  try {
+    const { domain, motion, transcript } = req.body ?? {};
+    if (!domain || !DOMAIN_LABELS[domain as DebateDomain]) return res.status(400).json({ error: 'bad or missing domain', domains: Object.keys(DOMAIN_LABELS) });
+    if (!motion || !Array.isArray(transcript) || !transcript.length) return res.status(400).json({ error: 'motion + transcript[] required' });
+    const v = await bfVerdict({ domain: domain as DebateDomain, motion: String(motion), fullTranscript: transcript });
+    res.json(v);
+  } catch (e: any) {
+    res.status(500).json({ error: 'verdict failed: ' + (e?.message || String(e)) });
   }
 });
 
