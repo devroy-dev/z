@@ -1,10 +1,11 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — THE PLAY WORLD. Two doors: Arena (compete) + Stage (step into a
-//  scene). Both are humans + AI together — Arena always has ≥1 AI; Stage is
-//  rehearsal for real life. This is the chooser; each door opens its own world.
+//  yourZ — THE PLAY WORLD. Four doors: The Battlefield (argue a motion, judged),
+//  Arena (compete across a board), Stage (step into a scene), Sims (run a slice
+//  of the real world). All are humans + AI together. This is the chooser; each
+//  door opens its own world. Scrollable list so cards breathe as doors are added.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import Grain from './Grain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,32 +16,34 @@ import { NIGHT as C, FONTS } from './theme';
 function Door({ tone, kicker, title, line, glyph, onPress, delay = 0 }) {
   const b = useSharedValue(1);
   useEffect(() => {
-    b.value = withRepeat(withTiming(1.04, { duration: 3400 + delay, easing: Easing.inOut(Easing.ease) }), -1, true);
+    b.value = withRepeat(withTiming(1.05, { duration: 3400 + delay, easing: Easing.inOut(Easing.ease) }), -1, true);
   }, []);
   const orb = useAnimatedStyle(() => ({ transform: [{ scale: b.value }] }));
   return (
     <Pressable style={styles.door} onPress={onPress}>
       <LinearGradient
-        colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.015)']}
-        style={styles.doorInner}
+        colors={['rgba(255,255,255,0.055)', 'rgba(255,255,255,0.015)']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={[styles.doorInner, { borderColor: `${tone}22` }]}
       >
         <Animated.View style={[styles.doorOrb, orb]}>
-          <Svg width="64" height="64" viewBox="0 0 90 90">
+          <Svg width="76" height="76" viewBox="0 0 90 90">
             <Defs>
               <RadialGradient id={`door_${title}`} cx="50%" cy="50%" r="50%">
-                <Stop offset="0%" stopColor={tone} stopOpacity="0.5" />
-                <Stop offset="55%" stopColor={tone} stopOpacity="0.14" />
+                <Stop offset="0%" stopColor={tone} stopOpacity="0.55" />
+                <Stop offset="55%" stopColor={tone} stopOpacity="0.16" />
                 <Stop offset="100%" stopColor={tone} stopOpacity="0" />
               </RadialGradient>
             </Defs>
             <Circle cx="45" cy="45" r="45" fill={`url(#door_${title})`} />
-            <View />
           </Svg>
           <View style={styles.glyphHolder}>{glyph}</View>
         </Animated.View>
-        <Text style={[styles.doorKicker, { color: tone }]}>{kicker}</Text>
-        <Text style={styles.doorTitle}>{title}</Text>
-        <Text style={styles.doorLine}>{line}</Text>
+        <View style={styles.doorText}>
+          <Text style={[styles.doorKicker, { color: tone }]}>{kicker}</Text>
+          <Text style={styles.doorTitle}>{title}</Text>
+          <Text style={styles.doorLine}>{line}</Text>
+        </View>
       </LinearGradient>
     </Pressable>
   );
@@ -55,10 +58,14 @@ export default function Play({ onEnter = () => {} }) {
         <View style={styles.header}>
           <Text style={styles.kicker}>together, at play</Text>
           <Text style={styles.title}>the play</Text>
-          <Text style={styles.intro}>three ways in. compete across a board, step into a scene, or run a slice of the real world.</Text>
+          <Text style={styles.intro}>four ways in. argue a motion, compete across a board, step into a scene, or run a slice of the real world.</Text>
         </View>
 
-        <View style={styles.doors}>
+        <ScrollView
+          style={styles.doorsScroll}
+          contentContainerStyle={styles.doors}
+          showsVerticalScrollIndicator={false}
+        >
           <Door
             tone="#E0576F" kicker="argue it out" title="The Battlefield" delay={0}
             line="1v1 debate, judged by the adjudicator. reason over retrieval, truth over confidence. tournaments coming."
@@ -103,7 +110,7 @@ export default function Play({ onEnter = () => {} }) {
               </Svg>
             }
           />
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -116,12 +123,14 @@ const styles = StyleSheet.create({
   title: { fontFamily: FONTS.display, color: C.cream, fontSize: 34, marginTop: 2 },
   intro: { fontFamily: FONTS.light, color: C.muted, fontSize: 14, lineHeight: 21, marginTop: 10, maxWidth: 330 },
 
-  doors: { flex: 1, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10, gap: 14 },
-  door: { flex: 1 },
-  doorInner: { flex: 1, borderRadius: 26, borderWidth: 1, borderColor: 'rgba(255,240,228,0.09)', padding: 18, justifyContent: 'center', overflow: 'hidden' },
-  doorOrb: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  doorsScroll: { flex: 1 },
+  doors: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 24, gap: 14 },
+  door: { minHeight: 116 },
+  doorInner: { flexDirection: 'row', alignItems: 'center', borderRadius: 24, borderWidth: 1, padding: 18, overflow: 'hidden', gap: 16 },
+  doorOrb: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' },
   glyphHolder: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  doorKicker: { fontFamily: FONTS.body, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
-  doorTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 24, marginTop: 3 },
-  doorLine: { fontFamily: FONTS.light, color: C.muted, fontSize: 12.5, lineHeight: 18, marginTop: 6, maxWidth: 300 },
+  doorText: { flex: 1 },
+  doorKicker: { fontFamily: FONTS.body, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
+  doorTitle: { fontFamily: FONTS.display, color: C.cream, fontSize: 25, marginTop: 3 },
+  doorLine: { fontFamily: FONTS.light, color: C.muted, fontSize: 13, lineHeight: 18.5, marginTop: 6 },
 });
