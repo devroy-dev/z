@@ -112,6 +112,7 @@ export async function verifyOtp(phone, code) {
       if (j.refreshToken) await AsyncStorage.setItem('z_refresh', j.refreshToken);
       if (j.expiresIn) await AsyncStorage.setItem('z_exp', String(Date.now() + j.expiresIn * 1000));
       if (j.userId) await AsyncStorage.setItem('z_real_uid', j.userId);
+      if (phone) await AsyncStorage.setItem('z_phone', String(phone));
     } catch (e) {}
     return { ok: true, hasName: !!j.hasName, hasPin: !!j.hasPin };
   } catch (e) {
@@ -854,4 +855,9 @@ export async function savePush({ pushToken, prefs }) {
 }
 export async function getPushPrefs() {
   try { const j = await authedJSON('GET', '/me/push'); return j?.prefs || {}; } catch (e) { return {}; }
+}
+
+// the caller's phone (stored at login) — consult passes it to thedreamai for the meter
+export async function myPhone() {
+  try { return (await AsyncStorage.getItem('z_phone')) || ''; } catch (e) { return ''; }
 }

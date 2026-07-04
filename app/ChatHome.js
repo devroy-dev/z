@@ -349,6 +349,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
+          <Row face={`https://callmez.app/faces/the_consult.jpg?v=4`} tone={MOON.hairStrong} name="Expert Consultation" line="sit with Victor — the expert. by thedreamai" pinned onPress={() => onOpen({ kind: 'consult' })} />
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
             <View style={[st.ring, { borderColor: MOON.moon }]}>
               {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}

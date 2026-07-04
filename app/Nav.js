@@ -12,6 +12,7 @@ import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
 import { FONTS } from './theme';
 import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
+import Consult from './Consult';
 import QuietRoom from './QuietRoom';
 import Journal from './Journal';
 import Chat from './Chat';
@@ -152,6 +153,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
   // ── CHAT world: the Moonlight surface. deep-links open the right thing ──
   const openFromChat = (dest) => {
     if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
+    if (dest.kind === 'consult') return setOverlay({ tab: 'consult' });
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
     if (dest.kind === 'z') return setOverlay({ tab: 'quiet' });
     if (dest.kind === 'persona') return setChatOpen(dest);
@@ -169,6 +171,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
   // rendered fewer hooks than the previous pass and crashed the app. ──
   if (overlay) {
     if (overlay.tab === 'stage') return <Stage onBack={() => setOverlay(null)} />;
+    if (overlay.tab === 'consult') return <Consult onBack={() => setOverlay(null)} />;
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} />;
     if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} onJournal={() => setOverlay({ tab: 'journal' })} />;
     if (overlay.tab === 'journal') return <Journal onBack={() => setOverlay({ tab: 'quiet' })} />;
