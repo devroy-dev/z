@@ -44,6 +44,7 @@ app.use(express.json({ limit: '20mb' }));   // native picker photos ride as base
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { finalVerdict as bfVerdict, runningNote as bfNote, adjudicatorReady, DOMAIN_LABELS, type DebateDomain } from './battlefieldAdjudicator.js';
+import { grandMasterReady as gmReady } from './grandMaster.js';
 const __dirname2 = dirname(fileURLToPath(import.meta.url));
 // ONE shared Anthropic client, created at boot (like loop.ts) — reused across requests.
 // Per-request `new Anthropic()` via dynamic import was causing "Premature close" on /banter.
@@ -1275,6 +1276,9 @@ app.post('/me/push', async (req, res) => {
 // ── THE BATTLEFIELD: adjudicator diagnostics (temp — for pressure-testing the judge) ──
 app.get('/battlefield/ready', (_req, res) => {
   res.json(adjudicatorReady());
+});
+app.get('/grandmaster/ready', (_req, res) => {
+  res.json(gmReady());
 });
 app.post('/battlefield/test-verdict', async (req, res) => {
   try {
