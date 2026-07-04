@@ -296,6 +296,9 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
             <Text style={styles.friendMuted}>no one yet. share your handle or add someone above.</Text>
           ) : friends.friends.map((u) => (
             <View key={u.id} style={styles.friendCard}>
+              {u.avatar_url
+                ? <Image source={{ uri: u.avatar_url }} style={styles.friendAvatar} />
+                : <View style={[styles.friendAvatar, styles.friendAvatarEmpty]}><Text style={styles.friendAvatarLetter}>{(u.display_name || u.handle || '?').slice(0,1).toUpperCase()}</Text></View>}
               <View style={{ flex: 1 }}>
                 <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
                 <Text style={styles.friendSub}>@{u.handle}</Text>
@@ -669,6 +672,9 @@ const styles = StyleSheet.create({
   friendBtnGhost: { paddingHorizontal: 10, paddingVertical: 7, marginLeft: 4 },
   friendBtnGhostTxt: { color: 'rgba(232,236,244,0.5)', fontSize: 15 },
   friendCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  friendAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: 'rgba(255,255,255,0.06)' },
+  friendAvatarEmpty: { alignItems: 'center', justifyContent: 'center' },
+  friendAvatarLetter: { fontFamily: FONTS.semibold, color: 'rgba(232,236,244,0.7)', fontSize: 16 },
   friendName: { fontFamily: FONTS.medium, color: '#E8ECF4', fontSize: 15.5 },
   friendSub: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 12, marginTop: 1 },
   friendMuted: { fontFamily: FONTS.body, color: 'rgba(232,236,244,0.4)', fontSize: 13, marginTop: 8 },

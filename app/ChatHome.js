@@ -367,7 +367,8 @@ export default function ChatHome({ onOpen = () => {} }) {
             ) : (
               friendList.map((fr) => (
                 <Row key={fr.id}
-                  glyph="🙂"
+                  face={fr.avatar_url || null}
+                  glyph={fr.avatar_url ? null : '🙂'}
                   tone={MOON.hair}
                   name={fr.display_name || ('@' + fr.handle)}
                   line={fr.handle ? '@' + fr.handle : 'tap to chat'}

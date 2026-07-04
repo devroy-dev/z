@@ -143,14 +143,14 @@ app.get('/friends/find', async (req, res) => {
     const raw = String(req.query.handle || '').trim().toLowerCase().replace(/^@/, '');
     if (!HANDLE_RE.test(raw)) return res.status(400).json({ error: 'not a valid handle' });
     const { data: them } = await supabase.from('users')
-      .select('id, handle, display_name').ilike('handle', raw).is('deleted_at', null).maybeSingle();
+      .select('id, handle, display_name, avatar_url').ilike('handle', raw).is('deleted_at', null).maybeSingle();
     if (!them) return res.status(404).json({ error: 'no one by that handle' });
     if (them.id === me.id) return res.status(400).json({ error: "that's you" });
     // existing edge?
     const [lo, hi] = me.id < them.id ? [me.id, them.id] : [them.id, me.id];
     const { data: edge } = await supabase.from('friendships')
       .select('status, requested_by').eq('user_lo', lo).eq('user_hi', hi).maybeSingle();
-    res.json({ id: them.id, handle: them.handle, display_name: them.display_name,
+    res.json({ id: them.id, handle: them.handle, display_name: them.display_name, avatar_url: (them as any).avatar_url || null,
       relation: edge ? edge.status : 'none',
       youRequested: edge ? edge.requested_by === me.id : false });
   } catch (e: any) { res.status(500).json({ error: 'find failed: ' + (e?.message || String(e)) }); }
@@ -225,10 +225,10 @@ app.get('/friends', async (req, res) => {
     const allIds = [...new Set([...friendIds, ...incoming, ...outgoing])];
     const byId: Record<string, any> = {};
     if (allIds.length) {
-      const { data: us } = await supabase.from('users').select('id, handle, display_name').in('id', allIds);
+      const { data: us } = await supabase.from('users').select('id, handle, display_name, avatar_url').in('id', allIds);
       for (const u of (us ?? [])) byId[(u as any).id] = u;
     }
-    const shape = (id: string) => ({ id, handle: byId[id]?.handle || null, display_name: byId[id]?.display_name || null });
+    const shape = (id: string) => ({ id, handle: byId[id]?.handle || null, display_name: byId[id]?.display_name || null, avatar_url: byId[id]?.avatar_url || null });
     res.json({
       friends: friendIds.map(shape),
       incoming: incoming.map(shape),
