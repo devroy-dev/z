@@ -36,9 +36,21 @@ export async function consultFields() {
 }
 
 // open a session on a chosen field. phone carries the callmeZ user's identity so the
-// daily-free gate + demand map work the same as on thedreamai.
+// daily-free gate + demand map work the same as on thedreamai. NOTE: the engine returns
+// HTTP 403 with {blocked:true} when the daily cap is hit — that's a valid outcome, not an
+// error, so we read the body regardless of status and let the caller show the "come back
+// tomorrow" screen instead of a generic failure.
 export async function consultMint(profession_key, phone) {
-  return daFetch('/consult-mint', { profession_key, phone });
+  const r = await fetch(`${DREAMAI_ENGINE}/consult-mint`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profession_key, phone }),
+  });
+  const d = await r.json().catch(() => ({}));
+  // blocked (403) is a real, expected outcome — surface it, don't throw.
+  if (d && d.blocked) return { blocked: true, restricted: !!d.restricted, sessions_today: d.sessions_today };
+  if (!r.ok) throw new Error(d?.error || 'consult engine error');
+  return d;
 }
 
 // a turn with Victor
