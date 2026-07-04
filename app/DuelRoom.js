@@ -97,16 +97,19 @@ function OpponentComposing({ turn, onDone }) {
   const [shown, setShown] = useState('');
   useEffect(() => {
     setShown('');
-    let i = 0;
-    const full = turn.text;
-    const id = setInterval(() => {
-      // stream in small bursts with slight jitter — the "watch them write it" feel
-      const step = 2 + Math.floor(Math.random() * 4);
-      i = Math.min(full.length, i + step);
-      setShown(full.slice(0, i));
-      if (i >= full.length) { clearInterval(id); setTimeout(onDone, 700); }
-    }, 34);
-    return () => clearInterval(id);
+    const words = turn.text.split(/(\s+)/);
+    let i = 0; let alive = true;
+    const push = () => {
+      if (!alive) return;
+      if (i >= words.length) { setTimeout(onDone, 900); return; }
+      const w = words[i]; i++;
+      setShown((s) => s + w);
+      const last = (w || '').replace(/\s+$/, '').slice(-1);
+      const d = (last === '.' || last === '?' || last === '!') ? 420 : (last === ',' || last === ';' || last === '\u2014') ? 200 : 55;
+      setTimeout(push, d);
+    };
+    push();
+    return () => { alive = false; };
   }, [turn]);
   return (
     <View style={[styles.bubbleWrap, styles.bubbleRight]}>

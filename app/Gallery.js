@@ -61,8 +61,25 @@ function Swords({ size = 16, color = CRIMSON }) {
   );
 }
 
-function StreamLine({ turn }) {
+function StreamLine({ turn, live }) {
   const isPro = turn.side === 'PRO';
+  const [shown, setShown] = useState(live ? '' : turn.text);
+  useEffect(() => {
+    if (!live) { setShown(turn.text); return; }
+    // word-by-word reveal, like Z's chat — slow enough to WATCH the argument get built
+    const words = turn.text.split(/(\s+)/);
+    let i = 0; let alive = true;
+    const push = () => {
+      if (!alive || i >= words.length) return;
+      const w = words[i]; i++;
+      setShown((s) => s + w);
+      const last = (w || '').replace(/\s+$/, '').slice(-1);
+      const d = (last === '.' || last === '?' || last === '!') ? 420 : (last === ',' || last === ';' || last === '\u2014') ? 200 : 55;
+      setTimeout(push, d);
+    };
+    push();
+    return () => { alive = false; };
+  }, [turn, live]);
   return (
     <View style={[styles.lineWrap, isPro ? styles.lineLeft : styles.lineRight]}>
       <View style={styles.lineHead}>
@@ -72,7 +89,7 @@ function StreamLine({ turn }) {
         <Text style={styles.lineWho}>{turn.name} · {turn.phase}</Text>
       </View>
       <View style={[styles.lineBubble, { borderColor: isPro ? 'rgba(120,200,255,0.18)' : 'rgba(224,87,111,0.2)' }]}>
-        <Text style={styles.lineTxt}>{turn.text}</Text>
+        <Text style={styles.lineTxt}>{shown}{live && shown.length < turn.text.length ? <Text style={styles.caret}>▊</Text> : null}</Text>
       </View>
     </View>
   );
@@ -86,11 +103,15 @@ export default function Gallery({ onBack = () => {} }) {
   const streamRef = useRef(null);
   const chatRef = useRef(null);
 
-  // auto-advance the stream, as if watching live
+  // auto-advance: wait for the current turn to finish typing (word-by-word) + a beat,
+  // so each argument is watched being built, not popped in whole.
   useEffect(() => {
-    if (shown >= STREAM.length) { const t = setTimeout(() => setEnded(true), 1400); return () => clearTimeout(t); }
-    const t = setTimeout(() => setShown((s) => s + 1), 2600);
-    return () => clearTimeout(t);
+    if (shown >= STREAM.length) { const t = setTimeout(() => setEnded(true), 1600); return () => clearTimeout(t); }
+    const t = STREAM[shown - 1];
+    const words = t.text.split(/(\s+)/).length;
+    const typeMs = words * 60 + (t.text.match(/[.?!]/g) || []).length * 380; // rough type duration
+    const id = setTimeout(() => setShown((s) => s + 1), typeMs + 1400);
+    return () => clearTimeout(id);
   }, [shown]);
 
   useEffect(() => {
@@ -141,7 +162,7 @@ export default function Gallery({ onBack = () => {} }) {
 
         {/* the stream (read-only — spectators watch) */}
         <ScrollView ref={streamRef} style={styles.stream} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10 }} showsVerticalScrollIndicator={false}>
-          {turns.map((t, i) => <StreamLine key={i} turn={t} />)}
+          {turns.map((t, i) => <StreamLine key={i} turn={t} live={i === turns.length - 1 && !ended} />)}
           {!ended && shown < STREAM.length ? (
             <Text style={styles.streamingNote}>{currentPhase} · the floor is live…</Text>
           ) : null}
@@ -247,6 +268,7 @@ const styles = StyleSheet.create({
   lineWho: { fontFamily: FONTS.body, color: 'rgba(245,236,225,0.4)', fontSize: 10.5 },
   lineBubble: { borderWidth: 1, borderRadius: 14, padding: 12, backgroundColor: 'rgba(255,255,255,0.025)' },
   lineTxt: { fontFamily: FONTS.light, color: 'rgba(245,236,225,0.88)', fontSize: 13.5, lineHeight: 20 },
+  caret: { color: CRIMSON, fontFamily: FONTS.body },
 
   resultsBlock: { marginTop: 16, paddingTop: 4 },
   resultsKicker: { fontFamily: FONTS.semibold, color: 'rgba(224,87,111,0.9)', fontSize: 11, letterSpacing: 3, textAlign: 'center', marginBottom: 14 },
