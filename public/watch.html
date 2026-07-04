@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>The Battlefield — live</title>
+<!--
+  watch.html — THE UNGATED WATCH PAGE (PWA / callmez.app/watch).
+  The growth surface. A stranger taps a shared link → phone + OTP ONLY (no username, no
+  profile, no account setup) → watch + vote, free. To CHAT in the green room, or to STEP
+  IN and debate, they must create an account — the conversion ladder is shown, not hidden.
+  Ungated spectators vote; they do not comment. Friction kills spectators, so the gate is
+  the thinnest possible. Duel content is mocked (Step B wires the live event); the OTP gate
+  is the real flow (/auth/otp, /auth/verify), so the true stranger→watching funnel is felt.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Newsreader:ital,wght@0,300;0,400;0,500;1,300;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#08060A; --cream:#F5ECE1; --dim:rgba(245,236,225,.55); --faint:rgba(245,236,225,.32);
+  --crimson:#E0576F; --blue:#78C8FF; --card:rgba(255,255,255,.03); --line:rgba(255,255,255,.09);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--cream);
+  font-family:'Newsreader',serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08060A 100%)}
+.wrap{height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto}
+.serif-it{font-family:'Cormorant Garamond',serif;font-style:italic}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* ── the OTP gate ── */
+#gate{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:32px;text-align:center}
+#gate .swords{margin-bottom:18px}
+#gate .kicker{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--crimson);margin-bottom:14px}
+#gate h1{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:34px;margin:0 0 6px;line-height:1.15}
+#gate .motion{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;color:var(--cream);opacity:.85;margin:14px 0 4px;line-height:1.4;max-width:380px}
+#gate .who{font-size:14px;color:var(--dim);margin-bottom:28px}
+#gate .who b.pro{color:var(--blue)} #gate .who b.con{color:var(--crimson)}
+#gate .live{display:inline-flex;align-items:center;gap:7px;margin-bottom:22px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--crimson)}
+#gate .live .dot{width:7px;height:7px;border-radius:50%;background:var(--crimson);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.field{width:100%;max-width:320px}
+.in{width:100%;background:var(--card);border:1px solid var(--line);border-radius:13px;
+  padding:14px 16px;color:var(--cream);font-size:16px;outline:none;font-family:'Cormorant Garamond',serif;text-align:center;margin-bottom:12px}
+.otp-in{letter-spacing:.45em;font-size:20px}
+.btn{width:100%;max-width:320px;background:var(--crimson);color:var(--ink);border:none;border-radius:13px;
+  padding:15px;font-family:'Newsreader',serif;font-weight:500;font-size:16px;cursor:pointer;transition:.2s}
+.btn:active{opacity:.8}
+.note{font-size:13px;color:var(--dim);margin-top:12px;min-height:18px}
+.back{font-size:13px;color:var(--faint);margin-top:16px;cursor:pointer}
+.gate-foot{font-size:12.5px;color:var(--faint);margin-top:26px;line-height:1.5;max-width:300px}
+.hidden{display:none!important}
+
+/* ── the watch view ── */
+#watch{flex:1;display:flex;flex-direction:column;min-height:0}
+.top{display:flex;align-items:center;gap:8px;padding:12px 18px 8px}
+.top .live{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--crimson)}
+.top .live .dot{width:6px;height:6px;border-radius:50%;background:var(--crimson);animation:pulse 1.4s infinite}
+.top .count{font-size:12px;color:var(--faint)}
+.top .brand{margin-left:auto;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--faint)}
+.motionbar{display:flex;gap:9px;padding:2px 20px 8px}
+.motionbar .m{flex:1;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;line-height:1.35}
+.debaters{display:flex;align-items:center;justify-content:center;gap:8px;padding-bottom:8px;font-size:13px}
+.debaters .n{font-weight:500} .debaters .n.pro{color:var(--blue)} .debaters .n.con{color:var(--crimson)}
+.debaters .s{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--faint)}
+.debaters .vs{font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--faint)}
+
+.stream{flex:1;overflow-y:auto;padding:8px 16px;border-top:1px solid rgba(255,255,255,.05)}
+.line{margin:9px 0;max-width:92%}
+.line.pro{margin-right:auto} .line.con{margin-left:auto}
+.line .lh{display:flex;align-items:center;gap:7px;margin-bottom:4px;padding:0 2px}
+.tag{border:1px solid;border-radius:6px;padding:1px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px}
+.tag.pro{border-color:rgba(120,200,255,.5);color:var(--blue)} .tag.con{border-color:rgba(224,87,111,.55);color:var(--crimson)}
+.line .who{font-size:11px;color:var(--faint)}
+.bub{border:1px solid;border-radius:14px;padding:12px;background:rgba(255,255,255,.025);font-family:'Newsreader',serif;font-weight:300;font-size:14px;line-height:1.5}
+.line.pro .bub{border-color:rgba(120,200,255,.18)} .line.con .bub{border-color:rgba(224,87,111,.2)}
+.streaming{font-family:'Cormorant Garamond',serif;font-style:italic;color:rgba(224,87,111,.7);font-size:13px;text-align:center;margin-top:8px}
+
+/* vote dock */
+.votedock{padding:10px 18px;border-top:1px solid rgba(224,87,111,.18);background:rgba(22,9,16,.6)}
+.votelabel{font-size:12px;color:var(--dim);text-align:center;margin-bottom:8px}
+.voterow{display:flex;gap:10px}
+.votebtn{flex:1;border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:11px;text-align:center;
+  font-weight:500;font-size:13px;color:var(--cream);cursor:pointer;background:none;font-family:'Newsreader',serif}
+.votebtn.pro.on{background:var(--blue);border-color:var(--blue);color:var(--ink)}
+.votebtn.con.on{background:var(--crimson);border-color:var(--crimson);color:var(--ink)}
+.tally{display:flex;height:4px;border-radius:2px;overflow:hidden;margin-top:10px;gap:1px}
+
+/* green room — locked for ungated */
+.green{border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.28);padding:12px 16px}
+.green .gh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.green .gl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--dim)}
+.green .gs{font-size:10.5px;color:var(--faint)}
+.green .locked{border:1px dashed rgba(224,87,111,.35);border-radius:12px;padding:14px;text-align:center}
+.green .locked .lk{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--cream);margin-bottom:6px}
+.green .locked .ls{font-size:12.5px;color:var(--dim);line-height:1.5;margin-bottom:12px}
+.cta{display:inline-block;background:var(--crimson);color:var(--ink);border:none;border-radius:11px;
+  padding:11px 22px;font-family:'Newsreader',serif;font-weight:500;font-size:14px;cursor:pointer;text-decoration:none}
+.cta.ghost{background:none;border:1px solid rgba(224,87,111,.5);color:var(--crimson)}
+
+/* results */
+.results{margin-top:14px;padding-top:4px}
+.rk{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--crimson);text-align:center;margin-bottom:14px}
+.rcard{border:1px solid rgba(255,255,255,.08);border-radius:15px;padding:16px;margin-bottom:12px}
+.rl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--dim)}
+.rw{font-family:'Cormorant Garamond',serif;font-size:20px;margin:8px 0}
+.rs{font-weight:300;font-size:14px;line-height:1.5;color:rgba(245,236,225,.82)}
+.rscores{display:flex;gap:18px;margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
+.cbar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:12px;gap:2px}
+.crow{display:flex;justify-content:space-between;margin-top:8px;font-weight:500;font-size:12.5px}
+.gap{font-family:'Cormorant Garamond',serif;font-style:italic;color:rgba(224,87,111,.85);font-size:14px;line-height:1.5;text-align:center;margin:6px 0 14px}
+.playcta{border:1px solid rgba(224,87,111,.4);border-radius:14px;padding:16px;text-align:center;margin-bottom:20px}
+.playcta .pt{font-family:'Cormorant Garamond',serif;font-size:18px;margin-bottom:6px}
+.playcta .ps{font-size:13px;color:var(--dim);line-height:1.5;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ══ THE OTP GATE — the only wall. phone + code, nothing else. ══ -->
+  <div id="gate">
+    <svg class="swords" width="34" height="34" viewBox="0 0 24 24"><path d="M5 4l10 10M4 5l1-1 2 2-1 1zM14 14l1.5 1.5a2 2 0 002.8 0M19 4L9 14M20 5l-1-1-2 2 1 1zM10 14l-1.5 1.5a2 2 0 01-2.8 0" stroke="#E0576F" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="live"><span class="dot"></span> LIVE · 214 watching</div>
+    <div class="kicker">THE BATTLEFIELD</div>
+    <h1>A duel is live.</h1>
+    <div class="motion serif-it">"This house believes economic sanctions do more to entrench regimes than to weaken them."</div>
+    <div class="who"><b class="pro">Aarav</b> for the motion · <b class="con">Meera</b> against</div>
+
+    <!-- phase: phone -->
+    <div id="phase-phone" class="field">
+      <input id="phone" class="in" inputmode="numeric" placeholder="your phone number" autocomplete="tel">
+      <button class="btn" id="send">Watch this debate</button>
+      <div class="note" id="note-phone"></div>
+      <div class="gate-foot">No account, no profile — just a number to keep the room civil. One tap and you're in, watching and voting.</div>
+    </div>
+
+    <!-- phase: otp -->
+    <div id="phase-otp" class="field hidden">
+      <div class="note" style="margin-bottom:12px">We sent a code to <span id="otp-to" class="mono"></span></div>
+      <input id="otp" class="in otp-in" inputmode="numeric" maxlength="6" placeholder="• • • • • •" autocomplete="one-time-code">
+      <button class="btn" id="verify">Enter the room</button>
+      <div class="note" id="note-otp"></div>
+      <div class="back" id="change">‹ change number</div>
+    </div>
+  </div>
+
+  <!-- ══ THE WATCH VIEW ══ -->
+  <div id="watch" class="hidden">
+    <div class="top">
+      <span class="live"><span class="dot" id="livedot"></span> <span id="livetxt">LIVE</span></span>
+      <span class="count">· 214 watching</span>
+      <span class="brand">the Battlefield</span>
+    </div>
+    <div class="motionbar">
+      <svg width="15" height="15" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:2px"><path d="M5 4l10 10M4 5l1-1 2 2-1 1zM14 14l1.5 1.5a2 2 0 002.8 0M19 4L9 14M20 5l-1-1-2 2 1 1zM10 14l-1.5 1.5a2 2 0 01-2.8 0" stroke="#E0576F" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="m">"This house believes economic sanctions do more to entrench regimes than to weaken them."</div>
+    </div>
+    <div class="debaters">
+      <span class="n pro">Aarav</span><span class="s">PRO</span>
+      <span class="vs">vs</span>
+      <span class="s">CON</span><span class="n con">Meera</span>
+    </div>
+
+    <div class="stream" id="stream"></div>
+
+    <div class="votedock" id="votedock">
+      <div class="votelabel" id="votelabel">Who is winning? Cast your vote.</div>
+      <div class="voterow">
+        <button class="votebtn pro" id="vpro">Aarav · PRO</button>
+        <button class="votebtn con" id="vcon">Meera · CON</button>
+      </div>
+      <div class="tally"><div id="tpro" style="flex:61;background:rgba(120,200,255,.45)"></div><div id="tcon" style="flex:39;background:rgba(224,87,111,.45)"></div></div>
+    </div>
+
+    <!-- green room: LOCKED for ungated → register to chat -->
+    <div class="green">
+      <div class="gh"><span class="gl">THE GREEN ROOM</span><span class="gs">where the room reacts</span></div>
+      <div class="locked">
+        <div class="lk">You're watching. Want to talk?</div>
+        <div class="ls">The green room is where registered members react in real time — the debaters can't see it. Create an account to join the conversation.</div>
+        <a class="cta" href="/app.html">Create an account</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var pendingPhone='';
+
+  // ── the OTP gate (real endpoints /auth/otp, /auth/verify) ──
+  $('send').addEventListener('click', async function(){
+    var p=($('phone').value||'').replace(/[^0-9+]/g,'');
+    if(p.length<7){ $('note-phone').textContent='Enter a valid number.'; return; }
+    pendingPhone=p; $('note-phone').textContent='sending…'; $('send').style.opacity='.5';
+    try{
+      var r=await fetch('/auth/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:p})});
+      $('send').style.opacity='1';
+      if(!r.ok){ var j=await r.json().catch(function(){return{};}); $('note-phone').textContent=j.error||'could not send. try again.'; return; }
+      $('phase-phone').classList.add('hidden'); $('phase-otp').classList.remove('hidden');
+      $('otp-to').textContent=p; $('note-phone').textContent=''; $('otp').focus();
+    }catch(e){ $('send').style.opacity='1'; $('note-phone').textContent='no connection. try again.'; }
+  });
+
+  $('change').addEventListener('click', function(){
+    $('phase-otp').classList.add('hidden'); $('phase-phone').classList.remove('hidden'); $('note-otp').textContent='';
+  });
+
+  $('verify').addEventListener('click', async function(){
+    var code=($('otp').value||'').replace(/[^0-9]/g,'');
+    if(code.length<4){ $('note-otp').textContent='Enter the full code.'; return; }
+    $('note-otp').textContent='checking…'; $('verify').style.opacity='.5';
+    try{
+      var r=await fetch('/auth/verify',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({phone:pendingPhone,code:code,claimAnon:localStorage.getItem('z_uid')||null})});
+      var j=await r.json(); $('verify').style.opacity='1';
+      if(!r.ok||!j.token){ $('note-otp').textContent=(j&&j.error)||'that code did not work.'; return; }
+      // store the session — but this is the UNGATED path: no PIN, no name, straight to watching.
+      localStorage.setItem('z_token',j.token);
+      if(j.refreshToken)localStorage.setItem('z_refresh',j.refreshToken);
+      if(j.userId)localStorage.setItem('z_real_uid',j.userId);
+      enterWatch();
+    }catch(e){ $('verify').style.opacity='1'; $('note-otp').textContent='no connection. try again.'; }
+  });
+
+  // ── the watch experience (mocked live duel; Step B wires the real event) ──
+  var STREAM=[
+    {side:'PRO',name:'Aarav',phase:'Opening',text:"Sanctions hand a regime its perfect alibi. Every empty shelf becomes the enemy's fault — never the government's. The state seizes the black market and rewards loyalists with access. The people grow poorer and more dependent on the very regime the sanctions meant to topple."},
+    {side:'CON',name:'Meera',phase:'Opening',text:"That assumes the regime is a closed box. Sanctions raise the cost of repression — they starve the patronage networks that keep elites loyal. Apartheid South Africa bent under them. The alibi argument proves too much: by that logic no pressure could ever work."},
+    {side:'CON',name:'Meera',phase:'Rebuttal',text:"Aarav points to shortages but never shows the counterfactual — poorer than what? A regime with full oil revenue represses more efficiently, not less. Strip the revenue and you strip the machine."},
+    {side:'PRO',name:'Aarav',phase:'Rebuttal',text:"South Africa had an internal mass movement and a defecting business class — sanctions were the last ounce on a scale already tipping. Where that pressure is absent, sanctions just centralize scarcity in the regime's hands. You named the exception and called it the rule."},
+    {side:'PRO',name:'Aarav',phase:'Closing',text:"The mechanism is the whole case: sanctions transfer control of the economy to the state, and control is what an authoritarian craves. You cannot starve a regime that owns the last loaf."},
+    {side:'CON',name:'Meera',phase:'Closing',text:"And you cannot buy loyalty with an empty treasury. Sanctions need not topple a regime alone — only make it weaker and more brittle than it would otherwise be. That, they do."}
+  ];
+  var shown=0, vote=null;
+
+  function paintLine(t){
+    var d=document.createElement('div'); d.className='line '+(t.side==='PRO'?'pro':'con');
+    d.innerHTML='<div class="lh"><span class="tag '+(t.side==='PRO'?'pro':'con')+'">'+t.side+'</span>'+
+      '<span class="who">'+t.name+' · '+t.phase+'</span></div><div class="bub">'+t.text+'</div>';
+    var s=$('stream'); var note=$('streamnote'); if(note)note.remove();
+    s.appendChild(d);
+    if(shown<STREAM.length){ var n=document.createElement('div'); n.id='streamnote'; n.className='streaming'; n.textContent=t.phase+' · the floor is live…'; s.appendChild(n); }
+    s.scrollTop=s.scrollHeight;
+  }
+
+  function tick(){
+    if(shown>=STREAM.length){ var n=$('streamnote'); if(n)n.remove(); setTimeout(endDuel,1400); return; }
+    paintLine(STREAM[shown]); shown++;
+    setTimeout(tick,2800);
+  }
+
+  function enterWatch(){
+    $('gate').classList.add('hidden'); $('watch').classList.remove('hidden');
+    setTimeout(tick,600);
+    $('vpro').addEventListener('click',function(){ setVote('PRO'); });
+    $('vcon').addEventListener('click',function(){ setVote('CON'); });
+  }
+
+  function setVote(v){
+    vote=v;
+    $('vpro').classList.toggle('on',v==='PRO'); $('vcon').classList.toggle('on',v==='CON');
+    $('votelabel').textContent='Your vote is in — change it any time.';
+    var pro=v==='PRO'?62:61, con=100-pro;
+    $('tpro').style.flex=pro; $('tcon').style.flex=con;
+  }
+
+  function endDuel(){
+    $('livetxt').textContent='ENDED'; var ld=$('livedot'); if(ld)ld.style.animation='none';
+    // results appended to the stream
+    var s=$('stream');
+    var r=document.createElement('div'); r.className='results';
+    r.innerHTML=
+      '<div class="rk">TWO VERDICTS</div>'+
+      '<div class="rcard"><div class="rl">THE ADJUDICATOR — on the merits</div>'+
+        '<div class="rw"><span style="color:#E0576F">Meera (CON)</span> takes the floor</div>'+
+        '<div class="rs">A close duel. Aarav built the sharper single idea — sanctions centralize scarcity, and control is what an autocrat wants. But Meera forced the counterfactual he never answered. "Poorer than what?" hung over the floor unanswered.</div>'+
+        '<div class="rscores"><span>MATTER  Aarav 82 · Meera 85</span><span>MANNER  Aarav 86 · Meera 83</span></div></div>'+
+      '<div class="rcard"><div class="rl">THE ROOM — people\'s choice</div>'+
+        '<div class="cbar"><div style="flex:61;background:rgba(120,200,255,.6)"></div><div style="flex:39;background:rgba(224,87,111,.6)"></div></div>'+
+        '<div class="crow"><span style="color:#78C8FF">Aarav (PRO) 61%</span><span style="color:#E0576F">39% Meera</span></div></div>'+
+      '<div class="gap">The room gave it to Aarav on charisma — the last-loaf line landed. The adjudicator gave it to Meera on the merits. That gap is the whole point.</div>'+
+      '<div class="playcta"><div class="pt">Think you could argue it better?</div>'+
+        '<div class="ps">Create an account to step onto the Battlefield yourself — take an assigned side, face the adjudicator, and let a room judge you.</div>'+
+        '<a class="cta" href="/app.html">Enter the arena</a></div>';
+    s.appendChild(r); s.scrollTop=s.scrollHeight;
+    // fold the vote dock into a "voting closed" summary
+    $('votedock').innerHTML='<div class="votelabel">Voting closed'+(vote?' · you voted '+(vote==='PRO'?'Aarav':'Meera'):'')+'.</div>';
+  }
+})();
+</script>
+</body>
+</html>
