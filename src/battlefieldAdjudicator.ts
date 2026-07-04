@@ -65,28 +65,24 @@ function staticPrefix(domain: DebateDomain): string {
     SOUL +
     '\n\n[YOUR DISCIPLINE — the method of adjudication itself, always open to you. You judge through it constantly and draw on it as your own mastery; you never name it, never call it a codex or a reference. There is only you and what the floor gives you.]\n' +
     CORE +
-    `\n\n[YOUR PREPARED MATERIAL for this motion — the field is ${dLabel}. You have studied it cold. Below is only the INDEX of what you prepared. When you need to verify a claim, check the strongest counter, or settle a factual dispute, CONSULT THE RELEVANT SECTION with the read_section tool — do not rely on vague memory; pull the section and read it. Section 8 is your fact-check notes; consult it whenever a factual claim is in play. If the material is silent on a live/contested fact, you may web_search to verify — but never invent a fact-check. You never name this material to the debaters; you speak from it as your own knowledge.]\n\nINDEX:\n${idx}\n`
+    `\n\n[YOUR PREPARED MATERIAL for this motion — the field is ${dLabel}. You have studied it cold. Below is only the INDEX of what you prepared. When you need to verify a claim, check the strongest counter, or settle a factual dispute, CONSULT THE RELEVANT SECTION with the read_section tool — do not rely on vague memory; pull the section and read it. Section 8 is your fact-check notes; consult it whenever a factual claim is in play. If the material is silent on a claim, you never invent a fact-check and you never bring in a fact neither debater raised — you name the claim as unverified and weigh it on its logic alone. You never name this material to the debaters; you speak from it as your own knowledge.]\n\nINDEX:\n${idx}\n`
   );
 }
 
 // ── the adjudicator's tools (Donna's toolset) ──
+// ── the adjudicator's tools (Donna's toolset) — codex retrieval only in v1. ──
+// NO web search: the adjudicator judges on his prepared material + what was said on the
+// floor. He never introduces facts neither debater raised. When the codex is silent, the
+// soul's iron rule applies (name it unverified, weigh on logic). Web verification is a
+// deliberate v2 decision, not a default.
 const ADJ_TOOLS = [
   {
     name: 'read_section',
-    description: "Retrieve one section of your prepared material by its number (e.g. '5' or '8' or '3.2'). Use it to verify a claim, check the strongest counter-argument, or read your fact-check notes before ruling. Always consult the relevant section before striking a claim as fabricated.",
+    description: "Retrieve one section of your prepared material by its number (e.g. '5' or '8' or '3.2'). Use it to verify a claim a debater made, check the strongest counter-argument, or read your fact-check notes before ruling. Always consult the relevant section before striking a claim as fabricated.",
     input_schema: {
       type: 'object' as const,
       properties: { section: { type: 'string', description: "The section number, e.g. '8'." } },
       required: ['section'],
-    },
-  },
-  {
-    name: 'web_search',
-    description: 'Search the web to verify a specific factual claim that your prepared material does not cover. Use ONLY for live/contested facts you cannot verify from your material. Never use it to form opinions — only to check facts.',
-    input_schema: {
-      type: 'object' as const,
-      properties: { query: { type: 'string', description: 'A precise factual query.' } },
-      required: ['query'],
     },
   },
 ];
@@ -111,7 +107,7 @@ const SUBMIT_VERDICT_TOOL = {
   },
 };
 
-// The verdict loop: retrieval tools + web_search are available for the adjudicator to
+// The verdict loop: read_section retrieval is available for the adjudicator to consult
 // consult, and the debate ENDS when it calls submit_verdict with structured data. The
 // winner is read from the enum field — NEVER parsed from prose. On failure we throw
 // loudly (the caller surfaces it); we never fabricate a default winner.
@@ -163,8 +159,6 @@ async function runVerdictWithTools(domain: DebateDomain, system: string, userCon
         if (tu.name === 'read_section') {
           const sec = sliceSection(codex, String(tu.input?.section ?? ''));
           out = sec || `(no section '${tu.input?.section}' found in the material)`;
-        } else if (tu.name === 'web_search') {
-          out = await webSearch(String(tu.input?.query ?? ''));
         }
       } catch (e: any) { out = `(tool error: ${e?.message || e})`; }
       results.push({ type: 'tool_result', tool_use_id: tu.id, content: out.slice(0, 6000) });
@@ -173,22 +167,6 @@ async function runVerdictWithTools(domain: DebateDomain, system: string, userCon
   }
   // exhausted hops without a structured verdict — do NOT fabricate a winner.
   throw new Error('adjudicator did not submit a structured verdict after 6 hops. last text: ' + sawText.slice(0, 300));
-}
-
-// minimal web search via the same tool the rest of the engine uses, if present; else
-// a graceful "unavailable" so the adjudicator falls back to corpus-silence discipline.
-async function webSearch(query: string): Promise<string> {
-  try {
-    const key = process.env.BRAVE_API_KEY || process.env.SEARCH_API_KEY;
-    if (!key) return '(web search unavailable — treat as: material silent, weigh on logic alone)';
-    const r = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=3`, {
-      headers: { 'X-Subscription-Token': key, Accept: 'application/json' },
-    });
-    if (!r.ok) return '(web search failed — treat as: material silent)';
-    const d: any = await r.json();
-    const items = (d?.web?.results ?? []).slice(0, 3).map((it: any) => `• ${it.title}: ${it.description}`).join('\n');
-    return items || '(no results — treat as: material silent)';
-  } catch { return '(web search error — treat as: material silent)'; }
 }
 
 // ── after each completed exchange: one live diagnostic line (the commentary track) ──
@@ -234,7 +212,7 @@ export async function finalVerdict(args: {
   const transcript = args.fullTranscript
     .map((s) => `${s.seat === 0 ? 'PRO' : 'CON'} (${s.role}): ${s.text}`).join('\n\n');
   const system = staticPrefix(args.domain) +
-    `\n\n[TASK: The debate has concluded. Before you rule, CONSULT your prepared material with read_section: verify the key factual claims and check the strongest counters (start with section 8, your fact-check notes, whenever a factual claim is in play; use web_search only for live facts the material does not cover). Judge the debating, not the position; identical standard for PRO and CON regardless of assigned side. Weigh Matter (50%: logic, evidence, factual accuracy — apply the iron fact-check rule) and Manner (50%: delivery, structure, control).
+    `\n\n[TASK: The debate has concluded. Before you rule, CONSULT your prepared material with read_section: verify the key factual claims and check the strongest counters (start with section 8, your fact-check notes, whenever a factual claim is in play). You judge only on what the debaters said and what your material supports — you never introduce a fact neither side raised. Judge the debating, not the position; identical standard for PRO and CON regardless of assigned side. Weigh Matter (50%: logic, evidence, factual accuracy — apply the iron fact-check rule) and Manner (50%: delivery, structure, control).
 
 When you have finished consulting, call submit_verdict exactly once with your structured adjudication. The winner field MUST be the side your matter and manner audits favour — it cannot contradict your own reasoning. Write the prose fields (summary, matter, manner, verdict_line, closing) in your own forensic voice.]`;
   try {
