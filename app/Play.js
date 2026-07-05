@@ -112,7 +112,7 @@ export default function Play({ onEnter = () => {} }) {
           />
           <Door
             tone="#E7B07A" kicker="the cast performs" title="Shows" delay={2400}
-            line="the traitors, story collab \u2014 social games where the personas perform and you play along."
+            line="the traitors, story collab — social games where the personas perform and you play along."
             onPress={() => onEnter('shows')}
             glyph={
               <Svg width="34" height="34" viewBox="0 0 24 24">
