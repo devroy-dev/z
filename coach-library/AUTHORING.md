@@ -1,12 +1,14 @@
 # Coach House Codex — Authoring Standard
 
-**Status:** v1 — living standard, committed to the repo at `coach-library/AUTHORING.md`.
+**Status:** v2 — living standard, committed to the repo at `coach-library/AUTHORING.md`.
 
 **This is the standing format for _every_ house codex, present and future.** It governs the six universal subjects authored first, and equally governs everything authored later — additional subjects, exam-specific codexes (CLAT, GMAT, CAT, and so on), and any future authoring pass. Any new codex added to the coach's house corpus must follow this document. Read it before authoring anything; keep it open while you author.
 
-Treat it as **v1, not final.** The template is designed to distill cleanly, but the first real distillation (Logical Reasoning → PDF → clerk → shelf) is what proves it. If the clerk mangles the structure, this spec is corrected once and every later codex inherits the fix. When that happens, bump the version and note the change here.
+**v2 amendment — house codexes are authored _brief-direct_.** You author each codex in the distiller's *output* format — final §-numbers, quotable rules, declared gaps — and it is shelved by a lightweight embed-and-insert ingest. The Sonnet clerk (STUDY_CLERK) is **bypassed for house codexes.** It is reserved for user-uploaded *custom* material, which is untrusted and unstructured — its real job. Rationale: the value of an authored codex **is** its clean structure. Re-deriving that structure through a reading model is redundant and lossy — if distillation were the value we'd distill free ebooks. So the authored §-structure is **final**: there is nothing to mangle because nothing re-derives it. (See §6 for the ingest; see the changelog for the full v1→v2 delta.)
 
-**For:** the authoring model (Opus). **Deliverable:** one teaching document per subject, run through the coach's existing distiller and shelved as the shared house corpus.
+Treat it as **v2, living.** The proving ground is no longer "does the clerk survive the structure" — it's the first real **ingest + retrieve + teach** on Logical & Analytical Reasoning: does the authored brief embed, retrieve, and teach cleanly at runtime. If something in the authored format retrieves poorly or teaches badly, fix the spec once, bump the version, and note it here; every later codex inherits the fix.
+
+**For:** the authoring model (Opus). **Deliverable:** one authored brief (Markdown, brief-direct) per subject, shelved as the shared house corpus by the ingest step.
 
 You are authoring **substance, not voice.** The coach already has a soul (a warm, plain-spoken teacher) authored separately. Do not write in character, do not add personality, jokes, or a teaching persona. Write clean, correct, well-structured ground truth. The soul supplies the manner at runtime; you supply the truth it teaches from.
 
@@ -14,13 +16,15 @@ You are authoring **substance, not voice.** The coach already has a soul (a warm
 
 ## 0. What a codex is (and how it's used)
 
-Each codex is a **document of teaching ground truth for one universal skill.** It gets converted to PDF and passed through the coach's distiller (a one-time reading pass) which turns it into a §-numbered, page-anchored, searchable "Brief." At runtime the engine:
+Each codex is a **document of teaching ground truth for one universal skill,** authored directly in Brief form: a §-numbered, self-contained set of teaching sections that goes onto the shared house shelf via the embed-and-insert ingest. No PDF, no clerk pass. At runtime the engine:
 
 - distributes your **section order** across the days of a course (your section order literally becomes the study plan),
-- retrieves your sections to **teach** each lesson (cited by § and page),
+- retrieves your sections to **teach** each lesson (cited by §),
 - retrieves them again to **generate quizzes and mocks**, then independently verifies each answer key against a second pass.
 
 So three things must be true of what you write: the **order is the curriculum**, the **rules must be quotable and exact**, and **every worked answer must be defensible** — a wrong or ambiguous fact here becomes a wrong answer key in a paid product.
+
+**§ is the citation unit.** Because there is no source PDF, there is no "original page" to anchor to — the § *is* the citation. The runtime citation chain terminates at the § (finding → §), not at a page. Do not invent page numbers.
 
 **Do not author a question bank with answer keys.** The engine generates and self-verifies quiz items from your ground truth. Your job is the knowledge, the methods, the worked examples, and the traps the questions will be drawn from — not the questions themselves.
 
@@ -48,13 +52,13 @@ Ordered by **global portability** (how many markets the skill serves with zero t
 3. **Teaching order = section order.** Author from foundations to advanced, in the exact sequence a learner should progress. The engine slices this into days; each section must be **one teachable sitting** — a single concept, rule, method, or example-type a learner can absorb and drill in one go.
 4. **One defensible answer, always.** Every stated rule and every worked example must have exactly one correct, verifiable resolution. No "it depends," no ambiguous keys. This is the paid product's integrity; the engine's verifier and deterministic grading both rely on your ground truth being clean.
 5. **English medium.** The corpus is authored and taught in English.
-6. **Load-bearing statements must be quotable.** State each rule/definition/formula as one crisp, self-contained sentence. The distiller quotes these verbatim; write them so they survive on their own.
+6. **Load-bearing statements must be quotable.** State each rule/definition/formula as one crisp, self-contained sentence. It is stored and quoted verbatim; write it so it survives on its own.
 
 ---
 
 ## 3. Document structure (the shape every codex takes)
 
-Author in Markdown. Use explicit hierarchical section numbers that the distiller will preserve.
+Author in Markdown, **in the Brief's output shape** — explicit hierarchical section numbers, one load-bearing concept per section, self-contained. What you write is what gets embedded and shelved; there is no reformatting pass between you and the shelf, so the structure you author is the structure the engine retrieves.
 
 ```
 # <Subject Title>
@@ -86,9 +90,10 @@ Author in Markdown. Use explicit hierarchical section numbers that the distiller
 Rules for the structure:
 
 - **Every section carries a Rule, a Worked example, a Trap, and Key facts.** The Rule feeds accurate teaching; the Worked example seeds question patterns and shows method; the Trap becomes good distractors *and* gives the verifier something real to check against; Key facts are the anchors.
-- **One concept per section.** If a concept has distinct moves (e.g. "necessary vs sufficient conditions"), give each its own numbered sub-section.
+- **One concept per section.** If a concept has distinct moves (e.g. "necessary vs sufficient conditions"), give each its own numbered sub-section. Each § is one embedded, independently-retrievable unit — write it to stand on its own, because retrieval may surface it alone.
 - **Self-contained examples.** For Reading Comprehension, include the passages inside the codex. For every subject, an example must stand alone without external references.
-- **Size for whole-indexing.** Keep each document to a size the distiller can index in one pass. If a subject is large, split it into **modules** — separate documents on the same shelf (see per-subject briefs for suggested splits). Number sections continuously *within* a module.
+- **Declared gaps.** The Brief format carries a *declared gaps* field. For authored ground truth this is normally **empty** — you author the subject complete, and the deliberate exclusions already live in "How this subject is tested → Out of scope." Only use it to flag a genuine, intentional hole a downstream reader must know about. Do not manufacture gaps.
+- **Size for teaching, not for indexing.** There is no one-pass distill limit any more — nothing has to be read whole by a model. Section size is governed **only** by the one-teachable-sitting rule. If a subject is naturally large, you may still split it into **modules** — separate documents on the same shelf — purely for authoring and teaching clarity, not because a distiller demands it. Number sections continuously *within* a module. **Split only when the subject genuinely overflows one coherent teaching arc; do not pre-split by default.**
 
 ---
 
@@ -99,7 +104,7 @@ Each brief gives the **concept spine** — the ordered sections to write. This s
 ### 1. Logical & Analytical Reasoning
 **Spine (in order):** statements & logical form (all/some/none, quantifiers) → deductive validity vs invalidity → the syllogism → conditional logic (if-then, contrapositive; the converse/inverse errors) → necessary vs sufficient conditions → connectives & negation (and/or, De Morgan) → inductive reasoning & pattern inference → analytical puzzles: ordering/sequencing → analytical puzzles: grouping/matching/distribution → relational/spatial reasoning → common formal fallacies.
 **Formats:** "which must/could be true," puzzle sets with constraints, series, analogies.
-**Neutrality:** use letters, colours, generic actors. **Suggested split if large:** *Deductive Logic* / *Analytical Puzzles* as two modules.
+**Neutrality:** use letters, colours, generic actors. **Suggested split if it genuinely overflows:** *Deductive Logic* / *Analytical Puzzles* as two modules — but author it as one arc first and split only if it won't cohere whole.
 
 ### 2. Quantitative / Numerical Reasoning
 **Spine:** number sense → ratio & proportion → percentages & percentage change → averages, mixtures, rates → data interpretation (tables, charts) → number series & patterns → translating word problems to equations → basic counting & probability → estimation & speed/accuracy heuristics.
@@ -130,10 +135,11 @@ Each brief gives the **concept spine** — the ordered sections to write. This s
 
 ## 5. Output & handoff
 
-- **Write every codex into `coach-library/`** alongside this standard — sources and spec version and deploy together.
+- **Write every codex into `coach-library/`** alongside this standard — sources and spec version deploy together.
 - **One Markdown file per subject** (or per module for split subjects), following the Section-3 structure exactly.
 - **Filename:** `codex-<subject>.md` — e.g. `codex-logical-reasoning.md`, `codex-quant-reasoning.md`, `codex-legal-reasoning.md`. For modules: `codex-logical-reasoning-deductive.md`. Later exam-specific codexes follow the same convention: `codex-clat.md`, `codex-gmat.md`.
 - Author **in priority order** (start with Logical & Analytical Reasoning). Each is independent; ship them as they're done.
+- **Shelving is the ingest step, not the clerk.** Once a codex `.md` is in `coach-library/`, the embed-and-insert ingest (see §6) reads it, embeds each § via Voyage, and writes the rows. No PDF conversion, no Sonnet distill.
 - **Every future codex** — new subjects and exam-specific ones alike — is authored to this same standard and the same self-check below.
 
 **Self-check before you hand back a codex — every item must be yes:**
@@ -144,10 +150,26 @@ Each brief gives the **concept spine** — the ordered sections to write. This s
 - [ ] Every rule is one crisp quotable sentence; every worked answer is unambiguous.
 - [ ] A "How this subject is tested" section is present with scope-out fences.
 - [ ] No answer-key question bank (engine generates + verifies those).
-- [ ] Sized to distill in one pass, or cleanly split into modules.
+- [ ] Authored in final §-structure; § is the citation unit; no invented page numbers.
+- [ ] Declared gaps empty unless a real intentional hole exists.
+- [ ] One coherent teaching arc; split into modules only if it genuinely overflows.
 
 ---
 
 ## 6. Note for the engineer (not the author)
 
-These distill to the **shared house corpus**, owned by the single librarian identity, with **no course_id** — distinct from a user's private uploaded material. In the coach room the learner chooses **house coaching** (reads these) or **custom coaching** (reads only their own uploads); the two shelves never mix in a single retrieval call. Seed each codex-PDF through the distiller against the librarian owner. (Architecture already ruled; recorded here so the handoff is self-contained.)
+**House codexes bypass the clerk.** They are authored brief-direct and shelved by a lightweight **embed-and-insert ingest**, not the STUDY_CLERK Sonnet pass. Per codex the ingest: parses the `## §` sections out of the authored Markdown, calls Voyage `voyage-4` (1024-dim, `VOYAGE_API_KEY`) to embed each section, and inserts `coach_briefs` + `coach_brief_sections` rows in schema `z` under the **single librarian identity, with no `course_id`** — distinct from a user's private uploaded material. The FTS tsv + HNSW rows are produced by the existing sync trigger on insert exactly as in the upload path; the fused RPC `coach_search_sections` (FTS ⊕ vector RRF) retrieves them unchanged. It's ~a script, not a model in the loop — cheaper and deterministic.
+
+**The clerk keeps its real job:** user-uploaded *custom* material (untrusted, unstructured PDFs) still goes PDF → `coachDistill.ts` (STUDY_CLERK) → shelf, with real page anchors, because that input genuinely needs structuring. In the coach room the learner chooses **house coaching** (reads these codexes) or **custom coaching** (reads only their own uploads); the two shelves never mix in a single retrieval call.
+
+**What did not change:** Voyage embedding per section is the retrieval key in either pipeline — you pay it either way; brief-direct just drops the Sonnet distill cost on top. Deterministic grading and the second-pass answer-key verify are unchanged and still depend on the authored ground truth being clean.
+
+(Architecture ruled; recorded here so the handoff is self-contained.)
+
+---
+
+## Changelog
+
+**v2 (2026-07-06)** — House codexes are authored **brief-direct**: written in the distiller's *output* format (final §-numbers, quotable rules, declared gaps) and shelved via a lightweight Voyage embed-and-insert ingest. The Sonnet clerk is **bypassed for house codexes** and reserved for user-uploaded custom material — its real job. Rationale: the value of an authored codex *is* its clean structure; re-deriving that structure through a reading model is redundant and lossy (if distillation were the value, free ebooks would do). Consequences: no PDF step for house codexes; **§ is the citation unit** (real page anchors dropped — there is no "original page" for authored ground truth); the one-pass distill size limit is removed (sizing is now purely one-teachable-sitting granularity, and modules split only on genuine overflow, never by default); *declared gaps* normally empty for authored codexes. Voyage embedding per section is unchanged — it's the retrieval key in either pipeline.
+
+**v1** — Initial standard. All codexes routed through PDF → Sonnet clerk → shelf. Superseded by v2 for house codexes; the v1 clerk pipeline survives only for user-uploaded custom material.
