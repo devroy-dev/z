@@ -59,9 +59,16 @@ export type BFState = {
 function leadSeat(phaseIndex: number): 0 | 1 { return phaseIndex === 1 ? 1 : 0; }
 
 export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain }): BFState {
+  const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
+  // pin exactly if both given; else a random motion within the requested domain;
+  // else a fully random motion. (domain-only used to fall through to fully random.)
   const pick = (opts?.motion && opts?.domain)
     ? { motion: opts.motion, domain: opts.domain }
-    : MOTIONS[Math.floor(Math.random() * MOTIONS.length)];
+    : opts?.domain
+      ? (MOTIONS.filter((m) => m.domain === opts.domain).length
+          ? rand(MOTIONS.filter((m) => m.domain === opts.domain))   // motion within the requested domain
+          : rand(MOTIONS))
+      : rand(MOTIONS);
   return {
     kind: 'battlefield_duel',
     motion: pick.motion,
