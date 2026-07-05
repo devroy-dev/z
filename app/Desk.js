@@ -527,7 +527,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 
             <Text style={styles.lobbyLabel}>the gathering, at the door</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gatherRow}>
-              {[...TABLE_CAST.map((p) => p.key), 'the_anchor', 'the_coach'].map((k) => (
+              {['the_coach', ...TABLE_CAST.map((p) => p.key), 'the_anchor'].map((k) => (
                 <Pressable key={k} onPress={() => routeTo(k)} style={{ alignItems: 'center', width: 56 }}>
                   <Avatar pkey={k} uri={dpFor(k)} size={44} />
                   <Text style={styles.gatherName} numberOfLines={1}>{nameFallback(k).replace(/^the /, '')}</Text>
