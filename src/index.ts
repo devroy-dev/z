@@ -18,7 +18,7 @@ import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from '
 import { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';
 import { generatePlan, fetchExamContext, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
 import { distillMaterial } from './coachDistill.js';
-import { seedLibrary, listLibrary } from './coachLibrary.js';
+import { seedLibrary, listLibrary, codexPlan, subjectMeta } from './coachLibrary.js';
 import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag, coachReaction } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
@@ -1445,16 +1445,34 @@ app.post('/coach/start', express.json(), async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const topic = String(req.body?.topic || '').trim().slice(0, 160);
     const days = Math.max(1, Math.min(Number(req.body?.days) || 7, 30));
+    const mode = req.body?.mode === 'house' ? 'house' : 'custom';
+
+    if (mode === 'house') {
+      // learn from the shared LIBRARY: the codex's own § order is the plan (section order = study plan)
+      const subject = String(req.body?.subject || '').trim();
+      const meta = subjectMeta(subject);
+      if (!meta) return res.status(400).json({ error: 'unknown subject' });
+      const plan = codexPlan(subject, Number(req.body?.days) > 0 ? days : 0);
+      if (!plan.length) return res.status(500).json({ error: 'could not build the plan from the codex' });
+      const { data: c, error } = await supabase.from('coach_courses').insert({
+        user_id: user.id, topic: meta.label, mode: 'house', subject_key: subject,
+        total_days: plan.length, current_day: 1, plan, progress: {}, weak_tags: [],
+      }).select('id').single();
+      if (error || !c) return res.status(500).json({ error: error?.message || 'course create failed' });
+      return res.json({ courseId: c.id, topic: meta.label, mode: 'house', subjectKey: subject, totalDays: plan.length, currentDay: 1, plan });
+    }
+
+    // custom / bring-your-own: name the topic (web-grounded), then upload material to ground it
+    const topic = String(req.body?.topic || '').trim().slice(0, 160);
     if (!topic) return res.status(400).json({ error: 'topic required (the exam or subject to coach)' });
     const examContext = await fetchExamContext(topic, user.id);
     const plan = await generatePlan(topic, days, user.id, examContext);
     const { data: c, error } = await supabase.from('coach_courses').insert({
-      user_id: user.id, topic, total_days: plan.length, current_day: 1, plan, progress: {}, weak_tags: [],
+      user_id: user.id, topic, mode: 'custom', total_days: plan.length, current_day: 1, plan, progress: {}, weak_tags: [],
     }).select('id').single();
     if (error || !c) return res.status(500).json({ error: error?.message || 'course create failed' });
-    res.json({ courseId: c.id, topic, totalDays: plan.length, currentDay: 1, plan });
+    res.json({ courseId: c.id, topic, mode: 'custom', totalDays: plan.length, currentDay: 1, plan });
   } catch (e: any) { res.status(500).json({ error: 'coach start failed: ' + (e?.message || String(e)) }); }
 });
 app.post('/coach/:id/lesson', express.json(), async (req, res) => {
@@ -1670,6 +1688,7 @@ app.get('/coach/library', async (req, res) => {
     const devKey = process.env.DEV_KEY;
     const isDev = !!devKey && req.headers['x-dev-key'] === devKey;
     if (!isDev) { const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' }); }
+    res.setHeader('Cache-Control', 'no-store');
     res.json({ subjects: await listLibrary() });
   } catch (e: any) { res.status(500).json({ error: 'library list failed: ' + (e?.message || String(e)) }); }
 });

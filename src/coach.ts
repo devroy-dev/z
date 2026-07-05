@@ -16,6 +16,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { embedQueryLiteral } from './coachEmbed.js';
+import { LIBRARIAN_ID } from './coachLibrary.js';
 import { codexText } from './content.js';
 
 const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
@@ -185,11 +186,18 @@ export function applyVerdicts(questions: MCQ[], verdicts: { i: number; answer: n
 // ── grounding: retrieve the COURSE'S OWN material (fused FTS+vector), course-scoped ──
 export type Cite = { title: string; ref: string; page: number | null; body: string };
 export async function retrieveForCourse(userId: string, courseId: string, query: string, limit = 8): Promise<Cite[]> {
-  const { data: briefs } = await supabase.from('coach_briefs').select('id').eq('course_id', courseId).is('superseded_by', null);
+  // which shelf? house courses read the shared LIBRARY (librarian, by subject); others read the user's own uploads.
+  const { data: course } = await supabase.from('coach_courses').select('mode, subject_key').eq('id', courseId).maybeSingle();
+  const house = !!(course && (course as any).mode === 'house' && (course as any).subject_key);
+  const ownerId = house ? LIBRARIAN_ID : userId;
+  const briefQ = house
+    ? supabase.from('coach_briefs').select('id').eq('user_id', LIBRARIAN_ID).eq('subject_key', (course as any).subject_key).is('superseded_by', null)
+    : supabase.from('coach_briefs').select('id').eq('course_id', courseId).is('superseded_by', null);
+  const { data: briefs } = await briefQ;
   const ids = new Set(((briefs || []) as any[]).map((b) => b.id));
   if (!ids.size) return [];
   const qEmb = await embedQueryLiteral(query);
-  const { data } = await supabase.rpc('coach_search_sections', { p_user_id: userId, p_query: query, p_limit: 24, p_query_embedding: qEmb });
+  const { data } = await supabase.rpc('coach_search_sections', { p_user_id: ownerId, p_query: query, p_limit: 24, p_query_embedding: qEmb });
   return ((data || []) as any[]).filter((r) => ids.has(r.brief_id)).slice(0, limit).map((r) => ({ title: r.title, ref: r.ref, page: r.page, body: r.body }));
 }
 export function materialFromSections(sections: Cite[]): string {

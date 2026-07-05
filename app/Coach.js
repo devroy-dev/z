@@ -29,23 +29,24 @@ const P = {
 // the study — a warm 3-stop ground, like every other world has its own temperature
 const GRAD = ['#1B130B', '#120E0A', '#0A0806'];
 const FACE = `${API_BASE}/faces/the_coach.jpg?v=4`;
+const HUB_FACE = `${API_BASE}/faces/the_coaching_hub.jpg?v=5`;
 const OPT = ['A', 'B', 'C', 'D'];
 const KEY = 'coach_active_course';
 
 // ── the coach, present in the room: portrait if we have one, a lamp-lit
 //    monogram if we don't (so the surface has a face even before the asset ships) ──
-function Portrait({ size = 40 }) {
+function Portrait({ size = 40, uri = FACE, mark = 'C' }) {
   const [ok, setOk] = useState(true);
   const r = size / 2;
   if (ok) return (
     <Image
-      source={{ uri: FACE }} onError={() => setOk(false)}
+      source={{ uri }} onError={() => setOk(false)}
       style={{ width: size, height: size, borderRadius: r, borderWidth: 1, borderColor: 'rgba(238,200,145,0.5)' }}
     />
   );
   return (
     <View style={{ width: size, height: size, borderRadius: r, borderWidth: 1, borderColor: 'rgba(238,200,145,0.5)', alignItems: 'center', justifyContent: 'center', backgroundColor: P.lampGlow }}>
-      <Text style={{ fontFamily: FONTS.display, color: P.lamp, fontSize: size * 0.5, marginTop: -1 }}>C</Text>
+      <Text style={{ fontFamily: FONTS.display, color: P.lamp, fontSize: size * 0.5, marginTop: -1 }}>{mark}</Text>
     </View>
   );
 }
@@ -185,7 +186,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
         <Text style={s.eyebrow}>{eyebrow}</Text>
         <Text style={s.headTitle} numberOfLines={1}>{title}</Text>
       </View>
-      <Portrait size={30} />
+      <Portrait size={30} uri={HUB_FACE} mark="◈" />
     </View>
   );
   const Err = () => err ? <Text style={s.err}>{err}</Text> : null;

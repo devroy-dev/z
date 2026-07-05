@@ -18,6 +18,7 @@ import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from '
 import { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';
 import { generatePlan, fetchExamContext, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
 import { distillMaterial } from './coachDistill.js';
+import { seedLibrary, listLibrary } from './coachLibrary.js';
 import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag, coachReaction } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
@@ -36,6 +37,7 @@ import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
 import { battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
+import { evaluateMotion, generateMotions } from './battlefieldMotions.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
 import { readMemoryBlock } from './memory.js';
@@ -1628,6 +1630,60 @@ app.get('/battlefield/motions', (_req, res) => {
   res.json({ domains: Object.values(byDomain), count: MOTIONS.length });
 });
 
+// Check whether a PROPOSED motion is judgeable; if not, tell the organizer how to
+// restructure it (issues + evidentiary direction + a judgeable rewrite). Same
+// discipline as the adjudicator, applied before the debate.
+app.post('/battlefield/motion/check', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const motion = String(req.body?.motion || '').trim();
+    if (motion.length < 6) return res.status(400).json({ error: 'give me a motion to check' });
+    const domain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
+    const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
+    const a = await evaluateMotion(motion, domain, user.id, difficulty);
+    res.json({ motion, ...a });
+  } catch (e: any) { res.status(500).json({ error: 'motion check failed: ' + (e?.message || String(e)) }); }
+});
+
+// FOUNDER-GATED: draft codex-grounded candidate motions for a domain and keep only
+// the judgeable ones (one-time bank build; review the output before it ships).
+app.post('/battlefield/motions/generate', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const domain = req.body?.domain as DebateDomain;
+    if (!domain || !DOMAIN_LABELS[domain]) return res.status(400).json({ error: 'valid domain required' });
+    const n = Math.max(4, Math.min(20, parseInt(String(req.body?.n ?? 12), 10) || 12));
+    const tier = req.body?.tier === 'light' ? 'light' : 'pro';
+    const out = await generateMotions(domain, n, user.id, tier);
+    res.json({ domain, requested: n, keptCount: out.kept.length, droppedCount: out.dropped.length, kept: out.kept, dropped: out.dropped });
+  } catch (e: any) { res.status(500).json({ error: 'motion generate failed: ' + (e?.message || String(e)) }); }
+});
+
+// ── COACH LIBRARY (house subject corpus, shared) ────────────────────
+app.get('/coach/library', async (req, res) => {
+  try {
+    const devKey = process.env.DEV_KEY;
+    const isDev = !!devKey && req.headers['x-dev-key'] === devKey;
+    if (!isDev) { const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' }); }
+    res.json({ subjects: await listLibrary() });
+  } catch (e: any) { res.status(500).json({ error: 'library list failed: ' + (e?.message || String(e)) }); }
+});
+app.post('/coach/library/seed', express.json(), async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key) return res.status(404).json({ error: 'not found' });
+    if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    const only = req.body && typeof req.body.subject === 'string' ? req.body.subject : undefined;
+    const seeded = await seedLibrary(only);
+    res.json({ ok: true, count: seeded.length, seeded });
+  } catch (e: any) { res.status(500).json({ error: 'library seed failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/battlefield/watch/:sessionId', async (req, res) => {
   try {
     const { data: s } = await supabase.from('game_sessions').select('id, game, version, status, state, thread_id, seats').eq('id', req.params.sessionId).maybeSingle();
@@ -1701,7 +1757,8 @@ app.post('/battlefield/practice/start', async (req, res) => {
     }).select('id').single();
     if (tErr || !thread) return res.status(500).json({ error: 'could not open the practice floor: ' + (tErr?.message || '') });
     const seats = [{ kind: 'user', id: user.id }, { kind: 'persona', id: 'the_house' }];
-    const state = battlefieldDuelAdapter.create(seats, { motion, domain });
+    const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
+    const state = battlefieldDuelAdapter.create(seats, { motion, domain, difficulty });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
@@ -1733,7 +1790,8 @@ app.post('/battlefield/duel/start', async (req, res) => {
     const creatorSeat: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
     const seats: any[] = [{ kind: 'open' }, { kind: 'open' }];
     seats[creatorSeat] = { kind: 'user', id: user.id };
-    const state = battlefieldDuelAdapter.create(seats, { motion, domain });
+    const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
+    const state = battlefieldDuelAdapter.create(seats, { motion, domain, difficulty });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();

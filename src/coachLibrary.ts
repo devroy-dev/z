@@ -99,3 +99,27 @@ export async function listLibrary(): Promise<{ key: string; label: string }[]> {
   for (const r of (data || []) as any[]) if (r.subject_key) seen.add(r.subject_key);
   return SUBJECTS.filter((s) => seen.has(s.key)).map((s) => ({ key: s.key, label: s.label }));
 }
+
+// ── house course plan: the codex's own § order becomes the day-by-day spine ──
+// (section order = study plan). One § per day; maxDays>0 caps it, 0 = all sections.
+export function codexPlan(subjectKey: string, maxDays: number): { day: number; title: string; focus: string }[] {
+  const s = SUBJECTS.find((x) => x.key === subjectKey);
+  if (!s) return [];
+  const heads: string[] = [];
+  try {
+    const md = readContentFile(`coach-library/${s.file}`);
+    for (const line of md.split('\n')) {
+      const m = line.match(/^##\s+§\S+\s+(.+?)\s*$/);
+      if (m) heads.push(m[1].trim());
+    }
+  } catch { return []; }
+  if (!heads.length) return [];
+  const n = Math.max(1, maxDays > 0 ? Math.min(maxDays, heads.length) : heads.length);
+  return heads.slice(0, n).map((title, i) => ({ day: i + 1, title, focus: title }));
+}
+
+// label lookup for a subject_key (null if not a house subject)
+export function subjectMeta(key: string): { key: string; label: string } | null {
+  const s = SUBJECTS.find((x) => x.key === key);
+  return s ? { key: s.key, label: s.label } : null;
+}

@@ -486,7 +486,7 @@ export async function ffLeaderboard(league = 'epl') {
 
 // ── the anchor's bulletin ──
 // ── THE COACH ──
-export async function coachStart(topic, days) { return authedJSON('POST', '/coach/start', { topic, days }); }
+export async function coachStart(topic, days, opts = {}) { return authedJSON('POST', '/coach/start', { topic, days, ...opts }); }
 export async function coachGet(id) { return authedJSON('GET', `/coach/${id}`); }
 export async function coachLesson(id) { return authedJSON('POST', `/coach/${id}/lesson`); }
 export async function coachQuiz(id, n) { return authedJSON('POST', `/coach/${id}/quiz`, { n }); }
@@ -495,6 +495,8 @@ export async function coachAsk(id, question) { return authedJSON('POST', `/coach
 export async function coachMockStart(id, n, minutes) { return authedJSON('POST', `/coach/${id}/mock/start`, { n, minutes }); }
 export async function coachMockSubmit(id, mockId, answers) { return authedJSON('POST', `/coach/${id}/mock/${mockId}/submit`, { answers }); }
 export async function coachShelf(id) { return authedJSON('GET', `/coach/${id}/shelf`); }
+export async function coachLibrary() { return authedJSON('GET', '/coach/library'); }
+export async function coachMaterial(id, filename, dataB64) { return authedJSON('POST', `/coach/${id}/material`, { filename, dataB64 }); }
 
 // ── SHOWS: Traitors + Story Collab ──
 export async function traitorsStart(personas, opts) { return authedJSON('POST', '/games/traitors/start', { personas, ...(opts || {}) }); }
