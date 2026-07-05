@@ -115,6 +115,7 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
 .playcta .pt{font-family:'Cormorant Garamond',serif;font-size:18px;margin-bottom:6px}
 .playcta .ps{font-size:13px;color:var(--dim);line-height:1.5;margin-bottom:12px}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="wrap">
@@ -236,10 +237,124 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
     {side:'PRO',name:'Aarav',phase:'Closing',text:"The mechanism is the whole case: sanctions transfer control of the economy to the state, and control is what an authoritarian craves. You cannot starve a regime that owns the last loaf."},
     {side:'CON',name:'Meera',phase:'Closing',text:"And you cannot buy loyalty with an empty treasury. Sanctions need not topple a regime alone — only make it weaker and more brittle than it would otherwise be. That, they do."}
   ];
-  var shown=0, vote=null;
+  // ── the sessionId, from /watch/<id> (or ?duel=<id>) — if present, we watch a REAL duel ──
+  function duelId(){
+    var m = location.pathname.match(/\/watch\/([A-Za-z0-9-]+)/);
+    if (m) return m[1];
+    var q = new URLSearchParams(location.search).get('duel');
+    return q || null;
+  }
 
-  // paint a line's frame (tags), return the text node to type into
-  function openLine(t){
+  var vote=null, shown=0;
+
+  function enterWatch(){
+    $('gate').classList.add('hidden'); $('watch').classList.remove('hidden');
+    $('vpro').addEventListener('click',function(){ setVote('PRO'); });
+    $('vcon').addEventListener('click',function(){ setVote('CON'); });
+    var id = duelId();
+    if (id) { liveWatch(id); }        // a real duel — poll + realtime keystrokes
+    else { setTimeout(tick,600); }    // no id → the demo mock
+  }
+
+  // ══ LIVE WATCH: poll the committed transcript + verdict, and subscribe to the
+  //    debater's live keystroke stream over the duel channel. ══
+  function liveWatch(sessionId){
+    var lastCount = -1, ended = false, sb = null, ch = null, threadId = null, liveEl = null;
+
+    function bubble(seat, phaseLabel, text, live){
+      var side = seat===0 ? 'PRO' : 'CON';
+      var d=document.createElement('div'); d.className='line '+(seat===0?'pro':'con');
+      d.innerHTML='<div class="lh"><span class="tag '+(seat===0?'pro':'con')+'">'+side+'</span>'+
+        '<span class="who">'+(seat===0?'the challenger':'the house')+' · '+phaseLabel+(live?' · composing live':'')+'</span></div>'+
+        '<div class="bub"><span class="txt"></span>'+(live?'<span class="cursor">▊</span>':'')+'</div>';
+      d.querySelector('.txt').textContent = text;
+      return d;
+    }
+
+    // render the committed transcript (idempotent — only re-render when count grows)
+    function renderCommitted(d){
+      var turns = d.turns||[];
+      if (turns.length !== lastCount){
+        lastCount = turns.length;
+        // clear + rebuild committed turns (keeps it simple + correct)
+        var s=$('stream'); 
+        // remove all committed lines but keep the live element if present
+        Array.prototype.slice.call(s.querySelectorAll('.line.committed, .streaming')).forEach(function(n){n.remove();});
+        var frag=document.createDocumentFragment();
+        turns.forEach(function(t){ var b=bubble(t.seat, t.role, t.text, false); b.classList.add('committed'); frag.appendChild(b); });
+        // insert committed before the live element
+        if (liveEl && liveEl.parentNode===s) s.insertBefore(frag, liveEl); else s.appendChild(frag);
+        s.scrollTop=s.scrollHeight;
+      }
+      if (d.phase==='verdict' && !ended){ ended=true; clearLive(); liveVerdict(d); }
+    }
+
+    function clearLive(){ if(liveEl && liveEl.parentNode){ liveEl.parentNode.removeChild(liveEl); } liveEl=null; }
+
+    // the live-typing surface — the debater composing, streamed keystroke-by-keystroke
+    function onKeys(k){
+      if (ended) return;
+      if (!k || k.done || !k.text){ clearLive(); return; }
+      var s=$('stream');
+      if (!liveEl){ liveEl = bubble(k.seat, k.phase, k.text, true); s.appendChild(liveEl); }
+      else {
+        var txt = liveEl.querySelector('.txt'); if(txt) txt.textContent = k.text;
+      }
+      s.scrollTop=s.scrollHeight;
+    }
+
+    // poll the committed state
+    function poll(){
+      fetch('/battlefield/watch/'+sessionId).then(function(r){return r.json();}).then(function(d){
+        if (d && d.motion){
+          $('.m'); // no-op guard
+          var mEl=document.querySelector('.motionbar .m'); if(mEl) mEl.textContent='"'+d.motion+'"';
+          threadId = d.threadId;
+          renderCommitted(d);
+          if (!ended) setTimeout(poll, 1500);
+        } else { setTimeout(poll, 2000); }
+      }).catch(function(){ setTimeout(poll, 2500); });
+    }
+
+    // subscribe to the live keystroke channel once we know the thread
+    function subscribe(){
+      fetch('/config').then(function(r){return r.json();}).then(function(cfg){
+        if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !window.supabase) return;
+        sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth:{persistSession:false} });
+        var tok = localStorage.getItem('z_token'); if(tok){ try{ sb.realtime.setAuth(tok); }catch(e){} }
+        function join(){
+          if (!threadId){ setTimeout(join, 400); return; }
+          ch = sb.channel('duel-'+threadId, { config:{ broadcast:{ self:false } } })
+            .on('broadcast', { event:'keys' }, function(p){ if(p&&p.payload) onKeys(p.payload); })
+            .subscribe();
+        }
+        join();
+      }).catch(function(){});
+    }
+
+    poll(); subscribe();
+  }
+
+  function liveVerdict(d){
+    $('livetxt').textContent='ENDED'; var ld=$('livedot'); if(ld)ld.style.animation='none';
+    var v = d.verdict || {}; var winner = d.winner;
+    var s=$('stream');
+    var r=document.createElement('div'); r.className='results';
+    var youAgree = vote && (vote===winner);
+    r.innerHTML=
+      '<div class="rk">THE ADJUDICATOR RULES</div>'+
+      '<div class="rcard"><div class="rw"><span style="color:'+(winner==='PRO'?'#78C8FF':'#E0576F')+'">'+winner+'</span> takes the floor</div>'+
+        '<div class="rs">'+(v.summary||'')+'</div>'+
+        (v.matter?'<div class="rl" style="margin-top:10px">MATTER</div><div class="rs">'+v.matter+'</div>':'')+
+        (v.manner?'<div class="rl" style="margin-top:10px">MANNER</div><div class="rs">'+v.manner+'</div>':'')+
+      '</div>'+
+      (vote?'<div class="gap">You voted '+vote+'. '+(youAgree?'You and the adjudicator agree.':'The adjudicator saw it differently — that gap is the debate.')+'</div>':'')+
+      '<div class="playcta"><div class="pt">Think you could argue it better?</div>'+
+        '<div class="ps">Create an account to step onto the Battlefield yourself — take an assigned side, face the adjudicator, and let a room judge you.</div>'+
+        '<a class="cta" href="/app.html">Enter the arena</a></div>';
+    s.appendChild(r); s.scrollTop=s.scrollHeight;
+    $('votedock').innerHTML='<div class="votelabel">Voting closed'+(vote?' · you voted '+vote:'')+'.</div>';
+  }
     var d=document.createElement('div'); d.className='line '+(t.side==='PRO'?'pro':'con');
     d.innerHTML='<div class="lh"><span class="tag '+(t.side==='PRO'?'pro':'con')+'">'+t.side+'</span>'+
       '<span class="who">'+t.name+' · '+t.phase+'</span></div><div class="bub"><span class="txt"></span><span class="cursor">▊</span></div>';
@@ -277,13 +392,6 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
     if(shown>=STREAM.length){ var n=$('streamnote'); if(n)n.remove(); setTimeout(endDuel,1600); return; }
     var t=STREAM[shown]; shown++;
     typeLine(t, tick);
-  }
-
-  function enterWatch(){
-    $('gate').classList.add('hidden'); $('watch').classList.remove('hidden');
-    setTimeout(tick,600);
-    $('vpro').addEventListener('click',function(){ setVote('PRO'); });
-    $('vcon').addEventListener('click',function(){ setVote('CON'); });
   }
 
   function setVote(v){

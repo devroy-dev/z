@@ -69,6 +69,12 @@ app.use((req, res, next) => {
 });
 app.use(express.static(join(__dirname2, 'public')));
 
+// the per-duel watch link: /watch/<sessionId> serves the ungated watch page, which
+// reads the id from the path and streams that specific live duel.
+app.get('/watch/:sessionId', (_req, res) => {
+  res.sendFile(join(__dirname2, 'public', 'watch.html'));
+});
+
 // public config for the browser realtime client (anon key is public by design; RLS protects rows)
 app.get('/config', (_req, res) => {
   res.json({
