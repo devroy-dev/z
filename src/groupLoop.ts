@@ -11,6 +11,7 @@ import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { readMemoryBlock } from './memory.js';
+import { readRoomMemoryBlock } from './roomMemory.js';
 import { personaByKey, type CodexKey } from './personas.js';
 import { broadcastRoomMessage } from './broadcast.js';
 import { stateBlockFor } from './personaStates.js';
@@ -178,10 +179,10 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // the owner's private memory (that would leak one person's private history to the room).
   // It keeps its self/style, and knows only who's in the room. Owner memory is loaded only
   // for solo persona-groups and the owner's own 1:1-style group threads.
-  const memoryBlock = t.is_shared ? '' : await readMemoryBlock(userId);
+  const memoryBlock = t.is_shared ? await readRoomMemoryBlock(threadId) : await readMemoryBlock(userId);
   // in a shared room, replace the single-owner identity line with the room's people
   if (t.is_shared && input.senderName) {
-    ownerLine = `\n\n[THIS IS A SHARED ROOM with real people in it. The person who just spoke is "${input.senderName}". You do NOT know any private history about anyone here — you only know them from what's said in this room. Treat everyone as someone you're meeting in the room, by name.]`;
+    ownerLine = `\n\n[THIS IS A SHARED ROOM with real people in it. The person who just spoke is "${input.senderName}". You know these people only from your shared time in THIS room — the room memory below is what you remember together. You have no private history about anyone from outside this room. Greet and treat everyone by name.]`;
   }
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
 

@@ -14,6 +14,7 @@ import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { broadcastRoomMessage } from './broadcast.js';
+import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
@@ -1349,6 +1350,31 @@ app.post('/battlefield/practice/start', async (req, res) => {
 // {openings,rebuttals,closings}-style via `mySpeeches` (array of 3 strings: Opening,
 // Rebuttal, Closing). The house generates its three turns; the proven adjudicator rules.
 // Proves: state machine + phase advance + turn-lock + house generation + real verdict.
+// group-memory test: harvest a room's collective memory on demand + return it (founder-gated)
+app.post('/diagnostics/room-memory/:threadId', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const threadId = String(req.params.threadId || '');
+    const harvested = await harvestRoomMemory(threadId);
+    const block = await readRoomMemoryBlock(threadId);
+    res.json({ harvested, block });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+app.get('/diagnostics/room-memory/:threadId', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const block = await readRoomMemoryBlock(String(req.params.threadId || ''));
+    res.json({ block });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.get('/diagnostics/costs', async (req, res) => {
   try {
     const authId = await authUser(req);

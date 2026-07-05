@@ -7,6 +7,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './db.js';
 import { soulFor } from './content.js';
+import { runRoomMemoryHarvest } from './roomMemory.js';
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -142,6 +143,6 @@ export async function runOverseer(opts: { weekly?: boolean; onlyUser?: string } 
 //            `node dist/overseer-run.js weekly` → daily + weekly
 if (process.argv[1]?.includes('overseer-run')) {
   runOverseer({ weekly: process.argv.includes('weekly') })
-    .then((r) => { console.log(r); process.exit(0); })
+    .then(async (r) => { const rm = await runRoomMemoryHarvest(); console.log(r, rm); process.exit(0); })
     .catch((e) => { console.error(e); process.exit(1); });
 }
