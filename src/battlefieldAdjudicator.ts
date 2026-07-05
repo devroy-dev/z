@@ -119,7 +119,7 @@ async function runVerdictWithTools(domain: DebateDomain, system: string, userCon
   for (let hop = 0; hop < 6; hop++) {
     const forceVerdict = hop === 5; // last hop: force the verdict tool
     const msg: any = await anthropic.messages.create({
-      model: MODEL, max_tokens: 1400, temperature: 0, system,
+      model: MODEL, max_tokens: 2000, temperature: 0, system,
       tools: tools as any,
       tool_choice: forceVerdict ? ({ type: 'tool', name: 'submit_verdict' } as any) : ({ type: 'auto' } as any),
       messages,
@@ -133,6 +133,16 @@ async function runVerdictWithTools(domain: DebateDomain, system: string, userCon
       const winner = String(v.winner || '').toUpperCase() === 'CON' ? 'CON'
                    : String(v.winner || '').toUpperCase() === 'PRO' ? 'PRO' : null;
       if (!winner) throw new Error('submit_verdict returned no valid winner enum: ' + JSON.stringify(v).slice(0, 300));
+      // if the tool call was truncated mid-generation (max_tokens), the later fields
+      // (matter/manner/closing) can arrive empty. Don't ship a hollow verdict — nudge one
+      // re-submit asking ONLY for the missing prose, kept short so it fits.
+      const matterEmpty = !String(v.matter || '').trim();
+      const mannerEmpty = !String(v.manner || '').trim();
+      if ((matterEmpty || mannerEmpty) && msg.stop_reason === 'max_tokens' && hop < 5) {
+        messages.push({ role: 'assistant', content: blocks });
+        messages.push({ role: 'user', content: `Your submit_verdict was cut off before the audits were complete. Call submit_verdict again with the SAME winner (${winner}) and summary, but keep matter and manner to 2 tight sentences each so nothing is lost.` });
+        continue;
+      }
       return {
         winner,
         summary: String(v.summary || '').slice(0, 1200),
