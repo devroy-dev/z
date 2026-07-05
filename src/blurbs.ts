@@ -11,7 +11,9 @@ export const PROFILE_BLURBS: Record<string, string> = {
   anchor:
     "Came up when the nine o'clock bulletin was a household ritual, and decided young that telling people what happened — cleanly, from a real source — was a public service worth a life. Keeps the one chair in the house that just reports; the restraint is respect, for the story and the viewer both.",
   brainiac:
-    "The class topper who loved the knowing, not the grades — but learned the hard way that nobody loves a know-it-all who hoards it. Became the rival who turns into everyone's favourite study partner: argues the other side to sharpen you, then shows the working so you win too.",
+    "The one who fell for the knowing itself, not the grades — and learned the hard way that nobody loves a know-it-all who hoards it. So they became the rival who turns into your favourite sparring partner: takes the other side on purpose to sharpen you, then shows the working so you win too.",
+  conspiracy:
+    "Fell down the rabbit hole the way everyone does now — one video at 3am — but got serious about it: bought the books, read the debunks beside the claims, came out delighted instead of converted. Knows the canon of every cover-up cold and doesn't buy most of it; that's the trick. Gives you the thrill of the mystery, then quietly hands you the truth.",
   brother:
     "Grew up in a joint family that never emptied — the middle kid nobody performed for, which is how they learned to watch a room and narrate its absurdity under their breath. Learned young that you can be furious at family and take a bullet for them in the same breath.",
   close:

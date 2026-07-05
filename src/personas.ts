@@ -11,7 +11,7 @@ export type CodexKey =
   | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
   | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator'
   | 'hippie' | 'diva' | 'cousin' | 'front-desk'
-  | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague' | 'anchor' | 'grandmaster';
+  | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague' | 'anchor' | 'grandmaster' | 'conspiracy';
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -29,17 +29,15 @@ export const PERSONAS: Record<string, Persona> = {
   the_guru:         { key: 'the_guru',         defaultName: 'the guru',         codex: 'guru',      webEnabled: true  },
   the_oracle:       { key: 'the_oracle',       defaultName: 'the oracle',       codex: 'oracle', webEnabled: true  },
   the_philosopher:  { key: 'the_philosopher',  defaultName: 'the philosopher',  codex: 'philosopher',  webEnabled: true  },
-  the_cynic:        { key: 'the_cynic',        defaultName: 'the cynic',        codex: 'cynic',        webEnabled: false },
   the_moderator:    { key: 'the_moderator',    defaultName: 'the moderator',    codex: 'moderator',    webEnabled: true  },
   the_front_desk:   { key: 'the_front_desk',   defaultName: 'the front desk',  codex: 'front-desk',   webEnabled: false },
   the_historian:    { key: 'the_historian',    defaultName: 'the historian',    codex: 'historian',    webEnabled: true  },
   the_cosmologist:  { key: 'the_cosmologist',  defaultName: 'the cosmologist',  codex: 'cosmologist',  webEnabled: true  },
   the_media_manager:{ key: 'the_media_manager',defaultName: 'the media manager',codex: 'media_manager',webEnabled: true  },
   the_teacher:      { key: 'the_teacher',      defaultName: 'the professor',    codex: 'teacher',    webEnabled: true  },
-  the_economist:    { key: 'the_economist',    defaultName: 'the economist',    codex: 'economist',  webEnabled: true  },
+  the_economist:    { key: 'the_economist',    defaultName: 'the money man',     codex: 'economist',  webEnabled: true  },
   the_anchor:       { key: 'the_anchor',       defaultName: 'the anchor',       codex: 'anchor',     webEnabled: true  },
   the_grandmaster:  { key: 'the_grandmaster',  defaultName: 'the Grand Master',  codex: 'grandmaster', webEnabled: true  },
-  the_leader_opp:   { key: 'the_leader_opp',   defaultName: 'the leader of opposition', codex: 'leader_opp', webEnabled: true },
   z_serious:        { key: 'z_serious',        defaultName: 'Z',                codex: 'serious',    webEnabled: true  },
   the_wannabe:      { key: 'the_wannabe',      defaultName: 'the wannabe hustler', codex: 'wannabe', webEnabled: true },
   the_orator:       { key: 'the_orator',       defaultName: 'the orator',       codex: 'orator',    webEnabled: true  },
@@ -47,15 +45,19 @@ export const PERSONAS: Record<string, Persona> = {
   the_healer:       { key: 'the_healer',       defaultName: 'the healer',       codex: 'healer',    webEnabled: false },
   the_colleague:    { key: 'the_colleague',    defaultName: 'the colleague',    codex: 'colleague',    webEnabled: false },
   the_mentor:       { key: 'the_mentor',       defaultName: 'the mentor',       codex: 'forward',   webEnabled: true  },
-  the_stranger:     { key: 'the_stranger',     defaultName: 'the stranger',     codex: 'inner',     webEnabled: false },
-  the_brainiac:     { key: 'the_brainiac',     defaultName: 'the brainiac',     codex: 'brainiac', webEnabled: true  },
+  the_brainiac:     { key: 'the_brainiac',     defaultName: "the devil's advocate", codex: 'brainiac', webEnabled: true  },
+  the_conspiracy_theorist: { key: 'the_conspiracy_theorist', defaultName: 'the conspiracy theorist', codex: 'conspiracy', webEnabled: true },
   the_addict:       { key: 'the_addict',       defaultName: 'the rehab',       codex: 'shadow',    webEnabled: false },
-  the_self_obsessed:{ key: 'the_self_obsessed',defaultName: 'the guardian angel',codex: 'vanity',    webEnabled: false },
   the_hippie:       { key: 'the_hippie',       defaultName: 'the hippie',       codex: 'hippie',    webEnabled: false },
   the_diva:         { key: 'the_diva',         defaultName: 'the diva',         codex: 'diva',      webEnabled: true  },
   the_cousin:       { key: 'the_cousin',       defaultName: 'the awkward cousin', codex: 'cousin',  webEnabled: false },
 };
 
+// retired keys forward to a successor so existing threads never 404.
+const RETIRED: Record<string, string> = {
+  the_cynic: 'the_comic', the_leader_opp: 'the_brainiac',
+  the_stranger: 'the_healer', the_self_obsessed: 'the_mentor',
+};
 export function personaByKey(k: string): Persona | null {
-  return PERSONAS[k] ?? null;
+  return PERSONAS[k] ?? PERSONAS[RETIRED[k]] ?? null;
 }

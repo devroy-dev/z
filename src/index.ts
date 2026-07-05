@@ -98,8 +98,8 @@ const otpClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_A
 const SHAREABLE_PERSONAS = new Set([
   'the_guru','the_oracle','the_brainiac','the_brother','the_healer',
   'the_comic','the_mentor','the_colleague','the_philosopher','the_historian',
-  'the_cosmologist','the_moderator','the_cynic','the_media_manager','the_teacher',
-  'the_economist','the_leader_opp','the_wannabe','the_screen_junkie','the_orator',
+  'the_cosmologist','the_moderator','the_media_manager','the_teacher',
+  'the_economist','the_wannabe','the_screen_junkie','the_orator','the_conspiracy_theorist',
   'the_hippie','the_diva','the_cousin',
 ]);
 
@@ -526,7 +526,7 @@ app.post('/roleplay/start', async (req, res) => {
     // cast = persona keys that will play the roles (3-5); fall back to a sensible default set
     let castKeys: string[] = Array.isArray(cast) ? cast.filter((k: any) => typeof k === 'string') : [];
     if (castKeys.length < 3) {
-      castKeys = ['the_leader_opp', 'the_orator', 'the_cynic', 'the_brother'];
+      castKeys = ['the_brainiac', 'the_orator', 'the_comic', 'the_brother'];
     }
     castKeys = castKeys.filter((k) => k !== 'the_moderator').slice(0, 5);
     const members = [...castKeys, 'the_moderator'];
@@ -1554,24 +1554,23 @@ const SHAREABLE_ROSTER: [string, string][] = [
   ['the_brainiac', 'debate, devil\'s advocate, sharpening ideas'],
   ['the_brother', 'family, loyalty, real talk'],
   ['the_healer', 'heartbreak, love, emotional wounds'],
-  ['the_comic', 'humour, jokes, levity'],
+  ['the_comic', 'humour, jokes, dark wit, levity'],
   ['the_mentor', 'drive, discipline, pushing you (the motivator)'],
   ['the_colleague', 'work, office politics, careers'],
   ['the_philosopher', 'meaning, ethics, existence'],
   ['the_historian', 'history, how we got here'],
   ['the_cosmologist', 'space, science, zoom-out perspective'],
   ['the_moderator', 'keeps debates civil'],
-  ['the_cynic', 'dark humour, skepticism'],
   ['the_media_manager', 'branding, social, image'],
   ['the_teacher', 'explaining hard things simply (the professor)'],
-  ['the_economist', 'money, markets, cost of living'],
-  ['the_leader_opp', 'takes the contrarian political side'],
+  ['the_economist', 'money, markets, investing, cost of living (the money man)'],
   ['the_wannabe', 'hype, betting, get-rich energy (the wannabe hustler)'],
   ['the_screen_junkie', 'movies, shows, what to watch'],
   ['the_orator', 'speech, persuasion, rhetoric'],
   ['the_hippie', 'calm, nature, anti-rat-race'],
   ['the_diva', 'style, taste, fashion'],
   ['the_cousin', 'shy, relatable, everyday (the awkward cousin)'],
+  ['the_conspiracy_theorist', 'conspiracies, cover-ups, aliens, "it\'s all connected" (for fun)'],
 ];
 
 app.get('/rooms/suggestions', async (req, res) => {
@@ -2039,7 +2038,7 @@ app.post('/games/start', async (req, res) => {
       if (personaByKey(pk)) seats.push({ kind: 'persona', id: pk });
     }
     const minSeats = engine.minSeats || 2, maxSeats = engine.maxSeats || 6;
-    const FILLERS = ['the_cynic', 'the_diva', 'the_wannabe', 'the_brainiac', 'the_comic'];
+    const FILLERS = ['the_conspiracy_theorist', 'the_diva', 'the_wannabe', 'the_brainiac', 'the_comic'];
     let fi = 0;
     while (seats.length < minSeats && fi < FILLERS.length) {
       const pk = FILLERS[fi++];

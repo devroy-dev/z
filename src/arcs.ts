@@ -32,7 +32,7 @@ export const ARCS: Record<string, ArcDef> = {
   hold_your_ground: {
     id: 'hold_your_ground',
     title: 'hold your ground',
-    personaKey: 'the_leader_opp',
+    personaKey: 'the_brainiac',
     days: 3,
     focus: [
       "Day 1 — the position: make them state, in two sentences, what they believe on a live issue THEY pick and the single strongest reason. Then attack it once, fairly, and coach them to answer without retreating or getting hot.",
