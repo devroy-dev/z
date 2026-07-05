@@ -37,6 +37,7 @@ import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
 import { battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
+import { evaluateMotion, generateMotions } from './battlefieldMotions.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
 import { readMemoryBlock } from './memory.js';
@@ -1627,6 +1628,38 @@ app.get('/battlefield/motions', (_req, res) => {
   for (const d of Object.keys(DOMAIN_LABELS) as DebateDomain[]) byDomain[d] = { key: d, label: DOMAIN_LABELS[d], motions: [] };
   for (const m of MOTIONS) if (byDomain[m.domain]) byDomain[m.domain].motions.push(m.motion);
   res.json({ domains: Object.values(byDomain), count: MOTIONS.length });
+});
+
+// Check whether a PROPOSED motion is judgeable; if not, tell the organizer how to
+// restructure it (issues + evidentiary direction + a judgeable rewrite). Same
+// discipline as the adjudicator, applied before the debate.
+app.post('/battlefield/motion/check', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const motion = String(req.body?.motion || '').trim();
+    if (motion.length < 6) return res.status(400).json({ error: 'give me a motion to check' });
+    const domain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
+    const a = await evaluateMotion(motion, domain, user.id);
+    res.json({ motion, ...a });
+  } catch (e: any) { res.status(500).json({ error: 'motion check failed: ' + (e?.message || String(e)) }); }
+});
+
+// FOUNDER-GATED: draft codex-grounded candidate motions for a domain and keep only
+// the judgeable ones (one-time bank build; review the output before it ships).
+app.post('/battlefield/motions/generate', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const domain = req.body?.domain as DebateDomain;
+    if (!domain || !DOMAIN_LABELS[domain]) return res.status(400).json({ error: 'valid domain required' });
+    const n = Math.max(4, Math.min(20, parseInt(String(req.body?.n ?? 12), 10) || 12));
+    const out = await generateMotions(domain, n, user.id);
+    res.json({ domain, requested: n, keptCount: out.kept.length, droppedCount: out.dropped.length, kept: out.kept, dropped: out.dropped });
+  } catch (e: any) { res.status(500).json({ error: 'motion generate failed: ' + (e?.message || String(e)) }); }
 });
 
 // ── COACH LIBRARY (house subject corpus, shared) ────────────────────
