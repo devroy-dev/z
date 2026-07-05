@@ -58,8 +58,10 @@ export type BFState = {
 // PRO=0 leads Opening & Closing; CON=1 leads Rebuttal (answers the attack first).
 function leadSeat(phaseIndex: number): 0 | 1 { return phaseIndex === 1 ? 1 : 0; }
 
-export function newBattlefield(assignedSeat?: 0 | 1): BFState {
-  const pick = MOTIONS[Math.floor(Math.random() * MOTIONS.length)];
+export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain }): BFState {
+  const pick = (opts?.motion && opts?.domain)
+    ? { motion: opts.motion, domain: opts.domain }
+    : MOTIONS[Math.floor(Math.random() * MOTIONS.length)];
   return {
     kind: 'battlefield_duel',
     motion: pick.motion,
@@ -123,7 +125,7 @@ async function houseTurn(state: BFState): Promise<string> {
   const system = `${HOUSE_SOUL}\n\nTHE MOTION: "${state.motion}"\nYOU ARE: ${side}. ${side === 'PRO' ? 'You argue FOR the motion.' : 'You argue AGAINST the motion.'}\nCURRENT PHASE: ${phase}. ${phaseJob(phase, side)}\n\nWrite ONLY your speech — no stage directions, no "as ${side} I would say", just the argument itself. Keep it tight: 3-6 sentences, the register of a serious debate floor.`;
   try {
     const msg: any = await anthropic.messages.create({
-      model: MODEL, max_tokens: 380, temperature: 0.6, system,
+      model: MODEL, max_tokens: 500, temperature: 0.6, system,
       messages: [{ role: 'user', content: `THE FLOOR SO FAR:\n${transcript}\n\nDeliver your ${phase} now.` }],
     });
     logUsage({ userId: 'battlefield', surface: 'other', model: MODEL, usage: msg.usage });
@@ -179,7 +181,7 @@ async function adjudicate(state: BFState): Promise<void> {
 
 export const battlefieldDuelAdapter = {
   minSeats: 2, maxSeats: 2, humanOnly: false,
-  create(opts?: any) { return newBattlefield(opts?.assignedSeat); },
+  create(opts?: any) { return newBattlefield(opts); },
 
   async move(state: BFState, seat: number, mv: any, seats?: any[]): Promise<BFState> {
     if (mv?.type === 'next') return state;   // no-op advance (reveal steps, if any)

@@ -1302,9 +1302,14 @@ app.post('/battlefield/test-duel', async (req, res) => {
   try {
     const mySpeeches: string[] = Array.isArray(req.body?.mySpeeches) ? req.body.mySpeeches : [];
     if (mySpeeches.length !== 3) return res.status(400).json({ error: 'mySpeeches must be exactly 3 strings: [Opening, Rebuttal, Closing]' });
+    // optional: pin the motion+domain so your speeches match the topic (a fair fight)
+    const pinMotion = typeof req.body?.motion === 'string' ? req.body.motion : undefined;
+    const pinDomain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
     // seats: seat 0 = you (user), seat 1 = the house (persona)
     const seats = [{ kind: 'user', id: 'tester' }, { kind: 'persona', key: 'the_house' }];
-    let state: any = battlefieldDuelAdapter.create();
+    let state: any = (pinMotion && pinDomain)
+      ? battlefieldDuelAdapter.create({ motion: pinMotion, domain: pinDomain })
+      : battlefieldDuelAdapter.create();
     const steps: any[] = [];
     let myIdx = 0; let guard = 0;
     while (!battlefieldDuelAdapter.isOver(state) && guard++ < 12) {
