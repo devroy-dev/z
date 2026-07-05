@@ -1,43 +1,53 @@
-# THE TRAITORS — reality game v1 (phase 1: engine + curl-playable)
+# THE COACH — tutoring engine v1 (Layer 1: core teaching loop)
 
-Social-deduction game: personas sit at a table, a few are secretly TRAITORS. Each round
-= roundtable (everyone talks) → banish (everyone votes) → reveal (banished role shown).
-FAITHFUL win when all traitors are banished; TRAITORS win at parity. The moat primitive =
-information asymmetry: a spectator (watch) sees who's lying; the faithful don't.
+Name any exam or topic → a day-by-day plan → per-day lesson → MCQ quiz → DETERMINISTIC
+grade (answer key stored server-side; graded by exact index match — no model in the loop,
+trustworthy for a paid product) → weak-spot detection → the next day ADAPTS to what you missed.
+Exam-agnostic (GMAT/SAT/IIT-JEE/CAT/UPSC/CLAT/NEET/GRE/foreign or any topic).
+Grading + "answer key never leaks to client" are UNIT-VERIFIED locally (7/7). Real tsc passes.
 
-Engine state machine + view asymmetry are UNIT-VERIFIED locally (21/21). The AI contestants'
-talk + votes are model-driven → verify on the server (below). Real `npm run build` passes.
+## Contents
+- 0039_coach.sql   — z.coach_courses (RUN IN SUPABASE FIRST)
+- coach.ts         — engine: generatePlan/Lesson/Quiz + gradeAnswers (pure)
+- apply_coach.py   — places files + wires 5 endpoints into index.ts
 
 ## Apply (SERVER)
-    unzip -o traitors.zip
-    python3 apply_traitors.py
-    npm run build && git add -A && git commit -m "the traitors: reality game v1 (engine + endpoints)" && git push
+    unzip -o coach.zip
+    # 1) run 0039_coach.sql in Supabase
+    # 2) from repo root:
+    python3 apply_coach.py
+    npm run build && git add -A && git commit -m "the coach: tutoring engine v1 (plan/lesson/quiz/grade/adapt)" && git push
 
-## Curl-play (in your terminal; $BASE/$TOKEN already set)
-    # 1) start a game — 5 AI personas, 1 traitor (defaults are fine)
-    G=$(curl -s -X POST "$BASE/games/traitors/start" -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" -d '{"personas":["the_comic","the_brainiac","the_historian","the_philosopher","the_wannabe"],"traitors":1}')
-    echo "$G" | head -c 400; echo
-    GID=$(echo "$G" | grep -o '"sessionId":"[^"]*"' | cut -d'"' -f4)
-    echo "game = $GID"
+## Curl-play (in your terminal; $BASE/$TOKEN set)
+    # 1) start — coach me for CLAT legal reasoning, 5-day sprint
+    C=$(curl -s -X POST "$BASE/coach/start" -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{"topic":"CLAT legal reasoning","days":5}')
+    echo "$C"; CID=$(echo "$C" | grep -o '"courseId":"[^"]*"' | cut -d'"' -f4); echo "course=$CID"
 
-    # 2) step through phases — roundtable, then banish+reveal, then next round.
-    #    run this a few times; each returns YOUR view (as caller you're a spectator → you see roles)
-    curl -s -X POST "$BASE/games/traitors/$GID/step" -H "Authorization: Bearer $TOKEN"; echo
+    # 2) today's lesson
+    curl -s -X POST "$BASE/coach/$CID/lesson" -H "Authorization: Bearer $TOKEN"; echo
 
-    # 3) spectator watch (sees the traitors — the dramatic irony)
-    curl -s "$BASE/games/traitors/$GID/watch" -H "Authorization: Bearer $TOKEN"; echo
+    # 3) today's quiz (no answer key returned)
+    curl -s -X POST "$BASE/coach/$CID/quiz" -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{"n":5}'; echo
+
+    # 4) submit answers (0-based option indexes) → score + reveals + weak spots + advances the day
+    curl -s -X POST "$BASE/coach/$CID/grade" -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" -d '{"answers":[0,1,2,1,3]}'; echo
+
+    # 5) progress
+    curl -s "$BASE/coach/$CID" -H "Authorization: Bearer $TOKEN"; echo
 
 ## What to look for
-- start's "view" shows players; since you're not seated (humanPlays not set), you're a
-  SPECTATOR → each player's role is visible (you can see who the traitor is).
-- After a roundtable step, "log" fills with each persona's line — a traitor should deflect,
-  faithful should probe. After a banish step, "lastBanished" shows who went and their role.
-- Play until "winner" is set ("faithful" or "traitors").
+- the plan reads like a real sequenced syllabus for that exam
+- the lesson actually TEACHES (idea → worked example → exam tip)
+- the quiz is exam-realistic; grade returns each question's correct index + a one-line WHY
+- after a graded day, weakTags accumulate and the NEXT day's lesson reinforces them
 
-## To play AS a contestant (you don't see roles): add "humanPlays":true to start, then
-   pass your vote on the banish step: {"vote": SEAT_NUMBER}.
-
-## Phase 1 scope (honest): single continuous game (no multi-day tasks yet), no UI, no
-   directory surfacing, spectator = the watch endpoint (not yet streamed to the rooms list).
-   Those are phases 2-4.
+## Honest v1 scope / next
+- ACCURACY HARDENING (fast-follow, important for paid): add a verify pass that double-checks
+  each MCQ's key before it's stored, so a bad-key can never reach a paying student. v1 relies on
+  strong generation constraints; grading itself is already deterministic.
+- Layer 2 progress persistence is largely here (courses persist, days advance, weak spots carry).
+- Layer 3 = bring-your-own-material (PORT the dreamai RAG). Layer 4 = full mock tests.
+- Persona link ("the coach" front door), and the Play/coach surface, are UI — later.
