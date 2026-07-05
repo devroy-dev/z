@@ -136,6 +136,12 @@ function otherNames(s: TraitorsState, seat: number): string {
 function recentTalk(s: TraitorsState, n = 12): string {
   return s.log.slice(-n).map((l) => `${l.name}: ${l.text}`).join('\n') || '(the table is silent so far)';
 }
+function banishRecap(s: TraitorsState): string {
+  if (s.lastBanished === null) return '';
+  const name = s.seats[s.lastBanished].name;
+  const wasTraitor = s.lastRevealRole === 'traitor';
+  return `\n\nLast banishment: ${name} was banished and turned out to be ${wasTraitor ? 'a TRAITOR' : 'FAITHFUL'}. ${wasTraitor ? 'The table got one right.' : 'The table got it WRONG — a traitor is still among you. Rethink your reads.'}`;
+}
 
 async function speakOne(s: TraitorsState, seat: number): Promise<string> {
   const p = s.seats[seat];
@@ -151,7 +157,7 @@ async function speakOne(s: TraitorsState, seat: number): Promise<string> {
     const resp = await anthropic.messages.create({
       model: MODEL, max_tokens: 160,
       system: `You are ${persona?.defaultName || p.name}, a contestant at the round table in a game of THE TRAITORS. ${persona ? 'Stay fully in your own voice and personality.' : ''} ${roleBrief} Say ONE short, natural round-table line (1-3 sentences) reacting to the table — an accusation, a defense, a read, a bit of misdirection. In character, spoken aloud to the group. No stage directions, no meta, just the line.`,
-      messages: [{ role: 'user', content: `Round ${s.round}. Still at the table: ${otherNames(s, seat)} (and you).\n\nRecent table talk:\n${recentTalk(s)}\n\nYour line:` }],
+      messages: [{ role: 'user', content: `Round ${s.round}. Still at the table: ${otherNames(s, seat)} (and you).\n\nRecent table talk:\n${recentTalk(s)}${banishRecap(s)}\n\nYour line:` }],
     });
     return resp.content.filter((b) => b.type === 'text').map((b: any) => (b as any).text).join('').trim().slice(0, 400);
   } catch {
@@ -173,7 +179,7 @@ async function voteOne(s: TraitorsState, seat: number): Promise<number> {
     const resp = await anthropic.messages.create({
       model: MODEL, max_tokens: 20,
       system: `You are ${persona?.defaultName || p.name} voting at the banishment in THE TRAITORS. ${guide} Reply with ONLY the seat number of your vote. Nothing else.`,
-      messages: [{ role: 'user', content: `Options: ${options}\n\nTable talk:\n${recentTalk(s)}\n\nYour vote (seat number only):` }],
+      messages: [{ role: 'user', content: `Options: ${options}\n\nTable talk:\n${recentTalk(s)}${banishRecap(s)}\n\nYour vote (seat number only):` }],
     });
     const txt = resp.content.filter((b) => b.type === 'text').map((b: any) => (b as any).text).join('');
     const m = txt.match(/\d+/);
@@ -189,6 +195,11 @@ async function voteOne(s: TraitorsState, seat: number): Promise<number> {
 export async function stepTraitors(prev: TraitorsState, humanMove?: { seat: number; vote?: number }): Promise<TraitorsState> {
   let s: TraitorsState = JSON.parse(JSON.stringify(prev));
   if (s.phase === 'ended') return s;
+
+  if (s.phase === 'reveal') {
+    s.round += 1;
+    s.phase = 'roundtable';   // fall through: THIS step runs the new round's table
+  }
 
   if (s.phase === 'roundtable') {
     for (const seat of aliveSeats(s)) {
@@ -211,10 +222,5 @@ export async function stepTraitors(prev: TraitorsState, humanMove?: { seat: numb
     return resolveBanish(s);   // → reveal (or ended)
   }
 
-  if (s.phase === 'reveal') {
-    s.round += 1;
-    s.phase = 'roundtable';
-    return s;
-  }
   return s;
 }
