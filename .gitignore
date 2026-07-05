@@ -6,3 +6,4 @@ dist/
 *.zip
 deploy/
 writer.py
+*.zip

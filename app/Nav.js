@@ -162,6 +162,8 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'roster') return setChatOpen(dest);
   };
   const [chatOpen, setChatOpen] = useState(null);
+  const [diag, setDiag] = useState(false);           // founder cost-diagnostic (long-press callmeZ)
+  const [sessCost, setSessCost] = useState(0);
   useBackLayer(!!chatOpen, React.useCallback(() => { setChatOpen(null); return true; }, []));
   // persona deep-links (door cards, drop-ins) land here from navigate()
   useEffect(() => { if (world === 'chat' && target?.persona) { setChatOpen({ kind: 'persona', key: target.persona, draft: target.draft, autoSend: target.autoSend }); } }, [target, world]);
@@ -203,7 +205,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
       : chatOpen.kind === 'roster' ? screens.gathering({ navigate, target: null })
       : chatOpen.kind === 'room' ? <RoomChat room={chatOpen.room} onBack={() => setChatOpen(null)} />
-      : <Chat key={chatOpen.key} personaKey={chatOpen.key} initialDraft={chatOpen.draft || ''} autoSend={!!chatOpen.autoSend} onBack={() => setChatOpen(null)} onRoute={navigate} />)
+      : <Chat key={chatOpen.key} personaKey={chatOpen.key} initialDraft={chatOpen.draft || ''} autoSend={!!chatOpen.autoSend} onBack={() => setChatOpen(null)} onRoute={navigate} diag={diag} onCost={(inr) => setSessCost((c) => c + (inr || 0))} />)
     : <ChatHome onOpen={openFromChat} />;
 
   const playFactory = screens[active === 'play' ? 'play' : 'play'];
@@ -215,8 +217,9 @@ export default function Nav({ screens, onLogout = () => {} }) {
       <SafeAreaView edges={['top']} style={{ backgroundColor: world === 'chat' ? MOON.ground : 'transparent' }}>
         {!chatOpen && (
           <View style={styles.shellBar}>
-            <Text style={[styles.shellMark, world === 'chat' && { color: MOON.porcelain }]}>callme<Text style={{ color: world === 'chat' ? MOON.moon : '#E7B07A' }}>Z</Text></Text>
+            <Pressable onLongPress={() => setDiag((d) => { if (!d) setSessCost(0); return !d; })} delayLongPress={600}><Text style={[styles.shellMark, world === 'chat' && { color: MOON.porcelain }]}>callme<Text style={{ color: world === 'chat' ? MOON.moon : '#E7B07A' }}>Z</Text></Text></Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {diag ? <Text style={styles.sessCost}>₹{sessCost.toFixed(2)}</Text> : null}
             <View style={[styles.pill, world === 'chat' && { borderColor: MOON.hairStrong }]}>
               {[['chat', 'chat'], ['play', '✦ play']].map(([id, label]) => (
                 <Pressable key={id} onPress={() => setWorld(id)} style={[styles.pillSeg, world === id && (id === 'chat' ? styles.pillOnCool : styles.pillOnWarm)]}>
@@ -239,6 +242,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
 const styles = StyleSheet.create({
   shellBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 },
   shellMark: { fontFamily: 'Fraunces_400Regular', color: '#F5ECE1', fontSize: 22, letterSpacing: 0.3 },
+  sessCost: { fontFamily: 'Fraunces_400Regular', color: 'rgba(240,167,101,0.85)', fontSize: 12, letterSpacing: 0.3 },
   pill: { flexDirection: 'row', borderWidth: 1, borderColor: 'rgba(231,176,122,0.3)', borderRadius: 999, padding: 3 },
   pillSeg: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999 },
   pillOnCool: { backgroundColor: 'rgba(159,194,232,0.12)' },

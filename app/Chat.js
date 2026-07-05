@@ -173,7 +173,7 @@ const pcStyles = StyleSheet.create({
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.30)', fontSize: 10, marginTop: 3, alignSelf: 'flex-start' },
 });
 
-export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false, onRoute = () => {} }) {
+export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false, onRoute = () => {}, diag = false, onCost }) {
   const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
   // a tapped card walks them through a door — same mapping the desk lobby used
   const routeTo = (key) => {
@@ -426,9 +426,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       image: img ? { media_type: 'image/jpeg', data: img.data } : undefined,
       persona: KEY,
       onToken: (acc) => { targetRef.current = acc; },
-      onDone: (acc) => {
+      onDone: (acc, cost) => {
         targetRef.current = acc || targetRef.current;
         streamDoneRef.current = true;
+        if (cost) { setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, cost } : m))); if (onCost) onCost(cost.cost_inr || 0); }
       },
       onRoutes: (routes) => {
         const keys = (routes || []).filter((k) => typeof k === 'string').slice(0, 4);
@@ -588,6 +589,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                     <Text style={styles.themText}>{m.typing ? '…' : ''}</Text>
                   )}
                   {m.at && !m.typing ? <Text style={[pcStyles.stamp, m.who === 'you' && { alignSelf: 'flex-end' }]}>{fmtTime(m.at)}</Text> : null}
+                  {diag && m.who === 'them' && m.cost && !m.typing ? <Text style={styles.costWhisper}>₹{Number(m.cost.cost_inr).toFixed(4)} · {m.cost.fn}{m.cost.usage ? ' · ' + m.cost.usage.in + '→' + m.cost.usage.out : ''}</Text> : null}
                 </View>
               ))
             )}
@@ -638,6 +640,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
 }
 
 const styles = StyleSheet.create({
+  costWhisper: { fontFamily: 'Figtree_300Light', color: 'rgba(240,167,101,0.55)', fontSize: 10, letterSpacing: 0.3, marginTop: 2, alignSelf: 'flex-start' },
   themWrap: { alignSelf: 'flex-start', maxWidth: '88%', backgroundColor: 'rgba(255,255,255,0.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 18, borderTopLeftRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
   buzzChip: { fontFamily: 'Figtree_600SemiBold', color: '#F0A765', fontSize: 13, letterSpacing: 1, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(240,167,101,0.45)', overflow: 'hidden', alignSelf: 'flex-start' },
   inlineBtn: { paddingHorizontal: 9, paddingBottom: 11, alignItems: 'center', justifyContent: 'flex-end' },

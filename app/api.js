@@ -306,7 +306,7 @@ export async function streamChat({ threadId, message, image, persona, addressed,
     if (res.body && typeof res.body.getReader === 'function') {
       const reader = res.body.getReader();
       const dec = new TextDecoder();
-      let buf = '', acc = '';
+      let buf = '', acc = '', costMeta;
       const drain = () => {
         let i;
         while ((i = buf.indexOf('\n\n')) >= 0) {
@@ -319,7 +319,7 @@ export async function streamChat({ threadId, message, image, persona, addressed,
             let ev; try { ev = JSON.parse(payload); } catch (_) { return; }
             if (typeof ev.token === 'string') { acc += ev.token; onToken && onToken(acc); }
             else if (ev.routes) { onRoutes && onRoutes(ev.routes); }
-            else if (ev.done) { onDone && onDone(acc); }
+            else if (ev.done) { costMeta = ev.cost || costMeta; onDone && onDone(acc, ev.cost); }
             else if (ev.error) { onError && onError('(' + ev.error + ')'); }
           });
         }
@@ -330,11 +330,11 @@ export async function streamChat({ threadId, message, image, persona, addressed,
         buf += dec.decode(value, { stream: true });
         drain();
       }
-      onDone && onDone(acc);
+      onDone && onDone(acc, costMeta);
     } else {
       // no streaming: read whole body, parse data: frames in one go
       const text = await res.text();
-      let acc = '';
+      let acc = '', costMeta;
       text.split('\n\n').forEach((chunk) => {
         chunk.split('\n').forEach((line) => {
           line = line.trim();
@@ -344,10 +344,11 @@ export async function streamChat({ threadId, message, image, persona, addressed,
           let ev; try { ev = JSON.parse(payload); } catch (_) { return; }
           if (typeof ev.token === 'string') { acc += ev.token; onToken && onToken(acc); }
           else if (ev.routes) { onRoutes && onRoutes(ev.routes); }
+          else if (ev.done) { costMeta = ev.cost || costMeta; }
           else if (ev.error) { onError && onError('(' + ev.error + ')'); }
         });
       });
-      onDone && onDone(acc);
+      onDone && onDone(acc, costMeta);
     }
   } catch (e) {
     onError && onError('(no connection — check your network)');
