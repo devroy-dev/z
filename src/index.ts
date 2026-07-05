@@ -16,7 +16,7 @@ import { runGroupTurn } from './groupLoop.js';
 import { broadcastRoomMessage } from './broadcast.js';
 import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';
 import { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';
-import { generatePlan, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
+import { generatePlan, fetchExamContext, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
 import { distillMaterial } from './coachDistill.js';
 import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
@@ -1446,7 +1446,8 @@ app.post('/coach/start', express.json(), async (req, res) => {
     const topic = String(req.body?.topic || '').trim().slice(0, 160);
     const days = Math.max(1, Math.min(Number(req.body?.days) || 7, 30));
     if (!topic) return res.status(400).json({ error: 'topic required (the exam or subject to coach)' });
-    const plan = await generatePlan(topic, days, user.id);
+    const examContext = await fetchExamContext(topic, user.id);
+    const plan = await generatePlan(topic, days, user.id, examContext);
     const { data: c, error } = await supabase.from('coach_courses').insert({
       user_id: user.id, topic, total_days: plan.length, current_day: 1, plan, progress: {}, weak_tags: [],
     }).select('id').single();
