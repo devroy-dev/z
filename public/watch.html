@@ -117,6 +117,7 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
 .notecard{margin:10px 0 14px;padding:12px 14px;border-left:2px solid rgba(224,87,111,.55);background:rgba(224,87,111,.06);border-radius:0 10px 10px 0}
 .notetag{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:rgba(224,87,111,.9)}
 .notetxt{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;line-height:1.45;color:rgba(245,236,225,.82);margin-top:5px}
+.crowdcount{font-size:11px;color:var(--dim);text-align:center;margin-top:7px;font-family:'JetBrains Mono',monospace;letter-spacing:.3px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -176,6 +177,7 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
         <button class="votebtn con" id="vcon">Meera · CON</button>
       </div>
       <div class="tally"><div id="tpro" style="flex:61;background:rgba(120,200,255,.45)"></div><div id="tcon" style="flex:39;background:rgba(224,87,111,.45)"></div></div>
+      <div class="crowdcount" id="crowdcount"></div>
     </div>
 
     <!-- green room: LOCKED for ungated → register to chat -->
@@ -258,7 +260,7 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
     return q || null;
   }
 
-  var vote=null, shown=0;
+  var vote=null, shown=0, liveSid=null;
 
   function enterWatch(){
     $('gate').classList.add('hidden'); $('watch').classList.remove('hidden');
@@ -272,6 +274,7 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
   // ══ LIVE WATCH: poll the committed transcript + verdict, and subscribe to the
   //    debater's live keystroke stream over the duel channel. ══
   function liveWatch(sessionId){
+    liveSid = sessionId;
     var lastCount = -1, lastNotes = -1, ended = false, sb = null, ch = null, threadId = null, liveEl = null;
     var names = {}, namesApplied = false;
     function esc(s){ var e=document.createElement('div'); e.textContent=(s==null?'':String(s)); return e.innerHTML; }
@@ -345,6 +348,7 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
             var vp=$('vpro'), vc=$('vcon'); if(vp) vp.textContent=pro+' · PRO'; if(vc) vc.textContent=con+' · CON';
           }
           renderCommitted(d);
+          renderTally(d.tally);
           if (!ended) setTimeout(poll, 1500);
         } else { setTimeout(poll, 2000); }
       }).catch(function(){ setTimeout(poll, 2500); });
@@ -382,7 +386,22 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
         (v.matter?'<div class="rl" style="margin-top:10px">MATTER</div><div class="rs">'+v.matter+'</div>':'')+
         (v.manner?'<div class="rl" style="margin-top:10px">MANNER</div><div class="rs">'+v.manner+'</div>':'')+
       '</div>'+
-      (vote?'<div class="gap">You voted '+vote+'. '+(youAgree?'You and the adjudicator agree.':'The adjudicator saw it differently — that gap is the debate.')+'</div>':'')+
+      (function(){
+        var t=d.tally||{pro:0,con:0,total:0};
+        var cw = t.pro>t.con?'PRO':(t.con>t.pro?'CON':'TIE');
+        var pp = t.total? Math.round(t.pro/t.total*100):0;
+        var crowd = t.total
+          ? ('<div class="rk" style="margin-top:18px">THE ROOM VOTED</div>'+
+             '<div class="rcard"><div class="rw"><span style="color:'+(cw==='PRO'?'#78C8FF':cw==='CON'?'#E0576F':'#F5ECE1')+'">'+(cw==='TIE'?'a split room':cw)+'</span>'+(cw!=='TIE'?' takes the crowd':'')+'</div>'+
+             '<div class="rs">'+pp+'% PRO \u00b7 '+(100-pp)+'% CON \u2014 '+t.total+(t.total===1?' vote':' votes')+'</div></div>')
+          : '';
+        var gapTxt = t.total
+          ? (cw===winner ? 'The room and the adjudicator agree.'
+             : 'The room gave it to '+(cw==='TIE'?'no one cleanly':cw)+'; the adjudicator gave it to '+winner+' on the merits. That gap is the whole point.')
+          : '';
+        var voted = vote ? (' You voted '+vote+'.') : '';
+        return crowd + ((gapTxt||voted) ? ('<div class="gap">'+gapTxt+voted+'</div>') : '');
+      })()+
       '<div class="playcta"><div class="pt">Think you could argue it better?</div>'+
         '<div class="ps">Create an account to step onto the Battlefield yourself — take an assigned side, face the adjudicator, and let a room judge you.</div>'+
         '<a class="cta" href="/app.html">Enter the arena</a></div>';
@@ -431,12 +450,32 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
     typeLine(t, tick);
   }
 
+  // paint the crowd bar + count from a real tally {pro,con,total}
+  function renderTally(t){
+    if(!t) return;
+    var total=t.total||0, pro=t.pro||0;
+    var pp = total ? Math.round(pro/total*100) : 50;
+    if($('tpro')) $('tpro').style.flex = total ? pp : 50;
+    if($('tcon')) $('tcon').style.flex = total ? (100-pp) : 50;
+    var c=$('crowdcount');
+    if(c) c.textContent = total ? ('the room · '+pp+'% PRO · '+(100-pp)+'% CON · '+total+(total===1?' vote':' votes')) : 'be the first to vote';
+  }
+
   function setVote(v){
     vote=v;
     $('vpro').classList.toggle('on',v==='PRO'); $('vcon').classList.toggle('on',v==='CON');
-    $('votelabel').textContent='Your vote is in — change it any time.';
-    var pro=v==='PRO'?62:61, con=100-pro;
-    $('tpro').style.flex=pro; $('tcon').style.flex=con;
+    $('votelabel').textContent='your vote is in — change it any time';
+    if (liveSid){
+      var tok = localStorage.getItem('z_token');
+      fetch('/battlefield/watch/'+liveSid+'/vote',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization': tok ? ('Bearer '+tok) : ''},
+        body:JSON.stringify({side:v})})
+        .then(function(r){return r.json();})
+        .then(function(j){ if(j&&j.tally) renderTally(j.tally); else if(j&&j.error){ $('votelabel').textContent=j.error; } })
+        .catch(function(){});
+    } else {
+      var pro=v==='PRO'?62:61; $('tpro').style.flex=pro; $('tcon').style.flex=100-pro;
+    }
   }
 
   function endDuel(){
