@@ -14,6 +14,8 @@
 // strict JSON, per-item validation, safe fallbacks — a bad generation never bricks a day.
 import Anthropic from '@anthropic-ai/sdk';
 import { logUsage } from './usage.js';
+import { supabase } from './db.js';
+import { embedQueryLiteral } from './coachEmbed.js';
 
 const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -76,23 +78,29 @@ export async function generatePlan(topic: string, days: number, userId: string):
   return Array.from({ length: days }, (_, i) => ({ day: i + 1, title: `Day ${i + 1}`, focus: `Study and practice ${topic} — part ${i + 1}.` }));
 }
 
-export async function generateLesson(topic: string, focus: string, weakTags: string[], userId: string): Promise<string> {
+export async function generateLesson(topic: string, focus: string, weakTags: string[], userId: string, material = ''): Promise<string> {
   const weak = (weakTags && weakTags.length)
     ? `\n\nThis student has been weak on: ${weakTags.join(', ')}. Where it fits naturally, reinforce these too — don't force it.`
     : '';
   const sys = `You are a warm, genuinely expert coach preparing a real student for "${topic}". Teach TODAY'S focus so they actually get it: (1) explain the core idea in plain language, (2) show 1-2 WORKED examples, step by step, revealing the method, (3) a short "how to spot / handle this in the exam" tip. This is real prep, not filler — be clear, concrete, and useful. ~250-400 words, plain text, light structure.${weak}`;
   try {
-    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1400, system: sys, messages: [{ role: 'user', content: `Today's focus: ${focus}` }] });
+    const userMsg = material
+      ? `Today's focus: ${focus}\n\nTEACH FROM THE STUDENT'S OWN MATERIAL below — base the lesson on it, explain what it says, and cite the section/page inline like (§3.2, p.7) for specific points. If it doesn't cover today's focus, say so briefly, then teach the concept from your own knowledge.\n\n=== STUDENT'S MATERIAL ===\n${material}\n=== END MATERIAL ===`
+      : `Today's focus: ${focus}`;
+    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1400, system: sys, messages: [{ role: 'user', content: userMsg }] });
     logUsage({ userId, surface: 'other', fn: 'coach_lesson', model: MODEL, usage: (msg as any).usage });
     return textOf(msg).trim() || `Today: ${focus}`;
   } catch (e: any) { console.error('[coach] lesson failed:', e?.message || e); return `Today's focus: ${focus}\n\n(The lesson couldn't be generated just now — please try again.)`; }
 }
 
-export async function generateQuiz(topic: string, focus: string, n: number, userId: string): Promise<MCQ[]> {
+export async function generateQuiz(topic: string, focus: string, n: number, userId: string, material = ''): Promise<MCQ[]> {
   const gen = Math.min(n + 3, 12);   // over-generate so the verify pass can drop weak keys and still hit n
   const sys = `You write a short practice quiz for a student preparing for "${topic}". Produce EXACTLY ${gen} multiple-choice questions on today's focus. RULES: crisp, unambiguous, exam-realistic; exactly ONE unambiguously correct option; verifiable — NEVER invent facts or trick wording; mixed difficulty. For each, also give "why" (one sentence: why the correct option is right) and "tag" (the sub-skill it tests, 1-3 words). Output ONLY a JSON array, no markdown: [{"q":"…","opts":["…","…","…","…"],"correct":0,"why":"…","tag":"…"}] — correct is the 0-based index, exactly 4 options.`;
   try {
-    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 2200, system: sys, messages: [{ role: 'user', content: `Today's focus: ${focus}` }] });
+    const userMsg = material
+      ? `Today's focus: ${focus}\n\nWrite the questions ONLY on what the STUDENT'S MATERIAL below actually covers, and put the citation (§, p.) in each "why". If the material is thin on today's focus, you may add a few general questions on the focus too.\n\n=== STUDENT'S MATERIAL ===\n${material}\n=== END MATERIAL ===`
+      : `Today's focus: ${focus}`;
+    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 2200, system: sys, messages: [{ role: 'user', content: userMsg }] });
     logUsage({ userId, surface: 'other', fn: 'coach_quiz', model: MODEL, usage: (msg as any).usage });
     const clean: MCQ[] = [];
     for (const it of parseJSONArray(textOf(msg))) {
@@ -127,6 +135,30 @@ export function applyVerdicts(questions: MCQ[], verdicts: { i: number; answer: n
 // Independent verification: a SECOND model answers each question COLD (no key shown);
 // we keep only questions whose stored key matches the checker. The 'never trust one
 // generation' guard (same discipline that fixed the debate verdict). Best-effort on error.
+// ── grounding: retrieve the COURSE'S OWN material (fused FTS+vector), course-scoped ──
+export type Cite = { title: string; ref: string; page: number | null; body: string };
+export async function retrieveForCourse(userId: string, courseId: string, query: string, limit = 8): Promise<Cite[]> {
+  const { data: briefs } = await supabase.from('coach_briefs').select('id').eq('course_id', courseId).is('superseded_by', null);
+  const ids = new Set(((briefs || []) as any[]).map((b) => b.id));
+  if (!ids.size) return [];
+  const qEmb = await embedQueryLiteral(query);
+  const { data } = await supabase.rpc('coach_search_sections', { p_user_id: userId, p_query: query, p_limit: 24, p_query_embedding: qEmb });
+  return ((data || []) as any[]).filter((r) => ids.has(r.brief_id)).slice(0, limit).map((r) => ({ title: r.title, ref: r.ref, page: r.page, body: r.body }));
+}
+export function materialFromSections(sections: Cite[]): string {
+  return sections.map((s) => `(${s.ref}${s.page ? `, p.${s.page}` : ''}) ${s.body}`).join('\n\n');
+}
+export async function answerFromMaterial(topic: string, question: string, material: string, userId: string): Promise<string> {
+  const sys = material
+    ? `You are a warm, expert coach for "${topic}". Answer the student's question using their MATERIAL below — explain what it says and cite (§, p.) for specific points. If the material doesn't answer it, say so, then answer from general knowledge.\n\n=== STUDENT'S MATERIAL ===\n${material}\n=== END MATERIAL ===`
+    : `You are a warm, expert coach for "${topic}". Answer the student's question clearly. (No uploaded material was found for this course.)`;
+  try {
+    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1200, system: sys, messages: [{ role: 'user', content: question }] });
+    logUsage({ userId, surface: 'other', fn: 'coach_ask', model: MODEL, usage: (msg as any).usage });
+    return textOf(msg).trim() || 'Could not answer just now — try again.';
+  } catch (e: any) { console.error('[coach] ask failed:', e?.message || e); return 'Could not answer just now — try again.'; }
+}
+
 export async function verifyQuiz(topic: string, questions: MCQ[], userId: string): Promise<MCQ[]> {
   if (!questions.length) return questions;
   const sys = `You are a meticulous exam answer-checker for "${topic}". You are given multiple-choice questions with their options but NOT the answer key. For EACH, independently work out the single best answer. If a question is ambiguous, flawed, or has no single clearly-correct option, mark it unsure. Output ONLY a JSON array: [{"i":0,"answer":2,"unsure":false}] where i is the 0-based question index (matching input order), answer is the 0-based option you judge correct, unsure is true when you cannot confidently pick one. No prose, no markdown.`;

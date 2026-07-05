@@ -17,6 +17,7 @@ import { broadcastRoomMessage } from './broadcast.js';
 import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';
 import { generatePlan, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
 import { distillMaterial } from './coachDistill.js';
+import { retrieveForCourse, materialFromSections, answerFromMaterial } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
@@ -1391,11 +1392,12 @@ app.post('/coach/:id/lesson', express.json(), async (req, res) => {
     const day = c.current_day;
     const focus = (c.plan?.[day - 1]?.focus) || c.topic;
     const title = (c.plan?.[day - 1]?.title) || ('Day ' + day);
-    const lesson = await generateLesson(c.topic, focus, c.weak_tags || [], user.id);
+    const mats = await retrieveForCourse(user.id, c.id, focus);
+    const lesson = await generateLesson(c.topic, focus, c.weak_tags || [], user.id, materialFromSections(mats));
     const progress = { ...(c.progress || {}) };
     progress[day] = { ...(progress[day] || {}), lesson };
     await supabase.from('coach_courses').update({ progress, updated_at: new Date().toISOString() }).eq('id', c.id);
-    res.json({ day, title, focus, lesson });
+    res.json({ day, title, focus, lesson, grounded: mats.length > 0, citations: mats.map((m) => ({ ref: m.ref, page: m.page, title: m.title })) });
   } catch (e: any) { res.status(500).json({ error: 'lesson failed: ' + (e?.message || String(e)) }); }
 });
 app.post('/coach/:id/quiz', express.json(), async (req, res) => {
@@ -1408,12 +1410,13 @@ app.post('/coach/:id/quiz', express.json(), async (req, res) => {
     const day = c.current_day;
     const focus = (c.plan?.[day - 1]?.focus) || c.topic;
     const n = Math.max(3, Math.min(Number(req.body?.n) || 5, 10));
-    const quiz: MCQ[] = await generateQuiz(c.topic, focus, n, user.id);
+    const qmats = await retrieveForCourse(user.id, c.id, focus);
+    const quiz: MCQ[] = await generateQuiz(c.topic, focus, n, user.id, materialFromSections(qmats));
     if (!quiz.length) return res.status(502).json({ error: 'could not generate the quiz — try again' });
     const progress = { ...(c.progress || {}) };
     progress[day] = { ...(progress[day] || {}), quiz };   // stored WITH the key (server-side only)
     await supabase.from('coach_courses').update({ progress, updated_at: new Date().toISOString() }).eq('id', c.id);
-    res.json({ day, count: quiz.length, questions: quizForClient(quiz) });
+    res.json({ day, count: quiz.length, questions: quizForClient(quiz), grounded: qmats.length > 0 });
   } catch (e: any) { res.status(500).json({ error: 'quiz failed: ' + (e?.message || String(e)) }); }
 });
 app.post('/coach/:id/grade', express.json(), async (req, res) => {
@@ -1451,6 +1454,22 @@ app.get('/coach/:id', async (req, res) => {
     for (const [d, p] of Object.entries(c.progress || {})) days[d] = { hasLesson: !!(p as any).lesson, graded: (p as any).graded || null };
     res.json({ courseId: c.id, topic: c.topic, totalDays: c.total_days, currentDay: c.current_day, status: c.status, plan: c.plan, weakTags: c.weak_tags, days });
   } catch (e: any) { res.status(500).json({ error: 'course fetch failed: ' + (e?.message || String(e)) }); }
+});
+
+// ── COACH: ask / teach from the course's material ───────────────────────
+app.post('/coach/:id/ask', express.json(), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const c = await loadCoachCourse(req.params.id, user.id);
+    if (!c) return res.status(404).json({ error: 'no such course' });
+    const question = String(req.body?.question || '').trim().slice(0, 800);
+    if (!question) return res.status(400).json({ error: 'question required' });
+    const mats = await retrieveForCourse(user.id, c.id, question);
+    const answer = await answerFromMaterial(c.topic, question, materialFromSections(mats), user.id);
+    res.json({ answer, grounded: mats.length > 0, citations: mats.map((m) => ({ ref: m.ref, page: m.page, title: m.title })) });
+  } catch (e: any) { res.status(500).json({ error: 'ask failed: ' + (e?.message || String(e)) }); }
 });
 
 // ── COACH: bring-your-own-material (RAG ingest) ─────────────────────────
