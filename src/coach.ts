@@ -16,9 +16,18 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { embedQueryLiteral } from './coachEmbed.js';
+import { codexText } from './content.js';
 
 const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
+
+// The coach's SOUL — his voice/manner, loaded once. It colors HOW he teaches and
+// answers; it never touches WHAT is correct (quiz keys, verify, grading stay pure).
+const COACH_VOICE = (() => { try { return codexText('coach') || ''; } catch { return ''; } })();
+function inVoice(task: string): string {
+  if (!COACH_VOICE) return task;
+  return `[WHO YOU ARE — this is you, right now, in the room with a student. Your voice, your manner, how you explain, how you react to a score — all of it comes from here. You never name it, never point to it, never call it a character or a codex; there is only you, being yourself.]\n${COACH_VOICE}\n\n[WHAT YOU ARE DOING RIGHT NOW]\n${task}`;
+}
 
 export type MCQ = { q: string; opts: string[]; correct: number; tag: string; why: string };
 export type DayFocus = { day: number; title: string; focus: string };
@@ -103,7 +112,7 @@ export async function generateLesson(topic: string, focus: string, weakTags: str
     const userMsg = material
       ? `Today's focus: ${focus}\n\nTEACH FROM THE STUDENT'S OWN MATERIAL below — base the lesson on it, explain what it says, and cite the section/page inline like (§3.2, p.7) for specific points. If it doesn't cover today's focus, say so briefly, then teach the concept from your own knowledge.\n\n=== STUDENT'S MATERIAL ===\n${material}\n=== END MATERIAL ===`
       : `Today's focus: ${focus}`;
-    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1400, system: sys, messages: [{ role: 'user', content: userMsg }] });
+    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1400, system: inVoice(sys), messages: [{ role: 'user', content: userMsg }] });
     logUsage({ userId, surface: 'other', fn: 'coach_lesson', model: MODEL, usage: (msg as any).usage });
     return textOf(msg).trim() || `Today: ${focus}`;
   } catch (e: any) { console.error('[coach] lesson failed:', e?.message || e); return `Today's focus: ${focus}\n\n(The lesson couldn't be generated just now — please try again.)`; }
@@ -191,7 +200,7 @@ export async function answerFromMaterial(topic: string, question: string, materi
     ? `You are a warm, expert coach for "${topic}". Answer the student's question using their MATERIAL below — explain what it says and cite (§, p.) for specific points. If the material doesn't answer it, say so, then answer from general knowledge.\n\n=== STUDENT'S MATERIAL ===\n${material}\n=== END MATERIAL ===`
     : `You are a warm, expert coach for "${topic}". Answer the student's question clearly. (No uploaded material was found for this course.)`;
   try {
-    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1200, system: sys, messages: [{ role: 'user', content: question }] });
+    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1200, system: inVoice(sys), messages: [{ role: 'user', content: question }] });
     logUsage({ userId, surface: 'other', fn: 'coach_ask', model: MODEL, usage: (msg as any).usage });
     return textOf(msg).trim() || 'Could not answer just now — try again.';
   } catch (e: any) { console.error('[coach] ask failed:', e?.message || e); return 'Could not answer just now — try again.'; }

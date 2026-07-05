@@ -1,27 +1,35 @@
-# THE COACH — v2: real fixes + editorial polish (APP / OTA)
+# THE COACH — gets a SOUL (server)
 
-Fixes every issue from the device pass and lifts the design toward the Newsroom/Consult bar.
+The coach was an engine with no character. Now he's a person: a 50/50 blend of the
+electric, fun-forward substitute and the fierce believe-in-you, never-lower-the-bar
+teacher. This wires that soul into the product.
 
-BUGS FIXED
-- MARKDOWN now RENDERS. Lessons + Ask answers were showing raw #, **, --- — a new editorial
-  renderer turns them into real headers (Fraunces), bold, bullets, rules, and code blocks.
-- The \u2019 / escape BLEED is gone (real characters throughout, not JSX-literal escapes).
-- "Mock test → Opening…" fixed. Each action now has its own busy state; buttons no longer
-  cross-fire each other's loading labels.
-- ASK flow fixed. The box CLEARS after you ask; your question shows above the rendered answer.
-- BACK GESTURE now walks inward (lesson/quiz/ask → the course, then out) instead of jumping to
-  the chat landing — wired through the app's own useBackLayer.
-- Play "Shows" door subtitle dash fixed (was showing \u2014).
+WHAT THIS DOES
+- Adds his codex: content/codex-coach.md (your authored soul, verbatim).
+- Registers "the coach" as a REAL persona (src/personas.ts) — web ON — so he can be
+  chatted with directly, like the anchor. (codex key 'coach' + CODEX_FILES mapping.)
+- Threads his VOICE into the two teaching surfaces:
+    • generateLesson  → lessons now speak in his voice
+    • answerFromMaterial (Ask the coach) → answers in his voice
 
-DESIGN
-- Editorial lesson typography (rendered markdown), italic-serif subtitles, bolder Fraunces
-  headers, hairline rules, more air — closer to the Consult/Newsroom feel.
+THE FIREWALL (held, verified)
+The soul colors HOW he teaches, never WHAT is correct. Only lesson + ask are in-voice.
+generatePlan, generateQuiz, verifyQuiz, and the deterministic gradeAnswers are LEFT PURE
+— the answer key never sees the soul. "Teach the reasoning like a rockstar, report the
+results like an honest man."
 
-## Apply + OTA
-    cd /workspaces/z && unzip -o coach-v2.zip && python3 apply_coach_v2.py
-    git add -A && git commit -m "coach v2: markdown render, escape/busy/ask/back fixes, polish" && git push
-    cd app && npx expo export && CI=1 npx eas-cli@latest update --branch preview --environment preview -m "coach v2"
+## Apply (server only — no OTA; codex deploys with the push)
+    cd /workspaces/z && unzip -o coach-soul.zip && python3 apply_coach_soul.py
+    npm run build          # real tsc — must say clean
+    git add -A && git commit -m "the coach: soul (codex + persona + in-voice lessons/ask)" && git push
+Railway rebuilds. Then in the app, open a course and start a lesson — it should now read
+in his voice (high-energy, plain words, an everyday analogy, honest). Try "Ask the coach" too.
 
-## STILL NEEDED — the mock
-"Mock nothing renders" is the coach_mocks TABLE not existing. Run migrations/0041_coach_mocks.sql
-in Supabase (it's in your repo). After v2, if it still fails you'll SEE the error text — send it.
+## NEXT (small, needs your ruling — I didn't guess the UI)
+He's now a real persona, but the app has no button to open his FREE chat yet (the
+"the Coach" row opens the course). Cleanest mirror of the anchor: inside the course,
+an entry that opens his persona chat — OR make the row itself offer "chat vs course."
+Tell me which and I'll wire it (app/OTA).
+
+Also queued: an in-voice RESULT reaction (he reacts to your score in character — "four
+of twelve, cheerful, no shame, here are the eight that slipped"). Small server + Coach.js add.

@@ -69,6 +69,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   colleague:      'codex-colleague.md',
   grandmaster:    'codex-grandmaster.md',
   conspiracy:     'codex-conspiracy.md',
+  coach:          'codex-coach.md',
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};
