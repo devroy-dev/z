@@ -179,7 +179,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} onOpenChat={navigate} />;
     if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} onJournal={() => setOverlay({ tab: 'journal' })} />;
     if (overlay.tab === 'journal') return <Journal onBack={() => setOverlay({ tab: 'quiet' })} />;
-    if (overlay.tab === 'coach') return <Coach onBack={() => setOverlay(null)} />;
+    if (overlay.tab === 'coach') return <Coach onBack={() => setOverlay(null)} onAskCoach={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_coach' }); }} />;
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}

@@ -1,35 +1,20 @@
-# THE COACH — gets a SOUL (server)
+# Ask the coach → opens a real chat with him (APP / OTA)
 
-The coach was an engine with no character. Now he's a person: a 50/50 blend of the
-electric, fun-forward substitute and the fierce believe-in-you, never-lower-the-bar
-teacher. This wires that soul into the product.
+Mirrors the Newsroom's "ask the anchor." Tapping "Ask the coach" on the study desk now
+opens a live chat with the coach persona (the_coach) — in his voice, web-on — instead of
+the old course-scoped ask panel. Simple, same pattern as the anchor.
 
-WHAT THIS DOES
-- Adds his codex: content/codex-coach.md (your authored soul, verbatim).
-- Registers "the coach" as a REAL persona (src/personas.ts) — web ON — so he can be
-  chatted with directly, like the anchor. (codex key 'coach' + CODEX_FILES mapping.)
-- Threads his VOICE into the two teaching surfaces:
-    • generateLesson  → lessons now speak in his voice
-    • answerFromMaterial (Ask the coach) → answers in his voice
+3 edits:
+- Nav.js — passes onAskCoach to <Coach>, wired to navigate({ tab:'gathering', persona:'the_coach' }).
+- Coach.js — accepts the onAskCoach prop.
+- Coach.js — the "Ask the coach" tile now calls onAskCoach (was the course-scoped 'ask' stage).
 
-THE FIREWALL (held, verified)
-The soul colors HOW he teaches, never WHAT is correct. Only lesson + ask are in-voice.
-generatePlan, generateQuiz, verifyQuiz, and the deterministic gradeAnswers are LEFT PURE
-— the answer key never sees the soul. "Teach the reasoning like a rockstar, report the
-results like an honest man."
+## Apply + OTA
+    cd /workspaces/z && unzip -o coach-chat.zip && python3 apply_coach_chat.py
+    git add -A && git commit -m "ask the coach → opens the coach persona chat" && git push
+    cd app && npx expo export && CI=1 npx eas-cli@latest update --branch preview --environment preview -m "ask the coach → chat"
 
-## Apply (server only — no OTA; codex deploys with the push)
-    cd /workspaces/z && unzip -o coach-soul.zip && python3 apply_coach_soul.py
-    npm run build          # real tsc — must say clean
-    git add -A && git commit -m "the coach: soul (codex + persona + in-voice lessons/ask)" && git push
-Railway rebuilds. Then in the app, open a course and start a lesson — it should now read
-in his voice (high-energy, plain words, an everyday analogy, honest). Try "Ask the coach" too.
-
-## NEXT (small, needs your ruling — I didn't guess the UI)
-He's now a real persona, but the app has no button to open his FREE chat yet (the
-"the Coach" row opens the course). Cleanest mirror of the anchor: inside the course,
-an entry that opens his persona chat — OR make the row itself offer "chat vs course."
-Tell me which and I'll wire it (app/OTA).
-
-Also queued: an in-voice RESULT reaction (he reacts to your score in character — "four
-of twelve, cheerful, no shame, here are the eight that slipped"). Small server + Coach.js add.
+## Note
+His chat works now (he's a registered persona). The only cosmetic gap: no face at
+public/faces/the_coach.jpg yet, so the chat shows a default avatar until you drop one in
+(deploys with a git push, like the other faces). Not blocking.
