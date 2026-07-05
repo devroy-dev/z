@@ -1293,6 +1293,31 @@ app.post('/battlefield/test-verdict', async (req, res) => {
   }
 });
 
+// START a practice-vs-house Battlefield duel: a real, persisted session (seat 0 = you,
+// seat 1 = the house) that the existing /games/session/:id GET + /move routes serve. The
+// house takes its turns inside battlefieldDuel.move(). Optional {motion,domain} to pin.
+app.post('/battlefield/practice/start', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const motion = typeof req.body?.motion === 'string' ? req.body.motion : undefined;
+    const domain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
+    // a private solo thread to host the practice session (not shared, not a room)
+    const { data: thread, error: tErr } = await supabase.from('threads').insert({
+      user_id: user.id, is_group: false, is_shared: false, member_keys: [], companion_name: 'the Battlefield · practice',
+    }).select('id').single();
+    if (tErr || !thread) return res.status(500).json({ error: 'could not open the practice floor: ' + (tErr?.message || '') });
+    const seats = [{ kind: 'user', id: user.id }, { kind: 'persona', id: 'the_house' }];
+    const state = battlefieldDuelAdapter.create(seats, { motion, domain });
+    const { data: sess, error } = await supabase.from('game_sessions').insert({
+      thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
+    }).select('id, version').single();
+    if (error || !sess) return res.status(500).json({ error: error?.message || 'session insert failed' });
+    res.json({ sessionId: sess.id, version: sess.version });
+  } catch (e: any) { res.status(500).json({ error: 'practice start failed: ' + (e?.message || String(e)) }); }
+});
+
 // DIAGNOSTIC: run a full practice-vs-house duel loop end-to-end, no auth/room/DB.
 // You are PRO (seat 0), the house is CON (seat 1). Provide your three speeches in
 // {openings,rebuttals,closings}-style via `mySpeeches` (array of 3 strings: Opening,

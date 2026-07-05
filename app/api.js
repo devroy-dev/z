@@ -404,6 +404,11 @@ export async function sendGameMove(id, move, version) {
   return authedJSON('POST', `/games/session/${id}/move`, { move, version });
 }
 
+// start a practice-vs-house Battlefield duel → { sessionId, version }
+export async function startBattlefieldPractice(motion, domain) {
+  return authedJSON('POST', '/battlefield/practice/start', motion ? { motion, domain } : {});
+}
+
 // ── the trading floor (paper trading — phantom money, real prices) ──
 export async function simMarket() {
   try { return await authedJSON('GET', '/sim/market'); } catch (e) { return null; }

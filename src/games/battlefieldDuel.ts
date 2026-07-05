@@ -181,7 +181,12 @@ async function adjudicate(state: BFState): Promise<void> {
 
 export const battlefieldDuelAdapter = {
   minSeats: 2, maxSeats: 2, humanOnly: false,
-  create(opts?: any) { return newBattlefield(opts); },
+  // the route calls create(seats, options); the diagnostic calls create({motion,domain}).
+  // motion/domain arrive either as the first arg (diagnostic) or in options (route).
+  create(a?: any, b?: any) {
+    const opts = (a && (a.motion || a.domain)) ? a : (b || {});
+    return newBattlefield({ motion: opts.motion, domain: opts.domain });
+  },
 
   async move(state: BFState, seat: number, mv: any, seats?: any[]): Promise<BFState> {
     if (mv?.type === 'next') return state;   // no-op advance (reveal steps, if any)

@@ -5,7 +5,7 @@
 import React from 'react';
 import { useBackLayer } from './backbus';
 import { Share, Alert, Text } from 'react-native';
-import { createRoom, inviteToRoom, startGameSession } from './api';
+import { createRoom, inviteToRoom, startGameSession, startBattlefieldPractice } from './api';
 import LiarsDiceLive from './games/liarsdice/Live';
 import CallbreakLive from './games/callbreak/Live';
 import PokerLive from './games/poker/Live';
@@ -33,6 +33,7 @@ import FantasyLeague from './FantasyLeague';
 import Arena from './Arena';
 import Battlefield from './Battlefield';
 import DuelRoom from './DuelRoom';
+import BattlefieldDuelLive from './games/battlefield/DuelLive';
 import Gallery from './Gallery';
 import Uno from './games/uno/Table';
 import GameBoundary from './games/Boundary';
@@ -73,6 +74,8 @@ function PlayWorld({ navigate, target }) {
   const [match, setMatch] = React.useState(null);
   const [live, setLive] = React.useState(null);   // { game, sessionId } — a friends table
   const [opening, setOpening] = React.useState(false);   // the invited flow, visibly working
+  const [duelSession, setDuelSession] = React.useState(null); // { sessionId } for a live practice duel
+  const [duelStarting, setDuelStarting] = React.useState(false);
   useBackLayer(!!live, React.useCallback(() => { setLive(null); setMode('arena'); return true; }, []));
   const startLiveWithFriend = React.useCallback(async (game, roster) => {
     setOpening(true);
@@ -104,7 +107,7 @@ function PlayWorld({ navigate, target }) {
   useBackLayer(mode === 'game' && !!match, React.useCallback(() => { setMatch(null); setMode('arena'); return true; }, []));
   useBackLayer(mode === 'arena', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'battlefield', React.useCallback(() => { setMode('choose'); return true; }, []));
-  useBackLayer(mode === 'duel', React.useCallback(() => { setMode('battlefield'); return true; }, []));
+  useBackLayer(mode === 'duel', React.useCallback(() => { setDuelSession(null); setMode('battlefield'); return true; }, []));
   useBackLayer(mode === 'gallery', React.useCallback(() => { setMode('battlefield'); return true; }, []));
   useBackLayer(mode === 'sims', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'floor', React.useCallback(() => { setMode('sims'); return true; }, []));
@@ -147,10 +150,24 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'battlefield') {
-    return <Battlefield onBack={() => setMode('choose')} onEnterDuel={() => setMode('duel')} onWatch={() => setMode('gallery')} />;
+    return <Battlefield onBack={() => setMode('choose')} onEnterDuel={async () => {
+      setMode('duel'); setDuelStarting(true); setDuelSession(null);
+      try {
+        const r = await startBattlefieldPractice();
+        if (r?.sessionId) setDuelSession(r); else setMode('battlefield');
+      } catch (e) { setMode('battlefield'); }
+      setDuelStarting(false);
+    }} onWatch={() => setMode('gallery')} />;
   }
   if (mode === 'duel') {
-    return <DuelRoom onBack={() => setMode('battlefield')} />;
+    const leaveDuel = () => { setDuelSession(null); setMode('battlefield'); };
+    if (duelSession?.sessionId) return <BattlefieldDuelLive sessionId={duelSession.sessionId} onBack={leaveDuel} />;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#08060A', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(245,236,225,0.85)', fontSize: 17 }}>opening the floor…</Text>
+        <Text style={{ fontFamily: 'Figtree_400Regular', color: 'rgba(224,87,111,0.6)', fontSize: 12, marginTop: 8, letterSpacing: 2 }}>THE BATTLEFIELD · PRACTICE</Text>
+      </View>
+    );
   }
   if (mode === 'gallery') {
     return <Gallery onBack={() => setMode('battlefield')} />;
