@@ -1661,6 +1661,71 @@ app.post('/battlefield/practice/start', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'practice start failed: ' + (e?.message || String(e)) }); }
 });
 
+
+// ── HUMAN-VS-HUMAN DUEL (the tournament match primitive) ──────────────────
+// Start a real adjudicated duel in a SHARED room. The creator takes a RANDOM
+// side (assigned, not chosen); the opponent seat is left OPEN for an invited
+// human to claim via /battlefield/duel/:id/join. Spectators watch the same
+// session via /watch/:id. The house never plays here — both seats are human.
+app.post('/battlefield/duel/start', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const motion = typeof req.body?.motion === 'string' ? req.body.motion : undefined;
+    const domain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
+    const title = String(req.body?.title || 'the Battlefield \u00b7 duel').slice(0, 80);
+    const { data: thread, error: tErr } = await supabase.from('threads').insert({
+      user_id: user.id, is_group: true, is_shared: true, member_keys: [], companion_name: title,
+    }).select('id').single();
+    if (tErr || !thread) return res.status(500).json({ error: 'could not open the duel floor: ' + (tErr?.message || '') });
+    await supabase.from('room_members').insert({ thread_id: thread.id, user_id: user.id, role: 'owner' });
+    // assigned sides: coin-flip which seat the creator holds (seat 0 = PRO, seat 1 = CON).
+    const creatorSeat: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
+    const seats: any[] = [{ kind: 'open' }, { kind: 'open' }];
+    seats[creatorSeat] = { kind: 'user', id: user.id };
+    const state = battlefieldDuelAdapter.create(seats, { motion, domain });
+    const { data: sess, error } = await supabase.from('game_sessions').insert({
+      thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
+    }).select('id, version').single();
+    if (error || !sess) return res.status(500).json({ error: error?.message || 'session insert failed' });
+    res.json({
+      sessionId: sess.id, version: sess.version, roomId: thread.id,
+      mySeat: creatorSeat, mySide: creatorSeat === 0 ? 'PRO' : 'CON',
+      motion: state.motion, domain: state.domain,
+      joinPath: `/duel/join/${sess.id}`,   // share with your OPPONENT (claims the debater seat)
+      watchPath: `/watch/${sess.id}`,      // share with the AUDIENCE (ungated spectator)
+    });
+  } catch (e: any) { res.status(500).json({ error: 'duel start failed: ' + (e?.message || String(e)) }); }
+});
+
+// The invited opponent taps their link → joins the room AND claims the open seat
+// in one step, and is told which side they've been assigned. Idempotent if seated.
+app.post('/battlefield/duel/:id/join', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: s } = await supabase.from('game_sessions').select('*').eq('id', req.params.id).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such duel' });
+    if (s.game !== 'battlefield_duel') return res.status(400).json({ error: 'not a battlefield duel' });
+    const seats = s.seats as any[];
+    const mine = seats.findIndex((x) => x.kind === 'user' && x.id === user.id);
+    if (mine >= 0) return res.json({ ok: true, seat: mine, side: mine === 0 ? 'PRO' : 'CON', already: true });
+    const open = seats.findIndex((x) => x.kind === 'open');
+    if (open < 0) return res.status(409).json({ error: 'both seats are taken' });
+    if (!(await isRoomMember(s.thread_id, user.id))) {
+      await supabase.from('room_members').insert({ thread_id: s.thread_id, user_id: user.id, role: 'member' });
+    }
+    seats[open] = { kind: 'user', id: user.id };
+    const { data: upd } = await supabase.from('game_sessions')
+      .update({ seats, version: s.version + 1, updated_at: new Date().toISOString() })
+      .eq('id', s.id).eq('version', s.version).select('version').maybeSingle();
+    if (!upd) return res.status(409).json({ error: 'someone just took the seat' });
+    res.json({ ok: true, seat: open, side: open === 0 ? 'PRO' : 'CON', version: upd.version });
+  } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
+});
+
 // DIAGNOSTIC: run a full practice-vs-house duel loop end-to-end, no auth/room/DB.
 // You are PRO (seat 0), the house is CON (seat 1). Provide your three speeches in
 // {openings,rebuttals,closings}-style via `mySpeeches` (array of 3 strings: Opening,
@@ -2488,6 +2553,20 @@ app.post('/games/session/:id/move', async (req, res) => {
           });
         }
       } catch (e) { console.error('[duel] ledger write failed', e); }
+    }
+    // a finished BATTLEFIELD duel \u2192 record the adjudicated result to both debaters' history.
+    if (over && s.game === 'battlefield_duel') {
+      try {
+        const humanSeats = (s.seats as any[]).map((x2: any, i: number) => ({ ...x2, i })).filter((x2: any) => x2.kind === 'user');
+        for (const hs of humanSeats) {
+          const won = (hs.i === 0 && state.winner === 'PRO') || (hs.i === 1 && state.winner === 'CON');
+          const w = !state.winner ? 'draw' : (won ? 'you' : 'them');
+          const side = hs.i === 0 ? 'PRO' : 'CON';
+          const notes = `motion: ${state.motion} \u2014 you argued ${side}; winner: ${state.winner || 'undecided'}`
+            + (state.verdict?.summary ? ` \u2014 ${String(state.verdict.summary).slice(0, 240)}` : '');
+          await supabase.from('arena_matches').insert({ user_id: hs.id, game: 'battlefield duel', winner: w, notes });
+        }
+      } catch (e) { console.error('[battlefield] ledger write failed', e); }
     }
     const { data: upd, error } = await supabase.from('game_sessions')
       .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })

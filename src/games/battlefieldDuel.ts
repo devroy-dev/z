@@ -191,6 +191,7 @@ export const battlefieldDuelAdapter = {
   async move(state: BFState, seat: number, mv: any, seats?: any[]): Promise<BFState> {
     if (mv?.type === 'next') return state;   // no-op advance (reveal steps, if any)
     if (mv?.type !== 'speech') throw new Error('unknown move');
+    if ((seats || []).some((x: any) => x?.kind === 'open')) throw new Error('waiting for the opponent to take their seat');
     if (state.phase === 'verdict') throw new Error('the duel is over');
     if (seat !== state.toAct) throw new Error('not your turn');
     const text = String(mv.text || '').trim().slice(0, 1400);
