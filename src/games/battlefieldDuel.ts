@@ -22,16 +22,66 @@ const MODEL = 'claude-haiku-4-5-20251001';
 
 // ── fact-based motions, each tagged with the adjudicator's domain corpus ──
 export const MOTIONS: { motion: string; domain: DebateDomain }[] = [
-  { motion: 'This house believes economic sanctions do more to entrench regimes than to weaken them.', domain: 'geopolitics' },
-  { motion: 'This house believes judicial review is incompatible with democracy.', domain: 'law' },
+  // History's Turning Points
   { motion: 'This house believes the Treaty of Versailles was the primary cause of the Second World War.', domain: 'history' },
+  { motion: 'This house believes the Industrial Revolution did more to liberate the common person than any political revolution.', domain: 'history' },
+  { motion: 'This house believes the fall of the Roman Empire owed more to internal decay than to external invasion.', domain: 'history' },
+  { motion: 'This house believes colonial empires retarded rather than accelerated the development of the societies they ruled.', domain: 'history' },
+  { motion: 'This house believes the printing press reshaped society more profoundly than the internet has.', domain: 'history' },
+  // The Global Economy
   { motion: 'This house believes free markets allocate resources more justly than the state.', domain: 'economy' },
-  { motion: 'This house believes nuclear deterrence has made great-power war less likely.', domain: 'war' },
-  { motion: 'This house believes secular government is a precondition for a free society.', domain: 'religion' },
-  { motion: 'This house believes democracies are structurally worse at responding to climate change.', domain: 'environment' },
-  { motion: 'This house believes the regulation of artificial intelligence should precede its deployment.', domain: 'technology' },
+  { motion: 'This house believes free trade has done more to reduce global poverty than foreign aid.', domain: 'economy' },
+  { motion: 'This house believes minimum wage laws help the workers they are intended to protect.', domain: 'economy' },
+  { motion: 'This house believes central bank independence produces better outcomes than elected control of monetary policy.', domain: 'economy' },
+  { motion: 'This house believes inflation is primarily a monetary phenomenon rather than a product of supply shocks.', domain: 'economy' },
+  // Geopolitics & World Order
+  { motion: 'This house believes economic sanctions do more to entrench regimes than to weaken them.', domain: 'geopolitics' },
+  { motion: 'This house believes a multipolar world order is more stable than a unipolar one.', domain: 'geopolitics' },
+  { motion: 'This house believes economic interdependence makes war between great powers less likely.', domain: 'geopolitics' },
+  { motion: 'This house believes foreign military intervention more often prolongs conflicts than resolves them.', domain: 'geopolitics' },
+  { motion: 'This house believes international institutions meaningfully constrain the behaviour of powerful states.', domain: 'geopolitics' },
+  // Law, Justice & Rights
+  { motion: 'This house believes judicial review is incompatible with democracy.', domain: 'law' },
+  { motion: 'This house believes a written constitution protects rights better than an unwritten one.', domain: 'law' },
+  { motion: 'This house believes mandatory minimum sentences do more harm than good.', domain: 'law' },
+  { motion: 'This house believes the death penalty deters serious crime more effectively than life imprisonment.', domain: 'law' },
+  { motion: 'This house believes plea bargaining undermines the pursuit of justice.', domain: 'law' },
+  // Democracy & Governance
   { motion: 'This house believes political legitimacy rests on consent rather than outcomes.', domain: 'democracy' },
+  { motion: 'This house believes proportional representation produces more representative government than first-past-the-post.', domain: 'democracy' },
+  { motion: 'This house believes compulsory voting strengthens democracy.', domain: 'democracy' },
+  { motion: 'This house believes referendums produce worse policy than representative democracy.', domain: 'democracy' },
+  { motion: 'This house believes term limits improve the quality of governance.', domain: 'democracy' },
+  // Political Philosophy & Ethics
   { motion: 'This house believes the ends can justify the means in public life.', domain: 'philosophy' },
+  { motion: 'This house believes moral responsibility is incompatible with a fully determined universe.', domain: 'philosophy' },
+  { motion: 'This house believes a just society should prioritise equality of outcome over equality of opportunity.', domain: 'philosophy' },
+  { motion: 'This house believes individual liberty should take precedence over collective welfare when the two conflict.', domain: 'philosophy' },
+  { motion: 'This house believes objective moral truths exist independently of human belief.', domain: 'philosophy' },
+  // War, Security & Just War
+  { motion: 'This house believes nuclear deterrence has made great-power war less likely.', domain: 'war' },
+  { motion: 'This house believes pre-emptive war can be morally justified.', domain: 'war' },
+  { motion: 'This house believes the concept of a just war is coherent and defensible.', domain: 'war' },
+  { motion: 'This house believes drone warfare has made armed conflict more ethical, not less.', domain: 'war' },
+  { motion: 'This house believes conscription is a legitimate demand a state may make of its citizens.', domain: 'war' },
+  // Technology Governance
+  { motion: 'This house believes the regulation of artificial intelligence should precede its deployment.', domain: 'technology' },
+  { motion: 'This house believes social media has done more to harm democratic discourse than to help it.', domain: 'technology' },
+  { motion: 'This house believes encryption backdoors for law enforcement make society less safe overall.', domain: 'technology' },
+  { motion: 'This house believes automation will destroy more jobs than it creates.', domain: 'technology' },
+  { motion: 'This house believes data privacy is a right that should not be tradeable for services.', domain: 'technology' },
+  // Religion, Secularism & the State
+  { motion: 'This house believes secular government is a precondition for a free society.', domain: 'religion' },
+  { motion: 'This house believes faith-based schools deepen social division.', domain: 'religion' },
+  { motion: 'This house believes the separation of religion and state has strengthened rather than weakened religion.', domain: 'religion' },
+  { motion: 'This house believes blasphemy laws have no place in a modern legal system.', domain: 'religion' },
+  { motion: 'This house believes religious exemptions from general law undermine equality before the law.', domain: 'religion' },
+  // Environment & Climate Policy
+  { motion: 'This house believes democracies are structurally worse at responding to climate change.', domain: 'environment' },
+  { motion: 'This house believes nuclear power is essential to any realistic path to decarbonisation.', domain: 'environment' },
+  { motion: 'This house believes carbon taxes are more effective than regulation at cutting emissions.', domain: 'environment' },
+  { motion: 'This house believes economic growth and environmental sustainability are fundamentally incompatible.', domain: 'environment' },
+  { motion: 'This house believes individual action is largely irrelevant to solving climate change compared with systemic change.', domain: 'environment' },
 ];
 
 const PHASES = ['Opening', 'Rebuttal', 'Closing'] as const;

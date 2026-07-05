@@ -35,7 +35,7 @@ import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.j
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
-import { battlefieldDuelAdapter } from './games/battlefieldDuel.js';
+import { battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
 import { readMemoryBlock } from './memory.js';
@@ -1620,15 +1620,35 @@ app.get('/coach/:id/shelf', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'shelf failed: ' + (e?.message || String(e)) }); }
 });
 
+// #1: the topic bank grouped by domain — feeds the practice topic picker.
+app.get('/battlefield/motions', (_req, res) => {
+  const byDomain: Record<string, { key: string; label: string; motions: string[] }> = {};
+  for (const d of Object.keys(DOMAIN_LABELS) as DebateDomain[]) byDomain[d] = { key: d, label: DOMAIN_LABELS[d], motions: [] };
+  for (const m of MOTIONS) if (byDomain[m.domain]) byDomain[m.domain].motions.push(m.motion);
+  res.json({ domains: Object.values(byDomain), count: MOTIONS.length });
+});
+
 app.get('/battlefield/watch/:sessionId', async (req, res) => {
   try {
     const { data: s } = await supabase.from('game_sessions').select('id, game, version, status, state, thread_id, seats').eq('id', req.params.sessionId).maybeSingle();
     if (!s) return res.status(404).json({ error: 'no such duel' });
     if (s.game !== 'battlefield_duel') return res.status(400).json({ error: 'not a battlefield duel' });
     const st = s.state || {};
-    // expose the floor (motion, phase, transcript, notes, verdict) — never seat identities
+    // resolve the two debaters' PUBLIC display names (a watched duel is a public
+    // performance). seat 0 = PRO, seat 1 = CON; the house shows as "the House".
+    const bfSeats = (s.seats as any[]) || [];
+    const bfIds = bfSeats.filter((x) => x?.kind === 'user').map((x) => x.id);
+    const nameById: Record<string, string> = {};
+    if (bfIds.length) {
+      const { data: us } = await supabase.from('users').select('id, display_name').in('id', bfIds);
+      for (const u of (us || [])) nameById[u.id] = u.display_name || 'a debater';
+    }
+    const bfName = (x: any) => x?.kind === 'user' ? (nameById[x.id] || 'a debater') : x?.kind === 'persona' ? 'the House' : '(open)';
+    const debaters = [0, 1].map((i) => ({ seat: i, side: i === 0 ? 'PRO' : 'CON', name: bfName(bfSeats[i]) }));
+    // expose the floor + the debaters' names. Never expose user ids or phone numbers.
     res.json({
       id: s.id, version: s.version, status: s.status, threadId: s.thread_id,
+      debaters,
       motion: st.motion, domain: st.domain, phase: st.phase,
       turns: st.turns || [], notes: st.notes || [],
       verdict: st.verdict || null, winner: st.winner || null, error: st.error || null,
