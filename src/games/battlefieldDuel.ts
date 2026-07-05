@@ -128,7 +128,7 @@ async function houseTurn(state: BFState): Promise<string> {
       model: MODEL, max_tokens: 500, temperature: 0.6, system,
       messages: [{ role: 'user', content: `THE FLOOR SO FAR:\n${transcript}\n\nDeliver your ${phase} now.` }],
     });
-    logUsage({ userId: 'battlefield', surface: 'other', model: MODEL, usage: msg.usage });
+    logUsage({ userId: 'battlefield', surface: 'other', fn: 'bf_house_turn', model: MODEL, usage: msg.usage });
     const text = (msg.content?.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n') || '').trim();
     return text.slice(0, 1400) || '(the house holds its tongue)';
   } catch (e: any) {

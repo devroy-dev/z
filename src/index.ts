@@ -31,7 +31,7 @@ import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './gam
 import { debateDuelAdapter } from './games/debateDuel.js';
 import { battlefieldDuelAdapter } from './games/battlefieldDuel.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
-import { logUsage } from './usage.js';
+import { logUsage, costSnapshot, costSince } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
 import { PROFILE_BLURBS } from './blurbs.js';
@@ -1336,6 +1336,7 @@ app.post('/battlefield/test-duel', async (req, res) => {
       ? battlefieldDuelAdapter.create({ motion: pinMotion, domain: pinDomain })
       : battlefieldDuelAdapter.create();
     const steps: any[] = [];
+    const costStart = costSnapshot();
     let myIdx = 0; let guard = 0;
     while (!battlefieldDuelAdapter.isOver(state) && guard++ < 12) {
       const toAct = battlefieldDuelAdapter.toActSeat(state);
@@ -1356,6 +1357,7 @@ app.post('/battlefield/test-duel', async (req, res) => {
       winner: state.winner, error: state.error,
       verdict: state.verdict ? { winner: state.verdict.winner, summary: state.verdict.summary, matter: state.verdict.matter, manner: state.verdict.manner } : null,
       steps,
+      cost: costSince(costStart),
     });
   } catch (e: any) {
     res.status(500).json({ error: 'test-duel failed: ' + (e?.message || String(e)) });

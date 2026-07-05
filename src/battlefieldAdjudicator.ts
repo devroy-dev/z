@@ -124,7 +124,7 @@ async function runVerdictWithTools(domain: DebateDomain, system: string, userCon
       tool_choice: forceVerdict ? ({ type: 'tool', name: 'submit_verdict' } as any) : ({ type: 'auto' } as any),
       messages,
     });
-    logUsage({ userId, surface: 'other', model: MODEL, usage: msg.usage });
+    logUsage({ userId, surface: 'other', fn: 'bf_verdict', model: MODEL, usage: msg.usage });
     const blocks = msg.content || [];
     sawText = blocks.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n') || sawText;
     const verdictCall = blocks.find((b: any) => b.type === 'tool_use' && b.name === 'submit_verdict');
@@ -196,7 +196,7 @@ export async function runningNote(args: {
       model: MODEL, max_tokens: 120, temperature: 0, system,
       messages: [{ role: 'user', content: `MOTION: ${args.motion}\nMOMENTUM: PRO ${args.momentumA} / CON ${100 - args.momentumA}\n\nTHE EXCHANGE:\n${transcript}` }],
     });
-    logUsage({ userId: 'battlefield', surface: 'other', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId: 'battlefield', surface: 'other', fn: 'bf_running_note', model: MODEL, usage: (msg as any).usage });
     const text = ((msg.content?.[0] as any)?.text ?? '');
     const swing = Math.max(-15, Math.min(15, parseInt(/SWING:\s*(-?\d+)/.exec(text)?.[1] ?? '0', 10) || 0));
     const note = (/NOTE:\s*(.+)/.exec(text)?.[1] ?? '').trim().slice(0, 200);
