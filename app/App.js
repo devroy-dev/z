@@ -152,10 +152,10 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'battlefield') {
-    return <Battlefield onBack={() => setMode('choose')} onEnterDuel={async () => {
+    return <Battlefield onBack={() => setMode('choose')} onEnterDuel={async (motion, domain) => {
       setMode('duel'); setDuelStarting(true); setDuelSession(null);
       try {
-        const r = await startBattlefieldPractice();
+        const r = await startBattlefieldPractice(motion, domain);
         if (r?.sessionId) setDuelSession(r); else setMode('battlefield');
       } catch (e) { setMode('battlefield'); }
       setDuelStarting(false);

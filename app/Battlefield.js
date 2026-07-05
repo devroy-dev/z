@@ -7,11 +7,12 @@
 //
 // Register: crimson — this is the arena of argument. Serious, electric, not warm.
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { FONTS } from './theme';
+import { getBattlefieldMotions } from './api';
 
 const CRIMSON = '#E0576F';
 const INK = '#08060A';
@@ -39,6 +40,25 @@ function Phase({ n, name, who, note }) {
 }
 
 export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {}, onWatch = () => {} }) {
+  // ── the topic picker: choose the ground before the duel opens ──
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [domains, setDomains] = React.useState(null);      // [{ key, label, motions[] }]
+  const [activeDomain, setActiveDomain] = React.useState(null);
+  const [loadingTopics, setLoadingTopics] = React.useState(false);
+
+  const openPicker = async () => {
+    setActiveDomain(null);
+    setPickerOpen(true);
+    if (!domains) {
+      setLoadingTopics(true);
+      try { const d = await getBattlefieldMotions(); setDomains((d && d.domains) || []); }
+      catch (e) { setDomains([]); }
+      setLoadingTopics(false);
+    }
+  };
+  // motion optional (undefined => random within domain); domain optional (undefined => any)
+  const pick = (motion, domain) => { setPickerOpen(false); onEnterDuel(motion, domain); };
+
   return (
     <View style={styles.root}>
       <LinearGradient colors={['#1A0A10', '#12070C', INK]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
@@ -115,7 +135,7 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
           </View>
 
           {/* enter a practice duel, or watch one live */}
-          <Pressable style={styles.enterBtn} onPress={onEnterDuel}>
+          <Pressable style={styles.enterBtn} onPress={openPicker}>
             <Swords size={20} color={INK} />
             <Text style={styles.enterTxt}>Try a practice duel</Text>
           </Pressable>
@@ -125,6 +145,60 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
           <Text style={styles.enterSub}>Take an assigned side against the house, or watch two debaters go head to head and vote on the winner. 1v1 duels, live spectators, and college tournaments are on their way.</Text>
         </ScrollView>
       </SafeAreaView>
+
+      {/* ── THE TOPIC PICKER ── */}
+      <Modal visible={pickerOpen} animationType="slide" transparent onRequestClose={() => setPickerOpen(false)}>
+        <View style={styles.pickBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPickerOpen(false)} />
+          <View style={styles.pickSheet}>
+            <View style={styles.pickGrab} />
+            <View style={styles.pickHead}>
+              <Text style={styles.pickTitle} numberOfLines={1}>{activeDomain ? activeDomain.label : 'Choose your ground'}</Text>
+              <Pressable hitSlop={12} onPress={() => (activeDomain ? setActiveDomain(null) : setPickerOpen(false))}>
+                <Text style={styles.pickClose}>{activeDomain ? '‹ areas' : '✕'}</Text>
+              </Pressable>
+            </View>
+
+            {!activeDomain ? (
+              <Pressable style={styles.surpriseBtn} onPress={() => pick(undefined, undefined)}>
+                <Swords size={16} color={CRIMSON} />
+                <Text style={styles.surpriseTxt}>Surprise me — any topic</Text>
+              </Pressable>
+            ) : null}
+
+            <ScrollView style={styles.pickScroll} showsVerticalScrollIndicator={false}>
+              {loadingTopics ? (
+                <View style={styles.pickLoadingWrap}>
+                  <ActivityIndicator color={CRIMSON} />
+                  <Text style={styles.pickLoading}>loading the topic bank…</Text>
+                </View>
+              ) : null}
+
+              {!activeDomain && !loadingTopics ? (domains || []).map((d) => (
+                <Pressable key={d.key} style={styles.domainRow} onPress={() => setActiveDomain(d)}>
+                  <Text style={styles.domainLabel}>{d.label}</Text>
+                  <Text style={styles.domainCount}>{(d.motions || []).length} ›</Text>
+                </Pressable>
+              )) : null}
+
+              {activeDomain ? (
+                <View>
+                  <Pressable style={styles.randomRow} onPress={() => pick(undefined, activeDomain.key)}>
+                    <Text style={styles.randomTxt}>⚄  Random motion in this area</Text>
+                  </Pressable>
+                  {(activeDomain.motions || []).map((m, i) => (
+                    <Pressable key={i} style={styles.motionRow} onPress={() => pick(m, activeDomain.key)}>
+                      <Text style={styles.motionRowTxt}>{m}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </ScrollView>
+
+            <Text style={styles.pickFoot}>You'll be assigned a side — PRO or CON — at random. That's the craft.</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -184,4 +258,30 @@ const styles = StyleSheet.create({
   watchBtn: { marginTop: 12, borderWidth: 1, borderColor: 'rgba(224,87,111,0.5)', borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   watchTxt: { fontFamily: FONTS.semibold, color: CRIMSON, fontSize: 15, letterSpacing: 0.3 },
   enterSub: { fontFamily: FONTS.light, color: 'rgba(245,236,225,0.55)', fontSize: 13.5, lineHeight: 20, marginTop: 14, textAlign: 'center', paddingHorizontal: 8 },
+
+  // ── the topic picker ──
+  pickBackdrop: { flex: 1, backgroundColor: 'rgba(4,3,6,0.62)', justifyContent: 'flex-end' },
+  pickSheet: { backgroundColor: '#140A0F', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: 'rgba(224,87,111,0.25)', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 26, maxHeight: '82%' },
+  pickGrab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(245,236,225,0.18)', marginBottom: 14 },
+  pickHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  pickTitle: { fontFamily: FONTS.display, color: '#F5ECE1', fontSize: 23, flex: 1, marginRight: 12 },
+  pickClose: { fontFamily: FONTS.semibold, color: 'rgba(224,87,111,0.9)', fontSize: 14, letterSpacing: 0.5 },
+
+  surpriseBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(224,87,111,0.4)', borderRadius: 13, paddingVertical: 14, marginBottom: 10, backgroundColor: 'rgba(224,87,111,0.06)' },
+  surpriseTxt: { fontFamily: FONTS.semibold, color: CRIMSON, fontSize: 15 },
+
+  pickScroll: { maxHeight: 440 },
+  pickLoadingWrap: { alignItems: 'center', paddingVertical: 30, gap: 12 },
+  pickLoading: { fontFamily: FONTS.displayItalic, color: 'rgba(245,236,225,0.5)', fontSize: 14 },
+
+  domainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  domainLabel: { fontFamily: FONTS.medium, color: '#F5ECE1', fontSize: 16, flex: 1, marginRight: 10 },
+  domainCount: { fontFamily: FONTS.body, color: 'rgba(224,87,111,0.75)', fontSize: 14 },
+
+  randomRow: { paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12, backgroundColor: 'rgba(224,87,111,0.08)', marginBottom: 10 },
+  randomTxt: { fontFamily: FONTS.semibold, color: CRIMSON, fontSize: 14.5 },
+  motionRow: { paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', marginBottom: 8 },
+  motionRowTxt: { fontFamily: FONTS.light, color: 'rgba(245,236,225,0.9)', fontSize: 15, lineHeight: 21 },
+
+  pickFoot: { fontFamily: FONTS.body, color: 'rgba(245,236,225,0.4)', fontSize: 12.5, textAlign: 'center', marginTop: 14, lineHeight: 18 },
 });

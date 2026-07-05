@@ -407,7 +407,14 @@ export async function sendGameMove(id, move, version) {
 
 // start a practice-vs-house Battlefield duel → { sessionId, version }
 export async function startBattlefieldPractice(motion, domain) {
-  return authedJSON('POST', '/battlefield/practice/start', motion ? { motion, domain } : {});
+  const body = {};
+  if (motion) body.motion = motion;
+  if (domain) body.domain = domain;
+  return authedJSON('POST', '/battlefield/practice/start', body);
+}
+// the topic bank grouped by domain, for the practice picker → { domains:[{key,label,motions[]}], count }
+export async function getBattlefieldMotions() {
+  return authedJSON('GET', '/battlefield/motions');
 }
 // read-only spectator view of a duel (no seat required) → { motion, phase, turns, verdict, ... }
 export async function watchBattlefieldDuel(sessionId) {
