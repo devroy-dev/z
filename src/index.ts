@@ -18,7 +18,7 @@ import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from '
 import { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';
 import { generatePlan, fetchExamContext, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
 import { distillMaterial } from './coachDistill.js';
-import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag } from './coach.js';
+import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag, coachReaction } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
@@ -1513,7 +1513,8 @@ app.post('/coach/:id/grade', express.json(), async (req, res) => {
       progress, weak_tags: weakTags, current_day: nextDay,
       status: lastDay ? 'done' : 'active', updated_at: new Date().toISOString(),
     }).eq('id', c.id);
-    res.json({ day, score: graded.score, total: graded.total, results: graded.perQuestion, weakTags, nextDay: lastDay ? null : nextDay, done: lastDay });
+    const reaction = await coachReaction(c.topic, graded.score, graded.total, graded.weakTags, user.id).catch(() => '');
+    res.json({ day, score: graded.score, total: graded.total, results: graded.perQuestion, weakTags, reaction, nextDay: lastDay ? null : nextDay, done: lastDay });
   } catch (e: any) { res.status(500).json({ error: 'grade failed: ' + (e?.message || String(e)) }); }
 });
 app.get('/coach/:id', async (req, res) => {

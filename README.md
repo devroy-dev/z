@@ -1,20 +1,26 @@
-# Ask the coach → opens a real chat with him (APP / OTA)
+# The coach REACTS to your score — in his voice (server + OTA)
 
-Mirrors the Newsroom's "ask the anchor." Tapping "Ask the coach" on the study desk now
-opens a live chat with the coach persona (the_coach) — in his voice, web-on — instead of
-the old course-scoped ask panel. Simple, same pattern as the anchor.
+The result card was ending on a flat "3/5". Now the coach says one honest, in-voice line
+about it — never inflating, never shaming, pointing at what to tighten. Firewall held:
+grading stays pure; this reacts to the numbers AFTER they're computed, and never touches a key.
 
-3 edits:
-- Nav.js — passes onAskCoach to <Coach>, wired to navigate({ tab:'gathering', persona:'the_coach' }).
-- Coach.js — accepts the onAskCoach prop.
-- Coach.js — the "Ask the coach" tile now calls onAskCoach (was the course-scoped 'ask' stage).
+Changes:
+- src/coach.ts   — new coachReaction(): a short in-voice line built from the already-graded
+                   score + weakTags (max_tokens 160, fn 'coach_reaction'). Returns '' on any error.
+- src/index.ts   — the /grade endpoint computes it (score first, pure) and returns `reaction`.
+- app/Coach.js   — the result card shows result.reaction, falling back to the old static line
+                   if it's ever empty.
 
-## Apply + OTA
-    cd /workspaces/z && unzip -o coach-chat.zip && python3 apply_coach_chat.py
-    git add -A && git commit -m "ask the coach → opens the coach persona chat" && git push
-    cd app && npx expo export && CI=1 npx eas-cli@latest update --branch preview --environment preview -m "ask the coach → chat"
+## Apply — SERVER first
+    cd /workspaces/z && unzip -o coach-reaction.zip && python3 apply_coach_reaction.py
+    npm run build        # real tsc — must be clean
+    git add -A && git commit -m "coach: in-voice reaction on the result card" && git push
+Railway rebuilds. You can curl /grade now and see a `reaction` field appear.
 
-## Note
-His chat works now (he's a registered persona). The only cosmetic gap: no face at
-public/faces/the_coach.jpg yet, so the chat shows a default avatar until you drop one in
-(deploys with a git push, like the other faces). Not blocking.
+## Then OTA (for the card to render it)
+    cd app && npx expo export && CI=1 npx eas-cli@latest update --branch preview --environment preview -m "coach result reaction"
+
+## Curl to verify (server, after Railway rebuilds)
+    curl -s -X POST "$BASE/coach/$CID/quiz" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"n":5}' >/dev/null
+    curl -s -X POST "$BASE/coach/$CID/grade" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"answers":[0,0,0,0,0]}' | python3 -m json.tool
+    # expect: score/total/results as before, PLUS a "reaction" line in his voice.

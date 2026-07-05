@@ -288,7 +288,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
       <ScrollView contentContainerStyle={s.scroll}>
         <Text style={s.dayBadge}>{`DAY ${result.day} · RESULT`}</Text>
         <View style={s.scoreWrap}><Text style={s.score}>{result.score}</Text><Text style={s.scoreOf}> / {result.total}</Text></View>
-        <Text style={s.scoreLine}>{result.score === result.total ? 'Clean sweep.' : result.score >= result.total / 2 ? 'Solid — a few to tighten.' : "Tricky set — we'll reinforce these."}</Text>
+        <Text style={s.scoreLine}>{result.reaction || (result.score === result.total ? 'Clean sweep.' : result.score >= result.total / 2 ? 'Solid — a few to tighten.' : "Tricky set — we'll reinforce these.")}</Text>
         {(quiz?.questions || []).map((q, i) => { const r = (result.results || []).find((x) => x.i === i) || {}; return <Question key={i} q={q} i={i} chosen={r.chosen} reveal={{ correct: r.correct, why: r.why }} />; })}
         {!!(result.weakTags || []).length && (
           <View style={s.weak}><Text style={s.weakLbl}>WE'LL REINFORCE</Text><View style={s.chips}>{result.weakTags.map((t, i) => <View key={i} style={s.chip}><Text style={s.chipT}>{t}</Text></View>)}</View></View>

@@ -195,6 +195,18 @@ export async function retrieveForCourse(userId: string, courseId: string, query:
 export function materialFromSections(sections: Cite[]): string {
   return sections.map((s) => `(${s.ref}${s.page ? `, p.${s.page}` : ''}) ${s.body}`).join('\n\n');
 }
+// The coach REACTS to a score, in his voice — layered on TOP of the pure grade.
+// Takes the already-computed numbers as facts; it never grades and never touches a key.
+export async function coachReaction(topic: string, score: number, total: number, weakTags: string[], userId: string): Promise<string> {
+  const weak = (weakTags && weakTags.length) ? ` What slipped was about: ${weakTags.join(', ')}.` : '';
+  const task = `A student just finished a "${topic}" quiz and scored ${score} out of ${total}.${weak} React in ONE or TWO short sentences, in your own voice — honest about the number (never inflate it, never shame it), and point them at what to tighten next. This is the single line they see on their result screen. Tight, human, plain text, no lists.`;
+  try {
+    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 160, system: inVoice(task), messages: [{ role: 'user', content: `Result: ${score}/${total}` }] });
+    logUsage({ userId, surface: 'other', fn: 'coach_reaction', model: MODEL, usage: (msg as any).usage });
+    return textOf(msg).trim();
+  } catch (e: any) { console.error('[coach] reaction failed:', e?.message || e); return ''; }
+}
+
 export async function answerFromMaterial(topic: string, question: string, material: string, userId: string): Promise<string> {
   const sys = material
     ? `You are a warm, expert coach for "${topic}". Answer the student's question using their MATERIAL below — explain what it says and cite (§, p.) for specific points. If the material doesn't answer it, say so, then answer from general knowledge.\n\n=== STUDENT'S MATERIAL ===\n${material}\n=== END MATERIAL ===`
