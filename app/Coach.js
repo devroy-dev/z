@@ -1,27 +1,67 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — THE COACH. Name any exam; a web-grounded, day-by-day course that
-//  teaches, quizzes, grades, and bends to your weak spots. Lessons render as
-//  proper editorial prose (headers, emphasis, rules — not raw markdown).
+//  yourZ — THE COACH. Name any exam or subject; a web-grounded, day-by-day
+//  course that teaches, quizzes, grades, and bends to your weak spots.
+//
+//  Register: WARM LAMPLIGHT — a mentor's study at night. The coach is present
+//  in the room (nameplate + portrait + spoken lines), not a faceless app.
+//  Lessons render as proper teaching prose — headers, rules, pull-quotes.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Grain from './Grain';
 import { FONTS } from './theme';
 import { useBackLayer } from './backbus';
 import {
   coachStart, coachGet, coachLesson, coachQuiz, coachGrade, coachAsk,
-  coachMockStart, coachMockSubmit,
+  coachMockStart, coachMockSubmit, API_BASE,
 } from './api';
 
 const P = {
-  ground: '#0C0A08', panel: 'rgba(255,255,255,0.028)', line: 'rgba(231,215,199,0.09)',
-  cream: '#F3EBDF', dim: 'rgba(243,235,223,0.9)', muted: '#9C8F96', faint: '#6A5E69',
+  ground: '#0A0806', panel: 'rgba(255,255,255,0.03)', line: 'rgba(231,215,199,0.10)',
+  cream: '#F3EBDF', dim: 'rgba(243,235,223,0.9)', muted: '#A2938A', faint: '#6E605A',
   ember: '#E7B07A', emberDim: 'rgba(231,176,122,0.5)', rose: '#F0708C',
+  lamp: '#EEC891',                          // warm lamplight — the coach's light
+  lampGlow: 'rgba(238,200,145,0.14)',
 };
+// the study — a warm 3-stop ground, like every other world has its own temperature
+const GRAD = ['#1B130B', '#120E0A', '#0A0806'];
+const FACE = `${API_BASE}/faces/the_coach.jpg?v=4`;
 const OPT = ['A', 'B', 'C', 'D'];
 const KEY = 'coach_active_course';
+
+// ── the coach, present in the room: portrait if we have one, a lamp-lit
+//    monogram if we don't (so the surface has a face even before the asset ships) ──
+function Portrait({ size = 40 }) {
+  const [ok, setOk] = useState(true);
+  const r = size / 2;
+  if (ok) return (
+    <Image
+      source={{ uri: FACE }} onError={() => setOk(false)}
+      style={{ width: size, height: size, borderRadius: r, borderWidth: 1, borderColor: 'rgba(238,200,145,0.5)' }}
+    />
+  );
+  return (
+    <View style={{ width: size, height: size, borderRadius: r, borderWidth: 1, borderColor: 'rgba(238,200,145,0.5)', alignItems: 'center', justifyContent: 'center', backgroundColor: P.lampGlow }}>
+      <Text style={{ fontFamily: FONTS.display, color: P.lamp, fontSize: size * 0.5, marginTop: -1 }}>C</Text>
+    </View>
+  );
+}
+
+// a spoken line from the coach — portrait + name + what he says. His presence.
+function Says({ line, size = 40, name = 'THE COACH' }) {
+  return (
+    <View style={s.says}>
+      <Portrait size={size} />
+      <View style={{ flex: 1 }}>
+        <Text style={s.saysName}>{name}</Text>
+        {!!line && <Text style={s.saysLine}>{line}</Text>}
+      </View>
+    </View>
+  );
+}
 
 // ── inline emphasis: **bold** · *italic* · `code` ──────────────────────
 function inline(str) {
@@ -40,15 +80,20 @@ function inline(str) {
   return out;
 }
 
-// ── editorial markdown → styled blocks (headers, rules, lists, code) ────
+// ── teaching prose → styled blocks (headers, rules, pull-quotes, lists, code) ──
 function Prose({ text }) {
   const lines = String(text == null ? '' : text).replace(/\r/g, '').split('\n');
-  const blocks = []; let para = []; let code = null;
+  const blocks = []; let para = []; let code = null; let quote = null;
   const flush = () => { if (para.length) { blocks.push({ t: 'p', s: para.join(' ') }); para = []; } };
+  const flushQuote = () => { if (quote && quote.length) { blocks.push({ t: 'quote', s: quote.join(' ') }); } quote = null; };
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]; const line = raw.trim();
     if (code !== null) { if (line.startsWith('```')) { blocks.push({ t: 'code', s: code.join('\n') }); code = null; } else code.push(raw); continue; }
-    if (line.startsWith('```')) { flush(); code = []; continue; }
+    if (line.startsWith('```')) { flush(); flushQuote(); code = []; continue; }
+    // blockquote — the coach's pull-quote (a rule, a worked line worth setting apart)
+    const qm = /^>\s?(.*)$/.exec(line);
+    if (qm) { flush(); if (!quote) quote = []; quote.push(qm[1]); continue; }
+    if (quote) flushQuote();
     if (line === '') { flush(); continue; }
     if (/^#{1,6}\s/.test(line)) { flush(); const lvl = line.match(/^#+/)[0].length; blocks.push({ t: 'h', lvl, s: line.replace(/^#+\s*/, '').replace(/\*+/g, '') }); continue; }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) { flush(); blocks.push({ t: 'hr' }); continue; }
@@ -58,13 +103,16 @@ function Prose({ text }) {
     if (nm) { flush(); blocks.push({ t: 'li', n: nm[1], s: nm[2] }); continue; }
     para.push(line);
   }
-  flush(); if (code) blocks.push({ t: 'code', s: code.join('\n') });
+  flush(); flushQuote(); if (code) blocks.push({ t: 'code', s: code.join('\n') });
 
   return (
     <View>
       {blocks.map((b, i) => {
         if (b.t === 'h') return <Text key={i} style={[pr.h, b.lvl === 1 ? pr.h1 : b.lvl === 2 ? pr.h2 : pr.h3]}>{inline(b.s)}</Text>;
         if (b.t === 'hr') return <View key={i} style={pr.hr} />;
+        if (b.t === 'quote') return (
+          <View key={i} style={pr.quote}><View style={pr.quoteBar} /><Text style={pr.quoteTxt}>{inline(b.s)}</Text></View>
+        );
         if (b.t === 'code') return <View key={i} style={pr.codeBox}><Text style={pr.codeTxt}>{b.s}</Text></View>;
         if (b.t === 'li') return (
           <View key={i} style={pr.li}>
@@ -137,7 +185,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
         <Text style={s.eyebrow}>{eyebrow}</Text>
         <Text style={s.headTitle} numberOfLines={1}>{title}</Text>
       </View>
-      <View style={{ width: 20 }} />
+      <Portrait size={30} />
     </View>
   );
   const Err = () => err ? <Text style={s.err}>{err}</Text> : null;
@@ -197,16 +245,23 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
   };
 
   const body = () => {
-    if (stage === 'loading') return <View style={s.center}><ActivityIndicator color={P.ember} /></View>;
+    if (stage === 'loading') return <View style={s.center}><ActivityIndicator color={P.lamp} /><Text style={s.loadVoice}>the coach is pulling your books…</Text></View>;
 
     if (stage === 'home') {
       if (!course) return (
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+            <View style={s.meet}>
+              <Portrait size={62} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.meetKicker}>THE COACH</Text>
+                <Text style={s.meetSit}>pull up a chair.</Text>
+              </View>
+            </View>
             <Text style={s.bigLead}>What are we{'\n'}preparing for?</Text>
-            <Text style={s.leadSub}>Name any exam — CAT, CLAT, NEET, UPSC, GMAT — or a subject to learn. The coach checks the current syllabus and builds a day-by-day plan.</Text>
+            <Text style={s.leadSub}>“Name it — an exam, or a subject you want to actually understand. I'll see what it demands today, and lay out the road, one day at a time.”</Text>
             <Text style={s.fieldLbl}>EXAM OR SUBJECT</Text>
-            <TextInput style={s.input} value={topic} onChangeText={setTopic} placeholder="e.g. CAT quant" placeholderTextColor={P.faint} returnKeyType="done" />
+            <TextInput style={s.input} value={topic} onChangeText={setTopic} placeholder="e.g. Critical Reasoning, CAT quant, CLAT…" placeholderTextColor={P.faint} returnKeyType="done" />
             <Text style={s.fieldLbl}>HOW MANY DAYS</Text>
             <View style={s.daysRow}>
               {[5, 7, 14, 30].map((d) => (
@@ -216,7 +271,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
               ))}
             </View>
             <Pressable style={[s.cta, busy && s.ctaBusy]} onPress={start} disabled={busy}>
-              <Text style={s.ctaT}>{busyKey === 'start' ? 'Checking the syllabus…' : 'Build my plan'}</Text>
+              <Text style={s.ctaT}>{busyKey === 'start' ? 'Reading the syllabus…' : 'Build my plan'}</Text>
             </Pressable>
             <Err />
           </ScrollView>
@@ -225,8 +280,12 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
       const cur = course.currentDay || 1, total = course.totalDays || (course.plan || []).length;
       const done = course.status === 'done';
       const gradedCount = Object.values(course.days || {}).filter((d) => d.graded).length;
+      const greet = done ? 'You finished the road. Come back for a mock whenever you want to stay sharp.'
+        : gradedCount === 0 ? "Fresh plan, clean slate. Day one is where it starts — open it."
+        : `Day ${cur}. You've cleared ${gradedCount}. Keep the rhythm — momentum is half the work.`;
       return (
         <ScrollView contentContainerStyle={s.scroll}>
+          <Says line={greet} size={44} />
           <Text style={s.courseEyebrow}>{done ? 'YOUR COURSE · COMPLETE' : `YOUR COURSE · DAY ${cur} OF ${total}`}</Text>
           <Text style={s.courseTitle}>{course.topic}</Text>
           <View style={s.segs}>
@@ -261,8 +320,10 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
         <Text style={s.dayBadge}>DAY {lesson.day}</Text>
         <Text style={s.lessonTitle}>{lesson.title}</Text>
         {!!lesson.focus && <Text style={s.lessonFocus}>{lesson.focus}</Text>}
-        <View style={s.rule} />
-        <Prose text={lesson.lesson} />
+        <Says line={null} size={34} />
+        <View style={s.lessonBody}>
+          <Prose text={lesson.lesson} />
+        </View>
         {!!(lesson.citations || []).length && <Text style={s.cite}>{`◈ grounded in your material · ${lesson.citations.map((c) => c.ref).join(', ')}`}</Text>}
         <Pressable style={[s.cta, busy && s.ctaBusy]} onPress={openQuiz} disabled={busy}><Text style={s.ctaT}>{busyKey === 'quiz' ? 'Loading…' : 'Take the quiz'}</Text></Pressable>
         <Err />
@@ -274,6 +335,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
       return (
         <ScrollView contentContainerStyle={s.scroll}>
           <Text style={s.dayBadge}>{`DAY ${quiz.day} · QUIZ`}</Text>
+          <Says line="No notes now. Show me it's yours." size={34} />
           <Text style={s.progTiny}>{answered} of {answers.length} answered</Text>
           {(quiz.questions || []).map((q, i) => <Question key={i} q={q} i={i} chosen={answers[i]} onPick={(k) => setAnswers((a) => { const n = [...a]; n[i] = k; return n; })} />)}
           <Pressable style={[s.cta, !all && s.ctaBusy]} onPress={all ? submitQuiz : undefined} disabled={!all || busy}>
@@ -284,25 +346,30 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
       );
     }
 
-    if (stage === 'result' && result) return (
-      <ScrollView contentContainerStyle={s.scroll}>
-        <Text style={s.dayBadge}>{`DAY ${result.day} · RESULT`}</Text>
-        <View style={s.scoreWrap}><Text style={s.score}>{result.score}</Text><Text style={s.scoreOf}> / {result.total}</Text></View>
-        <Text style={s.scoreLine}>{result.reaction || (result.score === result.total ? 'Clean sweep.' : result.score >= result.total / 2 ? 'Solid — a few to tighten.' : "Tricky set — we'll reinforce these.")}</Text>
-        {(quiz?.questions || []).map((q, i) => { const r = (result.results || []).find((x) => x.i === i) || {}; return <Question key={i} q={q} i={i} chosen={r.chosen} reveal={{ correct: r.correct, why: r.why }} />; })}
-        {!!(result.weakTags || []).length && (
-          <View style={s.weak}><Text style={s.weakLbl}>WE'LL REINFORCE</Text><View style={s.chips}>{result.weakTags.map((t, i) => <View key={i} style={s.chip}><Text style={s.chipT}>{t}</Text></View>)}</View></View>
-        )}
-        <Pressable style={[s.cta, busy && s.ctaBusy]} onPress={continueNext} disabled={busy}><Text style={s.ctaT}>{result.done ? 'Finish course' : `Continue to day ${result.nextDay} →`}</Text></Pressable>
-        <Err />
-      </ScrollView>
-    );
+    if (stage === 'result' && result) {
+      const perfect = result.score === result.total, half = result.score >= result.total / 2;
+      const reaction = result.reaction || (perfect ? "Clean sweep. That's mastery, not luck." : half ? "Solid. A few edges to sharpen — let's tighten them." : "Tricky set. This is exactly what we double back on. No shame in it.");
+      return (
+        <ScrollView contentContainerStyle={s.scroll}>
+          <Text style={s.dayBadge}>{`DAY ${result.day} · RESULT`}</Text>
+          <View style={s.scoreWrap}><Text style={s.score}>{result.score}</Text><Text style={s.scoreOf}> / {result.total}</Text></View>
+          <Says line={reaction} size={40} />
+          {(quiz?.questions || []).map((q, i) => { const r = (result.results || []).find((x) => x.i === i) || {}; return <Question key={i} q={q} i={i} chosen={r.chosen} reveal={{ correct: r.correct, why: r.why }} />; })}
+          {!!(result.weakTags || []).length && (
+            <View style={s.weak}><Text style={s.weakLbl}>WE'LL REINFORCE</Text><View style={s.chips}>{result.weakTags.map((t, i) => <View key={i} style={s.chip}><Text style={s.chipT}>{t}</Text></View>)}</View></View>
+          )}
+          <Pressable style={[s.cta, busy && s.ctaBusy]} onPress={continueNext} disabled={busy}><Text style={s.ctaT}>{result.done ? 'Finish course' : `Continue to day ${result.nextDay} →`}</Text></Pressable>
+          <Err />
+        </ScrollView>
+      );
+    }
 
     if (stage === 'mock' && mock) {
       const answered = mockAns.filter((a) => a !== null).length, all = answered === mockAns.length;
       return (
         <ScrollView contentContainerStyle={s.scroll}>
           <Text style={s.dayBadge}>{`FULL MOCK · ${mock.count} QUESTIONS`}</Text>
+          <Says line="The real thing. Clock's yours — pace it." size={34} />
           <Text style={s.progTiny}>{answered} of {mockAns.length} answered</Text>
           {(mock.questions || []).map((q, i) => <Question key={i} q={q} i={i} chosen={mockAns[i]} onPick={(k) => setMockAns((a) => { const n = [...a]; n[i] = k; return n; })} />)}
           <Pressable style={[s.cta, !all && s.ctaBusy]} onPress={all ? submitMock : undefined} disabled={!all || busy}>
@@ -319,6 +386,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
         <ScrollView contentContainerStyle={s.scroll}>
           <Text style={s.dayBadge}>MOCK · RESULT</Text>
           <View style={s.scoreWrap}><Text style={s.score}>{mockResult.score}</Text><Text style={s.scoreOf}> / {mockResult.total}</Text></View>
+          <Says line="Here's where you actually stand — topic by topic. The red is the map." size={40} />
           <Text style={s.sectionLbl}>BY TOPIC</Text>
           {bd.map(([tag, b]) => {
             const pct = b.total ? b.right / b.total : 0;
@@ -338,14 +406,16 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <Text style={s.bigLead}>Ask the coach</Text>
-          <Text style={s.leadSub}>A question on {course.topic}. If you've uploaded material, the answer is grounded in it, with citations.</Text>
-          <TextInput style={[s.input, { minHeight: 66, textAlignVertical: 'top' }]} value={askQ} onChangeText={setAskQ} placeholder="e.g. explain the negotiation rule with an example" placeholderTextColor={P.faint} multiline />
+          <Text style={s.leadSub}>“A question on {course.topic}. If you've handed me your own material, I'll answer from it — and show you where.”</Text>
+          <TextInput style={[s.input, { minHeight: 66, textAlignVertical: 'top' }]} value={askQ} onChangeText={setAskQ} placeholder="e.g. explain the assumption question type with an example" placeholderTextColor={P.faint} multiline />
           <Pressable style={[s.cta, busy && s.ctaBusy]} onPress={ask} disabled={busy}><Text style={s.ctaT}>{busyKey === 'ask' ? 'Thinking…' : 'Ask'}</Text></Pressable>
           {!!askA && (
             <View style={{ marginTop: 26 }}>
               <Text style={s.askedQ}>{asked}</Text>
-              <View style={s.rule} />
-              <Prose text={askA.answer} />
+              <Says line={null} size={34} />
+              <View style={s.lessonBody}>
+                <Prose text={askA.answer} />
+              </View>
               {!!(askA.citations || []).length && <Text style={s.cite}>{`◈ from your material · ${askA.citations.map((c) => c.ref).join(', ')}`}</Text>}
             </View>
           )}
@@ -358,15 +428,16 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
   };
 
   const heads = {
-    home: course ? ['THE COACH', 'Study desk'] : ['THE COACH', 'New course'],
+    home: course ? ['THE COACH', 'Study'] : ['THE COACH', 'New course'],
     lesson: ['LESSON', course?.topic || 'Lesson'], quiz: ['QUIZ', course?.topic || 'Quiz'],
     result: ['RESULT', course?.topic || 'Result'], mock: ['MOCK TEST', course?.topic || 'Mock'],
     mockresult: ['MOCK', course?.topic || 'Mock'], ask: ['ASK', course?.topic || 'Ask'],
   };
-  const [eyebrow, title] = heads[stage] || ['THE COACH', 'Study desk'];
+  const [eyebrow, title] = heads[stage] || ['THE COACH', 'Study'];
 
   return (
     <View style={s.root}>
+      <LinearGradient colors={GRAD} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
       <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         {stage !== 'loading' && <Head eyebrow={eyebrow} title={title} />}
@@ -383,11 +454,15 @@ const pr = StyleSheet.create({
   code: { fontFamily: 'monospace', color: P.ember, fontSize: 14 },
   h: { fontFamily: FONTS.display, color: P.cream, marginBottom: 10, marginTop: 6, letterSpacing: -0.3 },
   h1: { fontSize: 23, lineHeight: 29, marginTop: 4 },
-  h2: { fontSize: 19, lineHeight: 25, marginTop: 14 },
-  h3: { fontSize: 16.5, lineHeight: 22, marginTop: 12, fontFamily: FONTS.semibold, color: P.ember },
+  h2: { fontSize: 19, lineHeight: 25, marginTop: 16 },
+  h3: { fontSize: 15, lineHeight: 21, marginTop: 14, fontFamily: FONTS.semibold, color: P.lamp, letterSpacing: 0.3, textTransform: 'uppercase' },
   hr: { height: 1, backgroundColor: P.line, marginVertical: 18 },
+  // the coach's pull-quote — a rule or worked line set apart, lamp-lit
+  quote: { flexDirection: 'row', marginVertical: 14, paddingRight: 6 },
+  quoteBar: { width: 2.5, borderRadius: 2, backgroundColor: P.lamp, marginRight: 14 },
+  quoteTxt: { flex: 1, fontFamily: FONTS.displayItalic, color: P.cream, fontSize: 18, lineHeight: 27 },
   li: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 9, paddingRight: 4 },
-  mark: { fontFamily: FONTS.semibold, color: P.ember, fontSize: 15.5, lineHeight: 25, width: 22 },
+  mark: { fontFamily: FONTS.semibold, color: P.lamp, fontSize: 15.5, lineHeight: 25, width: 22 },
   liTxt: { flex: 1, fontFamily: FONTS.body, color: P.dim, fontSize: 15.5, lineHeight: 25 },
   codeBox: { borderWidth: 1, borderColor: P.line, borderRadius: 12, padding: 13, marginBottom: 14, backgroundColor: 'rgba(0,0,0,0.25)' },
   codeTxt: { fontFamily: 'monospace', color: '#E7C9A8', fontSize: 13.5, lineHeight: 20 },
@@ -395,29 +470,40 @@ const pr = StyleSheet.create({
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: P.ground },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
+  loadVoice: { fontFamily: FONTS.displayItalic, color: P.muted, fontSize: 14 },
   scroll: { paddingHorizontal: 22, paddingBottom: 60 },
 
-  head: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 16, gap: 6 },
+  head: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 16, gap: 10 },
   back: { color: P.muted, fontSize: 30, marginTop: -4 },
-  eyebrow: { fontFamily: FONTS.semibold, color: P.ember, fontSize: 9.5, letterSpacing: 3, opacity: 0.9 },
+  eyebrow: { fontFamily: FONTS.semibold, color: P.lamp, fontSize: 9.5, letterSpacing: 3, opacity: 0.9 },
   headTitle: { fontFamily: FONTS.display, color: P.cream, fontSize: 20, marginTop: 1 },
 
-  bigLead: { fontFamily: FONTS.display, color: P.cream, fontSize: 34, lineHeight: 40, marginTop: 12, letterSpacing: -0.6 },
-  leadSub: { fontFamily: FONTS.displayItalic, color: P.muted, fontSize: 15.5, lineHeight: 23, marginTop: 14, marginBottom: 8 },
+  // the coach speaks — portrait + name + line
+  says: { flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 18, marginBottom: 4 },
+  saysName: { fontFamily: FONTS.semibold, color: P.lamp, fontSize: 9.5, letterSpacing: 3 },
+  saysLine: { fontFamily: FONTS.displayItalic, color: 'rgba(243,235,223,0.9)', fontSize: 16, lineHeight: 23, marginTop: 4 },
+
+  // meet the coach (empty state)
+  meet: { flexDirection: 'row', alignItems: 'center', gap: 15, marginTop: 8, marginBottom: 6 },
+  meetKicker: { fontFamily: FONTS.semibold, color: P.lamp, fontSize: 10.5, letterSpacing: 3.5 },
+  meetSit: { fontFamily: FONTS.displayItalic, color: P.muted, fontSize: 16, marginTop: 4 },
+
+  bigLead: { fontFamily: FONTS.display, color: P.cream, fontSize: 34, lineHeight: 40, marginTop: 22, letterSpacing: -0.6 },
+  leadSub: { fontFamily: FONTS.displayItalic, color: P.muted, fontSize: 16, lineHeight: 24, marginTop: 14, marginBottom: 8 },
   fieldLbl: { fontFamily: FONTS.semibold, color: P.faint, fontSize: 10, letterSpacing: 2.5, marginTop: 26, marginBottom: 11 },
   input: { fontFamily: FONTS.body, color: P.cream, fontSize: 16.5, borderWidth: 1, borderColor: P.line, borderRadius: 15, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: P.panel },
   daysRow: { flexDirection: 'row', gap: 10 },
   dayChip: { flex: 1, borderWidth: 1, borderColor: P.line, borderRadius: 13, paddingVertical: 13, alignItems: 'center', backgroundColor: P.panel },
-  dayChipOn: { backgroundColor: P.ember, borderColor: P.ember },
+  dayChipOn: { backgroundColor: P.lamp, borderColor: P.lamp },
   dayChipT: { fontFamily: FONTS.semibold, color: P.cream, fontSize: 16 },
 
-  cta: { backgroundColor: P.ember, borderRadius: 15, paddingVertical: 16, alignItems: 'center', marginTop: 30 },
+  cta: { backgroundColor: P.lamp, borderRadius: 15, paddingVertical: 16, alignItems: 'center', marginTop: 30 },
   ctaBusy: { opacity: 0.5 },
   ctaT: { fontFamily: FONTS.semibold, color: P.ground, fontSize: 15.5 },
   err: { fontFamily: FONTS.body, color: P.rose, fontSize: 13.5, marginTop: 16, textAlign: 'center', lineHeight: 19 },
 
-  courseEyebrow: { fontFamily: FONTS.semibold, color: P.ember, fontSize: 10, letterSpacing: 2.5, marginTop: 6 },
+  courseEyebrow: { fontFamily: FONTS.semibold, color: P.lamp, fontSize: 10, letterSpacing: 2.5, marginTop: 20 },
   courseTitle: { fontFamily: FONTS.display, color: P.cream, fontSize: 30, lineHeight: 36, marginTop: 8, letterSpacing: -0.6 },
   segs: { flexDirection: 'row', gap: 5, marginTop: 20 },
   seg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(231,215,199,0.1)' },
@@ -426,7 +512,7 @@ const s = StyleSheet.create({
 
   actions: { flexDirection: 'row', gap: 12, marginTop: 26 },
   action: { flex: 1, borderWidth: 1, borderColor: P.line, borderRadius: 15, paddingVertical: 17, alignItems: 'center', gap: 8, backgroundColor: P.panel },
-  actionIcon: { fontFamily: FONTS.display, color: P.ember, fontSize: 21 },
+  actionIcon: { fontFamily: FONTS.display, color: P.lamp, fontSize: 21 },
   actionT: { fontFamily: FONTS.medium, color: P.cream, fontSize: 13 },
 
   sectionLbl: { fontFamily: FONTS.semibold, color: P.faint, fontSize: 10, letterSpacing: 2.5, marginTop: 32, marginBottom: 8 },
@@ -435,16 +521,16 @@ const s = StyleSheet.create({
   spineCol: { alignItems: 'center', width: 30 },
   node: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: P.line, alignItems: 'center', justifyContent: 'center', backgroundColor: P.ground },
   nodeDone: { backgroundColor: P.emberDim, borderColor: P.ember },
-  nodeNow: { backgroundColor: P.ember, borderColor: P.ember },
+  nodeNow: { backgroundColor: P.lamp, borderColor: P.lamp, shadowColor: P.lamp, shadowOpacity: 0.6, shadowRadius: 8 },
   nodeN: { fontFamily: FONTS.semibold, color: P.muted, fontSize: 13 },
   spineLine: { flex: 1, width: 1.5, backgroundColor: P.line, marginVertical: 3, minHeight: 20 },
   dayCard: { flex: 1, borderWidth: 1, borderColor: P.line, borderRadius: 16, padding: 16, marginBottom: 12, backgroundColor: P.panel },
-  dayCardNow: { borderColor: P.emberDim, backgroundColor: 'rgba(231,176,122,0.05)' },
+  dayCardNow: { borderColor: P.emberDim, backgroundColor: P.lampGlow },
   dayTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   dayTitle: { flex: 1, fontFamily: FONTS.semibold, color: 'rgba(243,235,223,0.82)', fontSize: 15.5, lineHeight: 21 },
   dayScore: { fontFamily: FONTS.semibold, color: P.ember, fontSize: 13 },
   dayFocus: { fontFamily: FONTS.body, color: P.muted, fontSize: 13, lineHeight: 20, marginTop: 9 },
-  dayGo: { alignSelf: 'flex-start', marginTop: 15, backgroundColor: P.ember, borderRadius: 11, paddingVertical: 10, paddingHorizontal: 17 },
+  dayGo: { alignSelf: 'flex-start', marginTop: 15, backgroundColor: P.lamp, borderRadius: 11, paddingVertical: 10, paddingHorizontal: 17 },
   dayGoT: { fontFamily: FONTS.semibold, color: P.ground, fontSize: 13.5 },
 
   weak: { marginTop: 28, borderWidth: 1, borderColor: 'rgba(240,112,140,0.25)', borderRadius: 16, padding: 16, backgroundColor: 'rgba(240,112,140,0.045)' },
@@ -454,14 +540,15 @@ const s = StyleSheet.create({
   chipT: { fontFamily: FONTS.body, color: 'rgba(243,235,223,0.8)', fontSize: 12.5 },
   newCourse: { fontFamily: FONTS.displayItalic, color: P.faint, fontSize: 13.5, textAlign: 'center', textDecorationLine: 'underline' },
 
-  dayBadge: { fontFamily: FONTS.semibold, color: P.ember, fontSize: 10, letterSpacing: 2.5, marginTop: 6 },
+  dayBadge: { fontFamily: FONTS.semibold, color: P.lamp, fontSize: 10, letterSpacing: 2.5, marginTop: 6 },
   lessonTitle: { fontFamily: FONTS.display, color: P.cream, fontSize: 27, lineHeight: 33, marginTop: 10, letterSpacing: -0.5 },
   lessonFocus: { fontFamily: FONTS.displayItalic, color: P.muted, fontSize: 15.5, lineHeight: 23, marginTop: 11 },
-  rule: { height: 1, backgroundColor: P.line, marginVertical: 20 },
+  // the lesson reads as a taught column — a faint lamp-lit left margin
+  lessonBody: { marginTop: 18, paddingTop: 20, borderTopWidth: 1, borderTopColor: P.line },
   cite: { fontFamily: FONTS.displayItalic, color: P.ember, fontSize: 12.5, marginTop: 8, opacity: 0.85 },
   askedQ: { fontFamily: FONTS.display, color: P.cream, fontSize: 19, lineHeight: 25, letterSpacing: -0.3 },
 
-  progTiny: { fontFamily: FONTS.body, color: P.faint, fontSize: 12, marginTop: 8 },
+  progTiny: { fontFamily: FONTS.body, color: P.faint, fontSize: 12, marginTop: 14 },
   qBlock: { marginTop: 24 },
   qNum: { fontFamily: FONTS.semibold, color: P.faint, fontSize: 10, letterSpacing: 2, marginBottom: 8 },
   qText: { fontFamily: FONTS.medium, color: P.cream, fontSize: 16.5, lineHeight: 23, marginBottom: 14 },
@@ -476,9 +563,8 @@ const s = StyleSheet.create({
   why: { fontFamily: FONTS.displayItalic, color: P.muted, fontSize: 13.5, lineHeight: 20, marginTop: 4, paddingLeft: 2 },
 
   scoreWrap: { flexDirection: 'row', alignItems: 'baseline', marginTop: 14 },
-  score: { fontFamily: FONTS.display, color: P.ember, fontSize: 66, letterSpacing: -2 },
+  score: { fontFamily: FONTS.display, color: P.lamp, fontSize: 66, letterSpacing: -2 },
   scoreOf: { fontFamily: FONTS.display, color: P.faint, fontSize: 30 },
-  scoreLine: { fontFamily: FONTS.displayItalic, color: P.muted, fontSize: 15.5, marginTop: 2, marginBottom: 8 },
 
   bdRow: { marginTop: 16 },
   bdHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
