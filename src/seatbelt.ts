@@ -39,7 +39,7 @@ export async function seatbeltCheck(
       system: GATE,
       messages: [{ role: 'user', content: `The persona${ctx?.personaKey ? ` "${ctx.personaKey}"` : ''} wants to send, unprompted:\n\n"${String(ping).slice(0, 800)}"` }],
     });
-    if (ctx?.userId) logUsage({ userId: ctx.userId, personaKey: ctx.personaKey, surface: 'seatbelt', model: SEATBELT_MODEL, usage: (msg as any).usage });
+    if (ctx?.userId) logUsage({ userId: ctx.userId, personaKey: ctx.personaKey, surface: 'seatbelt', fn: 'seatbelt', model: SEATBELT_MODEL, usage: (msg as any).usage });
     const text = (msg.content?.[0] as any)?.text?.trim() ?? '';
     if (/^APPROVE\b/i.test(text)) return { ok: true };
     const reason = text.replace(/^REJECT:?\s*/i, '').slice(0, 120) || 'rejected';

@@ -71,7 +71,7 @@ export async function judgeCodex(text: string, userId: string): Promise<{ ok: bo
       model: MODEL, max_tokens: 80, system: JUDGE_SYS,
       messages: [{ role: 'user', content: `CHARACTER DOCUMENT:\n\n${text.slice(0, MAX_CODEX_CHARS)}` }],
     });
-    logUsage({ userId, surface: 'seatbelt', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId, surface: 'seatbelt', fn: 'custom_persona_seatbelt', model: MODEL, usage: (msg as any).usage });
     const line = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(' ').trim();
     if (/^APPROVE/i.test(line)) return { ok: true };
     const reason = line.replace(/^REJECT:\s*/i, '').trim() || 'that design crosses a house rule — reshape it and try again.';
@@ -107,7 +107,7 @@ export async function composeCodex(userId: string, answers: {
     model: MODEL, max_tokens: 2200, system: COMPOSE_SYS,
     messages: [{ role: 'user', content: prompt }],
   });
-  logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
+  logUsage({ userId, surface: 'other', fn: 'custom_persona_build', model: MODEL, usage: (msg as any).usage });
   return msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim().slice(0, MAX_CODEX_CHARS);
 }
 

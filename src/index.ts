@@ -31,7 +31,7 @@ import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './gam
 import { debateDuelAdapter } from './games/debateDuel.js';
 import { battlefieldDuelAdapter } from './games/battlefieldDuel.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
-import { logUsage } from './usage.js';
+import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
 import { PROFILE_BLURBS } from './blurbs.js';
@@ -1033,7 +1033,7 @@ app.post('/banter', async (req, res) => {
     stream.on('text', () => {});
     stream.on('error', () => {}); // don't let a stream 'error' event go unhandled
     const final = await stream.finalMessage();
-    logUsage({ userId: user.id, personaKey: persona, surface: 'banter', model: 'claude-haiku-4-5-20251001', usage: (final as any).usage });
+    logUsage({ userId: user.id, personaKey: persona, surface: 'banter', fn: 'banter', model: 'claude-haiku-4-5-20251001', usage: (final as any).usage });
     const line = final.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
     res.json({ line });
   } catch (e: any) { res.status(500).json({ error: 'banter failed: ' + (e?.message || String(e)) }); }
@@ -1349,6 +1349,41 @@ app.post('/battlefield/practice/start', async (req, res) => {
 // {openings,rebuttals,closings}-style via `mySpeeches` (array of 3 strings: Opening,
 // Rebuttal, Closing). The house generates its three turns; the proven adjudicator rules.
 // Proves: state machine + phase advance + turn-lock + house generation + real verdict.
+app.get('/diagnostics/costs', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const days = Math.max(1, Math.min(90, parseInt(String(req.query.days ?? '7'), 10) || 7));
+    const since = new Date(Date.now() - days * 864e5).toISOString();
+    const { data, error } = await supabase.from('usage_log')
+      .select('fn, surface, persona_key, user_id, cost_inr, created_at')
+      .gte('created_at', since).limit(100000);
+    if (error) return res.status(500).json({ error: error.message });
+    const rows: any[] = data || [];
+    const byFn: Record<string, { inr: number; calls: number }> = {};
+    const byPersona: Record<string, { inr: number; calls: number }> = {};
+    const byDay: Record<string, number> = {};
+    const users = new Set<string>();
+    let total = 0;
+    for (const r of rows) {
+      const inr = Number(r.cost_inr) || 0; total += inr; if (r.user_id) users.add(r.user_id);
+      const fk = r.fn || r.surface || 'other';
+      (byFn[fk] ||= { inr: 0, calls: 0 }); byFn[fk].inr += inr; byFn[fk].calls += 1;
+      const pk = r.persona_key || '\u2014';
+      (byPersona[pk] ||= { inr: 0, calls: 0 }); byPersona[pk].inr += inr; byPersona[pk].calls += 1;
+      const day = String(r.created_at).slice(0, 10); byDay[day] = (byDay[day] || 0) + inr;
+    }
+    const r4 = (n: number) => Math.round(n * 10000) / 10000;
+    for (const k in byFn) byFn[k].inr = r4(byFn[k].inr);
+    for (const k in byPersona) byPersona[k].inr = r4(byPersona[k].inr);
+    for (const k in byDay) byDay[k] = r4(byDay[k]);
+    const active = users.size;
+    res.json({ days, rows: rows.length, total_inr: r4(total), active_users: active,
+      cost_per_active_user_inr: active ? r4(total / active) : 0, byFn, byPersona, byDay });
+  } catch (e: any) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+
 app.post('/battlefield/test-duel', async (req, res) => {
   try {
     const mySpeeches: string[] = Array.isArray(req.body?.mySpeeches) ? req.body.mySpeeches : [];
@@ -1362,6 +1397,7 @@ app.post('/battlefield/test-duel', async (req, res) => {
       ? battlefieldDuelAdapter.create({ motion: pinMotion, domain: pinDomain })
       : battlefieldDuelAdapter.create();
     const steps: any[] = [];
+    const costStart = costSnapshot();
     let myIdx = 0; let guard = 0;
     while (!battlefieldDuelAdapter.isOver(state) && guard++ < 12) {
       const toAct = battlefieldDuelAdapter.toActSeat(state);
@@ -1382,6 +1418,7 @@ app.post('/battlefield/test-duel', async (req, res) => {
       winner: state.winner, error: state.error,
       verdict: state.verdict ? { winner: state.verdict.winner, summary: state.verdict.summary, matter: state.verdict.matter, manner: state.verdict.manner } : null,
       steps,
+      cost: costSince(costStart),
     });
   } catch (e: any) {
     res.status(500).json({ error: 'test-duel failed: ' + (e?.message || String(e)) });
@@ -2383,7 +2420,9 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         });
         await supabase.from('threads').update({ game_mode: null }).eq('id', threadId);
       }
-      res.write(`data: ${JSON.stringify({ done: true, usage: result.usage })}\n\n`);
+      logUsage({ userId: user.id, threadId, surface: 'chat', fn: 'chat', model: 'claude-haiku-4-5-20251001', usage: result.usage });
+      const _diag = diagEcho(user.id, { usage: result.usage, model: 'claude-haiku-4-5-20251001', fn: 'chat' });
+      res.write(`data: ${JSON.stringify({ done: true, usage: result.usage, ...(_diag ? { cost: _diag } : {}) })}\n\n`);
       res.end();
     }
   } catch (e: any) {

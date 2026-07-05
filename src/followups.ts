@@ -47,7 +47,7 @@ async function writePing(userId: string, personaKey: string, about: string): Pro
     model: MODEL, max_tokens: 60, system: WRITER,
     messages: [{ role: 'user', content: `Persona: ${p?.defaultName || personaKey}. Following up on: ${about}` }],
   });
-  logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
+  logUsage({ userId, surface: 'other', fn: 'followup', model: MODEL, usage: (msg as any).usage });
   const text = ((msg.content?.[0] as any)?.text ?? '').trim().replace(/^["']|["']$/g, '').slice(0, 240);
   return text || null;
 }
@@ -84,7 +84,7 @@ async function draftFor(userId: string): Promise<{ personaKey: string; ping: str
     model: MODEL, max_tokens: 120, system: SELECTOR,
     messages: [{ role: 'user', content: ctx.slice(0, 4000) }],
   });
-  logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
+  logUsage({ userId, surface: 'other', fn: 'followup', model: MODEL, usage: (msg as any).usage });
   const text = ((msg.content?.[0] as any)?.text ?? '').trim();
   console.log('[followups] selector for', userId, '→', JSON.stringify(text.slice(0, 220)));
   if (/^NONE\b/i.test(text)) return null;

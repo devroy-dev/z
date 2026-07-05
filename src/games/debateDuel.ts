@@ -70,7 +70,7 @@ async function judgeExchange(state: DuelState): Promise<{ swing: number; remark:
       model: MODEL, max_tokens: 160, system: JUDGE,
       messages: [{ role: 'user', content: `MOTION: ${state.motion}\nMOMENTUM SO FAR: A ${state.momentum} / B ${100 - state.momentum}\n\nTHE EXCHANGE:\n${transcript}` }],
     });
-    logUsage({ userId: 'duel', surface: 'other', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId: 'duel', surface: 'other', fn: 'arena_debate_duel', model: MODEL, usage: (msg as any).usage });
     const text = ((msg.content?.[0] as any)?.text ?? '');
     const swing = Math.max(-15, Math.min(15, parseInt(/SWING:\s*(-?\d+)/.exec(text)?.[1] ?? '0', 10) || 0));
     const remark = (/REMARK:\s*(.+)/.exec(text)?.[1] ?? '').trim().slice(0, 160);
@@ -86,7 +86,7 @@ async function finalVerdict(state: DuelState): Promise<{ winner: number | 'draw'
       model: MODEL, max_tokens: 300, system: VERDICT,
       messages: [{ role: 'user', content: `MOTION: ${state.motion}\nFINAL MOMENTUM: A ${state.momentum} / B ${100 - state.momentum}\n\nFULL TRANSCRIPT:\n${transcript}` }],
     });
-    logUsage({ userId: 'duel', surface: 'other', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId: 'duel', surface: 'other', fn: 'arena_debate_duel', model: MODEL, usage: (msg as any).usage });
     const text = ((msg.content?.[0] as any)?.text ?? '');
     const w = (/WINNER:\s*(A|B|DRAW)/i.exec(text)?.[1] ?? '').toUpperCase();
     const verdict = (/VERDICT:\s*([\s\S]+)/.exec(text)?.[1] ?? 'A hard-fought exchange.').trim().slice(0, 700);

@@ -43,7 +43,7 @@ async function generate(prompt: string): Promise<any[]> {
     messages: [{ role: 'user', content: prompt }],
     tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as any],
   });
-  logUsage({ userId: 'bulletin', surface: 'other', model: MODEL, usage: (msg as any).usage });
+  logUsage({ userId: 'bulletin', surface: 'other', fn: 'bulletin', model: MODEL, usage: (msg as any).usage });
   const text = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
   return parseStories(text);
 }

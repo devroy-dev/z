@@ -76,7 +76,7 @@ async function programmeFor(userId: string): Promise<string | null> {
     model: MODEL, max_tokens: 300, system: VOICE,
     messages: [{ role: 'user', content: `Tonight's cards, in order:\n${material}` }],
   });
-  logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
+  logUsage({ userId, surface: 'other', fn: 'evening_programme', model: MODEL, usage: (msg as any).usage });
   let text = ((msg.content?.[0] as any)?.text ?? '').trim();
   // deterministic floor: every chosen tag present verbatim, or we rebuild the note ourselves
   if (!cards.every((c) => text.includes(tag(c)))) {

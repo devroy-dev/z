@@ -32,6 +32,17 @@ export function costSince(startLen: number): {
   return { total_inr: Math.round(total * 10000) / 10000, calls: slice.length, byFn };
 }
 
+// the founder gate: cost is echoed to the client ONLY for Dev's id, so cost
+// data is never even sent to other accounts. The in-app whisper reads this.
+export const DIAG_USER_ID = 'd91a137e-46d4-4d85-91e4-6092007e8501';
+export function diagEcho(userId: string, args: { usage: Usage | any; model: string; fn: string }):
+  { cost_inr: number; fn: string; usage: Usage } | undefined {
+  if (userId !== DIAG_USER_ID) return undefined;
+  const u: Usage = 'in' in (args.usage ?? {}) ? args.usage : usageFromApi(args.usage);
+  const { inr } = calcCostInr(args.model, u);
+  return { cost_inr: Math.round(inr * 10000) / 10000, fn: args.fn, usage: u };
+}
+
 export function logUsage(args: {
   userId: string; threadId?: string | null; personaKey?: string | null;
   surface: 'chat' | 'group' | 'banter' | 'director' | 'seatbelt' | 'other';
@@ -49,7 +60,7 @@ export function logUsage(args: {
     if (recentUsage.length > RING_MAX) recentUsage.splice(0, recentUsage.length - RING_MAX);
     void supabase.from('usage_log').insert({
       user_id: args.userId, thread_id: args.threadId ?? null, persona_key: args.personaKey ?? null,
-      surface: args.surface, model: args.model,
+      surface: args.surface, fn: args.fn ?? null, model: args.model,
       tok_in: u.in, tok_out: u.out, tok_cache_read: u.cacheRead, tok_cache_write: u.cacheWrite,
       cost_inr: inr,
     }).then(() => {});

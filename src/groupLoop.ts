@@ -375,7 +375,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       throw err;
     });
     const reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
-    logUsage({ userId, threadId, personaKey: key, surface: 'group', model: MODEL, usage: (final as any).usage });
+    logUsage({ userId, threadId, personaKey: key, surface: 'group', fn: 'group_turn', model: MODEL, usage: (final as any).usage });
 
     // persist with persona_key so the surface knows who spoke
     await supabase.from('messages').insert({

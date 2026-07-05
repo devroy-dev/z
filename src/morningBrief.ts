@@ -59,7 +59,7 @@ async function briefFor(userId: string): Promise<string | null> {
     model: MODEL, max_tokens: 110, system: VOICE,
     messages: [{ role: 'user', content: material.slice(0, 1800) }],
   });
-  logUsage({ userId, surface: 'other', model: MODEL, usage: (msg as any).usage });
+  logUsage({ userId, surface: 'other', fn: 'morning_brief', model: MODEL, usage: (msg as any).usage });
   const text = ((msg.content?.[0] as any)?.text ?? '').trim().replace(/^["']|["']$/g, '').slice(0, 420);
   return text || null;
 }

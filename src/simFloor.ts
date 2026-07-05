@@ -186,7 +186,7 @@ async function economistLine(userId: string, context: string, fallback: string):
       model: MODEL, max_tokens: 100, system: ECONOMIST_SYS,
       messages: [{ role: 'user', content: context }],
     });
-    logUsage({ userId, personaKey: 'the_economist', surface: 'other', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId, personaKey: 'the_economist', surface: 'other', fn: 'simfloor_money_man', model: MODEL, usage: (msg as any).usage });
     const text = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(' ').trim();
     return text ? text.slice(0, 240) : fallback;
   } catch (e: any) {
@@ -228,7 +228,7 @@ export async function oracleReading(): Promise<string | null> {
       model: MODEL, max_tokens: 220, system: ORACLE_SYS,
       messages: [{ role: 'user', content: ctx }],
     });
-    logUsage({ userId: 'sim-oracle', personaKey: 'the_oracle', surface: 'other', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId: 'sim-oracle', personaKey: 'the_oracle', surface: 'other', fn: 'simfloor_oracle', model: MODEL, usage: (msg as any).usage });
     const body = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(' ').trim().slice(0, 800);
     if (!body) return null;
     await supabase.from('sim_oracle').insert({ day, body });

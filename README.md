@@ -1,43 +1,48 @@
-# cost-diag zip 01 — the Battlefield cost tap
+# cost-diag zip 02 — the full cost layer (fn tags · main-chat log · whisper echo · dashboard)
 
-First slice of the cost-diagnostics layer. Migration-free, curl-verifiable, server-only.
-No UI, no DB change — proves the metering pattern on the fattest function (a full duel).
+Base: bb715c9. Completes the cost-diagnostic work. The patcher is transactional
+(validates every anchor first; writes nothing unless all pass) and idempotent.
 
-## What it changes (4 files, 8 anchored edits)
-- `src/usage.ts` — `logUsage` gains an optional `fn` tag, returns `{ inr }`, and pushes
-  every call into a bounded in-memory cost ring. Adds `costSnapshot()` / `costSince()`.
-  `fn` is ring-only for now — NOT written to `usage_log` (that column doesn't exist yet;
-  writing it would break every insert). Persisting `fn` + the dashboard = next slice (needs a migration).
-- `src/battlefieldAdjudicator.ts` — tags the verdict call `bf_verdict`, the note `bf_running_note`.
-- `src/games/battlefieldDuel.ts` — tags the house turn `bf_house_turn`.
-- `src/index.ts` — `/battlefield/test-duel` snapshots the ring before the loop and echoes
-  a `cost` object in its JSON.
+## What it does (22 edits, 14 files + 1 migration)
+- Tags EVERY `logUsage()` call with a fine `fn` — chat, banter, group_turn, gm_turn,
+  morning_brief, seatbelt, fantasy, simfloor_money_man, simfloor_oracle, followup,
+  bulletin, trivia_duel, arena_debate_duel, custom_persona_* (bf_* were done in zip 01).
+- Logs the MAIN 1:1 chat turn — it was returning usage but never hitting `logUsage`
+  (your highest-volume function was missing from the ledger). Now `fn:'chat'`.
+- Gated whisper echo: the chat SSE `done` event now carries `{ cost: {cost_inr,fn,usage} }`
+  ONLY for Dev's id (`diagEcho` in usage.ts) — cost data isn't even sent to other accounts.
+- RESTORES slice-1's `/battlefield/test-duel` cost echo, which **zip65 silently reverted**
+  (parallel index.ts edit — the collision your notes warn about). Re-curl will show `cost` again.
+- Persists `fn` to `usage_log` + adds `GET /diagnostics/costs` (founder-gated rollup by fn/persona/day).
 
-## Apply (from repo root, /workspaces/z)
-    python3 apply_cost_diag_01.py     # anchored, atomic, idempotent (safe to re-run)
-    npm run build                     # THE gate — real type-check (syntax was pre-checked, types weren't)
-    git add -A && git commit -m "cost-diag 01: battlefield cost tap" && git push
-    # Railway auto-builds. Confirm the deployed commit hash matches git log before testing.
+## APPLY — order matters (migration FIRST)
+    # 1. run the migration in Supabase SQL editor (adds the fn column) — BEFORE the code deploys,
+    #    or the persisted insert fails on a missing column:
+    #    → paste 0036_usage_fn.sql into Supabase SQL editor and run it.
+    cp 0036_usage_fn.sql migrations/         # keep it in the repo record too
+    python3 apply_cost_diag_02.py            # transactional, idempotent
+    npm run build                            # the gate (types); syntax pre-checked, all clean
+    git status --short
+    git add -A && git commit -m "cost-diag 02: fn tags + chat log + whisper echo + dashboard" && git push
+    # confirm Railway's deployed hash == git log before testing.
 
-## Verify (same test-duel curl you already run — now with cost)
-Re-run your sanctions curl. The response now ends with:
+## Verify
+1. **test-duel** (restored): re-run your sanctions curl → `cost` block is back.
+2. **the whisper**: send a normal 1:1 chat message as your account; the SSE `done` frame now
+   includes `cost: { cost_inr, fn:'chat', usage }`. (Other accounts: no `cost` field at all.)
+3. **the dashboard** (needs YOUR auth token — 403 otherwise):
+       curl -s "https://z-production-c79a.up.railway.app/diagnostics/costs?days=7" \
+         -H "Authorization: Bearer <your-token>" | python3 -m json.tool
+   → `{ total_inr, active_users, cost_per_active_user_inr, byFn{}, byPersona{}, byDay{} }`.
 
-    "cost": {
-      "total_inr": 0.51,
-      "calls": 8,
-      "byFn": {
-        "bf_house_turn":   { "inr": 0.32, "calls": 5 },
-        "bf_running_note": { "inr": 0.04, "calls": 2 },
-        "bf_verdict":      { "inr": 0.15, "calls": 1 }
-      }
-    }
+## Known gaps (by design, note for later)
+- System calls with synthetic userIds (`battlefield`, `bulletin`, `trivia-duel`, `duel`,
+  `sim-oracle`) fail the `usage_log.user_id → users(id)` FK and **do not persist** — they live
+  only in the in-memory ring (per-process). So `/diagnostics/costs` reflects USER-attributed cost;
+  system-function cost is measured via the ring / the test endpoints. Fixing that = a later schema
+  change (nullable user_id or a separate system_usage table). Not needed now.
+- `fn` is ring + DB from here on; back-rows before this deploy have `fn = null` (bucketed under `surface`).
 
-(Illustrative numbers.) That tells you what one full duel costs and where the money goes —
-house turns vs the running commentary vs the verdict. If `total_inr` is 0 or `calls` is 0,
-the ring isn't seeing the calls — check the deployed hash.
-
-## Notes
-- The ring is per-process and bounded (1000). Fine for a single-user curl diagnostic; not a ledger.
-- `usage_log` still records everything exactly as before (untouched insert).
-- Next slices: (2) add an `fn` column + `/diagnostics/costs` aggregation for the dashboard;
-  (3) echo `{cost_inr, usage, fn}` on the persona chat responses, gated to Dev's ID, for the in-app whisper.
+## Next (when you want it)
+- Group-room + banter responses could carry the same gated `cost` echo (same `diagEcho` helper) if
+  you want the whisper in rooms too — small follow-on.

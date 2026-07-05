@@ -80,7 +80,7 @@ export async function retrievePrep(userMessage: string, userId: string): Promise
       model: MODEL, max_tokens: 200, temperature: 0, system,
       messages: [{ role: 'user', content: q.slice(0, 2000) }],
     });
-    logUsage({ userId, surface: 'other', model: MODEL, usage: msg.usage });
+    logUsage({ userId, surface: 'other', fn: 'gm_turn', model: MODEL, usage: msg.usage });
     const text = (msg.content?.[0]?.text ?? '').replace(/```json|```/g, '').trim();
     const arr = JSON.parse(text);
     if (Array.isArray(arr)) picks = arr.slice(0, 4).filter((p: any) => p && p.domain && p.section);

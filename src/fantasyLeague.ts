@@ -402,7 +402,7 @@ async function hustlerLine(userId: string, ctx: string, fallback: string): Promi
       model: MODEL, max_tokens: 100, system: HUSTLER_SYS,
       messages: [{ role: 'user', content: ctx }],
     });
-    logUsage({ userId, personaKey: 'the_wannabe', surface: 'other', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId, personaKey: 'the_wannabe', surface: 'other', fn: 'fantasy', model: MODEL, usage: (msg as any).usage });
     const t = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(' ').trim();
     return t ? t.slice(0, 240) : fallback;
   } catch (e: any) {

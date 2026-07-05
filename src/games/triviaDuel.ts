@@ -51,7 +51,7 @@ async function generateQuestions(topic: string): Promise<Q[]> {
       model: MODEL, max_tokens: 1800, system: GEN_SYS,
       messages: [{ role: 'user', content: `Topic: ${topic}` }],
     });
-    logUsage({ userId: 'trivia-duel', surface: 'other', model: MODEL, usage: (msg as any).usage });
+    logUsage({ userId: 'trivia-duel', surface: 'other', fn: 'trivia_duel', model: MODEL, usage: (msg as any).usage });
     const text = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim()
       .replace(/^```(json)?/i, '').replace(/```$/, '').trim();
     const arr = JSON.parse(text);
