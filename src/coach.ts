@@ -89,7 +89,8 @@ export async function generateLesson(topic: string, focus: string, weakTags: str
 }
 
 export async function generateQuiz(topic: string, focus: string, n: number, userId: string): Promise<MCQ[]> {
-  const sys = `You write a short practice quiz for a student preparing for "${topic}". Produce EXACTLY ${n} multiple-choice questions on today's focus. RULES: crisp, unambiguous, exam-realistic; exactly ONE unambiguously correct option; verifiable — NEVER invent facts or trick wording; mixed difficulty. For each, also give "why" (one sentence: why the correct option is right) and "tag" (the sub-skill it tests, 1-3 words). Output ONLY a JSON array, no markdown: [{"q":"…","opts":["…","…","…","…"],"correct":0,"why":"…","tag":"…"}] — correct is the 0-based index, exactly 4 options.`;
+  const gen = Math.min(n + 3, 12);   // over-generate so the verify pass can drop weak keys and still hit n
+  const sys = `You write a short practice quiz for a student preparing for "${topic}". Produce EXACTLY ${gen} multiple-choice questions on today's focus. RULES: crisp, unambiguous, exam-realistic; exactly ONE unambiguously correct option; verifiable — NEVER invent facts or trick wording; mixed difficulty. For each, also give "why" (one sentence: why the correct option is right) and "tag" (the sub-skill it tests, 1-3 words). Output ONLY a JSON array, no markdown: [{"q":"…","opts":["…","…","…","…"],"correct":0,"why":"…","tag":"…"}] — correct is the 0-based index, exactly 4 options.`;
   try {
     const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 2200, system: sys, messages: [{ role: 'user', content: `Today's focus: ${focus}` }] });
     logUsage({ userId, surface: 'other', fn: 'coach_quiz', model: MODEL, usage: (msg as any).usage });
@@ -103,8 +104,36 @@ export async function generateQuiz(topic: string, focus: string, n: number, user
       if (q && opts.length === 4 && opts.every(Boolean) && Number.isInteger(correct) && correct >= 0 && correct <= 3) {
         clean.push({ q, opts, correct, tag, why });
       }
-      if (clean.length === n) break;
+      if (clean.length === gen) break;
     }
-    return clean;
+    const verified = await verifyQuiz(topic, clean, userId);
+    return verified.slice(0, n);
   } catch (e: any) { console.error('[coach] quiz failed:', e?.message || e); return []; }
+}
+
+// PURE: apply an independent checker's verdicts — keep only questions the checker
+// confirmed (agreed answer, not unsure). If the checker returned nothing usable,
+// best-effort KEEP all (a verifier hiccup must not brick the day). Unit-tested.
+export function applyVerdicts(questions: MCQ[], verdicts: { i: number; answer: number; unsure?: boolean }[]): MCQ[] {
+  const map = new Map<number, { answer: number; unsure: boolean }>();
+  for (const c of verdicts || []) {
+    const i = Number((c as any)?.i);
+    if (Number.isInteger(i)) map.set(i, { answer: Number((c as any)?.answer), unsure: !!(c as any)?.unsure });
+  }
+  if (map.size === 0) return questions;   // verifier gave nothing usable -> don't drop
+  return questions.filter((q, i) => { const v = map.get(i); return !!v && !v.unsure && v.answer === q.correct; });
+}
+
+// Independent verification: a SECOND model answers each question COLD (no key shown);
+// we keep only questions whose stored key matches the checker. The 'never trust one
+// generation' guard (same discipline that fixed the debate verdict). Best-effort on error.
+export async function verifyQuiz(topic: string, questions: MCQ[], userId: string): Promise<MCQ[]> {
+  if (!questions.length) return questions;
+  const sys = `You are a meticulous exam answer-checker for "${topic}". You are given multiple-choice questions with their options but NOT the answer key. For EACH, independently work out the single best answer. If a question is ambiguous, flawed, or has no single clearly-correct option, mark it unsure. Output ONLY a JSON array: [{"i":0,"answer":2,"unsure":false}] where i is the 0-based question index (matching input order), answer is the 0-based option you judge correct, unsure is true when you cannot confidently pick one. No prose, no markdown.`;
+  const payload = questions.map((q, i) => ({ i, q: q.q, opts: q.opts }));
+  try {
+    const msg = await anthropic.messages.create({ model: MODEL, max_tokens: 1400, system: sys, messages: [{ role: 'user', content: JSON.stringify(payload) }] });
+    logUsage({ userId, surface: 'other', fn: 'coach_quiz_verify', model: MODEL, usage: (msg as any).usage });
+    return applyVerdicts(questions, parseJSONArray(textOf(msg)) as any);
+  } catch (e: any) { console.error('[coach] verify failed:', e?.message || e); return questions; }
 }
