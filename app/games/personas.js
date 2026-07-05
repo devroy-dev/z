@@ -25,7 +25,8 @@ export const TABLE_CAST = [
   { key: 'the_oracle',       name: 'the oracle',         group: 'the support',tone: '#C99BE8', temperament: 'calculator', style: 'suspiciously good at guessing your cards.' },
   { key: 'the_self_obsessed',name: 'the guardian angel', group: 'the support',tone: '#C99BE8', temperament: 'guardian',   style: 'protects their chips like they protect you.' },
   // the crazies
-  { key: 'the_brainiac',     name: 'the brainiac',       group: 'the crazies',tone: '#6FC9E0', temperament: 'calculator', style: 'calculates every move. plays to win.' },
+  { key: 'the_brainiac',     name: "the devil's advocate", group: 'the crazies',tone: '#6FC9E0', temperament: 'calculator', style: 'calculates every move. plays to win.' },
+  { key: 'the_conspiracy_theorist', name: 'the conspiracy theorist', group: 'the crazies',tone: '#6FC9E0', temperament: 'chaos', style: 'sees patterns in the shuffle. calls it a cover-up.' },
   { key: 'the_philosopher',  name: 'the philosopher',    group: 'the crazies',tone: '#6FC9E0', temperament: 'guardian',   style: 'slow, deliberate. every move means something.' },
   { key: 'the_cosmologist',  name: 'the cosmologist',    group: 'the crazies',tone: '#6FC9E0', temperament: 'calculator', style: 'sees the probability field. plays it.' },
   { key: 'the_historian',    name: 'the historian',      group: 'the crazies',tone: '#6FC9E0', temperament: 'calculator', style: 'has seen this exact game before. in 1857.' },
