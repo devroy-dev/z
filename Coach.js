@@ -297,7 +297,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
             <Pressable style={s.action} onPress={startMock} disabled={busy}>
               <Text style={s.actionIcon}>{busyKey === 'mock' ? '…' : '◎'}</Text><Text style={s.actionT}>{busyKey === 'mock' ? 'Building…' : 'Mock test'}</Text>
             </Pressable>
-            <Pressable style={s.action} onPress={() => setStage('ask')} disabled={busy}>
+            <Pressable style={s.action} onPress={onAskCoach} disabled={busy}>
               <Text style={s.actionIcon}>?</Text><Text style={s.actionT}>Ask the coach</Text>
             </Pressable>
           </View>

@@ -363,7 +363,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row face={`https://callmez.app/faces/the_coach.jpg?v=4`} tone={MOON.hairStrong} name="the Coach" line="name an exam — a plan, daily lessons, quizzes, mocks." pinned onPress={() => onOpen({ kind: 'coach' })} />
+          <Row face={`https://callmez.app/faces/the_coaching_hub.jpg?v=5`} tone={MOON.hairStrong} name="the Coaching hub" line="name an exam or subject — plans, lessons, quizzes, mocks." pinned onPress={() => onOpen({ kind: 'coach' })} />
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'consult' })}>
             <View style={[st.ring, { borderColor: 'rgba(232,162,74,0.35)', backgroundColor: '#101427' }]}>
               <ConsultLogo />

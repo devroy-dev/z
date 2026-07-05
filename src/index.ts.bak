@@ -18,7 +18,6 @@ import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from '
 import { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';
 import { generatePlan, fetchExamContext, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
 import { distillMaterial } from './coachDistill.js';
-import { seedLibrary, listLibrary } from './coachLibrary.js';
 import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag, coachReaction } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
@@ -1627,26 +1626,6 @@ app.get('/battlefield/motions', (_req, res) => {
   for (const d of Object.keys(DOMAIN_LABELS) as DebateDomain[]) byDomain[d] = { key: d, label: DOMAIN_LABELS[d], motions: [] };
   for (const m of MOTIONS) if (byDomain[m.domain]) byDomain[m.domain].motions.push(m.motion);
   res.json({ domains: Object.values(byDomain), count: MOTIONS.length });
-});
-
-// ── COACH LIBRARY (house subject corpus, shared) ────────────────────
-app.get('/coach/library', async (req, res) => {
-  try {
-    const authId = await authUser(req);
-    if (!authId) return res.status(401).json({ error: 'unauthorized' });
-    res.json({ subjects: await listLibrary() });
-  } catch (e: any) { res.status(500).json({ error: 'library list failed: ' + (e?.message || String(e)) }); }
-});
-app.post('/coach/library/seed', express.json(), async (req, res) => {
-  try {
-    const authId = await authUser(req);
-    if (!authId) return res.status(401).json({ error: 'unauthorized' });
-    const user = await resolveUser(authId);
-    if (user.id !== 'd91a137e-46d4-4d85-91e4-6092007e8501') return res.status(403).json({ error: 'forbidden' });
-    const only = req.body && typeof req.body.subject === 'string' ? req.body.subject : undefined;
-    const seeded = await seedLibrary(only);
-    res.json({ ok: true, count: seeded.length, seeded });
-  } catch (e: any) { res.status(500).json({ error: 'library seed failed: ' + (e?.message || String(e)) }); }
 });
 
 app.get('/battlefield/watch/:sessionId', async (req, res) => {

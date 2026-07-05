@@ -428,12 +428,12 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
   };
 
   const heads = {
-    home: course ? ['THE COACH', 'Study'] : ['THE COACH', 'New course'],
+    home: course ? ['THE COACHING HUB', 'Study'] : ['THE COACHING HUB', 'New course'],
     lesson: ['LESSON', course?.topic || 'Lesson'], quiz: ['QUIZ', course?.topic || 'Quiz'],
     result: ['RESULT', course?.topic || 'Result'], mock: ['MOCK TEST', course?.topic || 'Mock'],
     mockresult: ['MOCK', course?.topic || 'Mock'], ask: ['ASK', course?.topic || 'Ask'],
   };
-  const [eyebrow, title] = heads[stage] || ['THE COACH', 'Study'];
+  const [eyebrow, title] = heads[stage] || ['THE COACHING HUB', 'Study'];
 
   return (
     <View style={s.root}>
