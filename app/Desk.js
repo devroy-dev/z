@@ -41,6 +41,7 @@ const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=4`;
 
 // full persona registry — name · tagline · aura rgb (from the PWA, the source of truth)
 const PERSONA_META = {
+  the_coach:{name:'the coach',desc:'name an exam — a plan, daily lessons, quizzes, and mocks.',rgb:'231,176,122'},
   the_wingman:{name:'the wingman',desc:"aka the dating coach. let's get you some action.",rgb:'74,134,255'},
   the_hottie:{name:'the hottie',desc:"i bet i'll sweep you off your feet.",rgb:'255,120,140'},
   the_comic:{name:'the comic',desc:"knock knock.",rgb:'240,180,70'},
@@ -207,7 +208,6 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
       { key: 'the_stage', tone: '#C99BE8', kicker: 'on the stage tonight', line: `${scene.name} — ${scene.tag}` },
       { key: 'the_arena', tone: '#F0A765', kicker: `the ${table.name} table is hot`, line: `${seatA.name} and ${seatB.name} are already seated` },
       { key: 'the_anchor', tone: '#E0C088', kicker: 'from the news desk', line: `the anchor has the ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : '9 o’clock'} bulletin ready` },
-      { key: 'the_coach', tone: '#E7B07A', kicker: 'the study desk', line: 'name an exam — the coach builds your day-by-day plan' },
       { key: 'the_arena', tone: '#8FD98F', kicker: 'the gauntlet waits', line: 'trivia streak — one miss ends the run. how far can you ride?' },
     ];
     for (let i = hooks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [hooks[i], hooks[j]] = [hooks[j], hooks[i]]; }
@@ -527,7 +527,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 
             <Text style={styles.lobbyLabel}>the gathering, at the door</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gatherRow}>
-              {[...TABLE_CAST.map((p) => p.key), 'the_anchor'].map((k) => (
+              {[...TABLE_CAST.map((p) => p.key), 'the_anchor', 'the_coach'].map((k) => (
                 <Pressable key={k} onPress={() => routeTo(k)} style={{ alignItems: 'center', width: 56 }}>
                   <Avatar pkey={k} uri={dpFor(k)} size={44} />
                   <Text style={styles.gatherName} numberOfLines={1}>{nameFallback(k).replace(/^the /, '')}</Text>
