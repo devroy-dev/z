@@ -110,6 +110,16 @@ export default function Play({ onEnter = () => {} }) {
               </Svg>
             }
           />
+          <Door
+            tone="#E7B07A" kicker="the cast performs" title="Shows" delay={2400}
+            line="the traitors, story collab \u2014 social games where the personas perform and you play along."
+            onPress={() => onEnter('shows')}
+            glyph={
+              <Svg width="34" height="34" viewBox="0 0 24 24">
+                <Path d="M4 5h16v11H4zM8 20h8M12 16v4" stroke="#E7B07A" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+            }
+          />
         </ScrollView>
       </SafeAreaView>
     </View>

@@ -489,6 +489,13 @@ export async function coachMockStart(id, n, minutes) { return authedJSON('POST',
 export async function coachMockSubmit(id, mockId, answers) { return authedJSON('POST', `/coach/${id}/mock/${mockId}/submit`, { answers }); }
 export async function coachShelf(id) { return authedJSON('GET', `/coach/${id}/shelf`); }
 
+// ── SHOWS: Traitors + Story Collab ──
+export async function traitorsStart(personas, opts) { return authedJSON('POST', '/games/traitors/start', { personas, ...(opts || {}) }); }
+export async function traitorsStep(id, move) { return authedJSON('POST', `/games/traitors/${id}/step`, move || {}); }
+export async function storyStart(personas, opts) { return authedJSON('POST', '/games/story/start', { personas, ...(opts || {}) }); }
+export async function storyStep(id, text) { return authedJSON('POST', `/games/story/${id}/step`, text !== undefined ? { text } : {}); }
+export async function storyPublish(id) { return authedJSON('POST', `/games/story/${id}/publish`, {}); }
+
 export async function getBulletinFeed() {
   try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }
 }

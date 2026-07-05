@@ -28,6 +28,7 @@ import CreatePersona from './CreatePersona';
 import Chat from './Chat';
 import Play from './Play';
 import Sims from './Sims';
+import Shows from './Shows';
 import TradingFloor from './TradingFloor';
 import FantasyLeague from './FantasyLeague';
 import Arena from './Arena';
@@ -110,6 +111,7 @@ function PlayWorld({ navigate, target }) {
   useBackLayer(mode === 'duel', React.useCallback(() => { setDuelSession(null); setMode('battlefield'); return true; }, []));
   useBackLayer(mode === 'gallery', React.useCallback(() => { setMode('battlefield'); return true; }, []));
   useBackLayer(mode === 'sims', React.useCallback(() => { setMode('choose'); return true; }, []));
+  useBackLayer(mode === 'shows', React.useCallback(() => { setMode('choose'); return true; }, []));
   useBackLayer(mode === 'floor', React.useCallback(() => { setMode('sims'); return true; }, []));
   useBackLayer(mode === 'ffl', React.useCallback(() => { setMode('sims'); return true; }, []));
   React.useEffect(() => { if (target?.open === 'arena') setMode('arena'); else if (target?.open === 'sims') setMode('sims'); }, [target]);
@@ -175,6 +177,9 @@ function PlayWorld({ navigate, target }) {
   if (mode === 'arena') {
     return <Arena initialGameId={target?.game || null} initialOpponent={target?.opp || null} onOpenStage={() => navigate && navigate('stage')} onBack={() => setMode('choose')} onStartGame={(game, opp, roster, invited) => { if (invited) { startLiveWithFriend(game, roster); } else { setMatch({ game, opp, roster }); setMode('game'); } }} />;
   }
+  if (mode === 'shows') {
+    return <Shows onBack={() => setMode('choose')} />;
+  }
   if (mode === 'sims') {
     return <Sims onBack={() => setMode('choose')} onOpenFloor={() => setMode('floor')} onOpenLeague={() => setMode('ffl')} />;
   }
@@ -184,7 +189,7 @@ function PlayWorld({ navigate, target }) {
   if (mode === 'ffl') {
     return <FantasyLeague onExit={() => setMode('sims')} />;
   }
-  return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'battlefield') setMode('battlefield'); else if (door === 'stage') navigate && navigate('stage'); else if (door === 'sims') setMode('sims'); }} />;
+  return <Play onEnter={(door) => { if (door === 'arena') setMode('arena'); else if (door === 'battlefield') setMode('battlefield'); else if (door === 'stage') navigate && navigate('stage'); else if (door === 'sims') setMode('sims'); else if (door === 'shows') setMode('shows'); }} />;
 }
 
 function DeskWorld({ navigate, onLogout }) {

@@ -1,31 +1,26 @@
-# THE COACH — full redesign (APP / OTA)
+# THE SHOWS — Play door: Traitors + Story Collab (APP / OTA)
 
-The engine was already producing rich, web-grounded plans (each day a full title + focus
-paragraph) — the old UI hid all of it. This rebuild SURFACES that depth and fixes the flow.
+A new door in Play → a landing with two games, each its own screen. Built to the coach-redesign
+quality bar (warm-dark, Fraunces+Figtree, per-game accent). All 4 touched files babel-gate clean.
 
-WHAT CHANGED
-- The SYLLABUS is now a progress SPINE: a connected vertical journey, each day showing its
-  FULL focus paragraph (was hidden), the current day glowing, done days carrying their score.
-- Segmented progress bar under the exam title (day X of N at a glance).
-- Surfaced actions: "Mock test" + "Ask the coach" (the /ask endpoint existed but was never shown).
-- Polished lesson (real reading type), quiz (progress + clean option states), result (score reveal
-  + per-question review), and mock RESULT with a per-topic bar breakdown.
-- Errors are now VISIBLE with direction (so "nothing renders" becomes a readable message).
-- Day-length picker (5/7/14/30) instead of a bare number field.
+WHAT'S IN IT
+- app/Shows.js — landing + both flows:
+  · STORY COLLAB — pick writers (their voices set the genre), coherent/chaos, a premise, optionally
+    write your own turns; step through; PUBLISH the finished story (shows byline + full text).
+  · THE TRAITORS — seat 4-6 of the cast; you WATCH from above and see every role (the dramatic
+    irony) while the faithful don't; step through roundtable talk → banishment → reveal → winner.
+- app/api.js — traitorsStart/Step, storyStart/Step/Publish.
+- app/Play.js — a "Shows" door (ember).
+- app/App.js — routes the door to its own world (mode 'shows'), with back-layer.
 
 ## Apply + OTA (BOTH — git push does NOT update the device)
-    cd /workspaces/z && unzip -o coach-redesign.zip && python3 apply_coach_redesign.py
-    git add -A && git commit -m "coach UI: full redesign (spine, depth, ask, polished flow)" && git push
-    cd app && npx expo export && CI=1 npx eas-cli@latest update --branch preview --environment preview -m "coach redesign"
+    cd /workspaces/z && unzip -o shows-ui.zip && python3 apply_shows.py
+    git add -A && git commit -m "shows: Play door + Traitors + Story Collab screens" && git push
+    cd app && npx expo export && CI=1 npx eas-cli@latest update --branch preview --environment preview -m "shows door"
 
-Device: You → check for updates → FULLY close & reopen → the Coach.
+Device: You → check for updates → FULLY close & reopen → Play tab → the "Shows" door → pick a game.
 
-## IMPORTANT — the mock "nothing renders" bug
-That is almost certainly the mocks TABLE not existing yet. Run this in Supabase SQL editor if you
-haven't (it ships in your repo at migrations/0041_coach_mocks.sql):
-  the contents of migrations/0041_coach_mocks.sql
-After the redesign, if the mock still fails you'll now SEE the error text (not a blank) — send it to me.
-
-## Still to come (honest)
-- MATERIAL UPLOAD in-app needs expo-document-picker (a native dep) → a native build, not OTA.
-  The engine + /ask grounding already work; the upload button is deferred to that build.
+## Notes
+- Traitors v1 is the WATCH experience (you see all roles). Human-as-player voting is a later add.
+- Publishing a story: content-moderation must gate it before it's truly public (server TODO already
+  flagged) — v1 finalises for you.
