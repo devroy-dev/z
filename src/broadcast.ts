@@ -1,9 +1,11 @@
 // broadcast.ts — reliable realtime delivery for shared rooms.
-// Instead of relying on postgres_changes (fragile: WAL/replication/RLS dependent),
-// the server explicitly broadcasts each saved room message to a channel. Clients
-// subscribe to 'room-{threadId}' and receive a 'msg' event. This is Supabase's
-// robust pub/sub path — no DB replication, no RLS-on-socket surprises.
-import { supabase } from './db.js';
+// The server publishes each saved room message via Supabase Realtime's HTTP
+// broadcast endpoint: a stateless POST, no channel join/teardown per message.
+// (The old path opened a WS channel, sent once, and removeChannel'd EVERY time —
+// a full handshake per send, which was the DM lag.) Clients are unchanged: they
+// still subscribe to 'room-{threadId}' and receive a 'msg' event.
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function broadcastRoomMessage(threadId: string, msg: {
   role: string;
@@ -13,25 +15,32 @@ export async function broadcastRoomMessage(threadId: string, msg: {
   sender_name?: string | null;
   created_at?: string;
 }): Promise<void> {
+  if (!SUPABASE_URL || !SERVICE_KEY) return;
   try {
-    const channel = supabase.channel(`room-${threadId}`, { config: { broadcast: { ack: false } } });
-    await channel.send({
-      type: 'broadcast',
-      event: 'msg',
-      payload: {
-        thread_id: threadId,
-        role: msg.role,
-        content: msg.content,
-        persona_key: msg.persona_key ?? null,
-        sender_user_id: msg.sender_user_id ?? null,
-        sender_name: msg.sender_name ?? null,
-        created_at: msg.created_at ?? new Date().toISOString(),
+    await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SERVICE_KEY,
+        Authorization: `Bearer ${SERVICE_KEY}`,
       },
+      body: JSON.stringify({
+        messages: [{
+          topic: `room-${threadId}`,
+          event: 'msg',
+          payload: {
+            thread_id: threadId,
+            role: msg.role,
+            content: msg.content,
+            persona_key: msg.persona_key ?? null,
+            sender_user_id: msg.sender_user_id ?? null,
+            sender_name: msg.sender_name ?? null,
+            created_at: msg.created_at ?? new Date().toISOString(),
+          },
+        }],
+      }),
     });
-    // a transient send-only channel; remove it so we don't leak channels
-    await supabase.removeChannel(channel);
   } catch {
-    // broadcast is best-effort; the message is already persisted, so a missed
-    // broadcast just means the other client sees it on next load, never data loss.
+    // best-effort; the message is already persisted (client pg_changes fallback).
   }
 }

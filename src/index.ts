@@ -2283,12 +2283,12 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         .insert({ thread_id: threadId, user_id: user.id, role: 'user', content: String(message), sender_user_id: user.id })
         .select('id, created_at').maybeSingle();
       await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
-      try {
-        await broadcastRoomMessage(threadId, {
-          role: 'user', content: String(message), sender_user_id: user.id,
-          sender_name: user.display_name || 'someone',
-        });
-      } catch (e) { /* broadcast best-effort; message is persisted */ }
+      // fire-and-forget: don't make the sender wait on the fan-out (REST broadcast,
+      // best-effort + already persisted; client has a pg_changes fallback).
+      void broadcastRoomMessage(threadId, {
+        role: 'user', content: String(message), sender_user_id: user.id,
+        sender_name: user.display_name || 'someone',
+      });
       res.write(`data: ${JSON.stringify({ done: true, saved: saved?.id || null })}\n\n`);
       return res.end();
     }
