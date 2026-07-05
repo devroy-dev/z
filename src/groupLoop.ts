@@ -179,7 +179,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // the owner's private memory (that would leak one person's private history to the room).
   // It keeps its self/style, and knows only who's in the room. Owner memory is loaded only
   // for solo persona-groups and the owner's own 1:1-style group threads.
-  const memoryBlock = t.is_shared ? await readRoomMemoryBlock(threadId) : await readMemoryBlock(userId);
+  const memoryBlock = t.is_shared ? '' : await readMemoryBlock(userId);
   // in a shared room, replace the single-owner identity line with the room's people
   if (t.is_shared && input.senderName) {
     ownerLine = `\n\n[THIS IS A SHARED ROOM with real people in it. The person who just spoke is "${input.senderName}". You know these people only from your shared time in THIS room — the room memory below is what you remember together. You have no private history about anyone from outside this room. Greet and treat everyone by name.]`;
@@ -326,8 +326,12 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     if (!scenarioKey) {
       try { lifeBlock = await stateBlockFor(key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }
     }
+    let roomMemBlock = '';
+    if (t.is_shared) {
+      try { roomMemBlock = await readRoomMemoryBlock(threadId, key); } catch (e: any) { console.error('[roommem] block failed:', e?.message || e); }
+    }
 
-    const dynamic = `\n\n[${todayLine}${sinceLine(__lastAt)}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${lifeBlock}${memoryBlock}`;
+    const dynamic = `\n\n[${todayLine}${sinceLine(__lastAt)}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${lifeBlock}${memoryBlock}${roomMemBlock}`;
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,
