@@ -29,6 +29,7 @@ import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.j
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
+import { battlefieldDuelAdapter } from './games/battlefieldDuel.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
@@ -1292,6 +1293,45 @@ app.post('/battlefield/test-verdict', async (req, res) => {
   }
 });
 
+// DIAGNOSTIC: run a full practice-vs-house duel loop end-to-end, no auth/room/DB.
+// You are PRO (seat 0), the house is CON (seat 1). Provide your three speeches in
+// {openings,rebuttals,closings}-style via `mySpeeches` (array of 3 strings: Opening,
+// Rebuttal, Closing). The house generates its three turns; the proven adjudicator rules.
+// Proves: state machine + phase advance + turn-lock + house generation + real verdict.
+app.post('/battlefield/test-duel', async (req, res) => {
+  try {
+    const mySpeeches: string[] = Array.isArray(req.body?.mySpeeches) ? req.body.mySpeeches : [];
+    if (mySpeeches.length !== 3) return res.status(400).json({ error: 'mySpeeches must be exactly 3 strings: [Opening, Rebuttal, Closing]' });
+    // seats: seat 0 = you (user), seat 1 = the house (persona)
+    const seats = [{ kind: 'user', id: 'tester' }, { kind: 'persona', key: 'the_house' }];
+    let state: any = battlefieldDuelAdapter.create();
+    const steps: any[] = [];
+    let myIdx = 0; let guard = 0;
+    while (!battlefieldDuelAdapter.isOver(state) && guard++ < 12) {
+      const toAct = battlefieldDuelAdapter.toActSeat(state);
+      if (toAct !== 0) { // shouldn't happen — move() drives the house internally — but guard anyway
+        steps.push({ note: 'floor waiting on house but not advanced', toAct }); break;
+      }
+      const speech = mySpeeches[myIdx++] ?? 'I rest on the case already made.';
+      state = await battlefieldDuelAdapter.move(state, 0, { type: 'speech', text: speech }, seats);
+      steps.push({ afterMyTurn: myIdx, phase: state.phase, turns: state.turns.length, toAct: battlefieldDuelAdapter.toActSeat(state) });
+      if (myIdx >= 3 && battlefieldDuelAdapter.toActSeat(state) === 0 && state.phase !== 'verdict') {
+        // safety: if it's still my turn after 3 speeches, something stalled
+        steps.push({ note: 'stalled: still my turn after 3 speeches' }); break;
+      }
+    }
+    res.json({
+      motion: state.motion, domain: state.domain, phase: state.phase,
+      turns: state.turns, notes: state.notes,
+      winner: state.winner, error: state.error,
+      verdict: state.verdict ? { winner: state.verdict.winner, summary: state.verdict.summary, matter: state.verdict.matter, manner: state.verdict.manner } : null,
+      steps,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: 'test-duel failed: ' + (e?.message || String(e)) });
+  }
+});
+
 app.get('/me/push', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -1836,6 +1876,7 @@ app.get('/rooms', async (req, res) => {
 // ════════ MULTIPLAYER GAME SESSIONS (server-authoritative) ════════
 const GAME_ENGINES: Record<string, any> = {
   debate_duel: debateDuelAdapter,
+  battlefield_duel: battlefieldDuelAdapter,
   trivia_duel: triviaDuelAdapter,
   callbreak: callbreakAdapter,
   pusoy: pusoyAdapter,
@@ -1993,7 +2034,7 @@ app.post('/games/session/:id/move', async (req, res) => {
       const t = engine.toActSeat(state);
       if (t !== mySeat) return res.status(409).json({ error: 'not your turn', version: s.version });
     }
-    try { state = await engine.move(state, mySeat, move); }
+    try { state = await engine.move(state, mySeat, move, s.seats); }
     catch (err: any) { return res.status(400).json({ error: err?.message || 'illegal move' }); }
     state = advanceAI(engine, state, s.seats);
     const over = engine.isOver(state);
