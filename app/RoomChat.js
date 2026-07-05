@@ -101,11 +101,24 @@ function HumanPresence({ name, active }) {
   );
 }
 
+// ── the peer's DP for a 1:1 DM header: their photo if set, initials otherwise ──
+function PeerDP({ name, avatar }) {
+  const [ok, setOk] = React.useState(!!avatar);
+  const S = 34;
+  const initials = (name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <View style={{ width: S, height: S, borderRadius: S / 2, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(159,176,206,0.4)', backgroundColor: 'rgba(40,46,60,0.6)', alignItems: 'center', justifyContent: 'center' }}>
+      {ok && avatar ? <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} onError={() => setOk(false)} />
+        : <Text style={{ fontFamily: 'Figtree_600SemiBold', fontSize: 13, color: '#AEB6C6' }}>{initials}</Text>}
+    </View>
+  );
+}
+
 // ── a spoken line ──
 // rooms are the WhatsApp-flat register: personas may emit *emphasis* markdown,
 // which must never render raw. Same strip Chat.js applies to PLAIN personas.
 const flat = (t) => String(t || '').replace(/\*\*?/g, '');
-function RoomLine({ line }) {
+function RoomLine({ line, hideSpeaker }) {
   if (line.who === 'you') {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-end' }]}>
@@ -120,7 +133,7 @@ function RoomLine({ line }) {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-start' }]}>
         <View style={{ maxWidth: '84%' }}>
-          <Text style={[styles.speaker, { color: N.human }]}>{line.name}</Text>
+          {!hideSpeaker ? <Text style={[styles.speaker, { color: N.human }]}>{line.name}</Text> : null}
           <View style={[styles.bubble, styles.bubbleHuman]}><Text style={styles.bubbleText}>{line.text}</Text></View>
         </View>
       </View>
@@ -164,9 +177,11 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const roomId = room?.id;
   const personas = (room?.personas && room.personas.length) ? room.personas : (room?.persona ? [room.persona] : []);
   const title = room?.name || 'the room';
+  const isDM = personas.length === 0;   // 1:1 human DM — render like the 1:1 chat, not a room
 
   const [lines, setLines] = useState([]);
   const [members, setMembers] = useState({});   // uid -> name
+  const [avatars, setAvatars] = useState({});   // uid -> avatar_url
   const [floor, setFloor] = useState(null);      // persona key or human uid who spoke last
   const [rt, setRt] = useState('connecting');    // DIAG: realtime channel status
   const [rtCount, setRtCount] = useState(0);     // DIAG: raw broadcasts received
@@ -197,6 +212,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
       const mem = await getRoomMembers(roomId);
       if (!alive) return;
       setMembers(mem.members || {});
+      setAvatars(mem.avatars || {});
       meIdRef.current = mem.meId || null;
 
       const hist = await getRoomMessages(roomId);
@@ -336,6 +352,9 @@ export default function RoomChat({ room, onBack = () => {} }) {
   };
 
   const humans = Object.entries(members).filter(([uid]) => uid !== meIdRef.current).map(([id, name]) => ({ id, name }));
+  const peer = humans[0] || null;
+  const peerName = (peer && peer.name) || title;
+  const peerAvatar = peer ? (avatars[peer.id] || null) : null;
   // creator-as-moderator: the room's creator can remove a member (24h kick).
   const canModerate = !!room?.youCreated && !!room?.publicRoomId;
   const [rosterOpen, setRosterOpen] = useState(false);
@@ -355,7 +374,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[`rgba(${rgbOf(personas[0])},0.14)`, `rgba(${rgbOf(personas[0])},0.04)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <LinearGradient colors={isDM ? ['rgba(159,176,206,0.06)', 'rgba(159,176,206,0.02)', N.night] : [`rgba(${rgbOf(personas[0])},0.14)`, `rgba(${rgbOf(personas[0])},0.04)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <Grain />
       {liveSession ? (
         liveSession.game === 'debate_duel' ? <DebateDuelLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
@@ -394,6 +413,12 @@ export default function RoomChat({ room, onBack = () => {} }) {
         )}
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
+          {isDM ? (
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <PeerDP name={peerName} avatar={peerAvatar} />
+              <Text style={styles.roomTitle} numberOfLines={1}>{peerName}</Text>
+            </View>
+          ) : (
           <View style={{ flex: 1 }}>
             <Text style={styles.roomTitle} numberOfLines={1}>{title}</Text>
             {personas.length ? (
@@ -403,7 +428,8 @@ export default function RoomChat({ room, onBack = () => {} }) {
               </Text>
             ) : null}
           </View>
-          {canModerate ? (
+          )}
+          {canModerate && !isDM ? (
             <Pressable hitSlop={8} style={[styles.inviteBtn, { marginRight: 8 }]} onPress={() => setRosterOpen(true)}>
               <Text style={{ fontSize: 12 }}>🛡️</Text>
               <Text style={styles.inviteText}>manage</Text>
@@ -424,7 +450,8 @@ export default function RoomChat({ room, onBack = () => {} }) {
           ) : null}
         </View>
 
-        {/* the presences — lit one rises */}
+        {/* the presences — lit one rises (rooms only; a 1:1 DM has no rail) */}
+        {!isDM && (
         <View style={styles.stage}>
           {personas.map((k) => (
             <Pressable key={k} onPress={() => setAddressed((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k])}>
@@ -433,11 +460,12 @@ export default function RoomChat({ room, onBack = () => {} }) {
           ))}
           {humans.map((h) => <HumanPresence key={h.id} name={h.name} active={floor === h.id} />)}
         </View>
+        )}
 
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.convo} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {lines.length === 0
             ? <Text style={styles.empty}>a shared room — say something to get it going.</Text>
-            : lines.map((l) => <RoomLine key={l.id} line={l} />)}
+            : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={isDM} />)}
         </ScrollView>
 
         {pendingImage ? (
@@ -491,7 +519,7 @@ const styles = StyleSheet.create({
   speaker: { fontFamily: 'Figtree_500Medium', fontSize: 12, marginBottom: 4, marginLeft: 4, letterSpacing: 0.3 },
   bubble: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 15 },
   bubbleThem: { backgroundColor: 'rgba(233,232,240,0.05)', borderWidth: 1, borderColor: N.hair, borderTopLeftRadius: 6 },
-  bubbleYou: { backgroundColor: 'rgba(159,194,232,0.10)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.18)', borderBottomRightRadius: 5 },
+  bubbleYou: { backgroundColor: 'rgba(159,194,232,0.10)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.18)', borderTopRightRadius: 5 },
   bubbleHuman: { backgroundColor: 'rgba(159,176,206,0.10)', borderWidth: 1, borderColor: 'rgba(159,176,206,0.2)', borderTopLeftRadius: 6 },
   bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 19 },
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.28)', fontSize: 9.5, marginTop: 2, alignSelf: 'flex-end' },

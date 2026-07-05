@@ -1897,11 +1897,12 @@ app.get('/rooms/:id/members', async (req, res) => {
     const { data: mems } = await supabase.from('room_members').select('user_id').eq('thread_id', req.params.id);
     const ids = (mems ?? []).map((m: any) => m.user_id);
     const map: Record<string,string> = {};
+    const avatars: Record<string,string|null> = {};
     if (ids.length) {
-      const { data: us } = await supabase.from('users').select('id, display_name').in('id', ids);
-      (us ?? []).forEach((u: any) => { map[u.id] = u.display_name || 'someone'; });
+      const { data: us } = await supabase.from('users').select('id, display_name, avatar_url').in('id', ids);
+      (us ?? []).forEach((u: any) => { map[u.id] = u.display_name || 'someone'; avatars[u.id] = u.avatar_url || null; });
     }
-    res.json({ members: map, meId: user.id });
+    res.json({ members: map, avatars, meId: user.id });
   } catch (e: any) { res.status(500).json({ error: 'members failed: ' + (e?.message || String(e)) }); }
 });
 
