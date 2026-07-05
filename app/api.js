@@ -478,6 +478,17 @@ export async function ffLeaderboard(league = 'epl') {
 }
 
 // ── the anchor's bulletin ──
+// ── THE COACH ──
+export async function coachStart(topic, days) { return authedJSON('POST', '/coach/start', { topic, days }); }
+export async function coachGet(id) { return authedJSON('GET', `/coach/${id}`); }
+export async function coachLesson(id) { return authedJSON('POST', `/coach/${id}/lesson`); }
+export async function coachQuiz(id, n) { return authedJSON('POST', `/coach/${id}/quiz`, { n }); }
+export async function coachGrade(id, answers) { return authedJSON('POST', `/coach/${id}/grade`, { answers }); }
+export async function coachAsk(id, question) { return authedJSON('POST', `/coach/${id}/ask`, { question }); }
+export async function coachMockStart(id, n, minutes) { return authedJSON('POST', `/coach/${id}/mock/start`, { n, minutes }); }
+export async function coachMockSubmit(id, mockId, answers) { return authedJSON('POST', `/coach/${id}/mock/${mockId}/submit`, { answers }); }
+export async function coachShelf(id) { return authedJSON('GET', `/coach/${id}/shelf`); }
+
 export async function getBulletinFeed() {
   try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }
 }

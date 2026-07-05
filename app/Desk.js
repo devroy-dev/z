@@ -207,6 +207,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
       { key: 'the_stage', tone: '#C99BE8', kicker: 'on the stage tonight', line: `${scene.name} — ${scene.tag}` },
       { key: 'the_arena', tone: '#F0A765', kicker: `the ${table.name} table is hot`, line: `${seatA.name} and ${seatB.name} are already seated` },
       { key: 'the_anchor', tone: '#E0C088', kicker: 'from the news desk', line: `the anchor has the ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : '9 o’clock'} bulletin ready` },
+      { key: 'the_coach', tone: '#E7B07A', kicker: 'the study desk', line: 'name an exam — the coach builds your day-by-day plan' },
       { key: 'the_arena', tone: '#8FD98F', kicker: 'the gauntlet waits', line: 'trivia streak — one miss ends the run. how far can you ride?' },
     ];
     for (let i = hooks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [hooks[i], hooks[j]] = [hooks[j], hooks[i]]; }
@@ -254,6 +255,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   // where each route key takes you
   const routeTo = (key) => {
     if (key === 'the_anchor') return onRoute({ tab: 'bulletin' });
+    if (key === 'the_coach') return onRoute({ tab: 'coach' });
     if (key === 'the_arena') return onRoute({ tab: 'play', open: 'arena' });
     if (key === 'the_stage') return onRoute({ tab: 'stage' });
     if (key === 'the_journal') return onRoute({ tab: 'journal' });

@@ -1,33 +1,39 @@
-# STORY COLLAB — round-robin co-writing (SERVER; UI goes in the Shows Play door)
+# THE COACH — UI phase 1 (APP / OTA)
 
-3-6 personas (and optionally you) write one story together, one bounded paragraph each, in
-turn. The engine is the moderator: it orchestrates the round-robin and holds the story-so-far.
-Two modes chosen at start — coherent (honour the story, move it forward) or chaos (exquisite-
-corpse: subvert & surprise). Finished stories can be published. Turn math unit-verified (10/10);
-real tsc passes. No migration (reuses game_sessions).
+The coach surface, in your app's design idiom (C palette, Fraunces+Figtree, Grain, SafeArea).
+Its own overlay surface (newsroom-style), reached from a desk notice card → routes to the 'coach' tab.
+Phase 1 = the daily loop + a full mock. All 4 touched files pass the babel JSX syntax gate.
+(COMPILES ≠ WORKS — device-verify after OTA.)
 
-## Apply (SERVER)
-    unzip -o story-collab.zip
-    python3 apply_story.py
-    npm run build && git add -A && git commit -m "story collab: round-robin co-writing engine" && git push
+## What's in it
+- app/Coach.js — the surface: start a course → plan → today's lesson → quiz → graded result
+  (correct answers + why revealed, weak-tags shown) → continue to next day; plus a full MOCK
+  (12Q/20min) with a per-topic breakdown. Resumes the active course via AsyncStorage.
+- app/api.js — coachStart/Get/Lesson/Quiz/Grade/Ask/MockStart/MockSubmit/Shelf.
+- app/Nav.js — 'coach' overlay wired (like the bulletin).
+- app/Desk.js — a "the study desk" notice card → routes to the coach.
 
-## Curl-play ($BASE/$TOKEN set)
-    # start — coherent literary cast, a premise, 2 rounds (personas only)
-    S=$(curl -s -X POST "$BASE/games/story/start" -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"personas":["the_historian","the_philosopher","the_comic"],"mode":"coherent","premise":"A lighthouse keeper finds a door in the sea","rounds":2}')
-    echo "$S" | head -c 300; echo
-    SID=$(echo "$S" | grep -o '"storyId":"[^"]*"' | cut -d'"' -f4); echo "story=$SID"
+## Apply + deploy (APP = git push AND OTA; run from the right dirs)
+    cd /workspaces/z
+    unzip -o coach-ui.zip
+    python3 apply_coach_ui.py
+    npx expo export --output-dir dist >/dev/null 2>&1 || true   # optional local sanity
+    git add -A && git commit -m "coach UI phase 1: study desk surface" && git push
+    cd app && npx expo export && CI=1 eas update --branch preview --environment preview -m "coach UI phase 1"
 
-    # step through — each call writes ONE persona's paragraph; run until status:"done"
-    curl -s -X POST "$BASE/games/story/$SID/step" -H "Authorization: Bearer $TOKEN"; echo
+Then on the device: You → check for updates (the OTA lever), reopen.
 
-    # publish the finished story (owner only)
-    curl -s -X POST "$BASE/games/story/$SID/publish" -H "Authorization: Bearer $TOKEN"; echo
+## Test on device
+- Open the Desk; look for the "the study desk" notice (it rotates in) → tap it.
+- Name an exam (e.g. "CLAT legal reasoning"), pick days, Build my plan.
+- Start day 1 → read the lesson → take the quiz → submit → see the graded result with the
+  correct answers, the why, and your weak tags → Continue to day 2.
+- Try "Take a full mock test" → answer → see the per-topic breakdown.
 
-## Notes
-- Try mode:"chaos" with an absurdist cast (the_comic + the_conspiracy_theorist) to feel the difference.
-- To WRITE alongside them, add "humanPlays":true at start; on YOUR turn, POST step with {"text":"your paragraph"}.
-- PUBLISH: v1 finalises for the owner. Content-moderation MUST gate publishing before a story is public
-  (flagged in code) — wire the mod pipeline there when it lands. AI-written paragraphs aren't copyrightable
-  (Thaler) — users can share but not claim exclusive copyright; state in terms.
+## Honest notes
+- ENTRY: it's a rotating desk notice for now (reachable, but not always visible). For the paid
+  flagship you may want a PERMANENT/prominent entry — a nav tab, a pinned desk card, or a Play
+  door. Tell me which and it's a small follow-up.
+- Phase 2: MATERIAL UPLOAD in-app (expo DocumentPicker → base64 → /coach/:id/material) so users
+  can "upload a chapter and be taught from it" from the phone. Engine's ready; just needs the picker UI.
+- "the coach" is not yet a full chat persona (no codex/face) — this surface is the front door.

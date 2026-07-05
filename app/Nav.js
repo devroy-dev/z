@@ -12,6 +12,7 @@ import Svg, { Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
 import { FONTS } from './theme';
 import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
+import Coach from './Coach';
 import Consult from './Consult';
 import QuietRoom from './QuietRoom';
 import Journal from './Journal';
@@ -134,7 +135,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
   const navigate = (dest) => {
     if (!dest) return;
     const tab = typeof dest === 'string' ? dest : dest.tab;
-    if (tab === 'quiet' || tab === 'stage' || tab === 'journal' || tab === 'bulletin') {
+    if (tab === 'quiet' || tab === 'stage' || tab === 'journal' || tab === 'bulletin' || tab === 'coach') {
       setOverlay(typeof dest === 'string' ? { tab } : dest);
       return;
     }
@@ -177,6 +178,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} onOpenChat={navigate} />;
     if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} onJournal={() => setOverlay({ tab: 'journal' })} />;
     if (overlay.tab === 'journal') return <Journal onBack={() => setOverlay({ tab: 'quiet' })} />;
+    if (overlay.tab === 'coach') return <Coach onBack={() => setOverlay(null)} />;
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}
