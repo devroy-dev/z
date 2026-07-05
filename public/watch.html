@@ -194,9 +194,19 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
   var pendingPhone='';
 
   // ── the OTP gate (real endpoints /auth/otp, /auth/verify) ──
+  // normalize to E.164: the server requires +<country><number>. Default +91 (India)
+  // when the user types a bare 10-digit number; respect an explicit + they provide.
+  function normalizePhone(raw){
+    var s=(raw||'').replace(/[^0-9+]/g,'');
+    if(s.charAt(0)==='+') return s;
+    if(s.length===10) return '+91'+s;          // bare Indian mobile
+    if(s.length>10 && s.charAt(0)==='0') return '+91'+s.replace(/^0+/,'');
+    if(s.length>10) return '+'+s;              // already has a country code, missing the +
+    return s;                                   // too short — let validation catch it
+  }
   $('send').addEventListener('click', async function(){
-    var p=($('phone').value||'').replace(/[^0-9+]/g,'');
-    if(p.length<7){ $('note-phone').textContent='Enter a valid number.'; return; }
+    var p=normalizePhone($('phone').value);
+    if(!/^\+[1-9][0-9]{6,15}$/.test(p)){ $('note-phone').textContent='Enter a valid number (with country code).'; return; }
     pendingPhone=p; $('note-phone').textContent='sending…'; $('send').style.opacity='.5';
     try{
       var r=await fetch('/auth/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:p})});
@@ -355,6 +365,9 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
     s.appendChild(r); s.scrollTop=s.scrollHeight;
     $('votedock').innerHTML='<div class="votelabel">Voting closed'+(vote?' · you voted '+vote:'')+'.</div>';
   }
+
+  // paint a line's frame (tags), return the element to type into (mock demo path)
+  function openLine(t){
     var d=document.createElement('div'); d.className='line '+(t.side==='PRO'?'pro':'con');
     d.innerHTML='<div class="lh"><span class="tag '+(t.side==='PRO'?'pro':'con')+'">'+t.side+'</span>'+
       '<span class="who">'+t.name+' · '+t.phase+'</span></div><div class="bub"><span class="txt"></span><span class="cursor">▊</span></div>';
