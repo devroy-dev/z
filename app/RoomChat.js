@@ -10,15 +10,16 @@
 //  comes — we drop the typing bubble after a short grace.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput, Share, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput, Share, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiarsDiceLive from './games/liarsdice/Live';
 import CallbreakLive from './games/callbreak/Live';
+import VideoCall from './VideoCall';
 import PokerLive from './games/poker/Live';
 import PusoyLive from './games/pusoy/Live';
 import LudoLive from './games/ludo/Live';
 import DebateDuelLive from './games/debate/DuelLive';
-import { startGameSession, getLiveGame, kickFromRoom } from './api';
+import { startGameSession, getLiveGame, kickFromRoom, deleteRoomThread } from './api';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
@@ -182,6 +183,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const [lines, setLines] = useState([]);
   const [members, setMembers] = useState({});   // uid -> name
   const [avatars, setAvatars] = useState({});   // uid -> avatar_url
+  const [inCall, setInCall] = useState(false);
   const [floor, setFloor] = useState(null);      // persona key or human uid who spoke last
   const [rt, setRt] = useState('connecting');    // DIAG: realtime channel status
   const [rtCount, setRtCount] = useState(0);     // DIAG: raw broadcasts received
@@ -355,6 +357,11 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const peer = humans[0] || null;
   const peerName = (peer && peer.name) || title;
   const peerAvatar = peer ? (avatars[peer.id] || null) : null;
+  const doDeleteDM = () => {
+    Alert.alert('delete this chat?', 'this removes the conversation for you. it can’t be undone.',
+      [{ text: 'cancel', style: 'cancel' },
+       { text: 'delete', style: 'destructive', onPress: async () => { try { await deleteRoomThread(room.id); } catch (e) {} onBack(); } }]);
+  };
   // creator-as-moderator: the room's creator can remove a member (24h kick).
   const canModerate = !!room?.youCreated && !!room?.publicRoomId;
   const [rosterOpen, setRosterOpen] = useState(false);
@@ -372,6 +379,8 @@ export default function RoomChat({ room, onBack = () => {} }) {
     }
   };
 
+  if (inCall) return <VideoCall persona={{ key: (peer && peer.id) || 'peer', name: peerName, customPhoto: peerAvatar }} onEnd={() => setInCall(false)} />;
+
   return (
     <View style={styles.root}>
       <LinearGradient colors={isDM ? ['rgba(159,176,206,0.06)', 'rgba(159,176,206,0.02)', N.night] : [`rgba(${rgbOf(personas[0])},0.14)`, `rgba(${rgbOf(personas[0])},0.04)`, N.night]} locations={[0, 0.4, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -384,6 +393,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
         : liveSession.game === 'ludo' ? <LudoLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
         : <LiarsDiceLive sessionId={liveSession.id} onExit={() => setLiveSession(null)} />
       ) : null}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
       <SafeAreaView style={{ flex: 1, display: liveSession ? 'none' : 'flex' }} edges={['top', 'bottom']}>
 
         {gameMenu && !liveSession && (
@@ -414,10 +424,20 @@ export default function RoomChat({ room, onBack = () => {} }) {
         <View style={styles.topbar}>
           <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
           {isDM ? (
+            <>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <PeerDP name={peerName} avatar={peerAvatar} />
               <Text style={styles.roomTitle} numberOfLines={1}>{peerName}</Text>
             </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <Pressable hitSlop={10} onPress={doDeleteDM}>
+                <Svg width="19" height="19" viewBox="0 0 24 24" fill="none"><Path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12" stroke={N.moonDim} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></Svg>
+              </Pressable>
+              <Pressable hitSlop={10} style={styles.callBtn} onPress={() => setInCall(true)}>
+                <Svg width="20" height="20" viewBox="0 0 24 24" fill="none"><Path d="M15 10l4.5-3v10L15 14M4 7h9a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z" stroke="rgb(159,176,206)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"/></Svg>
+              </Pressable>
+            </View>
+            </>
           ) : (
           <View style={{ flex: 1 }}>
             <Text style={styles.roomTitle} numberOfLines={1}>{title}</Text>
@@ -493,6 +513,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
           </Pressable>
         </View>
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -501,6 +522,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: N.night },
   topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 },
   chev: { color: N.moonDim, fontSize: 30, width: 26, marginTop: -3 },
+  callBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(159,176,206,0.35)', backgroundColor: 'rgba(255,255,255,0.02)' },
   roomTitle: { fontFamily: 'Fraunces_400Regular', color: N.moon, fontSize: 19 },
   roomSub: { fontFamily: 'Figtree_300Light', color: N.moonDim, fontSize: 12, marginTop: 1 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(231,176,122,0.3)', backgroundColor: 'rgba(231,176,122,0.06)' },

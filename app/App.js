@@ -190,7 +190,7 @@ function PlayWorld({ navigate, target }) {
 function DeskWorld({ navigate, onLogout }) {
   const [openYou, setOpenYou] = React.useState(false);
   useBackLayer(openYou, React.useCallback(() => { setOpenYou(false); return true; }, []));
-  if (openYou) return <You onBack={() => setOpenYou(false)} onLogout={onLogout} />;
+  if (openYou) return <You onBack={() => setOpenYou(false)} onLogout={onLogout} onOpenChat={navigate} />;
   return <Desk onOpenYou={() => setOpenYou(true)} onRoute={navigate || (() => {})} onOpenLetter={() => {}} />;
 }
 

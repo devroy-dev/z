@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName, savePush, getPushPrefs } from './api';
+import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName, savePush, getPushPrefs, openDM } from './api';
 import { registerForPush, pushPermission } from './push';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
@@ -42,7 +42,7 @@ function MemoryCard({ item, isFact, onForget }) {
   );
 }
 
-export default function You({ onBack = () => {}, onLogout = () => {} }) {
+export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat = () => {} }) {
   const [showLedger, setShowLedger] = React.useState(false);
   // ── the update lever: no more guessing which bundle the device runs ──
   const [updState, setUpdState] = React.useState(null);
@@ -184,6 +184,9 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
   const [finding, setFinding] = useState(false);
   const [friends, setFriends] = useState({ friends: [], incoming: [], outgoing: [] });
   const loadFriends = React.useCallback(() => { getFriends().then((f) => setFriends(f || { friends: [], incoming: [], outgoing: [] })); }, []);
+  const openFriendChat = async (u) => {
+    try { const r = await openDM(u.id); if (r && r.id) { onBack(); onOpenChat({ kind: 'dm', threadId: r.id, name: u.display_name || ('@' + u.handle) }); } } catch (e) {}
+  };
   React.useEffect(() => { loadFriends(); }, [loadFriends]);
   // seed the saved handle from the server so it shows after leaving/returning (not just the session you set it in)
   const [myName, setMyName] = React.useState('');
@@ -295,7 +298,7 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
           {friends.friends.length === 0 ? (
             <Text style={styles.friendMuted}>no one yet. share your handle or add someone above.</Text>
           ) : friends.friends.map((u) => (
-            <View key={u.id} style={styles.friendCard}>
+            <Pressable key={u.id} style={styles.friendCard} onPress={() => openFriendChat(u)}>
               {u.avatar_url
                 ? <Image source={{ uri: u.avatar_url }} style={styles.friendAvatar} />
                 : <View style={[styles.friendAvatar, styles.friendAvatarEmpty]}><Text style={styles.friendAvatarLetter}>{(u.display_name || u.handle || '?').slice(0,1).toUpperCase()}</Text></View>}
@@ -303,7 +306,8 @@ export default function You({ onBack = () => {}, onLogout = () => {} }) {
                 <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
                 <Text style={styles.friendSub}>@{u.handle}</Text>
               </View>
-            </View>
+              <Text style={styles.friendGo}>chat ›</Text>
+            </Pressable>
           ))}
 
           {friends.outgoing.length > 0 && (
@@ -675,6 +679,7 @@ const styles = StyleSheet.create({
   friendAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: 'rgba(255,255,255,0.06)' },
   friendAvatarEmpty: { alignItems: 'center', justifyContent: 'center' },
   friendAvatarLetter: { fontFamily: FONTS.semibold, color: 'rgba(232,236,244,0.7)', fontSize: 16 },
+  friendGo: { fontFamily: 'Figtree_500Medium', color: 'rgba(159,176,206,0.85)', fontSize: 13 },
   friendName: { fontFamily: FONTS.medium, color: '#E8ECF4', fontSize: 15.5 },
   friendSub: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 12, marginTop: 1 },
   friendMuted: { fontFamily: FONTS.body, color: 'rgba(232,236,244,0.4)', fontSize: 13, marginTop: 8 },
