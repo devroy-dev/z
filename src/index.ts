@@ -16,6 +16,7 @@ import { runGroupTurn } from './groupLoop.js';
 import { broadcastRoomMessage } from './broadcast.js';
 import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';
 import { generatePlan, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
+import { distillMaterial } from './coachDistill.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
@@ -1450,6 +1451,37 @@ app.get('/coach/:id', async (req, res) => {
     for (const [d, p] of Object.entries(c.progress || {})) days[d] = { hasLesson: !!(p as any).lesson, graded: (p as any).graded || null };
     res.json({ courseId: c.id, topic: c.topic, totalDays: c.total_days, currentDay: c.current_day, status: c.status, plan: c.plan, weakTags: c.weak_tags, days });
   } catch (e: any) { res.status(500).json({ error: 'course fetch failed: ' + (e?.message || String(e)) }); }
+});
+
+// ── COACH: bring-your-own-material (RAG ingest) ─────────────────────────
+app.post('/coach/:id/material', express.json({ limit: '25mb' }), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const c = await loadCoachCourse(req.params.id, user.id);
+    if (!c) return res.status(404).json({ error: 'no such course' });
+    const filename = String(req.body?.filename || 'material.pdf').trim().slice(0, 160);
+    const dataB64 = String(req.body?.dataB64 || '');
+    if (!dataB64) return res.status(400).json({ error: 'dataB64 (base64 PDF) required' });
+    const result = await distillMaterial(user.id, c.id, filename, dataB64);
+    res.json(result);
+  } catch (e: any) { res.status(500).json({ error: 'material failed: ' + (e?.message || String(e)) }); }
+});
+app.get('/coach/:id/shelf', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const c = await loadCoachCourse(req.params.id, user.id);
+    if (!c) return res.status(404).json({ error: 'no such course' });
+    const { data } = await supabase.from('coach_briefs')
+      .select('id, title, pages, declared_gaps, created_at, sections')
+      .eq('user_id', user.id).eq('course_id', c.id).is('superseded_by', null)
+      .order('created_at', { ascending: false });
+    const briefs = (data || []).map((b: any) => ({ id: b.id, title: b.title, pages: b.pages, sections: Array.isArray(b.sections) ? b.sections.length : 0, declaredGaps: b.declared_gaps, createdAt: b.created_at }));
+    res.json({ courseId: c.id, briefs });
+  } catch (e: any) { res.status(500).json({ error: 'shelf failed: ' + (e?.message || String(e)) }); }
 });
 
 app.get('/battlefield/watch/:sessionId', async (req, res) => {
