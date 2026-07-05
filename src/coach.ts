@@ -93,6 +93,28 @@ export async function generateLesson(topic: string, focus: string, weakTags: str
   } catch (e: any) { console.error('[coach] lesson failed:', e?.message || e); return `Today's focus: ${focus}\n\n(The lesson couldn't be generated just now — please try again.)`; }
 }
 
+// build a full MOCK: questions spanning every day-focus of the course. Reuses
+// generateQuiz (generation + verify + grounding) per focus so coverage is even.
+export async function generateMock(topic: string, focuses: string[], perFocus: number, userId: string, material = ''): Promise<MCQ[]> {
+  const pool: MCQ[] = [];
+  for (const f of focuses) {
+    const qs = await generateQuiz(topic, f, Math.max(1, Math.min(perFocus, 8)), userId, material);
+    pool.push(...qs);
+  }
+  return pool;
+}
+
+// PURE: per-topic breakdown from a graded result (unit-tested).
+export function breakdownByTag(perQuestion: GradeResult['perQuestion']): Record<string, { right: number; total: number }> {
+  const out: Record<string, { right: number; total: number }> = {};
+  for (const p of perQuestion) {
+    const t = p.tag || 'general';
+    if (!out[t]) out[t] = { right: 0, total: 0 };
+    out[t].total++; if (p.right) out[t].right++;
+  }
+  return out;
+}
+
 export async function generateQuiz(topic: string, focus: string, n: number, userId: string, material = ''): Promise<MCQ[]> {
   const gen = Math.min(n + 3, 12);   // over-generate so the verify pass can drop weak keys and still hit n
   const sys = `You write a short practice quiz for a student preparing for "${topic}". Produce EXACTLY ${gen} multiple-choice questions on today's focus. RULES: crisp, unambiguous, exam-realistic; exactly ONE unambiguously correct option; verifiable — NEVER invent facts or trick wording; mixed difficulty. For each, also give "why" (one sentence: why the correct option is right) and "tag" (the sub-skill it tests, 1-3 words). Output ONLY a JSON array, no markdown: [{"q":"…","opts":["…","…","…","…"],"correct":0,"why":"…","tag":"…"}] — correct is the 0-based index, exactly 4 options.`;

@@ -17,7 +17,7 @@ import { broadcastRoomMessage } from './broadcast.js';
 import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';
 import { generatePlan, generateLesson, generateQuiz, gradeAnswers, mergeWeakTags, quizForClient, type MCQ } from './coach.js';
 import { distillMaterial } from './coachDistill.js';
-import { retrieveForCourse, materialFromSections, answerFromMaterial } from './coach.js';
+import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
 import { seatbeltCheck } from './seatbelt.js';
@@ -1454,6 +1454,49 @@ app.get('/coach/:id', async (req, res) => {
     for (const [d, p] of Object.entries(c.progress || {})) days[d] = { hasLesson: !!(p as any).lesson, graded: (p as any).graded || null };
     res.json({ courseId: c.id, topic: c.topic, totalDays: c.total_days, currentDay: c.current_day, status: c.status, plan: c.plan, weakTags: c.weak_tags, days });
   } catch (e: any) { res.status(500).json({ error: 'course fetch failed: ' + (e?.message || String(e)) }); }
+});
+
+// ── COACH: MOCK TESTS (Layer 4) ─────────────────────────────────────────
+app.post('/coach/:id/mock/start', express.json(), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const c = await loadCoachCourse(req.params.id, user.id);
+    if (!c) return res.status(404).json({ error: 'no such course' });
+    const focuses: string[] = (((c.plan as any[]) || []).map((p) => p.focus).filter(Boolean));
+    if (!focuses.length) focuses.push(c.topic);
+    const n = Math.max(5, Math.min(Number(req.body?.n) || 20, 40));
+    const minutes = Math.max(5, Math.min(Number(req.body?.minutes) || 30, 180));
+    const perFocus = Math.max(1, Math.ceil(n / focuses.length));
+    const mats = await retrieveForCourse(user.id, c.id, c.topic, 12);
+    const pool = await generateMock(c.topic, focuses, perFocus, user.id, materialFromSections(mats));
+    const questions = pool.slice(0, n);
+    if (questions.length < 3) return res.status(502).json({ error: 'could not generate the mock — try again' });
+    const { data: m, error } = await supabase.from('coach_mocks').insert({
+      course_id: c.id, user_id: user.id, questions, duration_sec: minutes * 60,
+    }).select('id, started_at, duration_sec').single();
+    if (error || !m) return res.status(500).json({ error: error?.message || 'mock create failed' });
+    res.json({ mockId: m.id, count: questions.length, durationSec: m.duration_sec, startedAt: m.started_at, grounded: mats.length > 0, questions: quizForClient(questions) });
+  } catch (e: any) { res.status(500).json({ error: 'mock start failed: ' + (e?.message || String(e)) }); }
+});
+app.post('/coach/:id/mock/:mockId/submit', express.json(), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: m } = await supabase.from('coach_mocks').select('*').eq('id', req.params.mockId).eq('user_id', user.id).maybeSingle();
+    if (!m) return res.status(404).json({ error: 'no such mock' });
+    if (m.status === 'done') return res.status(400).json({ error: 'this mock is already submitted' });
+    const quiz: MCQ[] = (m.questions as any) || [];
+    const answers = Array.isArray(req.body?.answers) ? req.body.answers : [];
+    const graded = gradeAnswers(quiz, answers);
+    const breakdown = breakdownByTag(graded.perQuestion);
+    await supabase.from('coach_mocks').update({
+      score: graded.score, total: graded.total, breakdown, status: 'done', submitted_at: new Date().toISOString(),
+    }).eq('id', m.id);
+    res.json({ score: graded.score, total: graded.total, breakdown, results: graded.perQuestion });
+  } catch (e: any) { res.status(500).json({ error: 'mock submit failed: ' + (e?.message || String(e)) }); }
 });
 
 // ── COACH: ask / teach from the course's material ───────────────────────
