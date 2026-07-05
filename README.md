@@ -1,35 +1,33 @@
-# Coach Layer 4 — MOCK TESTS (SERVER)
+# STORY COLLAB — round-robin co-writing (SERVER; UI goes in the Shows Play door)
 
-Full timed mock exams that span the WHOLE course (every day-focus), grade deterministically,
-and break the score down BY TOPIC so the student sees exactly where they're weak. Reuses the
-proven quiz generation + verify pass + deterministic grading; grounds in uploaded material if present.
-Per-topic breakdown unit-verified (5/5); real tsc passes.
-
-## Contents
-- 0041_coach_mocks.sql — z.coach_mocks (RUN IN SUPABASE FIRST)
-- apply_mock.py         — generateMock + breakdownByTag + 2 endpoints
+3-6 personas (and optionally you) write one story together, one bounded paragraph each, in
+turn. The engine is the moderator: it orchestrates the round-robin and holds the story-so-far.
+Two modes chosen at start — coherent (honour the story, move it forward) or chaos (exquisite-
+corpse: subvert & surprise). Finished stories can be published. Turn math unit-verified (10/10);
+real tsc passes. No migration (reuses game_sessions).
 
 ## Apply (SERVER)
-    unzip -o coach-mock.zip
-    # 1) run 0041_coach_mocks.sql in Supabase
-    # 2) from repo root:
-    python3 apply_mock.py
-    npm run build && git add -A && git commit -m "coach L4: mock tests (full timed exam + per-topic breakdown)" && git push
+    unzip -o story-collab.zip
+    python3 apply_story.py
+    npm run build && git add -A && git commit -m "story collab: round-robin co-writing engine" && git push
 
-## Test (curl) — on any course you've started
-    # start a 12-question, 20-minute mock across the whole syllabus
-    M=$(curl -s -X POST "$BASE/coach/$CID/mock/start" -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" -d '{"n":12,"minutes":20}')
-    echo "$M" | head -c 300; echo
-    MID=$(echo "$M" | grep -o '"mockId":"[^"]*"' | cut -d'"' -f4); echo "mock=$MID"
+## Curl-play ($BASE/$TOKEN set)
+    # start — coherent literary cast, a premise, 2 rounds (personas only)
+    S=$(curl -s -X POST "$BASE/games/story/start" -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"personas":["the_historian","the_philosopher","the_comic"],"mode":"coherent","premise":"A lighthouse keeper finds a door in the sea","rounds":2}')
+    echo "$S" | head -c 300; echo
+    SID=$(echo "$S" | grep -o '"storyId":"[^"]*"' | cut -d'"' -f4); echo "story=$SID"
 
-    # submit answers (0-based indexes, one per question) → score + per-topic breakdown
-    curl -s -X POST "$BASE/coach/$CID/mock/$MID/submit" -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" -d '{"answers":[0,1,2,3,0,1,2,3,0,1,2,3]}'; echo
+    # step through — each call writes ONE persona's paragraph; run until status:"done"
+    curl -s -X POST "$BASE/games/story/$SID/step" -H "Authorization: Bearer $TOKEN"; echo
 
-## What to look for
-- mock/start returns ~n questions spanning ALL the plan's topics (not just one day), no answer keys
-- takes a bit longer than a daily quiz (it generates + verifies across every focus)
-- submit returns score/total, per-question reveals (correct+why), AND a "breakdown" by topic tag
-  e.g. {"algebra":{"right":3,"total":5}, "geometry":{"right":2,"total":4}} — the weak-area map
-- grounded:true if the course has uploaded material (questions drawn from it)
+    # publish the finished story (owner only)
+    curl -s -X POST "$BASE/games/story/$SID/publish" -H "Authorization: Bearer $TOKEN"; echo
+
+## Notes
+- Try mode:"chaos" with an absurdist cast (the_comic + the_conspiracy_theorist) to feel the difference.
+- To WRITE alongside them, add "humanPlays":true at start; on YOUR turn, POST step with {"text":"your paragraph"}.
+- PUBLISH: v1 finalises for the owner. Content-moderation MUST gate publishing before a story is public
+  (flagged in code) — wire the mod pipeline there when it lands. AI-written paragraphs aren't copyrightable
+  (Thaler) — users can share but not claim exclusive copyright; state in terms.
