@@ -55,3 +55,66 @@ export async function subscribeRoom(threadId, onMsg, onStatus) {
 export function unsubscribe() {
   if (_channel && _sb) { try { _sb.removeChannel(_channel); } catch (e) {} _channel = null; }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  THE BATTLEFIELD — live keystroke streaming. A debater's composition is
+//  broadcast to the room as throttled full-textbox-state (client→client, never
+//  persisted): pauses show as no-change, deletes as text-shrink, bursts as
+//  big-jumps — the "watch them write it" drama at ~4-6 events/sec, not per-key.
+//  Rides a SEPARATE channel from chat (its own singleton) so the two never
+//  collide. Only the active debater sends; opponent + spectators receive.
+// ════════════════════════════════════════════════════════════════════════
+let _duelChannel = null;
+let _duelThreadId = null;
+let _duelSendChannel = null;
+let _duelSendThreadId = null;
+
+// join a duel's live channel. onKeys({seat,phase,text,done}) fires on every
+// keystroke-state broadcast. Returns an unsubscribe fn. Idempotent per thread.
+export async function subscribeDuelKeys(threadId, onKeys, onStatus) {
+  const sb = await getClient();
+  if (!sb) { onStatus && onStatus('no-client'); return () => {}; }
+  unsubscribeDuel();
+  _duelThreadId = threadId;
+  _duelChannel = sb.channel('duel-' + threadId, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'keys' }, (payload) => {
+      const k = payload && payload.payload; if (k) onKeys(k);
+    })
+    .subscribe((status, err) => { onStatus && onStatus(status, err); });
+  return unsubscribeDuel;
+}
+
+// open a persistent SEND channel for the active debater (call once when their
+// turn begins). Held open for the turn so throttled sends reuse one socket
+// instead of a handshake per keystroke frame. closeDuelSender() when the turn ends.
+export async function openDuelSender(threadId) {
+  try {
+    const sb = await getClient();
+    if (!sb) return;
+    if (_duelSendChannel && _duelSendThreadId === threadId) return; // already open
+    closeDuelSender();
+    _duelSendThreadId = threadId;
+    _duelSendChannel = sb.channel('duel-' + threadId, { config: { broadcast: { ack: false, self: false } } });
+    await new Promise((resolve) => { _duelSendChannel.subscribe(() => resolve()); setTimeout(resolve, 1200); });
+  } catch (e) { /* best-effort */ }
+}
+
+// broadcast the debater's current textbox state on the open sender (or the
+// subscribed channel, whichever is live for this thread). Fire-and-forget.
+export async function broadcastDuelKeys(threadId, payload) {
+  try {
+    const ch = (_duelSendChannel && _duelSendThreadId === threadId) ? _duelSendChannel
+             : (_duelChannel && _duelThreadId === threadId) ? _duelChannel
+             : null;
+    if (!ch) return;
+    await ch.send({ type: 'broadcast', event: 'keys', payload });
+  } catch (e) { /* a missed keystroke frame is harmless */ }
+}
+
+export function closeDuelSender() {
+  if (_duelSendChannel && _sb) { try { _sb.removeChannel(_duelSendChannel); } catch (e) {} _duelSendChannel = null; _duelSendThreadId = null; }
+}
+
+export function unsubscribeDuel() {
+  if (_duelChannel && _sb) { try { _sb.removeChannel(_duelChannel); } catch (e) {} _duelChannel = null; _duelThreadId = null; }
+}

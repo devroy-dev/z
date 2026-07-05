@@ -31,7 +31,7 @@ import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './gam
 import { debateDuelAdapter } from './games/debateDuel.js';
 import { battlefieldDuelAdapter } from './games/battlefieldDuel.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
-import { logUsage, costSnapshot, costSince } from './usage.js';
+import { logUsage } from './usage.js';
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
 import { PROFILE_BLURBS } from './blurbs.js';
@@ -1293,7 +1293,27 @@ app.post('/battlefield/test-verdict', async (req, res) => {
   }
 });
 
-// START a practice-vs-house Battlefield duel: a real, persisted session (seat 0 = you,
+// SPECTATOR watch: a read-only view of a battlefield duel, no seat required.
+// This is the ungated audience path — a spectator polls the committed transcript +
+// verdict here, and subscribes to the duel channel for the debater's live keystrokes.
+// Returns nothing sensitive (a debate is public by nature); only battlefield_duel.
+app.get('/battlefield/watch/:sessionId', async (req, res) => {
+  try {
+    const { data: s } = await supabase.from('game_sessions').select('id, game, version, status, state, thread_id, seats').eq('id', req.params.sessionId).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such duel' });
+    if (s.game !== 'battlefield_duel') return res.status(400).json({ error: 'not a battlefield duel' });
+    const st = s.state || {};
+    // expose the floor (motion, phase, transcript, notes, verdict) — never seat identities
+    res.json({
+      id: s.id, version: s.version, status: s.status, threadId: s.thread_id,
+      motion: st.motion, domain: st.domain, phase: st.phase,
+      turns: st.turns || [], notes: st.notes || [],
+      verdict: st.verdict || null, winner: st.winner || null, error: st.error || null,
+    });
+  } catch (e: any) { res.status(500).json({ error: 'watch failed: ' + (e?.message || String(e)) }); }
+});
+
+
 // seat 1 = the house) that the existing /games/session/:id GET + /move routes serve. The
 // house takes its turns inside battlefieldDuel.move(). Optional {motion,domain} to pin.
 app.post('/battlefield/practice/start', async (req, res) => {
@@ -1336,7 +1356,6 @@ app.post('/battlefield/test-duel', async (req, res) => {
       ? battlefieldDuelAdapter.create({ motion: pinMotion, domain: pinDomain })
       : battlefieldDuelAdapter.create();
     const steps: any[] = [];
-    const costStart = costSnapshot();
     let myIdx = 0; let guard = 0;
     while (!battlefieldDuelAdapter.isOver(state) && guard++ < 12) {
       const toAct = battlefieldDuelAdapter.toActSeat(state);
@@ -1357,7 +1376,6 @@ app.post('/battlefield/test-duel', async (req, res) => {
       winner: state.winner, error: state.error,
       verdict: state.verdict ? { winner: state.verdict.winner, summary: state.verdict.summary, matter: state.verdict.matter, manner: state.verdict.manner } : null,
       steps,
-      cost: costSince(costStart),
     });
   } catch (e: any) {
     res.status(500).json({ error: 'test-duel failed: ' + (e?.message || String(e)) });

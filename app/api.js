@@ -408,6 +408,10 @@ export async function sendGameMove(id, move, version) {
 export async function startBattlefieldPractice(motion, domain) {
   return authedJSON('POST', '/battlefield/practice/start', motion ? { motion, domain } : {});
 }
+// read-only spectator view of a duel (no seat required) → { motion, phase, turns, verdict, ... }
+export async function watchBattlefieldDuel(sessionId) {
+  return authedJSON('GET', `/battlefield/watch/${sessionId}`);
+}
 
 // ── the trading floor (paper trading — phantom money, real prices) ──
 export async function simMarket() {
