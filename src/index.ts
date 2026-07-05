@@ -1641,7 +1641,8 @@ app.post('/battlefield/motion/check', async (req, res) => {
     const motion = String(req.body?.motion || '').trim();
     if (motion.length < 6) return res.status(400).json({ error: 'give me a motion to check' });
     const domain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
-    const a = await evaluateMotion(motion, domain, user.id);
+    const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
+    const a = await evaluateMotion(motion, domain, user.id, difficulty);
     res.json({ motion, ...a });
   } catch (e: any) { res.status(500).json({ error: 'motion check failed: ' + (e?.message || String(e)) }); }
 });
@@ -1657,7 +1658,8 @@ app.post('/battlefield/motions/generate', async (req, res) => {
     const domain = req.body?.domain as DebateDomain;
     if (!domain || !DOMAIN_LABELS[domain]) return res.status(400).json({ error: 'valid domain required' });
     const n = Math.max(4, Math.min(20, parseInt(String(req.body?.n ?? 12), 10) || 12));
-    const out = await generateMotions(domain, n, user.id);
+    const tier = req.body?.tier === 'light' ? 'light' : 'pro';
+    const out = await generateMotions(domain, n, user.id, tier);
     res.json({ domain, requested: n, keptCount: out.kept.length, droppedCount: out.dropped.length, kept: out.kept, dropped: out.dropped });
   } catch (e: any) { res.status(500).json({ error: 'motion generate failed: ' + (e?.message || String(e)) }); }
 });
@@ -1755,7 +1757,8 @@ app.post('/battlefield/practice/start', async (req, res) => {
     }).select('id').single();
     if (tErr || !thread) return res.status(500).json({ error: 'could not open the practice floor: ' + (tErr?.message || '') });
     const seats = [{ kind: 'user', id: user.id }, { kind: 'persona', id: 'the_house' }];
-    const state = battlefieldDuelAdapter.create(seats, { motion, domain });
+    const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
+    const state = battlefieldDuelAdapter.create(seats, { motion, domain, difficulty });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
@@ -1787,7 +1790,8 @@ app.post('/battlefield/duel/start', async (req, res) => {
     const creatorSeat: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
     const seats: any[] = [{ kind: 'open' }, { kind: 'open' }];
     seats[creatorSeat] = { kind: 'user', id: user.id };
-    const state = battlefieldDuelAdapter.create(seats, { motion, domain });
+    const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
+    const state = battlefieldDuelAdapter.create(seats, { motion, domain, difficulty });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();

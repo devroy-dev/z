@@ -103,12 +103,13 @@ export type BFState = {
   winner: 'PRO' | 'CON' | null;
   judging: boolean;
   error: string | null;
+  difficulty: 'normal' | 'pro';
 };
 
 // PRO=0 leads Opening & Closing; CON=1 leads Rebuttal (answers the attack first).
 function leadSeat(phaseIndex: number): 0 | 1 { return phaseIndex === 1 ? 1 : 0; }
 
-export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain }): BFState {
+export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; difficulty?: 'normal' | 'pro' }): BFState {
   const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
   // pin exactly if both given; else a random motion within the requested domain;
   // else a fully random motion. (domain-only used to fall through to fully random.)
@@ -132,6 +133,7 @@ export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain }
     winner: null,
     judging: false,
     error: null,
+    difficulty: opts?.difficulty === 'pro' ? 'pro' : 'normal',
   };
 }
 
@@ -166,6 +168,8 @@ function advanceFloor(state: BFState): { phaseComplete: boolean } {
 // CURRENT phase's job (open the case / rebut the opponent / close — no new args).
 const HOUSE_SOUL = `You are THE HOUSE — callmeZ's in-house debate opponent on the Battlefield. You are a formidable, disciplined debater: clear, forensic, and relentless, but never a bully and never a liar. You argue the SIDE you are assigned, whether or not you privately agree — arguing an assigned position is the craft. You build real arguments with real reasoning; you never invent facts or statistics, because the adjudicator will catch a fabrication and it will cost you. You stay strictly within the current phase's job.`;
 
+const HOUSE_NORMAL = `\n\n[NORMAL MODE \u2014 you are sparring with an AMATEUR, not a champion. Argue your side clearly and FAIRLY in plain language, at a level a beginner can answer. Make a real but BEATABLE case: one or two clean points, no piling on, no burying them in erudition, no exploiting every gap. You are a friendly sparring partner helping them find their footing \u2014 not a wall. Keep it short and accessible.]`;
+
 function phaseJob(phase: Phase, side: 'PRO' | 'CON'): string {
   if (phase === 'Opening') return `Deliver your OPENING as ${side}: state your strongest case for your side of the motion. Build the frame. Do not rebut yet — there is nothing to rebut.`;
   if (phase === 'Rebuttal') return `Deliver your REBUTTAL as ${side}: attack the specific weak points in your opponent's opening. Name what they claimed and dismantle it. This is where the debate sharpens.`;
@@ -179,7 +183,7 @@ async function houseTurn(state: BFState): Promise<string> {
   const transcript = state.turns.length
     ? state.turns.map((t) => `${t.seat === 0 ? 'PRO' : 'CON'} (${t.role}): ${t.text}`).join('\n\n')
     : '(no speeches yet — you open the floor)';
-  const system = `${HOUSE_SOUL}\n\nTHE MOTION: "${state.motion}"\nYOU ARE: ${side}. ${side === 'PRO' ? 'You argue FOR the motion.' : 'You argue AGAINST the motion.'}\nCURRENT PHASE: ${phase}. ${phaseJob(phase, side)}\n\nWrite ONLY your speech — no stage directions, no "as ${side} I would say", just the argument itself. Keep it tight: 3-6 sentences, the register of a serious debate floor.`;
+  const system = `${HOUSE_SOUL}\n\nTHE MOTION: "${state.motion}"\nYOU ARE: ${side}. ${side === 'PRO' ? 'You argue FOR the motion.' : 'You argue AGAINST the motion.'}\nCURRENT PHASE: ${phase}. ${phaseJob(phase, side)}\n\nWrite ONLY your speech — no stage directions, no "as ${side} I would say", just the argument itself. Keep it tight: 3-6 sentences, the register of a serious debate floor.${state.difficulty !== 'pro' ? HOUSE_NORMAL : ''}`;
   try {
     const msg: any = await anthropic.messages.create({
       model: MODEL, max_tokens: 500, temperature: 0.6, system,
@@ -208,6 +212,7 @@ async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string): Prom
         seatA_role: 'PRO', seatB_role: 'CON',
         lastExchange: phaseTurns.map((t) => ({ seat: t.seat, role: t.role, text: t.text })),
         momentumA: 50,
+        difficulty: state.difficulty,
       });
       if (note?.note) state.notes.push({ phase: role, note: note.note });
     } catch { /* running note is best-effort — never blocks the duel */ }
@@ -223,6 +228,7 @@ async function adjudicate(state: BFState): Promise<void> {
     const v = await finalVerdict({
       domain: state.domain,
       motion: state.motion,
+      difficulty: state.difficulty,
       fullTranscript: state.turns.map((t) => ({ seat: t.seat, role: t.role, text: t.text })),
     });
     state.verdict = v;
@@ -242,7 +248,7 @@ export const battlefieldDuelAdapter = {
   // motion/domain arrive either as the first arg (diagnostic) or in options (route).
   create(a?: any, b?: any) {
     const opts = (a && (a.motion || a.domain)) ? a : (b || {});
-    return newBattlefield({ motion: opts.motion, domain: opts.domain });
+    return newBattlefield({ motion: opts.motion, domain: opts.domain, difficulty: opts.difficulty });
   },
 
   async move(state: BFState, seat: number, mv: any, seats?: any[]): Promise<BFState> {

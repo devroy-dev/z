@@ -22,6 +22,10 @@ const MODEL = 'claude-haiku-4-5-20251001';
 const SOUL = (() => { try { return readContentFile('debate-adjudicator-soul.md'); } catch { return ''; } })();
 const CORE = (() => { try { return readContentFile('debate-adjudication-core.md'); } catch { return ''; } })();
 
+// NORMAL-mode overlays — appended only when difficulty==='normal'. PRO is unchanged.
+const VERDICT_NORMAL = `\n\n[NORMAL MODE \u2014 you are judging AMATEUR debaters, not a championship final. Keep every ounce of HONESTY \u2014 never lie about who won, never invent praise \u2014 but change your BEDSIDE MANNER completely. Lead with what each side did WELL. Frame every weakness as a next step (\"next time, answer their strongest point first\"), never as a wound. Reward clear thinking, a genuine attempt to engage, and courage under pressure \u2014 do NOT demand citations or championship rigor from beginners, and do NOT strike honest-but-unsupported claims as if they were fabrications. If there was little real clash, say so gently and SHOW them what a clash would look like, rather than declaring the debate void. Warm, plain, generous: a beginner must leave wanting to debate again. You are the encouraging coach who still tells the truth \u2014 not the executioner.]`;
+const NOTE_NORMAL = `\n\n[NORMAL MODE: keep the note WARM and instructive \u2014 name what landed and one thing to try next, encouragingly. Not a savage read.]`;
+
 // ── the per-debate domain codexes, keyed. Loaded lazily, held after first read. ──
 export type DebateDomain =
   | 'history' | 'economy' | 'geopolitics' | 'law' | 'democracy'
@@ -185,12 +189,12 @@ export async function runningNote(args: {
   domain: DebateDomain; motion: string;
   seatA_role: string; seatB_role: string;
   lastExchange: { seat: 0 | 1; role: string; text: string }[];
-  momentumA: number;
+  momentumA: number; difficulty?: 'normal' | 'pro';
 }): Promise<{ swing: number; note: string }> {
   const transcript = args.lastExchange
     .map((s) => `${s.seat === 0 ? 'PRO' : 'CON'} (${s.role}): ${s.text}`).join('\n\n');
   const system = staticPrefix(args.domain) +
-    `\n\n[TASK: You have just heard ONE completed exchange. Drop your single-sentence live adjudicator note in your own forensic voice — name what landed and what was dropped. Then give the momentum swing.\nOutput EXACTLY two lines, nothing else:\nSWING: <integer -15..15, positive favours PRO, negative favours CON — on MERIT, never on the side>\nNOTE: <one razor line, under 22 words, your live read of this exchange>]`;
+    `\n\n[TASK: You have just heard ONE completed exchange. Drop your single-sentence live adjudicator note in your own forensic voice — name what landed and what was dropped. Then give the momentum swing.\nOutput EXACTLY two lines, nothing else:\nSWING: <integer -15..15, positive favours PRO, negative favours CON — on MERIT, never on the side>\nNOTE: <one razor line, under 22 words, your live read of this exchange>]` + (args.difficulty === 'normal' ? NOTE_NORMAL : '');
   try {
     const msg = await anthropic.messages.create({
       model: MODEL, max_tokens: 220, temperature: 0, system,
@@ -216,7 +220,7 @@ export type Verdict = {
 };
 
 export async function finalVerdict(args: {
-  domain: DebateDomain; motion: string;
+  domain: DebateDomain; motion: string; difficulty?: 'normal' | 'pro';
   fullTranscript: { seat: 0 | 1; role: string; text: string }[];
 }): Promise<Verdict> {
   const transcript = args.fullTranscript
@@ -224,7 +228,7 @@ export async function finalVerdict(args: {
   const system = staticPrefix(args.domain) +
     `\n\n[TASK: The debate has concluded. Before you rule, CONSULT your prepared material with read_section: verify the key factual claims and check the strongest counters (start with section 8, your fact-check notes, whenever a factual claim is in play). You judge only on what the debaters said and what your material supports — you never introduce a fact neither side raised. Judge the debating, not the position; identical standard for PRO and CON regardless of assigned side. Weigh Matter (50%: logic, evidence, factual accuracy — apply the iron fact-check rule) and Manner (50%: delivery, structure, control).
 
-When you have finished consulting, call submit_verdict exactly once with your structured adjudication. The winner field MUST be the side your matter and manner audits favour — it cannot contradict your own reasoning. Write the prose fields (summary, matter, manner, verdict_line, closing) in your own forensic voice.]`;
+When you have finished consulting, call submit_verdict exactly once with your structured adjudication. The winner field MUST be the side your matter and manner audits favour — it cannot contradict your own reasoning. Write the prose fields (summary, matter, manner, verdict_line, closing) in your own forensic voice.]` + (args.difficulty === 'normal' ? VERDICT_NORMAL : '');
   try {
     const v = await runVerdictWithTools(args.domain, system, `MOTION: ${args.motion}\n\nFULL TRANSCRIPT:\n${transcript}`, 'battlefield');
     return v;

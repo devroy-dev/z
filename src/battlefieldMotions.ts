@@ -19,6 +19,8 @@ const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const CORE = (() => { try { return readContentFile('debate-adjudication-core.md'); } catch { return ''; } })();
+// NORMAL-mode overlay for the checker — generous bar for amateur/casual motions.
+const CHECK_NORMAL = `\n\n[NORMAL MODE \u2014 you are vetting a motion for AMATEUR / casual practice, not a championship. Be GENEROUS. Pass any motion with ANY reasonable direction to argue \u2014 including light, everyday, or fun topics \u2014 as judgeable \"yes\". Reserve \"no\" for the genuinely unarguable: pure taste with no possible reasoning, incoherent, or not a proposition. Treat what you would call \"borderline\" as \"yes\" here. You may still offer a gentle restructure if it clearly helps, but do NOT gate a beginner's motion behind championship rigor.]`;
 const DOMAIN_FILES: Record<DebateDomain, string> = {
   history: 'debate-domain-history.md', economy: 'debate-domain-economy.md', geopolitics: 'debate-domain-geopolitics.md',
   law: 'debate-domain-law.md', democracy: 'debate-domain-democracy.md', philosophy: 'debate-domain-philosophy.md',
@@ -59,7 +61,7 @@ const ASSESS_TOOL = {
   },
 };
 
-function assessSystem(domain?: DebateDomain): string {
+function assessSystem(domain?: DebateDomain, difficulty: 'normal' | 'pro' = 'pro'): string {
   const dLine = domain
     ? `The organizer has tagged this to the domain: ${DOMAIN_LABELS[domain]}.`
     : 'No domain was specified — suggest the best fit.';
@@ -73,13 +75,13 @@ When a motion is not judgeable, do NOT merely reject it — REWRITE it into the 
 
 ${dLine}
 
-Assess the motion and call submit_motion_assessment. Be honest and specific. A clean motion passes with issues ["none"] and an empty restructured field.`;
+Assess the motion and call submit_motion_assessment. Be honest and specific. A clean motion passes with issues ["none"] and an empty restructured field.` + (difficulty === 'normal' ? CHECK_NORMAL : '');
 }
 
-export async function evaluateMotion(motion: string, domain?: DebateDomain, userId = 'battlefield'): Promise<MotionAssessment> {
+export async function evaluateMotion(motion: string, domain?: DebateDomain, userId = 'battlefield', difficulty: 'normal' | 'pro' = 'normal'): Promise<MotionAssessment> {
   const msg: any = await anthropic.messages.create({
     model: MODEL, max_tokens: 700, temperature: 0,
-    system: assessSystem(domain),
+    system: assessSystem(domain, difficulty),
     tools: [ASSESS_TOOL] as any,
     tool_choice: { type: 'tool', name: 'submit_motion_assessment' } as any,
     messages: [{ role: 'user', content: `The proposed motion:\n"${motion}"` }],
@@ -99,13 +101,18 @@ export async function evaluateMotion(motion: string, domain?: DebateDomain, user
 }
 
 // draft codex-grounded candidate motions for a domain, then keep only the judgeable.
-export async function generateMotions(domain: DebateDomain, n = 12, userId = 'battlefield'): Promise<{ kept: any[]; dropped: any[]; raw: string[] }> {
+export async function generateMotions(domain: DebateDomain, n = 12, userId = 'battlefield', tier: 'light' | 'pro' = 'pro'): Promise<{ kept: any[]; dropped: any[]; raw: string[] }> {
   const codex = domainCodex(domain);
-  const sys = `You draft DEBATE MOTIONS grounded in a domain's knowledge codex. Produce ${n} distinct, FACT-BASED motions this codex could adjudicate — each a single clear proposition with a knowable evidentiary direction, drawn from the codex's live debates and contested claims. Phrase each as "This house believes …". No pure value/taste claims, no compound motions, no vague ones. Output ONLY a JSON array of strings, nothing else.`;
+  const sys = tier === 'light'
+    ? `You draft LIGHT, ACCESSIBLE debate motions for AMATEUR / casual players — everyday, relatable, even fun, but still genuinely ARGUABLE with a real direction (not pure taste). Produce ${n} distinct motions a beginner would enjoy and could argue both sides of, loosely themed to the domain. Phrase each as "This house believes …". Concrete, low-jargon. Output ONLY a JSON array of strings, nothing else.`
+    : `You draft DEBATE MOTIONS grounded in a domain's knowledge codex. Produce ${n} distinct, FACT-BASED motions this codex could adjudicate — each a single clear proposition with a knowable evidentiary direction, drawn from the codex's live debates and contested claims. Phrase each as "This house believes …". No pure value/taste claims, no compound motions, no vague ones. Output ONLY a JSON array of strings, nothing else.`;
+  const userMsg = tier === 'light'
+    ? `DOMAIN THEME: ${DOMAIN_LABELS[domain]}\n\nDraft ${n} light, accessible motions now.`
+    : `DOMAIN: ${DOMAIN_LABELS[domain]}\n\n=== CODEX ===\n${codex}\n=== END CODEX ===\n\nDraft ${n} motions now.`;
   const msg: any = await anthropic.messages.create({
-    model: MODEL, max_tokens: 1500, temperature: 0.5,
+    model: MODEL, max_tokens: 1500, temperature: tier === 'light' ? 0.8 : 0.5,
     system: sys,
-    messages: [{ role: 'user', content: `DOMAIN: ${DOMAIN_LABELS[domain]}\n\n=== CODEX ===\n${codex}\n=== END CODEX ===\n\nDraft ${n} motions now.` }],
+    messages: [{ role: 'user', content: userMsg }],
   });
   logUsage({ userId, surface: 'other', fn: 'bf_motion_gen', model: MODEL, usage: msg.usage });
   const text = (msg.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
@@ -117,7 +124,7 @@ export async function generateMotions(domain: DebateDomain, n = 12, userId = 'ba
   candidates = candidates.filter((x) => typeof x === 'string' && x.length > 10).slice(0, n);
   const kept: any[] = [], dropped: any[] = [];
   for (const m of candidates) {
-    const asmt = await evaluateMotion(m, domain, userId);
+    const asmt = await evaluateMotion(m, domain, userId, tier === 'light' ? 'normal' : 'pro');
     if (asmt.judgeable === 'yes') kept.push({ motion: m, domain, note: asmt.note });
     else dropped.push({ motion: m, judgeable: asmt.judgeable, issues: asmt.issues, restructured: asmt.restructured });
   }
