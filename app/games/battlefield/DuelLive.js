@@ -10,14 +10,13 @@
 //  Register: crimson — the arena of argument. Serious, electric, not warm.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Share } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { FONTS } from '../../theme';
 import { useLiveSession } from '../liveCommon';
 import { buzz } from '../common';
-import { openDuelSender, broadcastDuelKeys, closeDuelSender } from '../../realtime';
 
 const CRIMSON = '#E0576F';
 const BLUE = '#78C8FF';
@@ -75,8 +74,6 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
-  const lastSentRef = useRef(0);
-  const throttleRef = useRef(null);
 
   const g = view?.state;
   const me = view?.mySeat ?? 0;
@@ -85,41 +82,13 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
   const myTurn = g && !isVerdict && g.toAct === me;
   const turns = g?.turns || [];
   const notes = g?.notes || [];
-  const threadId = view?.roomId;
 
   useEffect(() => { scrollRef.current?.scrollToEnd?.({ animated: true }); }, [turns.length, phase, sending]);
-
-  // ── live keystroke streaming: while it's my turn, hold a send channel open and
-  // broadcast my textbox state so the opponent + spectators watch me compose. ──
-  useEffect(() => {
-    if (myTurn && threadId) { openDuelSender(threadId); }
-    return () => { if (throttleRef.current) { clearTimeout(throttleRef.current); throttleRef.current = null; } };
-  }, [myTurn, threadId]);
-
-  // throttle the broadcast to ~1 every 180ms (pauses/deletes/bursts all show,
-  // at ~5 events/sec — the drama without the flood).
-  const streamKeys = (text) => {
-    if (!myTurn || !threadId) return;
-    const now = Date.now();
-    const fire = () => { lastSentRef.current = Date.now(); broadcastDuelKeys(threadId, { seat: me, phase, text, done: false }); };
-    if (now - lastSentRef.current >= 180) { fire(); }
-    else {
-      if (throttleRef.current) clearTimeout(throttleRef.current);
-      throttleRef.current = setTimeout(fire, 180 - (now - lastSentRef.current));
-    }
-  };
-
-  // close the send channel when the room leaves the screen entirely.
-  useEffect(() => () => { closeDuelSender(); }, []);
-
-  const onDraftChange = (t) => { setDraft(t); streamKeys(t); };
 
   const speak = async () => {
     const text = draft.trim();
     if (text.length < 10 || sending) return;
     setSending(true); setDraft('');
-    // final frame: the composed text is committed, clear the live-typing surface.
-    if (threadId) { broadcastDuelKeys(threadId, { seat: me, phase, text: '', done: true }); closeDuelSender(); }
     buzz('knock');
     await move({ type: 'speech', text });   // the house replies + adjudicator rules inside this call
     setSending(false);
@@ -140,6 +109,16 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
             <View style={{ width: 20 }} />
           </View>
           <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
+            {/* the full duel, replayed above the verdict — so the closing statements are
+                never skipped (the house's final turn lands before the ruling). */}
+            {turns.map((t, i) => <TurnBubble key={i} turn={t} mySeat={me} />)}
+            {notes.map((n, i) => (
+              <View key={`vn-${i}`} style={styles.noteCard}>
+                <Text style={styles.noteLabel}>THE ADJUDICATOR · after {n.phase}</Text>
+                <Text style={styles.noteTxt}>{n.note}</Text>
+              </View>
+            ))}
+            <View style={styles.verdictDivider} />
             {failed ? (
               <View style={styles.introCard}>
                 <Text style={styles.introTitle}>The adjudicator stood down.</Text>
@@ -194,9 +173,7 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
           <View style={styles.topRow}>
             <Pressable hitSlop={12} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
             <View style={styles.practiceTag}><Text style={styles.practiceTxt}>PRACTICE · VS THE HOUSE</Text></View>
-            <Pressable hitSlop={10} onPress={() => Share.share({ message: `watch me take on the Battlefield's house live: https://callmez.app/watch/${sessionId}` })}>
-              <Text style={{ fontSize: 16 }}>🔗</Text>
-            </Pressable>
+            <View style={{ width: 20 }} />
           </View>
 
           {/* the motion */}
@@ -253,7 +230,7 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
                 <Text style={styles.dockTurn}>YOUR TURN · {phase.toUpperCase()}</Text>
               </View>
               <TextInput
-                value={draft} onChangeText={onDraftChange} multiline editable={!sending}
+                value={draft} onChangeText={setDraft} multiline editable={!sending}
                 placeholder={turns.length === 0 ? 'open your case — make it count…' : phase === 'Rebuttal' ? 'attack their case…' : 'land your closing — no new arguments…'}
                 placeholderTextColor="rgba(245,236,225,0.3)"
                 style={styles.input}
@@ -337,6 +314,7 @@ const styles = StyleSheet.create({
   watchTxt: { fontFamily: FONTS.displayItalic, color: 'rgba(245,236,225,0.5)', fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
 
   vHead: { alignItems: 'center', marginBottom: 20 },
+  verdictDivider: { height: 1, backgroundColor: 'rgba(224,87,111,0.25)', marginVertical: 20 },
   vKicker: { fontFamily: FONTS.semibold, color: 'rgba(224,87,111,0.9)', fontSize: 11, letterSpacing: 3 },
   vWinner: { fontFamily: FONTS.display, color: CREAM, fontSize: 30, marginTop: 12 },
   vYou: { fontFamily: FONTS.light, color: 'rgba(245,236,225,0.6)', fontSize: 14, marginTop: 8 },
