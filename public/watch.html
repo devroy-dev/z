@@ -114,6 +114,9 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
 .playcta{border:1px solid rgba(224,87,111,.4);border-radius:14px;padding:16px;text-align:center;margin-bottom:20px}
 .playcta .pt{font-family:'Cormorant Garamond',serif;font-size:18px;margin-bottom:6px}
 .playcta .ps{font-size:13px;color:var(--dim);line-height:1.5;margin-bottom:12px}
+.notecard{margin:10px 0 14px;padding:12px 14px;border-left:2px solid rgba(224,87,111,.55);background:rgba(224,87,111,.06);border-radius:0 10px 10px 0}
+.notetag{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:rgba(224,87,111,.9)}
+.notetxt{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;line-height:1.45;color:rgba(245,236,225,.82);margin-top:5px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -269,30 +272,43 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
   // ══ LIVE WATCH: poll the committed transcript + verdict, and subscribe to the
   //    debater's live keystroke stream over the duel channel. ══
   function liveWatch(sessionId){
-    var lastCount = -1, ended = false, sb = null, ch = null, threadId = null, liveEl = null;
+    var lastCount = -1, lastNotes = -1, ended = false, sb = null, ch = null, threadId = null, liveEl = null;
+    var names = {}, namesApplied = false;
+    function esc(s){ var e=document.createElement('div'); e.textContent=(s==null?'':String(s)); return e.innerHTML; }
 
     function bubble(seat, phaseLabel, text, live){
       var side = seat===0 ? 'PRO' : 'CON';
       var d=document.createElement('div'); d.className='line '+(seat===0?'pro':'con');
       d.innerHTML='<div class="lh"><span class="tag '+(seat===0?'pro':'con')+'">'+side+'</span>'+
-        '<span class="who">'+(seat===0?'the challenger':'the house')+' · '+phaseLabel+(live?' · composing live':'')+'</span></div>'+
+        '<span class="who">'+esc(names[seat]||(seat===0?'the challenger':'the house'))+' · '+phaseLabel+(live?' · composing live':'')+'</span></div>'+
         '<div class="bub"><span class="txt"></span>'+(live?'<span class="cursor">▊</span>':'')+'</div>';
       d.querySelector('.txt').textContent = text;
       return d;
     }
 
-    // render the committed transcript (idempotent — only re-render when count grows)
+    // an adjudicator running-read card (the per-round observation, shown to the room)
+    function noteCard(phase, note){
+      var d=document.createElement('div'); d.className='notecard committed';
+      var tag=document.createElement('span'); tag.className='notetag'; tag.textContent='ADJUDICATOR · '+phase;
+      var body=document.createElement('div'); body.className='notetxt'; body.textContent=note;
+      d.appendChild(tag); d.appendChild(body); return d;
+    }
+
+    // render the committed transcript + the per-round notes, interleaved.
+    // re-render when the turn count OR the note count grows (a note lags a poll).
     function renderCommitted(d){
-      var turns = d.turns||[];
-      if (turns.length !== lastCount){
-        lastCount = turns.length;
-        // clear + rebuild committed turns (keeps it simple + correct)
-        var s=$('stream'); 
-        // remove all committed lines but keep the live element if present
-        Array.prototype.slice.call(s.querySelectorAll('.line.committed, .streaming')).forEach(function(n){n.remove();});
+      var turns = d.turns||[]; var notes = d.notes||[];
+      if (turns.length !== lastCount || notes.length !== lastNotes){
+        lastCount = turns.length; lastNotes = notes.length;
+        var s=$('stream');
+        Array.prototype.slice.call(s.querySelectorAll('.line.committed, .streaming, .notecard.committed')).forEach(function(n){n.remove();});
         var frag=document.createDocumentFragment();
-        turns.forEach(function(t){ var b=bubble(t.seat, t.role, t.text, false); b.classList.add('committed'); frag.appendChild(b); });
-        // insert committed before the live element
+        var seen={};
+        turns.forEach(function(t){
+          var b=bubble(t.seat, t.role, t.text, false); b.classList.add('committed'); frag.appendChild(b);
+          seen[t.role]=(seen[t.role]||0)+1;
+          if (seen[t.role]===2){ var nt=notes.filter(function(n){return n.phase===t.role;})[0]; if(nt) frag.appendChild(noteCard(nt.phase, nt.note)); }
+        });
         if (liveEl && liveEl.parentNode===s) s.insertBefore(frag, liveEl); else s.appendChild(frag);
         s.scrollTop=s.scrollHeight;
       }
@@ -320,6 +336,14 @@ body{background:radial-gradient(120% 80% at 50% 0%, #1A0A10 0%, #12070C 45%, #08
           $('.m'); // no-op guard
           var mEl=document.querySelector('.motionbar .m'); if(mEl) mEl.textContent='"'+d.motion+'"';
           threadId = d.threadId;
+          if (d.debaters && !namesApplied){
+            namesApplied = true;
+            d.debaters.forEach(function(x){ names[x.seat]=x.name; });
+            var pro=names[0]||'PRO', con=names[1]||'CON';
+            var np=document.querySelector('.debaters .n.pro'), nc=document.querySelector('.debaters .n.con');
+            if(np) np.textContent=pro; if(nc) nc.textContent=con;
+            var vp=$('vpro'), vc=$('vcon'); if(vp) vp.textContent=pro+' · PRO'; if(vc) vc.textContent=con+' · CON';
+          }
           renderCommitted(d);
           if (!ended) setTimeout(poll, 1500);
         } else { setTimeout(poll, 2000); }
