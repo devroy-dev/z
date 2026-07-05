@@ -1352,6 +1352,7 @@ app.post('/battlefield/practice/start', async (req, res) => {
 app.get('/diagnostics/costs', async (req, res) => {
   try {
     const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
     const days = Math.max(1, Math.min(90, parseInt(String(req.query.days ?? '7'), 10) || 7));
