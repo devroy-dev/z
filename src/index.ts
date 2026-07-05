@@ -1645,15 +1645,44 @@ app.get('/battlefield/watch/:sessionId', async (req, res) => {
     }
     const bfName = (x: any) => x?.kind === 'user' ? (nameById[x.id] || 'a debater') : x?.kind === 'persona' ? 'the House' : '(open)';
     const debaters = [0, 1].map((i) => ({ seat: i, side: i === 0 ? 'PRO' : 'CON', name: bfName(bfSeats[i]) }));
-    // expose the floor + the debaters' names. Never expose user ids or phone numbers.
+    // the crowd vote tally (counts only — never who voted). PRO vs CON = the two-result design.
+    const tally = { pro: 0, con: 0, total: 0 };
+    try {
+      const { data: vrows } = await supabase.from('battlefield_votes').select('side').eq('session_id', s.id);
+      for (const v of (vrows || [])) { if (v.side === 'PRO') tally.pro++; else if (v.side === 'CON') tally.con++; }
+      tally.total = tally.pro + tally.con;
+    } catch { /* tally is best-effort — never blocks the watch */ }
+    // expose the floor + the debaters' names + the crowd tally. Never expose user ids or phones.
     res.json({
       id: s.id, version: s.version, status: s.status, threadId: s.thread_id,
-      debaters,
+      debaters, tally,
       motion: st.motion, domain: st.domain, phase: st.phase,
       turns: st.turns || [], notes: st.notes || [],
       verdict: st.verdict || null, winner: st.winner || null, error: st.error || null,
     });
   } catch (e: any) { res.status(500).json({ error: 'watch failed: ' + (e?.message || String(e)) }); }
+});
+
+// Cast (or change) your crowd vote on a live duel. Auth required — the watch page
+// OTP-verifies spectators, so one verified viewer = one vote, changeable until the
+// verdict lands. Kept SEPARATE from the adjudicator: this is the "people's choice".
+app.post('/battlefield/watch/:sessionId/vote', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'verify your number to vote' });
+    const user = await resolveUser(authId);
+    const side = String(req.body?.side || '').toUpperCase();
+    if (side !== 'PRO' && side !== 'CON') return res.status(400).json({ error: 'vote PRO or CON' });
+    const { data: s } = await supabase.from('game_sessions').select('id, game, status').eq('id', req.params.sessionId).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such duel' });
+    if (s.game !== 'battlefield_duel') return res.status(400).json({ error: 'not a battlefield duel' });
+    if (s.status === 'over') return res.status(409).json({ error: 'voting has closed' });
+    await supabase.from('battlefield_votes')
+      .upsert({ session_id: s.id, user_id: user.id, side, created_at: new Date().toISOString() }, { onConflict: 'session_id,user_id' });
+    const { data: vrows } = await supabase.from('battlefield_votes').select('side').eq('session_id', s.id);
+    let pro = 0, con = 0; for (const v of (vrows || [])) { if (v.side === 'PRO') pro++; else if (v.side === 'CON') con++; }
+    res.json({ ok: true, yourVote: side, tally: { pro, con, total: pro + con } });
+  } catch (e: any) { res.status(500).json({ error: 'vote failed: ' + (e?.message || String(e)) }); }
 });
 
 
