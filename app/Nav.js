@@ -154,6 +154,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
   // ── CHAT world: the Moonlight surface. deep-links open the right thing ──
   const openFromChat = (dest) => {
     if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
+    if (dest.kind === 'coach') return setOverlay({ tab: 'coach' });
     if (dest.kind === 'consult') return setOverlay({ tab: 'consult' });
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
     if (dest.kind === 'z') return setOverlay({ tab: 'quiet' });

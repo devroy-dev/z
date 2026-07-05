@@ -41,7 +41,6 @@ const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=4`;
 
 // full persona registry — name · tagline · aura rgb (from the PWA, the source of truth)
 const PERSONA_META = {
-  the_coach:{name:'the coach',desc:'name an exam — a plan, daily lessons, quizzes, and mocks.',rgb:'231,176,122'},
   the_wingman:{name:'the wingman',desc:"aka the dating coach. let's get you some action.",rgb:'74,134,255'},
   the_hottie:{name:'the hottie',desc:"i bet i'll sweep you off your feet.",rgb:'255,120,140'},
   the_comic:{name:'the comic',desc:"knock knock.",rgb:'240,180,70'},
@@ -255,7 +254,6 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   // where each route key takes you
   const routeTo = (key) => {
     if (key === 'the_anchor') return onRoute({ tab: 'bulletin' });
-    if (key === 'the_coach') return onRoute({ tab: 'coach' });
     if (key === 'the_arena') return onRoute({ tab: 'play', open: 'arena' });
     if (key === 'the_stage') return onRoute({ tab: 'stage' });
     if (key === 'the_journal') return onRoute({ tab: 'journal' });
@@ -527,7 +525,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
 
             <Text style={styles.lobbyLabel}>the gathering, at the door</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gatherRow}>
-              {['the_coach', ...TABLE_CAST.map((p) => p.key), 'the_anchor'].map((k) => (
+              {[...TABLE_CAST.map((p) => p.key), 'the_anchor'].map((k) => (
                 <Pressable key={k} onPress={() => routeTo(k)} style={{ alignItems: 'center', width: 56 }}>
                   <Avatar pkey={k} uri={dpFor(k)} size={44} />
                   <Text style={styles.gatherName} numberOfLines={1}>{nameFallback(k).replace(/^the /, '')}</Text>
