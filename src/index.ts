@@ -2333,16 +2333,56 @@ app.delete('/notes/:kind/:id', async (req, res) => {
 });
 
 // delete a thread / group (soft-delete, user-scoped)
+// [zip13v2] member-aware delete. Persona thread: owner soft-deletes. DM: delete =
+// HIDE for you only (you stay a silent member; the friend's next message brings it
+// back — the auto-unhide lives in the DM send path). Room: owner deletes for all,
+// a member LEAVES (last one out retires it). Never {ok:true} on a no-op.
 app.delete('/threads/:id', async (req, res) => {
   try {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const { error } = await supabase.from('threads')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', req.params.id).eq('user_id', user.id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ ok: true });
+    const { data: t } = await supabase.from('threads')
+      .select('id, user_id, is_shared, member_keys').eq('id', req.params.id).is('deleted_at', null).maybeSingle();
+    if (!t) return res.status(404).json({ error: 'thread not found' });
+
+    const isOwner = t.user_id === user.id;
+    const personaCount = (t.member_keys || []).filter(Boolean).length;
+    const isDM = !!t.is_shared && personaCount === 0;
+
+    // plain persona thread: owner-only soft delete (unchanged behaviour)
+    if (!t.is_shared) {
+      if (!isOwner) return res.status(403).json({ error: 'not your thread' });
+      await supabase.from('threads').update({ deleted_at: new Date().toISOString() }).eq('id', t.id);
+      return res.json({ ok: true, mode: 'deleted' });
+    }
+
+    // shared: caller must be a member (or the owner)
+    const { data: mine } = await supabase.from('room_members')
+      .select('user_id').eq('thread_id', t.id).eq('user_id', user.id).maybeSingle();
+    if (!mine && !isOwner) return res.status(403).json({ error: 'not in this conversation' });
+
+    if (isDM) {
+      // HIDE, don't leave: membership stays so the friend's messages still reach
+      // you and the DM can return. Your list simply stops showing it.
+      const { error } = await supabase.from('thread_reads')
+        .upsert({ user_id: user.id, thread_id: t.id, hidden: true }, { onConflict: 'user_id,thread_id' });
+      if (error) return res.status(500).json({ error: 'hide failed: ' + error.message });
+      return res.json({ ok: true, mode: 'hidden' });
+    }
+
+    // a ROOM: the owner deletes it for everyone; a member leaves.
+    if (isOwner) {
+      await supabase.from('threads').update({ deleted_at: new Date().toISOString() }).eq('id', t.id);
+      return res.json({ ok: true, mode: 'deleted' });
+    }
+    await supabase.from('room_members').delete().eq('thread_id', t.id).eq('user_id', user.id);
+    const { data: rest } = await supabase.from('room_members').select('user_id').eq('thread_id', t.id).limit(1);
+    if (!rest || rest.length === 0) {
+      await supabase.from('threads').update({ deleted_at: new Date().toISOString() }).eq('id', t.id);
+      return res.json({ ok: true, mode: 'deleted' });
+    }
+    return res.json({ ok: true, mode: 'left' });
   } catch (e: any) { res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) }); }
 });
 
@@ -2550,11 +2590,11 @@ app.get('/rooms', async (req, res) => {
     const prefs: Record<string, any> = {};
     {
       const { data: rr } = await supabase.from('thread_reads')
-        .select('thread_id, pinned, favourite, archived')
+        .select('thread_id, pinned, favourite, archived, hidden')
         .eq('user_id', user.id).in('thread_id', ids);
-      for (const r of (rr ?? []) as any[]) prefs[r.thread_id] = { pinned: !!r.pinned, favourite: !!r.favourite, archived: !!r.archived };
+      for (const r of (rr ?? []) as any[]) prefs[r.thread_id] = { pinned: !!r.pinned, favourite: !!r.favourite, archived: !!r.archived, hidden: !!(r as any).hidden };
     }
-    const rooms = await Promise.all((threads ?? []).map(async (t: any) => {
+    const rooms = await Promise.all((threads ?? []).filter((t: any) => !(prefs[t.id] && (prefs[t.id] as any).hidden)).map(async (t: any) => {
       const { data: lastMsg } = await supabase.from('messages').select('content, role, user_id')
         .eq('thread_id', t.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
       let last_message: string | null = null;
@@ -2897,19 +2937,8 @@ app.post('/bulletin/city', async (req, res) => {
 });
 
 // owner deletes a thread (room or 1:1): soft delete for everyone
-app.delete('/threads/:id', async (req, res) => {
-  try {
-    const authId = await authUser(req);
-    if (!authId) return res.status(401).json({ error: 'unauthorized' });
-    const user = await resolveUser(authId);
-    const { data: t } = await supabase.from('threads')
-      .select('id, user_id').eq('id', req.params.id).is('deleted_at', null).maybeSingle();
-    if (!t) return res.status(404).json({ error: 'thread not found' });
-    if (t.user_id !== user.id) return res.status(403).json({ error: 'only the owner can delete' });
-    await supabase.from('threads').update({ deleted_at: new Date().toISOString() }).eq('id', t.id);
-    res.json({ ok: true });
-  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
-});
+// [zip13v2] duplicate DELETE /threads/:id removed — registered after the live one,
+// never reachable; superseded by the member-aware route above.
 
 app.post('/rooms/:id/leave', async (req, res) => {
   try {
@@ -2994,6 +3023,9 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         .insert({ thread_id: threadId, user_id: user.id, role: 'user', content: String(message), sender_user_id: user.id })
         .select('id, created_at').maybeSingle();
       await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
+      // [zip13v2] a live message un-hides the DM for anyone who had deleted it —
+      // the WhatsApp return. Fire-and-forget; clearing the sender's own flag is harmless.
+      void supabase.from('thread_reads').update({ hidden: false }).eq('thread_id', threadId).eq('hidden', true);
       // fire-and-forget: don't make the sender wait on the fan-out (REST broadcast,
       // best-effort + already persisted; client has a pg_changes fallback).
       void broadcastRoomMessage(threadId, {
