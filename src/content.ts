@@ -78,15 +78,30 @@ for (const [k, f] of Object.entries(CODEX_FILES)) {
   catch { /* codex not authored yet (e.g. vanity) — skip, persona just runs on soul */ }
 }
 
+// Formal personas that do NOT ride the casual small-talk conversational lenses.
+// The Anchor is an institutional newsreader; the small-talk / when-in-Rome lenses
+// pull it toward WhatsApp-casual register, which fights its codex. Its own codex
+// fully governs its manner (like the Grand Master), so it stands on the bare soul +
+// codex. The register-neutral "read" (psychology) lens is kept. Scope narrowly —
+// add other formal personas here only when a live check shows they need it.
+const SMALL_TALK_LENS_EXEMPT = new Set<CodexKey>(['anchor']);
+
 // The soul with the user's chosen companion name injected.
-export function soulFor(companionName: string, gender: string | null): string {
+export function soulFor(
+  companionName: string,
+  gender: string | null,
+  opts?: { smallTalkLens?: boolean },
+): string {
+  const smallTalkLens = opts?.smallTalkLens !== false; // default ON for every persona
   const soul = RAW_SOUL
     .replaceAll('[companion_name]', companionName || 'you')
     .replaceAll('[companion_gender]', gender || 'neither');
-  // the small-talk lens rides under the soul, always, for every persona
+  // the small-talk lens rides under the soul for every persona EXCEPT the exempt few
+  // (SMALL_TALK_LENS_EXEMPT), whose codex owns their register outright. The "read"
+  // (psychology) lens is register-neutral and stays for everyone.
   let out = soul;
-  if (SMALL_TALK) out += '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK;
-  if (SMALL_TALK_WORLD) out += '\n\n[TALKING ACROSS CULTURES — a permanent lens. Meet each person the way people talk where they are from; lower your own defaults and read theirs.]\n' + SMALL_TALK_WORLD;
+  if (smallTalkLens && SMALL_TALK) out += '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK;
+  if (smallTalkLens && SMALL_TALK_WORLD) out += '\n\n[TALKING ACROSS CULTURES — a permanent lens. Meet each person the way people talk where they are from; lower your own defaults and read theirs.]\n' + SMALL_TALK_WORLD;
   if (PSYCHOLOGY) out += '\n\n[THE READ — a permanent lens, true under every role. How you understand people: as intuition, never as diagnosis or label, never named aloud, never as leverage.]\n' + PSYCHOLOGY;
   return out;
 }
@@ -155,7 +170,10 @@ export function buildStaticPrefix(
   codexKeys: CodexKey[],
   region?: string | null,
 ): string {
-  let prefix = soulFor(companionName, gender);
+  // Formal personas (SMALL_TALK_LENS_EXEMPT) skip the casual small-talk lenses;
+  // their codex governs their register outright.
+  const smallTalkLens = !codexKeys.some((ck) => SMALL_TALK_LENS_EXEMPT.has(ck));
+  let prefix = soulFor(companionName, gender, { smallTalkLens });
   for (const ck of codexKeys) {
     const text = codexText(ck);
     if (!text) continue;
