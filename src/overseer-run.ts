@@ -6,6 +6,16 @@
 import { runOverseer } from './overseer.js';
 const userArg = process.argv.find((a) => a.startsWith('--user='));
 const onlyUser = userArg ? userArg.slice('--user='.length) : undefined;
+import { gardenAllUsers, gardenUserMemory } from './memoryGardener.js';   // [zip03]
 runOverseer({ weekly: process.argv.includes('weekly'), onlyUser })
-  .then((r) => { console.log('[overseer-run]', r); process.exit(0); })
+  .then(async (r) => {
+    console.log('[overseer-run]', r);
+    // [zip03] the memory gardener rides the same nightly cron. Its failure never
+    // marks the run failed — the overseer's work already landed.
+    try {
+      const g = onlyUser ? await gardenUserMemory(onlyUser) : await gardenAllUsers();
+      console.log('[overseer-run] gardener', g);
+    } catch (e) { console.error('[overseer-run] gardener failed', e); }
+    process.exit(0);
+  })
   .catch((e) => { console.error('[overseer-run] failed', e); process.exit(1); });

@@ -4,10 +4,21 @@
 //
 // Two halves:
 //   readMemoryBlock — pulls the user's notes into the dynamic (uncached) tail.
-//   harvestMemory   — after a turn, asks the model to extract durable facts worth
-//                     keeping, and upserts them. Cheap, runs out-of-band.
+//   harvestMemory   — after a turn, extracts durable facts worth keeping.
+//
+// [zip03] HARDENED after the Vaibhav incident (third-party facts stored as the
+// user's own; "not investing right now" stored as durable; triplicate rows):
+//   1. THIRD-PARTY RULE — facts about people/figures the user is DISCUSSING are
+//      never user facts. The extractor must tag subject: user|other; code discards 'other'.
+//   2. DURABILITY BAR — transient state (mood, "right now", temporary plans) is
+//      tagged transient and discarded. Only lasting facts survive.
+//   3. VERIFY PASS — a second, temperature-0 call audits the surviving candidates
+//      against the user's actual words (the coach answer-key pattern). Reject on doubt.
+//   4. Literal-duplicate guard at insert (same value, case-insensitive).
+// Semantic dedupe / contradiction resolution across OLD rows = memoryGardener.ts.
 import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { logUsage } from './usage.js';
 
 // shared client on native fetch — per the /banter premature-close lesson (see index.ts)
 const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
@@ -34,9 +45,10 @@ export async function readMemoryBlock(userId: string): Promise<string> {
   return block;
 }
 
+type Candidate = { key?: string; value: string; kind?: string; subject?: string; durability?: string };
+
 // After a turn, extract durable facts worth remembering. Runs async (don't block
-// the reply). Conservative: only real, lasting things (names, relationships,
-// situations, preferences) — not chit-chat.
+// the reply). Conservative: only real, lasting things the USER said about THEMSELVES.
 export async function harvestMemory(
   userId: string,
   threadId: string,
@@ -46,25 +58,64 @@ export async function harvestMemory(
   try {
     const resp = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 400,
+      max_tokens: 500,
       system:
         'You extract durable facts from ONE source only: THE USER\'S OWN MESSAGE (the text under "USER SAID"). '
         + 'That is the ONLY place a fact may come from. Extract what the user revealed about THEMSELVES — their names, relationships, ongoing situations, stable preferences, important history. '
-        + 'The block under "CONTEXT" is the friend\'s reply and exists ONLY to help you resolve what the user meant (e.g. the user says "yeah, that one" and the context tells you what "that one" refers to). NEVER extract a fact FROM the context. The friend is an AI persona with their own life and will talk about themselves and mention other house personas ("the anchor," "the professor," etc.); none of that is ever a fact about the user. If a candidate fact does not come from something the USER themselves said, DISCARD it. '
+        + 'THE THIRD-PARTY RULE (absolute): a fact about a person, public figure, character, team, or entity the user is merely DISCUSSING or ASKING ABOUT is NEVER a fact about the user. '
+        + 'If the user asks "did Vaibhav make his debut?" or discusses a cricketer\'s tour, a politician\'s statement, a friend\'s job — those are facts about OTHERS. Tag them "subject":"other". '
+        + 'Only what the user states about their OWN life is "subject":"user". Asking about a topic is interest at most, not biography. '
+        + 'THE DURABILITY BAR: transient state is not memory. Current mood, what they are doing right now, today\'s plan, a temporary stance ("not investing at this time", "busy this week") — tag "durability":"transient". '
+        + 'Only lasting facts (name, family, work, home, enduring preferences, real history) are "durability":"durable". '
+        + 'The block under "CONTEXT" is the friend\'s reply and exists ONLY to help you resolve what the user meant. NEVER extract a fact FROM the context. The friend is an AI persona with their own life; none of that is ever a fact about the user. '
         + 'NEVER store the user\'s age or date of birth, in any form — not even when they state it directly. '
-        + 'The account profile is the only authority on age; chat claims about age (their own or corrections) are noise, sometimes tests, sometimes someone else on the phone. Skip them entirely. '
-        + 'NOT passing mood or chit-chat. '
-        + 'ALSO harvest BITS — the color of the friendship, not facts: an inside joke being born, a nickname coined, a recurring tease, a running gag, a phrase that became "theirs". Mark these "kind":"bit". A bit must be genuinely re-usable later ("calls their manager \'the weather system\'", "the samosa incident — never fully explained, always funny"), not one-off banter — and it too must be grounded in what the USER said. '
-        + 'Return ONLY a JSON array of {"key":"short label","value":"the fact in plain language","kind":"fact"|"bit"}. '
-        + 'Empty array [] if the user said nothing durable about themselves. No prose, no markdown.',
+        + 'The account profile is the only authority on age; chat claims about age are noise. Skip them entirely. '
+        + 'ALSO harvest BITS — the color of the friendship, not facts: an inside joke being born, a nickname coined, a recurring tease. Mark these "kind":"bit". A bit must be genuinely re-usable later and grounded in what the USER said. '
+        + 'Return ONLY a JSON array of {"key":"short label","value":"the fact in plain language","kind":"fact"|"bit","subject":"user"|"other","durability":"durable"|"transient"}. '
+        + 'Empty array [] if nothing qualifies. No prose, no markdown.',
       messages: [{ role: 'user', content: `USER SAID (extract facts ONLY from here):\n${userMsg}\n\nCONTEXT (the friend's reply — DO NOT extract from this; it only helps you resolve what the user meant):\n${zReply}` }],
     });
-    const text = resp.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
-    const clean = text.replace(/```json|```/g, '').trim();
-    const facts: { key: string; value: string; kind?: string }[] = JSON.parse(clean);
+    try { logUsage({ userId, threadId, personaKey: null, surface: 'other', fn: 'memory_harvest', model: MODEL, usage: (resp as any).usage }); } catch {}
+    const raw = resp.content?.[0]?.type === 'text' ? (resp.content[0] as any).text : '[]';
+    const clean = String(raw).replace(/```json|```/g, '').trim();
+    let facts: Candidate[] = [];
+    try { facts = JSON.parse(clean); } catch { return; }
     if (!Array.isArray(facts) || facts.length === 0) return;
 
-    for (const f of facts) {
+    // hard filters the model tagged for us — subject + durability are LAWS, not hints
+    const survivors = facts.filter((f) => f?.value
+      && (f.subject ?? 'user') === 'user'
+      && (f.durability ?? 'durable') === 'durable');
+    if (!survivors.length) return;
+
+    // THE VERIFY PASS — a second mind audits the candidates against the user's actual
+    // words (temp 0, structured). A fact enters memory only if the auditor agrees the
+    // USER stated it about THEMSELVES and it is durable. (Coach answer-key pattern.)
+    let verified: Candidate[] = survivors;
+    try {
+      const audit = await anthropic.messages.create({
+        model: MODEL,
+        max_tokens: 300,
+        temperature: 0,
+        system:
+          'You are an auditor. Given the user\'s message and candidate memory facts, verify EACH candidate: '
+          + 'ok=true ONLY if (a) the USER themselves stated it, (b) it is about the USER\'S own life (not someone they were discussing or asking about), and (c) it is a lasting fact, not a passing state. '
+          + 'When in doubt, ok=false. Return ONLY a JSON array of {"i":<index>,"ok":true|false}. No prose.',
+        messages: [{ role: 'user', content: `USER'S MESSAGE:\n${userMsg}\n\nCANDIDATES:\n${survivors.map((f, i) => `${i}. ${f.key ? f.key + ': ' : ''}${f.value}`).join('\n')}` }],
+      });
+      try { logUsage({ userId, threadId, personaKey: null, surface: 'other', fn: 'memory_verify', model: MODEL, usage: (audit as any).usage }); } catch {}
+      const araw = audit.content?.[0]?.type === 'text' ? (audit.content[0] as any).text : '[]';
+      const verdicts: { i: number; ok: boolean }[] = JSON.parse(String(araw).replace(/```json|```/g, '').trim());
+      if (Array.isArray(verdicts)) {
+        const okSet = new Set(verdicts.filter((v) => v && v.ok === true).map((v) => v.i));
+        verified = survivors.filter((_, i) => okSet.has(i));
+      }
+    } catch { /* auditor unavailable → fail CLOSED for facts, open for bits */
+      verified = survivors.filter((f) => f.kind === 'bit');
+    }
+    if (!verified.length) return;
+
+    for (const f of verified) {
       if (!f?.value) continue;
       // upsert by (user, key): refine existing rather than duplicate
       if (f.key) {
@@ -75,6 +126,10 @@ export async function harvestMemory(
           continue;
         }
       }
+      // literal-duplicate guard: same value already on file (case-insensitive) → skip
+      const { data: dupe } = await supabase
+        .from('memory').select('id').eq('user_id', userId).ilike('value', f.value).maybeSingle();
+      if (dupe) continue;
       await supabase.from('memory').insert({ user_id: userId, key: f.key ?? null, value: f.value, kind: (f as any).kind === 'bit' ? 'bit' : 'note', source_thread: threadId });
     }
   } catch {

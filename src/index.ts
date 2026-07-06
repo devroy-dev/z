@@ -41,6 +41,7 @@ import { battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
 import { evaluateMotion, generateMotions } from './battlefieldMotions.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
+import { gardenUserMemory } from './memoryGardener.js';   // [zip03]
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
 import { PROFILE_BLURBS } from './blurbs.js';
@@ -1290,6 +1291,20 @@ app.post('/me/push', async (req, res) => {
 });
 
 // ── THE BATTLEFIELD: adjudicator diagnostics (temp — for pressure-testing the judge) ──
+// [zip03] founder-gated one-shot memory cleanup: garden ONE user's memory rows
+// (defaults to the caller). The nightly sweep rides overseer-run; this is the lever.
+app.post('/memory/garden', express.json(), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const target = typeof req.body?.userId === 'string' && req.body.userId ? req.body.userId : user.id;
+    const summary = await gardenUserMemory(target);
+    res.json(summary);
+  } catch (e: any) { res.status(500).json({ error: 'garden failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/battlefield/ready', (_req, res) => {
   res.json(adjudicatorReady());
 });
