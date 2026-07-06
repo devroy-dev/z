@@ -134,6 +134,10 @@ export default function Nav({ screens, onLogout = () => {} }) {
 
   const navigate = (dest) => {
     if (!dest) return;
+    // [zip15] kind-shaped destinations ({kind:'dm'|'persona'|'room'|...}) belong to the
+    // chat opener — without this, dest.tab is undefined, every branch below falls
+    // through, and the caller's overlay has already closed: the silent dump-to-home.
+    if (typeof dest === 'object' && dest.kind) return openFromChat(dest);
     const tab = typeof dest === 'string' ? dest : dest.tab;
     if (tab === 'quiet' || tab === 'stage' || tab === 'journal' || tab === 'bulletin' || tab === 'coach') {
       setOverlay(typeof dest === 'string' ? { tab } : dest);
