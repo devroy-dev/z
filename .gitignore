@@ -7,3 +7,8 @@ dist/
 deploy/
 writer.py
 *.zip
+
+# build/deploy artifacts — one-time appliers, backups, root staging files
+*.bak
+apply_*.py
+/Coach.js
