@@ -42,20 +42,35 @@ function Phase({ n, name, who, note }) {
 export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {}, onWatch = () => {} }) {
   // ── the topic picker: choose the ground before the duel opens ──
   const [pickerOpen, setPickerOpen] = React.useState(false);
-  const [domains, setDomains] = React.useState(null);      // [{ key, label, motions[] }]
+  // [zip02] tier-aware topic picker: Normal browses the LIGHT bank, Pro the HEAVY.
+  // Cached per tier; fetched on open and on toggle; empty tier falls back to all.
+  const [banks, setBanks] = React.useState({ light: null, heavy: null });
   const [activeDomain, setActiveDomain] = React.useState(null);
   const [loadingTopics, setLoadingTopics] = React.useState(false);
   const [difficulty, setDifficulty] = React.useState('normal');
+  const tierOf = (diff) => (diff === 'pro' ? 'heavy' : 'light');
+  const domains = banks[tierOf(difficulty)];
 
+  const loadBank = async (tier) => {
+    setLoadingTopics(true);
+    try {
+      let d = await getBattlefieldMotions(tier);
+      let list = (d && d.domains) || [];
+      // a tier with an empty bank (e.g. light not yet seeded) falls back to all motions
+      if (!list.some((x) => (x.motions || []).length)) { d = await getBattlefieldMotions(); list = (d && d.domains) || []; }
+      setBanks((cur) => ({ ...cur, [tier]: list }));
+    } catch (e) { setBanks((cur) => ({ ...cur, [tier]: [] })); }
+    setLoadingTopics(false);
+  };
   const openPicker = async () => {
     setActiveDomain(null);
     setPickerOpen(true);
-    if (!domains) {
-      setLoadingTopics(true);
-      try { const d = await getBattlefieldMotions(); setDomains((d && d.domains) || []); }
-      catch (e) { setDomains([]); }
-      setLoadingTopics(false);
-    }
+    if (!banks[tierOf(difficulty)]) await loadBank(tierOf(difficulty));
+  };
+  const switchDifficulty = async (mk) => {
+    setDifficulty(mk);
+    setActiveDomain((cur) => cur ? null : cur);   // domain lists differ per tier — step back to areas
+    if (!banks[tierOf(mk)]) await loadBank(tierOf(mk));
   };
   // motion optional (undefined => random within domain); domain optional (undefined => any)
   const pick = (motion, domain) => { setPickerOpen(false); onEnterDuel(motion, domain, difficulty); };
@@ -162,7 +177,7 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
 
             <View style={styles.modeRow}>
               {['normal', 'pro'].map((mk) => (
-                <Pressable key={mk} style={[styles.modeBtn, difficulty === mk && styles.modeBtnOn]} onPress={() => setDifficulty(mk)}>
+                <Pressable key={mk} style={[styles.modeBtn, difficulty === mk && styles.modeBtnOn]} onPress={() => switchDifficulty(mk)}>
                   <Text style={[styles.modeTxt, difficulty === mk && styles.modeTxtOn]}>{mk === 'normal' ? 'Normal' : 'Pro'}</Text>
                 </Pressable>
               ))}
