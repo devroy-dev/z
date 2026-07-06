@@ -79,16 +79,16 @@ async function ensureBucket(): Promise<void> {
 
 // Upload a PDF (base64) for a course, distill it into a Brief, embed it. Returns the summary.
 export async function distillMaterial(
-  userId: string, courseId: string | null, filename: string, dataB64: string, mediaType: string = 'application/pdf',
+  userId: string, courseId: string | null, filename: string, dataB64: string,
 ): Promise<CoachDistillResult> {
   await ensureBucket();
   const storageRef = `${userId}/${Date.now()}_${filename.replace(/[^\w.\-]/g, '_')}`;
   const bytes = Buffer.from(dataB64, 'base64');
-  const up = await supabase.storage.from(BUCKET).upload(storageRef, bytes, { contentType: mediaType, upsert: true });
+  const up = await supabase.storage.from(BUCKET).upload(storageRef, bytes, { contentType: 'application/pdf', upsert: true });
   if (up.error) throw new Error(`upload: ${up.error.message}`);
 
   const { data: doc, error: docErr } = await supabase.from('coach_documents')
-    .insert({ user_id: userId, course_id: courseId, storage_ref: storageRef, filename, content_type: mediaType })
+    .insert({ user_id: userId, course_id: courseId, storage_ref: storageRef, filename, content_type: 'application/pdf' })
     .select('id').single();
   if (docErr || !doc) throw new Error(`document row: ${docErr?.message || 'insert failed'}`);
 
@@ -96,9 +96,7 @@ export async function distillMaterial(
   const stream = anthropic.messages.stream({
     model: CLERK_MODEL, max_tokens: CLERK_MAX_TOKENS, system: STUDY_CLERK,
     messages: [{ role: 'user', content: [
-      (mediaType.startsWith('image/')
-        ? { type: 'image', source: { type: 'base64', media_type: mediaType, data: dataB64 } }
-        : { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: dataB64 } }) as any,
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: dataB64 } } as any,
       { type: 'text', text: 'Produce the Brief for this study document. JSON only.' },
     ] }],
   });

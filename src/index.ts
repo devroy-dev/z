@@ -1619,8 +1619,10 @@ app.post('/coach/:id/material', express.json({ limit: '25mb' }), async (req, res
     if (!c) return res.status(404).json({ error: 'no such course' });
     const filename = String(req.body?.filename || 'material.pdf').trim().slice(0, 160);
     const dataB64 = String(req.body?.dataB64 || '');
-    if (!dataB64) return res.status(400).json({ error: 'dataB64 (base64 PDF) required' });
-    const result = await distillMaterial(user.id, c.id, filename, dataB64);
+    if (!dataB64) return res.status(400).json({ error: 'dataB64 (base64 PDF or image) required' });
+    const mtRaw = String(req.body?.mediaType || '').trim();
+    const mediaType = mtRaw || (/\.png$/i.test(filename) ? 'image/png' : /\.jpe?g$/i.test(filename) ? 'image/jpeg' : 'application/pdf');
+    const result = await distillMaterial(user.id, c.id, filename, dataB64, mediaType);
     res.json(result);
   } catch (e: any) { res.status(500).json({ error: 'material failed: ' + (e?.message || String(e)) }); }
 });

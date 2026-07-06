@@ -496,7 +496,7 @@ export async function coachMockStart(id, n, minutes) { return authedJSON('POST',
 export async function coachMockSubmit(id, mockId, answers) { return authedJSON('POST', `/coach/${id}/mock/${mockId}/submit`, { answers }); }
 export async function coachShelf(id) { return authedJSON('GET', `/coach/${id}/shelf`); }
 export async function coachLibrary() { return authedJSON('GET', '/coach/library'); }
-export async function coachMaterial(id, filename, dataB64) { return authedJSON('POST', `/coach/${id}/material`, { filename, dataB64 }); }
+export async function coachMaterial(id, filename, dataB64, mediaType) { return authedJSON('POST', `/coach/${id}/material`, { filename, dataB64, mediaType }); }
 
 // ── SHOWS: Traitors + Story Collab ──
 export async function traitorsStart(personas, opts) { return authedJSON('POST', '/games/traitors/start', { personas, ...(opts || {}) }); }
