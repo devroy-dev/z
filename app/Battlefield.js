@@ -45,6 +45,7 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
   const [domains, setDomains] = React.useState(null);      // [{ key, label, motions[] }]
   const [activeDomain, setActiveDomain] = React.useState(null);
   const [loadingTopics, setLoadingTopics] = React.useState(false);
+  const [difficulty, setDifficulty] = React.useState('normal');
 
   const openPicker = async () => {
     setActiveDomain(null);
@@ -57,7 +58,7 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
     }
   };
   // motion optional (undefined => random within domain); domain optional (undefined => any)
-  const pick = (motion, domain) => { setPickerOpen(false); onEnterDuel(motion, domain); };
+  const pick = (motion, domain) => { setPickerOpen(false); onEnterDuel(motion, domain, difficulty); };
 
   return (
     <View style={styles.root}>
@@ -158,6 +159,15 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
                 <Text style={styles.pickClose}>{activeDomain ? '‹ areas' : '✕'}</Text>
               </Pressable>
             </View>
+
+            <View style={styles.modeRow}>
+              {['normal', 'pro'].map((mk) => (
+                <Pressable key={mk} style={[styles.modeBtn, difficulty === mk && styles.modeBtnOn]} onPress={() => setDifficulty(mk)}>
+                  <Text style={[styles.modeTxt, difficulty === mk && styles.modeTxtOn]}>{mk === 'normal' ? 'Normal' : 'Pro'}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.modeHint}>{difficulty === 'normal' ? 'A gentler house and a coaching judge — for finding your feet.' : 'The full forensic rig: a relentless house and an unsparing adjudicator.'}</Text>
 
             {!activeDomain ? (
               <Pressable style={styles.surpriseBtn} onPress={() => pick(undefined, undefined)}>
@@ -267,6 +277,12 @@ const styles = StyleSheet.create({
   pickTitle: { fontFamily: FONTS.display, color: '#F5ECE1', fontSize: 23, flex: 1, marginRight: 12 },
   pickClose: { fontFamily: FONTS.semibold, color: 'rgba(224,87,111,0.9)', fontSize: 14, letterSpacing: 0.5 },
 
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  modeBtn: { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 11, paddingVertical: 10, alignItems: 'center' },
+  modeBtnOn: { backgroundColor: CRIMSON, borderColor: CRIMSON },
+  modeTxt: { fontFamily: FONTS.semibold, color: 'rgba(245,236,225,0.6)', fontSize: 14, letterSpacing: 0.5 },
+  modeTxtOn: { color: INK },
+  modeHint: { fontFamily: FONTS.body, color: 'rgba(245,236,225,0.45)', fontSize: 12, textAlign: 'center', marginBottom: 12, lineHeight: 17 },
   surpriseBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(224,87,111,0.4)', borderRadius: 13, paddingVertical: 14, marginBottom: 10, backgroundColor: 'rgba(224,87,111,0.06)' },
   surpriseTxt: { fontFamily: FONTS.semibold, color: CRIMSON, fontSize: 15 },
 
