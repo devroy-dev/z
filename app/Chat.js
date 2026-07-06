@@ -21,6 +21,7 @@ import RichText from './RichText';
 import * as ImagePicker from 'expo-image-picker';
 import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice, markThreadRead } from './api';
 import { useVoiceNote } from './voice';
+import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip05] instant-paint cache
 
 // ── NIGHTFALL palette ──
 const N = {
@@ -242,6 +243,17 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     const seed = NAME_CACHE[KEY] || P.name;
     setCname(seed); setNameDraft(seed); setEditingName(false);
     setAvatar(AVATAR_CACHE[KEY] || null);
+    // [zip05] instant paint: last-known lines render NOW; fresh history reconciles below.
+    AsyncStorage.getItem('z_msgs_' + KEY).then((c) => {
+      if (!c) return;
+      try {
+        const cached = JSON.parse(c);
+        if (Array.isArray(cached) && cached.length) {
+          setMessages((cur) => (cur.length ? cur : cached));
+          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 60);
+        }
+      } catch (e) {}
+    }).catch(() => {});
     loadSession().then(() => openThreadInfo(KEY, P.name)).then((info) => {
       if (!info) return;
       setThreadId(info.id);
@@ -253,8 +265,11 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         const hist = (j.messages || [])
           .map((m, i) => ({ id: 'h' + (m.id || i), who: m.role === 'user' ? 'you' : 'them', text: m.content || '', at: m.created_at }))
           .filter((m) => m.text);
+        // [zip05] reconcile: fresh history wins; live entries sent after the cache
+        // paint (non-'h' ids) survive; cached rows not in fresh history are stale → drop.
+        const hids = new Set(hist.map((m) => m.id));
+        setMessages((cur) => hist.concat(cur.filter((m) => !hids.has(m.id) && !String(m.id).startsWith('h'))));
         if (hist.length) {
-          setMessages((cur) => (cur.length ? cur : hist));
           // the thread opens where the conversation IS — at the end, like any chat app
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 350);
@@ -262,6 +277,19 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       }).catch(() => {});
     });
   }, [KEY]);
+
+  // [zip05] snapshot the settled conversation for the next instant paint.
+  useEffect(() => {
+    if (!messages.length) return;
+    const t = setTimeout(() => {
+      const snap = messages
+        .filter((m) => m && m.text && !m.typing)
+        .slice(-40)
+        .map(({ id, who, text, at }) => ({ id, who, text, at }));
+      if (snap.length) AsyncStorage.setItem('z_msgs_' + KEY, JSON.stringify(snap)).catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [messages, KEY]);
 
   // commit a rename: persist to the thread, update what's shown. empty or unchanged = no-op.
   const commitName = async () => {

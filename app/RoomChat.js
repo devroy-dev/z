@@ -28,6 +28,7 @@ import { subscribeRoom, unsubscribe } from './realtime';
 import Grain from './Grain';
 import { streamChat, getRoomMembers, getRoomMessages, inviteToRoom, API_BASE, transcribeVoice } from './api';
 import { useVoiceNote } from './voice';
+import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip05] instant-paint cache
 const fmtTime = (at) => { const d = at ? new Date(at) : null; return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : ''; };
 
 const N = {
@@ -210,6 +211,18 @@ export default function RoomChat({ room, onBack = () => {} }) {
     if (!roomId) return;
     let alive = true;
     renderedRef.current = new Set();
+    // [zip05] instant paint: last-known lines render NOW; the history fetch below
+    // replaces them wholesale before the realtime subscribe starts — ordering safe.
+    AsyncStorage.getItem('z_msgs_room_' + roomId).then((c) => {
+      if (!c) return;
+      try {
+        const cached = JSON.parse(c);
+        if (Array.isArray(cached) && cached.length) {
+          setLines((cur) => (cur.length ? cur : cached));
+          scrollDown();
+        }
+      } catch (e) {}
+    }).catch(() => {});
     (async () => {
       const mem = await getRoomMembers(roomId);
       if (!alive) return;
@@ -244,6 +257,19 @@ export default function RoomChat({ room, onBack = () => {} }) {
     })();
     return () => { alive = false; unsubscribe(); if (graceRef.current) clearTimeout(graceRef.current); };
   }, [roomId]);
+
+  // [zip05] snapshot the settled room for the next instant paint (typing lines never cached).
+  useEffect(() => {
+    if (!lines.length) return;
+    const t = setTimeout(() => {
+      const snap = lines
+        .filter((l) => l && l.text && !l.typing)
+        .slice(-40)
+        .map(({ id, who, key, name, text, at }) => ({ id, who, key, name, text, at }));
+      if (snap.length) AsyncStorage.setItem('z_msgs_room_' + roomId, JSON.stringify(snap)).catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [lines, roomId]);
 
   // the ported onLiveMessage: filter, dedup, skip own, fill-or-append.
   const onLive = useCallback((m) => {
