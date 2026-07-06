@@ -3023,9 +3023,10 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         .insert({ thread_id: threadId, user_id: user.id, role: 'user', content: String(message), sender_user_id: user.id })
         .select('id, created_at').maybeSingle();
       await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
-      // [zip13v2] a live message un-hides the DM for anyone who had deleted it —
-      // the WhatsApp return. Fire-and-forget; clearing the sender's own flag is harmless.
-      void supabase.from('thread_reads').update({ hidden: false }).eq('thread_id', threadId).eq('hidden', true);
+      // [zip13v2][zip14] a live message un-hides the DM for anyone who had deleted it —
+      // the WhatsApp return. AWAITED: supabase builders are lazy and a `void` chain
+      // never executes (the bug that ate the first live test).
+      await supabase.from('thread_reads').update({ hidden: false }).eq('thread_id', threadId).eq('hidden', true);
       // fire-and-forget: don't make the sender wait on the fan-out (REST broadcast,
       // best-effort + already persisted; client has a pg_changes fallback).
       void broadcastRoomMessage(threadId, {
