@@ -174,6 +174,8 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
     setPSaving(false);
     if (!r.ok) { setPNote(r.error); return; }
     setPNote('saved.');
+    if (pName.trim()) setMyName(pName.trim());          // [zip06] header syncs on save
+    setMyAvatar(pAvatar || null);
     setTimeout(() => setShowProfile(false), 600);
   };
   const [myHandle, setMyHandle] = useState('');
@@ -191,7 +193,8 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
   // seed the saved handle from the server so it shows after leaving/returning (not just the session you set it in)
   const [myName, setMyName] = React.useState('');
   React.useEffect(() => { cachedName().then((n) => { if (n) setMyName((cur) => cur || n); }); }, []);
-  React.useEffect(() => { getMe().then((m) => { if (m && m.handle) setMyHandle(m.handle); if (m && m.displayName) setMyName(m.displayName); }); }, []);
+  const [myAvatar, setMyAvatar] = React.useState(null);   // [zip06] the header photo
+  React.useEffect(() => { getMe().then((m) => { if (m && m.handle) setMyHandle(m.handle); if (m && m.displayName) setMyName(m.displayName); if (m && m.avatarUrl) setMyAvatar(m.avatarUrl); }); }, []);
   const saveHandle = async () => {
     const h = handleDraft.trim().toLowerCase().replace(/^@/, '');
     if (!h || savingHandle) return;
@@ -282,6 +285,9 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
               <Text style={[styles.sectionLabel, { marginTop: 26 }]}>wants to add you</Text>
               {friends.incoming.map((u) => (
                 <View key={u.id} style={styles.friendCard}>
+                  {u.avatar_url
+                    ? <Image source={{ uri: u.avatar_url }} style={styles.friendAvatar} />
+                    : <View style={[styles.friendAvatar, styles.friendAvatarEmpty]}><Text style={styles.friendAvatarLetter}>{(u.display_name || u.handle || '?').slice(0,1).toUpperCase()}</Text></View>}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
                     <Text style={styles.friendSub}>@{u.handle}</Text>
@@ -315,6 +321,9 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
               <Text style={[styles.sectionLabel, { marginTop: 26 }]}>you asked</Text>
               {friends.outgoing.map((u) => (
                 <View key={u.id} style={styles.friendCard}>
+                  {u.avatar_url
+                    ? <Image source={{ uri: u.avatar_url }} style={styles.friendAvatar} />
+                    : <View style={[styles.friendAvatar, styles.friendAvatarEmpty]}><Text style={styles.friendAvatarLetter}>{(u.display_name || u.handle || '?').slice(0,1).toUpperCase()}</Text></View>}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
                     <Text style={styles.friendSub}>@{u.handle}</Text>
@@ -542,7 +551,9 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           {/* your identity */}
           <View style={styles.identity}>
-            <View style={styles.bigAvatar}><Text style={styles.bigInitial}>{(myName || 'you').trim().charAt(0).toUpperCase()}</Text></View>
+            {myAvatar
+              ? <View style={[styles.bigAvatar, { overflow: 'hidden' }]}><Image source={{ uri: myAvatar }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /></View>
+              : <View style={styles.bigAvatar}><Text style={styles.bigInitial}>{(myName || 'you').trim().charAt(0).toUpperCase()}</Text></View>}
             <Text style={styles.name}>{myName || 'you'}</Text>
             <Text style={styles.since}>with Z since june</Text>
           </View>
