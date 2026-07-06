@@ -42,6 +42,7 @@ export type MotionAssessment = {
   restructured: string;
   suggestedDomain: DebateDomain | 'none';
   note: string;
+  pass: boolean;   // the mode-appropriate gate (normal passes borderline; pro doesn't)
 };
 
 const ASSESS_TOOL = {
@@ -90,8 +91,13 @@ export async function evaluateMotion(motion: string, domain?: DebateDomain, user
   const use = (msg.content || []).find((b: any) => b.type === 'tool_use');
   const inp = (use && use.input) || {};
   const jg = inp.judgeable;
+  const judgeable: 'yes' | 'borderline' | 'no' = (jg === 'yes' || jg === 'no' || jg === 'borderline') ? jg : 'borderline';
+  // the MODE sets the threshold, not the model: normal passes yes+borderline (only a hard
+  // 'no' is blocked); pro passes 'yes' only. Deterministic — no reliance on prompt override.
+  const pass = difficulty === 'normal' ? (judgeable !== 'no') : (judgeable === 'yes');
   return {
-    judgeable: (jg === 'yes' || jg === 'no' || jg === 'borderline') ? jg : 'borderline',
+    judgeable,
+    pass,
     issues: Array.isArray(inp.issues) ? inp.issues : [],
     evidentiaryDirection: String(inp.evidentiary_direction || ''),
     restructured: String(inp.restructured || ''),
@@ -125,7 +131,7 @@ export async function generateMotions(domain: DebateDomain, n = 12, userId = 'ba
   const kept: any[] = [], dropped: any[] = [];
   for (const m of candidates) {
     const asmt = await evaluateMotion(m, domain, userId, tier === 'light' ? 'normal' : 'pro');
-    if (asmt.judgeable === 'yes') kept.push({ motion: m, domain, note: asmt.note });
+    if (asmt.pass) kept.push({ motion: m, domain, judgeable: asmt.judgeable, note: asmt.note });
     else dropped.push({ motion: m, judgeable: asmt.judgeable, issues: asmt.issues, restructured: asmt.restructured });
   }
   return { kept, dropped, raw: candidates };
