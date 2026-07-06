@@ -11,6 +11,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
+import { AccessToken } from 'livekit-server-sdk';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { broadcastRoomMessage } from './broadcast.js';
@@ -2823,6 +2824,30 @@ app.post('/battlefield/duel/:sessionId/voice-turn', express2.raw({ type: 'audio/
     if (error || !upd) return res.status(409).json({ error: 'lost the race', version: s.version });
     res.json({ ok: true, transcript, audioUrl, version: upd.version, over });
   } catch (e: any) { res.status(500).json({ error: 'voice turn failed: ' + (e?.message || String(e)) }); }
+});
+
+// LIVE AUDIO: mint a LiveKit token for a duel's realtime audio room. A SEATED debater
+// can PUBLISH their mic; everyone else (spectators, incl. OTP'd watchers) subscribes
+// only. The client connects with {url, token} to hear/speak live — LiveKit carries the
+// audio; turn-locking stays server-authoritative (this only grants publish capability).
+app.post('/battlefield/duel/:sessionId/rtc-token', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const key = process.env.LIVEKIT_API_KEY, secret = process.env.LIVEKIT_API_SECRET, url = process.env.LIVEKIT_URL;
+    if (!key || !secret || !url) return res.status(503).json({ error: 'live audio is not configured' });
+    const { data: s } = await supabase.from('game_sessions').select('id, game, seats').eq('id', req.params.sessionId).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such duel' });
+    if (s.game !== 'battlefield_duel') return res.status(400).json({ error: 'not a battlefield duel' });
+    const mySeat = await sessionSeatOf(s, user.id);
+    const isDebater = mySeat >= 0;
+    const room = `bf-${s.id}`;
+    const at = new AccessToken(key, secret, { identity: user.id, ttl: '3h' });
+    at.addGrant({ roomJoin: true, room, canPublish: isDebater, canSubscribe: true, canPublishData: false });
+    const token = await at.toJwt();
+    res.json({ url, token, room, role: isDebater ? 'debater' : 'spectator', seat: isDebater ? mySeat : null });
+  } catch (e: any) { res.status(500).json({ error: 'rtc token failed: ' + (e?.message || String(e)) }); }
 });
 
 // ════════ THE BULLETIN — the anchor's daily editions ════════
