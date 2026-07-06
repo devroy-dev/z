@@ -1643,11 +1643,65 @@ app.get('/coach/:id/shelf', async (req, res) => {
 });
 
 // #1: the topic bank grouped by domain — feeds the practice topic picker.
-app.get('/battlefield/motions', (_req, res) => {
-  const byDomain: Record<string, { key: string; label: string; motions: string[] }> = {};
-  for (const d of Object.keys(DOMAIN_LABELS) as DebateDomain[]) byDomain[d] = { key: d, label: DOMAIN_LABELS[d], motions: [] };
-  for (const m of MOTIONS) if (byDomain[m.domain]) byDomain[m.domain].motions.push(m.motion);
-  res.json({ domains: Object.values(byDomain), count: MOTIONS.length });
+// pick a random ACTIVE motion from the bank by domain, preferring the tier that suits
+// the mode (pro -> heavy, normal -> light); falls back to any active, then undefined.
+async function pickMotionFromBank(domain: string, difficulty: 'normal' | 'pro'): Promise<string | undefined> {
+  try {
+    const preferTier = difficulty === 'pro' ? 'heavy' : 'light';
+    let { data } = await supabase.from('battlefield_motions').select('motion').eq('domain', domain).eq('active', true).eq('tier', preferTier);
+    if (!data || !data.length) { const r = await supabase.from('battlefield_motions').select('motion').eq('domain', domain).eq('active', true); data = r.data || []; }
+    if (!data || !data.length) return undefined;
+    return data[Math.floor(Math.random() * data.length)].motion;
+  } catch { return undefined; }
+}
+
+app.get('/battlefield/motions', async (req, res) => {
+  try {
+    const tierFilter = (req.query.tier === 'light' || req.query.tier === 'heavy') ? String(req.query.tier) : null;
+    let q = supabase.from('battlefield_motions').select('motion, domain, tier').eq('active', true);
+    if (tierFilter) q = q.eq('tier', tierFilter);
+    const { data } = await q;
+    const rows = data || [];
+    const byDomain: Record<string, { key: string; label: string; motions: string[] }> = {};
+    for (const d of Object.keys(DOMAIN_LABELS) as DebateDomain[]) byDomain[d] = { key: d, label: DOMAIN_LABELS[d], motions: [] };
+    if (rows.length) {
+      for (const m of rows) if (byDomain[m.domain]) byDomain[m.domain].motions.push(m.motion);
+      return res.json({ source: 'bank', domains: Object.values(byDomain), count: rows.length });
+    }
+    for (const m of MOTIONS) if (byDomain[m.domain]) byDomain[m.domain].motions.push(m.motion);   // fallback: in-memory seed
+    res.json({ source: 'seed', domains: Object.values(byDomain), count: MOTIONS.length });
+  } catch (e: any) { res.status(500).json({ error: 'motions list failed: ' + (e?.message || String(e)) }); }
+});
+
+// FOUNDER: seed the bank from the 50 in-memory motions (tier 'heavy'). Idempotent.
+app.post('/battlefield/motions/seed', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const rows = MOTIONS.map((m) => ({ motion: m.motion, domain: m.domain, tier: 'heavy', source: 'seed', active: true }));
+    const { error } = await supabase.from('battlefield_motions').upsert(rows, { onConflict: 'motion' });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, seeded: rows.length });
+  } catch (e: any) { res.status(500).json({ error: 'seed failed: ' + (e?.message || String(e)) }); }
+});
+
+// FOUNDER: bulk-add approved motions to the bank (generated or custom).
+app.post('/battlefield/motions/add', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    if (!user || user.id !== DIAG_USER_ID) return res.status(403).json({ error: 'nope' });
+    const items = Array.isArray(req.body?.motions) ? req.body.motions : [];
+    const source = (req.body?.source === 'generated' || req.body?.source === 'custom') ? req.body.source : 'custom';
+    const rows = items
+      .filter((x: any) => typeof x?.motion === 'string' && x.motion.length > 8 && DOMAIN_LABELS[x?.domain as DebateDomain])
+      .map((x: any) => ({ motion: String(x.motion).slice(0, 400), domain: x.domain, tier: x.tier === 'light' ? 'light' : 'heavy', source, active: true, created_by: user.id }));
+    if (!rows.length) return res.status(400).json({ error: 'no valid motions (need {motion, domain, tier?})' });
+    const { error } = await supabase.from('battlefield_motions').upsert(rows, { onConflict: 'motion' });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, added: rows.length, source });
+  } catch (e: any) { res.status(500).json({ error: 'add failed: ' + (e?.message || String(e)) }); }
 });
 
 // Check whether a PROPOSED motion is judgeable; if not, tell the organizer how to
@@ -1779,7 +1833,8 @@ app.post('/battlefield/practice/start', async (req, res) => {
     if (tErr || !thread) return res.status(500).json({ error: 'could not open the practice floor: ' + (tErr?.message || '') });
     const seats = [{ kind: 'user', id: user.id }, { kind: 'persona', id: 'the_house' }];
     const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
-    const state = battlefieldDuelAdapter.create(seats, { motion, domain, difficulty });
+    const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
@@ -1812,7 +1867,8 @@ app.post('/battlefield/duel/start', async (req, res) => {
     const seats: any[] = [{ kind: 'open' }, { kind: 'open' }];
     seats[creatorSeat] = { kind: 'user', id: user.id };
     const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
-    const state = battlefieldDuelAdapter.create(seats, { motion, domain, difficulty });
+    const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
