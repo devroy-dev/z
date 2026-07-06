@@ -87,7 +87,7 @@ export const MOTIONS: { motion: string; domain: DebateDomain }[] = [
 const PHASES = ['Opening', 'Rebuttal', 'Closing'] as const;
 type Phase = (typeof PHASES)[number];
 
-export type BFTurn = { seat: 0 | 1; role: Phase; text: string };
+export type BFTurn = { seat: 0 | 1; role: Phase; text: string; audio?: string | null };
 export type BFState = {
   kind: 'battlefield_duel';
   motion: string;
@@ -199,9 +199,9 @@ async function houseTurn(state: BFState): Promise<string> {
 
 // record a speech into the transcript, then advance the floor + (optionally) take a
 // running note. Shared by human moves and the house turn.
-async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string): Promise<void> {
+async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string, audio?: string | null): Promise<void> {
   const role = state.phase as Phase;
-  state.turns.push({ seat, role, text });
+  state.turns.push({ seat, role, text, audio: audio ?? null });
   const { phaseComplete } = advanceFloor(state);
   // the commentary track: after a completed phase (both sides spoke), one running read.
   if (phaseComplete && state.phase !== 'verdict') {
@@ -260,7 +260,7 @@ export const battlefieldDuelAdapter = {
     const text = String(mv.text || '').trim().slice(0, 1400);
     if (text.length < 10) throw new Error('a speech must carry some weight');
 
-    await recordAndAdvance(state, seat as 0 | 1, text);
+    await recordAndAdvance(state, seat as 0 | 1, text, mv.audio);
 
     // if the floor now points at a PERSONA (house) seat, take its turn(s) here — inside
     // async move(), because advanceAI is synchronous and cannot await the model.

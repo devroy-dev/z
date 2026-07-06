@@ -2761,6 +2761,70 @@ app.post('/games/session/:id/move', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
+// VOICE TURN (turn-based, per the vision — no realtime streaming). The debater speaks
+// their turn as audio: Sarvam transcribes it into the transcript (the adjudicator judges
+// TEXT, unchanged), and the audio is stored so spectators HEAR the performance.
+app.post('/battlefield/duel/:sessionId/voice-turn', express2.raw({ type: 'audio/*', limit: '20mb' }), async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const audio = req.body as Buffer;
+    if (!audio || !audio.length) return res.status(400).json({ error: 'no audio' });
+    const mime = (req.headers['content-type'] as string) || 'audio/webm';
+    const { data: s } = await supabase.from('game_sessions').select('*').eq('id', req.params.sessionId).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such duel' });
+    if (s.game !== 'battlefield_duel') return res.status(400).json({ error: 'not a battlefield duel' });
+    if (s.status !== 'live') return res.status(409).json({ error: 'the duel is over' });
+    const version = parseInt(String(req.query.version ?? ''), 10);
+    if (!Number.isFinite(version) || version !== s.version) return res.status(409).json({ error: 'stale version', version: s.version });
+    const engine = GAME_ENGINES[s.game];
+    const mySeat = await sessionSeatOf(s, user.id);
+    if (mySeat < 0) return res.status(403).json({ error: 'not seated here' });
+    if (engine.toActSeat(s.state) !== mySeat) return res.status(409).json({ error: 'not your turn', version: s.version });
+
+    // 1) transcribe (Sarvam) — the transcript is the judged speech
+    let transcript = '';
+    try { const t = await transcribeAudio(audio, mime); transcript = (t.transcript || '').trim(); }
+    catch (e: any) { return res.status(502).json({ error: 'could not transcribe: ' + (e?.message || String(e)) }); }
+    if (transcript.length < 10) return res.status(400).json({ error: 'a speech must carry some weight — we could not hear enough' });
+
+    // 2) store the audio so spectators can hear it (public bucket 'duel-audio')
+    const turnIdx = ((s.state?.turns as any[]) || []).length;
+    const ext = mime.includes('mp4') || mime.includes('m4a') ? 'm4a' : mime.includes('wav') ? 'wav' : 'webm';
+    let audioUrl: string | null = null;
+    try {
+      await supabase.storage.from('duel-audio').upload(`${s.id}/${turnIdx}.${ext}`, audio, { contentType: mime.split(';')[0], upsert: true });
+      audioUrl = supabase.storage.from('duel-audio').getPublicUrl(`${s.id}/${turnIdx}.${ext}`).data?.publicUrl || null;
+    } catch (e) { console.error('[voice-turn] audio store failed', e); }
+
+    // 3) submit the turn (transcript = speech; audio attached to the turn)
+    let state = s.state;
+    try { state = await engine.move(state, mySeat, { type: 'speech', text: transcript, audio: audioUrl }, s.seats); }
+    catch (err: any) { return res.status(400).json({ error: err?.message || 'illegal move' }); }
+    state = advanceAI(engine, state, s.seats);
+    const over = engine.isOver(state);
+    if (over) {
+      try {
+        const humanSeats = (s.seats as any[]).map((x2: any, i: number) => ({ ...x2, i })).filter((x2: any) => x2.kind === 'user');
+        for (const hs of humanSeats) {
+          const won = (hs.i === 0 && state.winner === 'PRO') || (hs.i === 1 && state.winner === 'CON');
+          const w = !state.winner ? 'draw' : (won ? 'you' : 'them');
+          const side = hs.i === 0 ? 'PRO' : 'CON';
+          const notes = `motion: ${state.motion} \u2014 you argued ${side}; winner: ${state.winner || 'undecided'}`
+            + (state.verdict?.summary ? ` \u2014 ${String(state.verdict.summary).slice(0, 240)}` : '');
+          await supabase.from('arena_matches').insert({ user_id: hs.id, game: 'battlefield duel', winner: w, notes });
+        }
+      } catch (e) { console.error('[voice-turn] ledger write failed', e); }
+    }
+    const { data: upd, error } = await supabase.from('game_sessions')
+      .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
+      .eq('id', s.id).eq('version', s.version).select('version').maybeSingle();
+    if (error || !upd) return res.status(409).json({ error: 'lost the race', version: s.version });
+    res.json({ ok: true, transcript, audioUrl, version: upd.version, over });
+  } catch (e: any) { res.status(500).json({ error: 'voice turn failed: ' + (e?.message || String(e)) }); }
+});
+
 // ════════ THE BULLETIN — the anchor's daily editions ════════
 const citySlug = (c: string) => c.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 
