@@ -234,18 +234,22 @@ export async function updateProfile({ displayName, avatarUrl }) {
     const body = {};
     if (typeof displayName === 'string') body.displayName = displayName;
     if (typeof avatarUrl === 'string') body.avatarUrl = avatarUrl;
-    const r = await fetch(`${API_BASE}/me`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+    const call = () => fetch(`${API_BASE}/me`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });   // [zip10]
+    let r = await call();
+    if (r.status === 401 && (await refreshSession())) r = await call();
     if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, error: j.error || 'could not save' }; }
     return { ok: true };
   } catch (e) { return { ok: false, error: 'no connection. try again.' }; }
 }
 export async function setMe(displayName) {
   try {
-    await fetch(`${API_BASE}/me`, {
+    const call = () => fetch(`${API_BASE}/me`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ displayName, region: 'IN', sex: 'na' }),
     });
+    let r = await call();
+    if (r.status === 401 && (await refreshSession())) await call();
   } catch (e) {}
 }
 
@@ -445,12 +449,16 @@ export async function simOracle() {
 // ── build-a-persona: your own people ──
 export async function composeCustomPersona(answers) {
   await loadSession();
-  const r = await fetch(`${API_BASE}/personas/custom/compose`, { method: 'POST', headers: headers(), body: JSON.stringify(answers) });
+  const call = () => fetch(`${API_BASE}/personas/custom/compose`, { method: 'POST', headers: headers(), body: JSON.stringify(answers) });   // [zip10]
+  let r = await call();
+  if (r.status === 401 && (await refreshSession())) r = await call();
   return r.json().catch(() => ({ error: 'compose failed' }));
 }
 export async function saveCustomPersona(name, codex, tone) {
   await loadSession();
-  const r = await fetch(`${API_BASE}/personas/custom`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, codex, tone }) });
+  const call = () => fetch(`${API_BASE}/personas/custom`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, codex, tone }) });   // [zip10]
+  let r = await call();
+  if (r.status === 401 && (await refreshSession())) r = await call();
   return r.json().catch(() => ({ error: 'save failed' }));
 }
 export async function listCustomPersonas() {
@@ -864,7 +872,9 @@ export async function authDiag() {
 // export everything we hold about the user (right to portability).
 export async function exportMyData() {
   try {
-    const r = await fetch(`${API_BASE}/me/export`, { method: 'POST', headers: headers() });
+    const call = () => fetch(`${API_BASE}/me/export`, { method: 'POST', headers: headers() });   // [zip10]
+    let r = await call();
+    if (r.status === 401 && (await refreshSession())) r = await call();
     if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, error: j.error || 'export failed' }; }
     return { ok: true, data: await r.json() };
   } catch (e) { return { ok: false, error: 'no connection. try again.' }; }

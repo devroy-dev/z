@@ -195,7 +195,16 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
     setCourse({ ...c, currentDay: 1, weakTags: [], days: {} });
     setPending(null); setEntryStep('pick'); setStage('home');
   });
-  const loadSubjects = () => run('lib', async () => { const r = await coachLibrary(); setSubjects(r.subjects || []); });
+  // [zip09] standalone lifecycle: immune to run()'s global busy guard (which silently
+  // swallowed this call), owns a 'failed' state, and autoloads on entering the step.
+  const loadSubjects = async () => {
+    setSubjects(null);
+    try { const r = await coachLibrary(); setSubjects(Array.isArray(r.subjects) ? r.subjects : []); }
+    catch (e) { setSubjects('failed'); }
+  };
+  useEffect(() => {
+    if (entryStep === 'library' && (subjects === null || subjects === 'failed')) loadSubjects();
+  }, [entryStep]);
   const pickMaterial = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -317,7 +326,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
         );
         // ── learn from the library ──
         if (entryStep === 'library') {
-          const list = (subjects || []).filter((x) => !subjQ.trim() || x.label.toLowerCase().includes(subjQ.trim().toLowerCase()));
+          const list = (Array.isArray(subjects) ? subjects : []).filter((x) => !subjQ.trim() || x.label.toLowerCase().includes(subjQ.trim().toLowerCase()));
           return (
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
               <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
@@ -327,6 +336,8 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
                 <TextInput style={[s.input, { marginTop: 18 }]} value={subjQ} onChangeText={setSubjQ} placeholder="Search subjects…" placeholderTextColor={P.faint} returnKeyType="search" />
                 {subjects === null
                   ? <View style={{ paddingVertical: 40, alignItems: 'center' }}><ActivityIndicator color={P.lamp} /></View>
+                  : subjects === 'failed'
+                    ? <Pressable onPress={loadSubjects} style={{ paddingVertical: 40, alignItems: 'center' }}><Text style={s.emptyList}>The shelves didn't answer. Tap to retry.</Text></Pressable>
                   : list.length === 0
                     ? <Text style={s.emptyList}>Nothing matches “{subjQ.trim()}”.</Text>
                     : list.map((x) => (
@@ -352,7 +363,7 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
             </View>
             <Text style={s.bigLead}>Where shall{'\n'}we begin?</Text>
             <Text style={s.leadSub}>“Two ways in. Learn a subject from my shelves — or hand me your own material, and I'll teach from that.”</Text>
-            <Pressable style={s.pick} onPress={() => { setEntryStep('library'); if (subjects === null) loadSubjects(); }}>
+            <Pressable style={s.pick} onPress={() => { setErr(''); setEntryStep('library'); }}>
               <Text style={s.pickT}>Learn from the library</Text>
               <Text style={s.pickSub}>16 subjects — reasoning, law, history, the economy and more, each taught from our shelves.</Text>
             </Pressable>
