@@ -301,6 +301,8 @@ export async function streamChat({ threadId, message, image, persona, addressed,
     if (!res.ok) {
       let msg = '(z went quiet — try again)';
       try { const j = await res.json(); if (j.error) msg = '(' + j.error + ')'; } catch (_) {}
+      // [zip16] never render provider JSON in a bubble, whatever the server sent
+      if (/"type"\s*:\s*"error"|credit balance|rate limit|overloaded/i.test(msg)) msg = "(the house's mind is resting — give it a minute and try again.)";
       onError && onError(msg);
       return;
     }

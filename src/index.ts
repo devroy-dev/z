@@ -2982,6 +2982,16 @@ app.post('/groups', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'group failed: ' + (e?.message || String(e)) }); }
 });
 
+// [zip16] provider failures become one calm human line on the wire; the raw error
+// stays in the server log. The user never reads Anthropic's JSON in a bubble.
+function humanizeChatError(e: any): string {
+  const raw = String(e?.message || e || '');
+  const providerShaped = /"type"\s*:\s*"error"|credit balance|rate limit|overloaded|invalid_request|api key|billing/i.test(raw)
+    || e?.status === 429 || e?.status === 529 || (e?.status === 400 && /anthropic/i.test(raw));
+  if (providerShaped) return "the house's mind is resting — give it a minute and try again.";
+  return 'something broke on our side — try again in a moment.';
+}
+
 app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   let user;
   try {
@@ -2990,7 +3000,8 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     user = await resolveUser(authId);
     if (await isRestricted(user.id)) return res.status(403).json({ error: 'restricted' });
   } catch (e: any) {
-    return res.status(500).json({ error: 'chat setup failed: ' + (e?.message || String(e)) });
+    console.error('[chat] setup error', e?.message || e);
+    return res.status(500).json({ error: humanizeChatError(e) });   // [zip16]
   }
 
   const { threadId, message, image, addressed } = req.body ?? {};
@@ -3175,7 +3186,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     console.error('[chat] handler error', 'name=', e?.name, 'code=', e?.code, 'msg=', e?.message);
     if (e?.cause) console.error('[chat] cause=', e.cause);
     if (e?.stack) console.error(e.stack);
-    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: humanizeChatError(e) })}\n\n`);   // [zip16] raw stays in the log above
     res.end();
   }
 });
