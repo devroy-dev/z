@@ -16,7 +16,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg'
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular } from '@expo-google-fonts/figtree';
-import { loadSession, openThreadInfo, streamChat, transcribeVoice } from './api';
+import { loadSession, openThreadInfo, streamChat, transcribeVoice, getMemoryStory } from './api';   // [zip18]
 import * as ImagePicker from 'expo-image-picker';
 import { useVoiceNote } from './voice';
 
@@ -83,6 +83,14 @@ function ZLight({ speaking }) {
   );
 }
 
+// [zip18] a story paragraph that arrives like a breath — staggered, slow
+function FadePara({ children, delay }) {
+  const o = useSharedValue(0);
+  useEffect(() => { o.value = withDelay(delay, withTiming(1, { duration: 900, easing: Easing.out(Easing.ease) })); }, []);
+  const st = useAnimatedStyle(() => ({ opacity: o.value }));
+  return <Animated.Text style={[styles.zText, { marginBottom: 22 }, st]}>{children}</Animated.Text>;
+}
+
 export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
   const [fontsLoaded, fontError] = useFonts({ Fraunces_400Regular, Fraunces_400Regular_Italic, Figtree_300Light, Figtree_400Regular });
   const [messages, setMessages] = useState([]);
@@ -93,6 +101,13 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  // [zip18] the story view: what she remembers, told properly
+  const [mode, setMode] = useState('room');           // 'room' | 'story'
+  const [story, setStory] = useState(null);           // null=loading, string=prose, {error}
+  const openStory = () => {
+    setMode('story'); setStory(null);
+    getMemoryStory().then((r) => setStory(r && r.story ? r.story : { error: (r && r.error) || 'the words did not come — try again' }));
+  };
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
@@ -201,6 +216,33 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
   };
 
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: Q.deep }} />;
+
+  // [zip18] the story view — same night, fewer things in it. All hooks already ran.
+  if (mode === 'story') {
+    const paras = typeof story === 'string' ? story.split(/\n\n+/).filter(Boolean) : [];
+    return (
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <LinearGradient colors={[Q.top, Q.mid, Q.deep]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+          <Pressable style={styles.back} onPress={() => setMode('room')} hitSlop={14}>
+            <Text style={styles.backTxt}>‹  the quiet</Text>
+          </Pressable>
+          <ScrollView style={{ flex: 1, paddingHorizontal: 30 }} contentContainerStyle={{ paddingTop: 26, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+            <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonFaint, fontSize: 14, marginBottom: 26, letterSpacing: 0.4 }}>what i remember of you</Text>
+            {story === null
+              ? <Text style={styles.rest}>remembering…</Text>
+              : typeof story === 'string'
+                ? paras.map((p, i) => <FadePara key={i} delay={i * 420}>{p}</FadePara>)
+                : <Text style={styles.rest}>{story.error}</Text>}
+            {typeof story === 'string' ? (
+              <Text style={{ fontFamily: 'Figtree_300Light', color: 'rgba(234,236,245,0.22)', fontSize: 12, marginTop: 30, letterSpacing: 0.3 }}>the plain notes — and the forgetting — live in settings, under you.</Text>
+            ) : null}
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+    );
+  }
   const empty = messages.length === 0;
 
   return (
@@ -228,9 +270,14 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
             <Pressable style={styles.back} onPress={onBack} hitSlop={14}>
               <Text style={styles.backTxt}>‹  step out</Text>
             </Pressable>
-            <Pressable onPress={onJournal} hitSlop={12} style={{ paddingRight: 4 }}>
-              <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.55)', fontSize: 13.5 }}>the journal ›</Text>
-            </Pressable>
+            <View style={{ alignItems: 'flex-end', paddingRight: 4, gap: 5 }}>
+              <Pressable onPress={onJournal} hitSlop={10}>
+                <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.55)', fontSize: 13.5 }}>the journal ›</Text>
+              </Pressable>
+              <Pressable onPress={openStory} hitSlop={10}>
+                <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.42)', fontSize: 13 }}>what i remember ›</Text>
+              </Pressable>
+            </View>
           </View>
 
           {/* Z, as light */}
@@ -255,7 +302,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
                   {m.who === 'you'
                     ? <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '80%' }}>
                         {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
-                        {m.text ? <View style={[styles.youWrap, m.imageUri && { marginTop: 4 }]}><Text style={styles.youText}>{m.text}</Text></View> : null}
+                        {m.text ? <Text style={[styles.youBare, m.imageUri && { marginTop: 6 }]}>{m.text}</Text> : null}
                       </View>
                     : <Text style={styles.zText}>{m.text || (m.typing ? '…' : '')}</Text>}
                 </View>
@@ -325,6 +372,7 @@ const styles = StyleSheet.create({
   micLive: { color: '#FF6B5A', fontSize: 18 },
   youWrap: { alignSelf: 'flex-end', maxWidth: '80%', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 18, borderTopRightRadius: 6, backgroundColor: Q.youBubble, borderWidth: 1, borderColor: Q.youBorder },
   youText: { fontFamily: 'Figtree_300Light', color: Q.moon, fontSize: 15, lineHeight: 22 },
+  youBare: { fontFamily: 'Figtree_300Light', color: Q.moonDim, fontSize: 15.5, lineHeight: 24, textAlign: 'right' },   // [zip18] no chrome in this room
 
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 8 },
   field: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: Q.hair, backgroundColor: 'rgba(159,176,224,0.05)' },

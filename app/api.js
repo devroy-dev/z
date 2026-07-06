@@ -537,6 +537,10 @@ export async function getRecentPings() {
 export async function getMemory() {
   try { const j = await authedJSON('GET', '/memory'); return j.items || []; } catch (e) { return []; }
 }
+// [zip18] what Z remembers, composed as a story in her voice (the quiet room's view)
+export async function getMemoryStory() {
+  try { return await authedJSON('GET', '/memory/story'); } catch (e) { return { error: 'no connection' }; }
+}
 export async function forgetMemory(id) {
   try { return await authedJSON('DELETE', `/memory/${id}`); } catch (e) { return null; }
 }

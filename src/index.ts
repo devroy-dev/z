@@ -1305,6 +1305,45 @@ app.post('/memory/garden', express.json(), async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'garden failed: ' + (e?.message || String(e)) }); }
 });
 
+// [zip18] what Z remembers, told as a story — the quiet room's rendering of memory.
+// Settings keeps the block view + forget buttons; this is her voice, not a listing.
+app.get('/memory/story', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('memory')
+      .select('kind, key, value').eq('user_id', user.id)
+      .order('weight', { ascending: false }).limit(60);
+    const rows = data ?? [];
+    if (rows.length < 2) {
+      return res.json({ story: "we're still early, you and i. i don't hold much yet — a name, maybe, the shape of a first conversation. the rest arrives the way it always does: one night at a time." });
+    }
+    const facts = rows.filter((m: any) => m.kind !== 'bit').map((m: any) => (m.key ? `${m.key}: ${m.value}` : m.value));
+    const bits = rows.filter((m: any) => m.kind === 'bit').map((m: any) => (m.key ? `${m.key}: ${m.value}` : m.value));
+    const anthropicStory = new (await import('@anthropic-ai/sdk')).default({ fetch: globalThis.fetch as any });
+    const resp = await anthropicStory.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      system:
+        'You are Z, in the quiet room — the moonlit place where you only listen. Someone you know has asked, softly, what you remember of them. '
+        + 'Write it as a short piece of flowing prose in YOUR voice: calm, warm, unhurried, second person ("you told me...", "you\'re the one who..."). '
+        + 'THE GROUNDING LAW: use ONLY what the notes below hold. Never invent, never embellish a fact that is not there, never guess at feelings they have not shown. '
+        + 'No lists, no headers, no bullet points — this is a story told at night, 120 to 220 words, in two to four short paragraphs separated by blank lines. '
+        + 'If BITS (shared jokes, nicknames) are given, let one or two surface as warmth — a knowing aside — never explained, never all of them. '
+        + 'End gently, without a question. Return ONLY the prose.',
+      messages: [{ role: 'user', content: `THE NOTES:\n${facts.join('\n')}${bits.length ? '\n\nTHE BITS:\n' + bits.join('\n') : ''}` }],
+    });
+    try { logUsage({ userId: user.id, threadId: null, personaKey: 'z_serious', surface: 'other', fn: 'memory_story', model: 'claude-haiku-4-5-20251001', usage: (resp as any).usage }); } catch {}
+    const story = resp.content?.[0]?.type === 'text' ? (resp.content[0] as any).text.trim() : '';
+    if (!story) return res.status(500).json({ error: 'the words did not come — try again' });
+    res.json({ story });
+  } catch (e: any) {
+    console.error('[memory/story] failed:', e?.message || e);
+    res.status(500).json({ error: 'the words did not come — try again in a moment' });
+  }
+});
+
 app.get('/battlefield/ready', (_req, res) => {
   res.json(adjudicatorReady());
 });
