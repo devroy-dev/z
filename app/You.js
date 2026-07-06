@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
 import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName, savePush, getPushPrefs, openDM } from './api';
+import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip08] profile identity cache
 import { registerForPush, pushPermission } from './push';
 
 // seed: what Z has learned (facts) + noticed (notes). Real data from /notes later.
@@ -176,6 +177,7 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
     setPNote('saved.');
     if (pName.trim()) setMyName(pName.trim());          // [zip06] header syncs on save
     setMyAvatar(pAvatar || null);
+    AsyncStorage.setItem('z_profile_cache', JSON.stringify({ handle: pHandle || '', displayName: pName.trim() || '', avatarUrl: pAvatar || '' })).catch(() => {});   // [zip08]
     setTimeout(() => setShowProfile(false), 600);
   };
   const [myHandle, setMyHandle] = useState('');
@@ -194,7 +196,25 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
   const [myName, setMyName] = React.useState('');
   React.useEffect(() => { cachedName().then((n) => { if (n) setMyName((cur) => cur || n); }); }, []);
   const [myAvatar, setMyAvatar] = React.useState(null);   // [zip06] the header photo
-  React.useEffect(() => { getMe().then((m) => { if (m && m.handle) setMyHandle(m.handle); if (m && m.displayName) setMyName(m.displayName); if (m && m.avatarUrl) setMyAvatar(m.avatarUrl); }); }, []);
+  // [zip08] instant identity: seed handle + avatar from the local snapshot, then let
+  // the network refresh both the screen and the snapshot. No more letter-then-photo.
+  React.useEffect(() => {
+    AsyncStorage.getItem('z_profile_cache').then((c) => {
+      if (!c) return;
+      try {
+        const p = JSON.parse(c);
+        if (p.handle) setMyHandle((cur) => cur || p.handle);
+        if (p.avatarUrl) setMyAvatar((cur) => cur || p.avatarUrl);
+        if (p.displayName) setMyName((cur) => cur || p.displayName);
+      } catch (e) {}
+    }).catch(() => {});
+  }, []);
+  React.useEffect(() => { getMe().then((m) => {
+    if (m && m.handle) setMyHandle(m.handle);
+    if (m && m.displayName) setMyName(m.displayName);
+    if (m && m.avatarUrl) setMyAvatar(m.avatarUrl);
+    if (m) AsyncStorage.setItem('z_profile_cache', JSON.stringify({ handle: m.handle || '', displayName: m.displayName || '', avatarUrl: m.avatarUrl || '' })).catch(() => {});
+  }); }, []);
   const saveHandle = async () => {
     const h = handleDraft.trim().toLowerCase().replace(/^@/, '');
     if (!h || savingHandle) return;
