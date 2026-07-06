@@ -22,6 +22,22 @@ import * as ImagePicker from 'expo-image-picker';
 import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice, markThreadRead } from './api';
 import { useVoiceNote } from './voice';
 import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip05] instant-paint cache
+// [zip11] stamp last_active on this thread inside the home-list cache so the list
+// paints in the right order the moment ChatHome remounts (fresh fetch reconciles).
+async function bumpHomeCache(threadId) {
+  if (!threadId) return;
+  try {
+    const c = await AsyncStorage.getItem('z_home_cache');
+    if (!c) return;
+    const s = JSON.parse(c);
+    const now = new Date().toISOString();
+    let hit = false;
+    for (const t of (s.t || [])) if (t.id === threadId) { t.last_active = now; hit = true; }
+    for (const r of (s.r || [])) if (r.id === threadId) { r.last_active = now; hit = true; }
+    if (hit) await AsyncStorage.setItem('z_home_cache', JSON.stringify(s));
+  } catch (e) {}
+}
+
 
 // ── NIGHTFALL palette ──
 const N = {
@@ -440,6 +456,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     if (!tid) { sendingRef.current = false; setSending(false); return; }
     setDraft('');
     setPendingImage(null);
+    void bumpHomeCache(tid);   // [zip11] the list learns about this send immediately
     const youMsg = { id: Date.now(), who: 'you', text, imageUri: img?.uri || null, at: Date.now() };
     const zId = Date.now() + 1;
     atBottomRef.current = true;

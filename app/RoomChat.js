@@ -29,6 +29,22 @@ import Grain from './Grain';
 import { streamChat, getRoomMembers, getRoomMessages, inviteToRoom, API_BASE, transcribeVoice } from './api';
 import { useVoiceNote } from './voice';
 import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip05] instant-paint cache
+// [zip11] stamp last_active on this thread inside the home-list cache so the list
+// paints in the right order the moment ChatHome remounts (fresh fetch reconciles).
+async function bumpHomeCache(threadId) {
+  if (!threadId) return;
+  try {
+    const c = await AsyncStorage.getItem('z_home_cache');
+    if (!c) return;
+    const s = JSON.parse(c);
+    const now = new Date().toISOString();
+    let hit = false;
+    for (const t of (s.t || [])) if (t.id === threadId) { t.last_active = now; hit = true; }
+    for (const r of (s.r || [])) if (r.id === threadId) { r.last_active = now; hit = true; }
+    if (hit) await AsyncStorage.setItem('z_home_cache', JSON.stringify(s));
+  } catch (e) {}
+}
+
 const fmtTime = (at) => { const d = at ? new Date(at) : null; return d && !isNaN(d) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase() : ''; };
 
 const N = {
@@ -334,6 +350,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
     const img = pendingImage;
     if ((!text && !img) || sendingRef.current || !roomId) return;
     sendingRef.current = true; setSending(true);
+    void bumpHomeCache(roomId);   // [zip11] the list learns about this send immediately
     setDraft('');
     setPendingImage(null);
     // who did they address? tapped faces + @mentions in the text → those personas answer.

@@ -227,6 +227,9 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   // persist the user's message (store a marker if it carried an image, so history shows it)
   const storedContent = input.image ? (message ? message + '\n[shared an image]' : '[shared an image]') : message;
   await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: storedContent });
+  // [zip11] the user's message IS activity — bump now, so the list reorders even if
+  // the AI turn below fails (the post-reply bump at the end stays; it's harmless).
+  void supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
 
   // build this turn's user content — text, plus a vision image block when attached
   let userContent: any = message;

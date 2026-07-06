@@ -8,9 +8,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { TextInput } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path as SvgPath } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
-import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom } from './api';
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread } from './api';   // [zip12]
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -325,11 +325,39 @@ export default function ChatHome({ onOpen = () => {} }) {
       <Text style={[st.swActTxt, on && { color: MOON.porcelain }]}>{label}</Text>
     </Pressable>
   );
+  // [zip12] delete a chat from the surface: confirm → soft-delete server-side →
+  // the row leaves the local state AND the home cache instantly; load() reconciles.
+  const deleteRow = (row) => {
+    if (!row.threadId) return;
+    Alert.alert(
+      'delete this chat?',
+      'the conversation is removed from your list. this can\u2019t be undone.',
+      [
+        { text: 'cancel', style: 'cancel' },
+        { text: 'delete', style: 'destructive', onPress: async () => {
+          await deleteRoomThread(row.threadId);
+          setThreads((cur) => cur.filter((t) => t.id !== row.threadId));
+          setRooms((cur) => cur.filter((r) => r.id !== row.threadId));
+          try {
+            const c = await AsyncStorage.getItem('z_home_cache');
+            if (c) {
+              const s = JSON.parse(c);
+              s.t = (s.t || []).filter((t) => t.id !== row.threadId);
+              s.r = (s.r || []).filter((r) => r.id !== row.threadId);
+              await AsyncStorage.setItem('z_home_cache', JSON.stringify(s));
+            }
+          } catch (e) {}
+          load();
+        } },
+      ],
+    );
+  };
   const rowActions = (row) => () => (
     <View style={{ flexDirection: 'row' }}>
       <SwipeAction label={row.pinnedByMe ? 'unpin' : 'pin'} on={row.pinnedByMe} onPress={() => setPref(row, { pinned: !row.pinnedByMe })} />
       <SwipeAction label={row.favourite ? 'unfav' : 'fav'} on={row.favourite} onPress={() => setPref(row, { favourite: !row.favourite })} />
       <SwipeAction label={row.archived ? 'unarchive' : 'archive'} on={row.archived} onPress={() => setPref(row, { archived: !row.archived })} />
+      <SwipeAction label="delete" on={false} onPress={() => deleteRow(row)} />
     </View>
   );
 
