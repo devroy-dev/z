@@ -210,6 +210,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   });
   const [inCall, setInCall] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [booted, setBooted] = useState(false);   // [zip07] cache read answered — empty state may render
   const [draft, setDraft] = useState('');
   const [pendingImage, setPendingImage] = useState(null);  // { data, uri } — a photo staged to send
   const voice = useVoiceNote();
@@ -244,16 +245,19 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     setCname(seed); setNameDraft(seed); setEditingName(false);
     setAvatar(AVATAR_CACHE[KEY] || null);
     // [zip05] instant paint: last-known lines render NOW; fresh history reconciles below.
+    setBooted(false);   // [zip07] hold the hero until the cache answers
     AsyncStorage.getItem('z_msgs_' + KEY).then((c) => {
-      if (!c) return;
       try {
-        const cached = JSON.parse(c);
-        if (Array.isArray(cached) && cached.length) {
-          setMessages((cur) => (cur.length ? cur : cached));
-          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 60);
+        if (c) {
+          const cached = JSON.parse(c);
+          if (Array.isArray(cached) && cached.length) {
+            setMessages((cur) => (cur.length ? cur : cached));
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 60);
+          }
         }
       } catch (e) {}
-    }).catch(() => {});
+      setBooted(true);
+    }).catch(() => setBooted(true));
     loadSession().then(() => openThreadInfo(KEY, P.name)).then((info) => {
       if (!info) return;
       setThreadId(info.id);
@@ -523,7 +527,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   );
   if (inCall) return <VideoCall persona={{ key: KEY, name: cname }} onEnd={() => setInCall(false)} />;
 
-  const empty = messages.length === 0;
+  const empty = booted && messages.length === 0;   // [zip07] never the hero before the cache answers
 
   return (
     <View style={styles.root}>

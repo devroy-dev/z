@@ -182,6 +182,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
   const isDM = personas.length === 0;   // 1:1 human DM — render like the 1:1 chat, not a room
 
   const [lines, setLines] = useState([]);
+  const [booted, setBooted] = useState(false);   // [zip07] cache read answered — empty line may render
   const [members, setMembers] = useState({});   // uid -> name
   const [avatars, setAvatars] = useState({});   // uid -> avatar_url
   const [inCall, setInCall] = useState(false);
@@ -213,16 +214,19 @@ export default function RoomChat({ room, onBack = () => {} }) {
     renderedRef.current = new Set();
     // [zip05] instant paint: last-known lines render NOW; the history fetch below
     // replaces them wholesale before the realtime subscribe starts — ordering safe.
+    setBooted(false);   // [zip07] hold the empty line until the cache answers
     AsyncStorage.getItem('z_msgs_room_' + roomId).then((c) => {
-      if (!c) return;
       try {
-        const cached = JSON.parse(c);
-        if (Array.isArray(cached) && cached.length) {
-          setLines((cur) => (cur.length ? cur : cached));
-          scrollDown();
+        if (c) {
+          const cached = JSON.parse(c);
+          if (Array.isArray(cached) && cached.length) {
+            setLines((cur) => (cur.length ? cur : cached));
+            scrollDown();
+          }
         }
       } catch (e) {}
-    }).catch(() => {});
+      setBooted(true);
+    }).catch(() => setBooted(true));
     (async () => {
       const mem = await getRoomMembers(roomId);
       if (!alive) return;
@@ -510,7 +514,7 @@ export default function RoomChat({ room, onBack = () => {} }) {
 
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.convo} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {lines.length === 0
-            ? <Text style={styles.empty}>a shared room — say something to get it going.</Text>
+            ? (booted ? <Text style={styles.empty}>a shared room — say something to get it going.</Text> : null)
             : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={isDM} />)}
         </ScrollView>
 
