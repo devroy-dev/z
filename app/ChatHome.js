@@ -7,7 +7,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { TextInput } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path as SvgPath } from 'react-native-svg';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSpring, Easing, runOnJS } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';   // [zip17] the quiet pull
+import { Dimensions } from 'react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert } from 'react-native';
 import { FONTS } from './theme';
 import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread } from './api';   // [zip12]
@@ -233,6 +235,38 @@ function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
 
 export default function ChatHome({ onOpen = () => {} }) {
   const [tab, setTab] = useState('chats');
+  // ── [zip17] THE QUIET PULL: swipe right anywhere on the list → the world dims
+  // and slides → Z. Rightward-only (+16dx to activate, so the OS left-edge back
+  // gesture and the leftward row-swipes keep their lanes; failOffsetY yields to
+  // vertical scroll). The moon sliver is the standing hint + tap entry.
+  const SCREEN_W = Dimensions.get('window').width;
+  const pullX = useSharedValue(0);
+  const [quietHint, setQuietHint] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem('z_quiet_hint_done').then((v) => { if (!v) setQuietHint(true); }).catch(() => {});
+  }, []);
+  const openQuiet = () => {
+    pullX.value = 0;
+    if (quietHint) { setQuietHint(false); AsyncStorage.setItem('z_quiet_hint_done', '1').catch(() => {}); }
+    onOpen({ kind: 'z' });
+  };
+  const quietPan = Gesture.Pan()
+    .activeOffsetX(16)
+    .failOffsetX(-12)
+    .failOffsetY([-14, 14])
+    .onUpdate((e) => { pullX.value = Math.max(0, e.translationX); })
+    .onEnd((e) => {
+      if (e.translationX > SCREEN_W * 0.28 || e.velocityX > 900) {
+        pullX.value = withTiming(SCREEN_W, { duration: 160 }, () => { runOnJS(openQuiet)(); });
+      } else {
+        pullX.value = withSpring(0, { damping: 18, stiffness: 180 });
+      }
+    });
+  const pullSlide = useAnimatedStyle(() => ({ transform: [{ translateX: pullX.value * 0.55 }] }));
+  const pullVeil = useAnimatedStyle(() => ({ opacity: Math.min(1, (pullX.value / SCREEN_W) * 1.5) }));
+  const sliverBreath = useSharedValue(0.5);
+  useEffect(() => { sliverBreath.value = withRepeat(withTiming(1, { duration: 3800, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
+  const sliverStyle = useAnimatedStyle(() => ({ opacity: 0.25 + sliverBreath.value * 0.35 }));
   const [threads, setThreads] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -362,7 +396,17 @@ export default function ChatHome({ onOpen = () => {} }) {
   );
 
   return (
+    <GestureDetector gesture={quietPan}>
     <View style={st.root}>
+      {/* [zip17] the nightfall veil — darkens with the pull; the quiet comes like dusk */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#05060C', zIndex: 40 }, pullVeil]} />
+      {/* [zip17] the moon sliver — the standing hint at the left edge; tap = the same door */}
+      <Animated.View style={[{ position: 'absolute', left: 0, top: '42%', zIndex: 41 }, sliverStyle]}>
+        <Pressable onPress={openQuiet} hitSlop={{ top: 20, bottom: 20, left: 4, right: 14 }}>
+          <View style={{ width: 10, height: 44, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: 'rgba(233,232,240,0.5)' }} />
+        </Pressable>
+      </Animated.View>
+      <Animated.View style={[{ flex: 1 }, pullSlide]}>
       {/* the trinity + the list */}
       {tab === 'chats' && (
         <ScrollView
@@ -372,6 +416,9 @@ export default function ChatHome({ onOpen = () => {} }) {
             <Text style={st.searchIcon}>⌕</Text>
             <TextInput value={q} onChangeText={setQ} placeholder="search the house…" placeholderTextColor={MOON.faint} style={st.searchInput} />
           </View>
+          {quietHint ? (
+            <Text style={{ fontFamily: FONTS.body, color: 'rgba(233,232,240,0.34)', fontSize: 12, textAlign: 'center', marginBottom: 8, fontStyle: 'italic' }}>swipe right when you need the quiet</Text>
+          ) : null}
           <View style={st.chips}>
             {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['friends','live friends'],['archived','archived']].map(([id,label]) => (
               <Pressable key={id} style={[st.chip, filt === id && st.chipOn]} onPress={() => setFilt(id)}>
@@ -403,17 +450,7 @@ export default function ChatHome({ onOpen = () => {} }) {
               <Text style={st.line} numberOfLines={1}>sit with Victor — the expert. by thedreamai</Text>
             </View>
           </Pressable>
-          <Pressable style={st.row} onPress={() => onOpen({ kind: 'z' })}>
-            <View style={[st.ring, { borderColor: MOON.moon }]}>
-              {zFace ? <Image source={{ uri: dpFor('z') }} style={st.face} onError={() => setZFace(false)} /> : <Text style={st.zMono}>Z</Text>}
-            </View>
-            <View style={{ flex: 1, marginLeft: 13 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>Z</Text><Text style={st.time}>📌</Text>
-              </View>
-              <Text style={st.line} numberOfLines={1}>the quiet room — for what's actually on your mind</Text>
-            </View>
-          </Pressable>
+          {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
           <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=4`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'persona', key: 'the_grandmaster' })} />
           <View style={st.divider} />
           {filt === 'friends' ? (
@@ -501,7 +538,9 @@ export default function ChatHome({ onOpen = () => {} }) {
           );
         })}
       </View>
+      </Animated.View>
     </View>
+    </GestureDetector>
   );
 }
 
