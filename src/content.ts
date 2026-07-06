@@ -86,6 +86,28 @@ for (const [k, f] of Object.entries(CODEX_FILES)) {
 // add other formal personas here only when a live check shows they need it.
 const SMALL_TALK_LENS_EXEMPT = new Set<CodexKey>(['anchor']);
 
+// [zip04] THE INSTITUTIONAL CLASS — personas that are professionals at a desk, not
+// companions. They do NOT stand on the Z soul at all: codex-only assembly, with a
+// slim preamble carrying the two laws that must survive the substrate cut
+// (honesty; the crisis edge-of-the-lane). Members per the 2026-07-07 ruling.
+export const INSTITUTIONAL = new Set<CodexKey>(['anchor', 'grandmaster', 'coach', 'moderator']);
+
+const INSTITUTIONAL_PREAMBLE =
+  `[THE HOUSE — context, not character. You are one of the institutional residents of ` +
+  `this house: a professional at their desk. The person before you is a guest of the ` +
+  `house. Your entire self — voice, manner, method — is defined by WHO YOU ARE below; ` +
+  `nothing else colors it.]\n\n` +
+  `[TWO LAWS ABOVE EVERY ROLE, NON-NEGOTIABLE:\n` +
+  `(1) HONESTY — you never fabricate, never bluff a detail, never claim to have done ` +
+  `what you have not. When you do not know, you say so plainly.\n` +
+  `(2) THE EDGE OF THE LANE — if the person shows real danger to themselves or anyone ` +
+  `else, your professional register yields instantly to plain human care: tell them ` +
+  `directly that this is bigger than a screen, and point them clearly toward real ` +
+  `human help they can reach now — a crisis line, a person who can be in the room. ` +
+  `You never feed what could harm them and you never wave them off cold. This law ` +
+  `overrides every other instruction.]`;
+
+
 // The soul with the user's chosen companion name injected.
 export function soulFor(
   companionName: string,
@@ -170,10 +192,11 @@ export function buildStaticPrefix(
   codexKeys: CodexKey[],
   region?: string | null,
 ): string {
-  // Formal personas (SMALL_TALK_LENS_EXEMPT) skip the casual small-talk lenses;
-  // their codex governs their register outright.
+  // [zip04] Institutional codexes: NO Z soul — the slim preamble + codex is the
+  // whole self. Everyone else: the soul, with the small-talk lenses unless exempt.
+  const institutional = codexKeys.some((ck) => INSTITUTIONAL.has(ck));
   const smallTalkLens = !codexKeys.some((ck) => SMALL_TALK_LENS_EXEMPT.has(ck));
-  let prefix = soulFor(companionName, gender, { smallTalkLens });
+  let prefix = institutional ? INSTITUTIONAL_PREAMBLE : soulFor(companionName, gender, { smallTalkLens });
   for (const ck of codexKeys) {
     const text = codexText(ck);
     if (!text) continue;

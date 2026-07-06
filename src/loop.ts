@@ -58,6 +58,9 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // codex_key — which is frozen at creation time and goes stale when a persona is
   // recharacterized. Fall back to the stored key only if the persona has none.
   const codexKeys: CodexKey[] = [((persona?.codex as CodexKey) || (t.codex_key as CodexKey))];
+  // [zip04] the institutional class: no memory dump, no diary, slim owner line,
+  // professional register (see content.ts INSTITUTIONAL for the assembly side).
+  const institutional = ['the_anchor', 'the_grandmaster', 'the_coach', 'the_moderator'].includes(String(t.persona_key || ''));
 
   // ── CUSTOM PERSONAS: codex lives in the DB, scoped to its owner; the house
   // seatbelt rides AFTER the creator's text so it always wins. Missing or
@@ -84,7 +87,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
 
   // ── DYNAMIC (uncached): date + shared memory ──────────────────────────
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
-  const memoryBlock = await readMemoryBlock(userId);
+  const memoryBlock = institutional ? '' : await readMemoryBlock(userId);   // [zip04] institutions know name+region, nothing more
 
   // ── OWNER IDENTITY (dynamic, uncached): who Z is talking to ──────────────
   // Per-user, not per-persona, so it lives in the dynamic block and never busts
@@ -108,7 +111,9 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
         if (age > 0 && age < 120) ageBit = `, ${age} years old`;
       }
     }
-    ownerLine = `\n\n[WHO YOU'RE TALKING TO: ${who}${where}${ageBit}. This is the real person on the other end — speak to them by name when it's natural, mirror how people talk where they're from, meet them at their age (a 19-year-old and a 45-year-old need very different things from the same words), and never read this aloud as a label.]`;
+    ownerLine = institutional
+      ? `\n\n[YOU'RE SPEAKING WITH: ${who}${where}. Address them by name when natural. You know nothing else about them, and you do not probe beyond what they bring to you.]`
+      : `\n\n[WHO YOU'RE TALKING TO: ${who}${where}${ageBit}. This is the real person on the other end — speak to them by name when it's natural, mirror how people talk where they're from, meet them at their age (a 19-year-old and a 45-year-old need very different things from the same words), and never read this aloud as a label.]`;
   }
 
   // ── SERIOUS MODE (global, per-user): counselor-grade care, no bits ──────
@@ -187,14 +192,18 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   }
 
   // THE CHAT REGISTER: personas text like people — short bursts, not essays.
-  let registerNote = '\n\n[TEXTING REGISTER: this is a phone chat. Keep messages SHORT — most under 25 words. When you have more to say, break it into 2-3 separate short messages with a blank line between them (each becomes its own bubble). A question lands alone in its own bubble. Never write essays.]';
+  // [zip04] Institutional residents write like professionals, never like a group chat,
+  // and carry the PERSONAL-LIFE LAW: zero questions about the user's life.
+  let registerNote = institutional
+    ? '\n\n[THE INSTITUTIONAL REGISTER: you are a professional at your desk, not a friend on WhatsApp. Clean, complete, measured sentences — no slang, no lowercase drift, no emoji, no filler. Be concise: most replies 2-5 sentences; a longer answer splits into short paragraphs with a blank line between them. THE PERSONAL-LIFE LAW: you never ask about the user\'s personal life, day, mood, plans, work, or circumstances — not as warmth, not as small talk, not as a sign-off. The only questions you ask serve the matter at hand (clarifying the story, the lesson, the material, the motion). Their life enters the room only if THEY bring it — and even then you address the matter they raised, never their biography.]'
+    : '\n\n[TEXTING REGISTER: this is a phone chat. Keep messages SHORT — most under 25 words. When you have more to say, break it into 2-3 separate short messages with a blank line between them (each becomes its own bubble). A question lands alone in its own bubble. Never write essays.]';
   if (t?.persona_key === 'the_anchor') {
     registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly: "that is a misstatement" / "that forward is fabricated - here is what actually happened." Never soften a correction into ambiguity; never confirm what you have not verified.]';
   }
   // THE LIFE OUTSIDE — the persona's own diary (written nightly by the state
   // writer, never before injected: personas were oblivious to their own lives).
   let lifeBlock = '';
-  try { lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }
+  try { if (!institutional) lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }   // [zip04] an institution has no diary to leak
 
   const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${lifeBlock}${memoryBlock}${registerNote}`;
 
