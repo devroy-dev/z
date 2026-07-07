@@ -200,6 +200,7 @@ const PROVIDER_PINS: Record<string, ProviderKey> = {
   the_anchor: 'anthropic',
   the_grandmaster: 'anthropic',
   the_oracle: 'anthropic',   // [zip54m] his readings ride Haiku's web, always (Dev ruling)
+  the_diva: 'anthropic',   // [zip54n] her hunts died in DeepSeek's tool loop — the whole room rides the seeing lane
 };
 export function pinnedProvider(personaKey?: string | null): ProviderKey | null {
   return (personaKey && PROVIDER_PINS[personaKey]) || null;

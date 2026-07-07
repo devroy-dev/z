@@ -31,7 +31,7 @@ import { runStateWriter, currentStates, startStateScheduler } from './personaSta
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
-import { getBulletin, startBulletinScheduler } from './bulletin.js';
+import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler } from './mmDesk.js';   // [zip54k]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
@@ -1291,7 +1291,7 @@ app.post('/dev/echo', async (req, res) => {
     (echoArgs as any).__pin = pinnedProvider(p.key) || undefined;   // [zip54g] probes honor the pins
     const msg = await anthropicShared.messages.create(echoArgs);
     const reply = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
-    res.json({ persona: p.key, codex: p.codex, provider: llmStatus().active, model: (msg as any)?.model ?? null, web: !!p.webEnabled, reply });
+    res.json({ persona: p.key, codex: p.codex, provider: pinnedProvider(p.key) || llmStatus().active, model: (msg as any)?.model ?? null, web: !!p.webEnabled, reply });   // [zip54n] the label reports the EFFECTIVE route
   } catch (e: any) { res.status(500).json({ error: 'dev echo failed: ' + (e?.message || String(e)) }); }
 });
 
@@ -2621,6 +2621,20 @@ app.get('/me/blocks', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'blocks failed: ' + (e?.message || String(e)) }); }
 });
 
+// [zip54n] the reader asks the wire — one global refresh per 10 minutes keeps cost sane.
+let __lastBulletinRefresh = 0;
+app.post('/bulletin/refresh', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const now = Date.now();
+    if (now - __lastBulletinRefresh < 10 * 60 * 1000) return res.json({ ok: true, refreshed: false, note: 'the wire was checked minutes ago' });
+    __lastBulletinRefresh = now;
+    const added = await refreshBulletin('in');
+    res.json({ ok: true, refreshed: true, added });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.delete('/threads/:id', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -2637,8 +2651,11 @@ app.delete('/threads/:id', async (req, res) => {
     // plain persona thread: owner-only soft delete (unchanged behaviour)
     if (!t.is_shared) {
       if (!isOwner) return res.status(403).json({ error: 'not your thread' });
-      await supabase.from('threads').update({ deleted_at: new Date().toISOString() }).eq('id', t.id);
-      return res.json({ ok: true, mode: 'deleted' });
+      // [zip54n] DELETE = PURGE. The privacy policy promises deletion; a soft flag
+      // that leaves every message in the database is a violation, not a feature.
+      await supabase.from('messages').delete().eq('thread_id', t.id);
+      await supabase.from('threads').delete().eq('id', t.id);
+      return res.json({ ok: true, mode: 'purged' });
     }
 
     // shared: caller must be a member (or the owner)

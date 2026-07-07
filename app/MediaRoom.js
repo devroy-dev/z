@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { getMmBrief, saveMmBrief, getMmAnalytics, uploadMmAnalytics, getMmDeskNotes } from './api';
 import { FONTS } from './theme';
 
-const FLUORO = '#D7F53C';
+const FLUORO = '#A9DDF2';   // [zip54n] the fluoro is retired — the accent is the ice of his own neon sign
 const M = {
   ground: '#0C0C08',
   raise: 'rgba(215,245,60,0.05)',

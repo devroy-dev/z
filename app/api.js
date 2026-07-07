@@ -527,6 +527,8 @@ export async function storyStart(personas, opts) { return authedJSON('POST', '/g
 export async function storyStep(id, text) { return authedJSON('POST', `/games/story/${id}/step`, text !== undefined ? { text } : {}); }
 export async function storyPublish(id) { return authedJSON('POST', `/games/story/${id}/publish`, {}); }
 
+// [zip54n] the reader asks the wire
+export async function refreshBulletinFeed() { return authedJSON('POST', '/bulletin/refresh'); }
 export async function getBulletinFeed() {
   try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }
 }

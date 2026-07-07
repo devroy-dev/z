@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Grain from './Grain';
 import { C, FONTS } from './theme';
-import { getBulletinFeed, setBulletinCity } from './api';
+import { getBulletinFeed, setBulletinCity, refreshBulletinFeed } from './api';   // [zip54n]
 import { API_BASE } from './api';
 
 const GOLD = '#7FD6EC';   // signal-cyan: the monitor glow
@@ -56,6 +56,7 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
             <Text style={st.masthead}>THE BULLETIN</Text>
             <Text style={st.edition}>{edition} · with the anchor</Text>
           </View>
+          <Pressable hitSlop={10} onPress={async () => { try { setFeed(null); await refreshBulletinFeed(); } catch (e) {} await load(); }}><Text style={{ color: '#C9A86A', fontSize: 20 }}>↻</Text></Pressable>{/* [zip54n] ask the wire */}
           <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=4` }} style={st.face} />
         </View>
 
@@ -63,6 +64,7 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
           <View style={st.center}><ActivityIndicator color={GOLD} /><Text style={st.loading}>the anchor is at the desk…</Text></View>
         ) : (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+            <Image source={{ uri: `${API_BASE}/faces/the_newsroom.jpg?v=4` }} style={{ width: '100%', height: 140, borderRadius: 14, marginBottom: 12 }} resizeMode="cover" />{/* [zip54n] the studio crowns the desk */}
             {/* ask the desk — any story in the world, researched live */}
             <View style={st.askBar}>
               <TextInput
