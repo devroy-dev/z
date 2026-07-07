@@ -29,6 +29,7 @@ export default function GMForge({ onBack = () => {}, onSpar = () => {}, onChat =
   const [board, setBoard] = useState(null);       // null=loading | 'failed' | [{motion, domain}]
   const [picked, setPicked] = useState(null);     // the take awaiting a side
   const [own, setOwn] = useState('');
+  const [strength, setStrength] = useState(null);   // [zip25] null=adaptive | 'easy' | 'full'
   const [seed, setSeed] = useState(0);            // reshuffle lever
 
   const load = async () => {
@@ -55,7 +56,9 @@ export default function GMForge({ onBack = () => {}, onSpar = () => {}, onChat =
 
   const spar = (take, side) => {
     setPicked(null);
-    const opener = `Spar with me, Grand Master. The take: "${take}". I ${side === 'hold' ? 'hold this position' : 'reject this position'}. Take the other side — short exchanges, one thrust at a time, and don't let me off easy.`;
+    const dial = strength === 'easy' ? ' Go easy on me — I\'m new to this.' : strength === 'full' ? ' Come at full strength.' : '';
+    const opener = `Spar with me, Grand Master. The take: "${take}". I ${side === 'hold' ? 'hold this position' : 'reject this position'}. Take the other side — short exchanges, one thrust at a time.${dial}`;
+    setStrength(null);
     onSpar(opener);
   };
 
@@ -125,6 +128,14 @@ export default function GMForge({ onBack = () => {}, onSpar = () => {}, onChat =
               <Pressable style={st.side} onPress={() => spar(picked.motion, 'reject')}>
                 <Text style={st.sideTxt}>I reject this position</Text>
               </Pressable>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 4 }}>
+                <Pressable onPress={() => setStrength((s) => s === 'easy' ? null : 'easy')} style={[st.dial, strength === 'easy' && st.dialOn]}>
+                  <Text style={[st.dialTxt, strength === 'easy' && st.dialTxtOn]}>go easy on me</Text>
+                </Pressable>
+                <Pressable onPress={() => setStrength((s) => s === 'full' ? null : 'full')} style={[st.dial, strength === 'full' && st.dialOn]}>
+                  <Text style={[st.dialTxt, strength === 'full' && st.dialTxtOn]}>come at full strength</Text>
+                </Pressable>
+              </View>
             </View>
           </Pressable>
         ) : null}
@@ -161,4 +172,8 @@ const st = StyleSheet.create({
   sheetTake: { fontFamily: FONTS.display, color: G.ink, fontSize: 17, lineHeight: 25, marginBottom: 20 },
   side: { paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(232,120,142,0.35)', alignItems: 'center', marginBottom: 10, backgroundColor: 'rgba(232,120,142,0.07)' },
   sideTxt: { fontFamily: FONTS.medium, color: G.ink, fontSize: 15 },
+  dial: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(232,120,142,0.22)' },   // [zip25]
+  dialOn: { backgroundColor: 'rgba(232,120,142,0.14)', borderColor: 'rgba(232,120,142,0.5)' },
+  dialTxt: { fontFamily: FONTS.body, color: G.faint, fontSize: 12.5 },
+  dialTxtOn: { color: G.ink },
 });
