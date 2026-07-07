@@ -58,6 +58,10 @@ export default function DMScreen({ room, onBack = () => {} }) {
             </View>
           </View>
 
+          {/* [zip56] the diagnostic pill — temporary, founder eyes only */}
+          <Text style={{ fontFamily: 'Figtree_300Light', fontSize: 10, color: 'rgba(233,232,240,0.4)', paddingHorizontal: 18, paddingBottom: 2 }}>
+            rt:{String(feed.rt)}  r:{feed.rtCount}  p:{feed.rtRendered}  last:{String(feed.rtLast)}
+          </Text>
           <MessageList lines={feed.lines} booted={feed.booted} hideSpeaker emptyCopy="just the two of you — say hello." />
           <Composer onSend={({ text, image }) => feed.send({ text, image })} sending={feed.sending} placeholder="message…" />
         </SafeAreaView>

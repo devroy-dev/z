@@ -298,6 +298,8 @@ export default function ChatHome({ onOpen = () => {} }) {
   // room) means one load() — server truth carries the full row in.
   const knownIdsRef = useRef(new Set());
   const meIdRef = useRef(null);
+  const [inboxRt, setInboxRt] = useState('connecting');   // [zip56] diag
+  const [inboxBumps, setInboxBumps] = useState(0);        // [zip56] diag
   useEffect(() => {
     knownIdsRef.current = new Set([...(threads || []).map((t) => t.id), ...(rooms || []).map((r) => r.id)]);
   }, [threads, rooms]);
@@ -309,6 +311,7 @@ export default function ChatHome({ onOpen = () => {} }) {
         if (!alive || !me?.id) return;
         meIdRef.current = me.id;
         await subscribeInbox(me.id, (b) => {
+          setInboxBumps((n) => n + 1);   // [zip56] diag: every bump, before any filtering
           if (!b || !b.thread_id) return;
           const stamp = b.last_active || new Date().toISOString();
           if (!knownIdsRef.current.has(b.thread_id)) { load(); return; }
@@ -331,7 +334,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             }).catch(() => {});
             return next;
           });
-        });
+        }, (status) => setInboxRt(String(status)));
       } catch (e) {}
     })();
     return () => { alive = false; try { unsubscribeInbox(); } catch (e) {} };
@@ -463,6 +466,8 @@ export default function ChatHome({ onOpen = () => {} }) {
           <View style={st.searchWrap}>
             <Text style={st.searchIcon}>⌕</Text>
             <TextInput value={q} onChangeText={setQ} placeholder="search the house…" placeholderTextColor={MOON.faint} style={st.searchInput} />
+        {/* [zip56] inbox channel diag — temporary */}
+        <Text style={{ fontFamily: 'Figtree_300Light', fontSize: 10, color: 'rgba(233,232,240,0.4)', paddingHorizontal: 4, marginTop: 2 }}>inbox:{inboxRt}  b:{inboxBumps}</Text>
           </View>
           {quietHint ? (
             <Text style={{ fontFamily: FONTS.body, color: 'rgba(233,232,240,0.34)', fontSize: 12, textAlign: 'center', marginBottom: 8, fontStyle: 'italic' }}>swipe right when you need the quiet</Text>
