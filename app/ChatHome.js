@@ -251,6 +251,7 @@ export default function ChatHome({ onOpen = () => {} }) {
     onOpen({ kind: 'z' });
   };
   const quietPan = Gesture.Pan()
+    .enabled(tab === 'chats')   // [zip19] Z is reached from the chat list only
     .activeOffsetX(16)
     .failOffsetX(-12)
     .failOffsetY([-14, 14])
@@ -401,11 +402,11 @@ export default function ChatHome({ onOpen = () => {} }) {
       {/* [zip17] the nightfall veil — darkens with the pull; the quiet comes like dusk */}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#05060C', zIndex: 40 }, pullVeil]} />
       {/* [zip17] the moon sliver — the standing hint at the left edge; tap = the same door */}
-      <Animated.View style={[{ position: 'absolute', left: 0, top: '42%', zIndex: 41 }, sliverStyle]}>
+      {tab === 'chats' && <Animated.View style={[{ position: 'absolute', left: 0, top: '42%', zIndex: 41 }, sliverStyle]}>
         <Pressable onPress={openQuiet} hitSlop={{ top: 20, bottom: 20, left: 4, right: 14 }}>
           <View style={{ width: 10, height: 44, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: 'rgba(233,232,240,0.5)' }} />
         </Pressable>
-      </Animated.View>
+      </Animated.View>}
       <Animated.View style={[{ flex: 1 }, pullSlide]}>
       {/* the trinity + the list */}
       {tab === 'chats' && (
@@ -471,7 +472,7 @@ export default function ChatHome({ onOpen = () => {} }) {
           ) : (
             <>
               {recents.map((r, i) => (
-                <ReanimatedSwipeable key={r.threadId || i} renderRightActions={rowActions(r)} overshootRight={false} friction={2}>
+                <ReanimatedSwipeable key={r.threadId || i} renderRightActions={rowActions(r)} overshootRight={false} friction={2} dragOffsetFromLeftEdge={200}>
                   <Row
                     face={r.kind === 'persona' && !r.key.startsWith('custom_') ? dpFor(r.key) : null}
                     glyph={r.kind === 'persona' && r.key.startsWith('custom_') ? (r.name && r.name[0] ? r.name[0].toUpperCase() : '✦') : r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
@@ -491,7 +492,7 @@ export default function ChatHome({ onOpen = () => {} }) {
                     <Text style={st.archiveTxt}>{showArchived ? '▾' : '▸'} archived ({archivedRows.length})</Text>
                   </Pressable>
                   {showArchived && archivedRows.map((r, i) => (
-                    <ReanimatedSwipeable key={'a' + (r.threadId || i)} renderRightActions={rowActions(r)} overshootRight={false} friction={2}>
+                    <ReanimatedSwipeable key={'a' + (r.threadId || i)} renderRightActions={rowActions(r)} overshootRight={false} friction={2} dragOffsetFromLeftEdge={200}>
                       <Row
                         face={r.kind === 'persona' ? dpFor(r.key) : null}
                         glyph={r.kind === 'dm' ? '🙂' : null}
