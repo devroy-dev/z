@@ -38,6 +38,7 @@ const CONF: Record<ProviderKey, {
   model: (requested: string) => string;
   webSearch: () => boolean;
   cache: boolean;
+  noThink?: boolean;   // [zip38] provider mutters (emits thinking blocks) unless told not to
 }> = {
   anthropic: {
     keyEnv: 'ANTHROPIC_API_KEY',
@@ -58,6 +59,7 @@ const CONF: Record<ProviderKey, {
     model: () => process.env.LLM_DEEPSEEK_MODEL || 'deepseek-v4-flash',
     webSearch: () => process.env.DEEPSEEK_WEB === '1',
     cache: false,
+    noThink: true,   // probe-proven: silent reasoning ate a 220-token note whole
   },
 };
 
@@ -118,6 +120,7 @@ function translate(params: any): any {
   if (p === 'anthropic') return params;
   const c = CONF[p];
   let out = { ...params, model: c.model(String(params?.model || '')) };
+  if (c.noThink && out.thinking === undefined) out.thinking = { type: 'disabled' };   // no muttering — callers may still opt in explicitly
   if (!c.cache) out = stripCache(out);
   if (Array.isArray(out.tools)) {
     if (!c.webSearch()) out.tools = out.tools.filter((t: any) => !String(t?.type || '').startsWith('web_search'));
