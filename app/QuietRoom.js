@@ -9,7 +9,7 @@
 //  Engine unchanged: z_serious, the stream, the unhurried pacer. Pure JS/OTA.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Image, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Image, Alert, Dimensions, Modal } from 'react-native';   // [zip45] Modal: the OS layer, above every ancestor
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, LinearGradient as SvgLinear, Stop, Circle, Ellipse, Rect, Path } from 'react-native-svg';   // [zip21]
@@ -396,10 +396,11 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
           </View>
 
           {/* the moon-door: journal · what i remember */}
-          {sheet ? (
+          {/* [zip45] the moon-door, from the OS layer: three geometry rounds said
+              stop trusting the tree. Modal owns the whole screen; the card's
+              coordinates are finally TRUE screen coordinates. */}
+          <Modal visible={sheet} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setSheet(false)}>
             <Pressable style={styles.popVeil} onPress={() => setSheet(false)}>
-              {/* [zip29][zip30] the menu opens where you touched; the page is the dismiss */}
-              <PopIn>
               <Pressable style={styles.popover} onPress={() => {}}>
                 <Pressable onPress={() => { setSheet(false); onJournal(); }} hitSlop={6} style={styles.popRow}>
                   <Text style={styles.popLine}>the journal ›</Text>
@@ -409,9 +410,8 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
                   <Text style={styles.popLine}>what i remember ›</Text>
                 </Pressable>
               </Pressable>
-              </PopIn>
             </Pressable>
-          ) : null}
+          </Modal>
         </SafeAreaView>
       </KeyboardAvoidingView>
     </View>
