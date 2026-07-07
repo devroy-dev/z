@@ -19,7 +19,8 @@ import Consult from './Consult';
 import QuietRoom from './QuietRoom';
 import Journal from './Journal';
 import Chat from './Chat';
-import RoomChat from './RoomChat';
+import DMScreen from './DMScreen';   // [zip49] the dismantle: RoomChat died here
+import CuratedRoomScreen from './CuratedRoomScreen';
 import ChatHome, { MOON } from './ChatHome';
 import You from './You';
 
@@ -217,7 +218,11 @@ export default function Nav({ screens, onLogout = () => {} }) {
   const chatContent = chatOpen
     ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
       : chatOpen.kind === 'roster' ? screens.gathering({ navigate, target: null })
-      : chatOpen.kind === 'room' ? <RoomChat room={chatOpen.room} onBack={() => setChatOpen(null)} />
+      : chatOpen.kind === 'room' ? (
+          ((chatOpen.room?.personas && chatOpen.room.personas.length) || chatOpen.room?.persona)
+            ? <CuratedRoomScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
+            : <DMScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
+        )
       : <Chat key={chatOpen.key} personaKey={chatOpen.key} initialDraft={chatOpen.draft || ''} autoSend={!!chatOpen.autoSend} onBack={() => { if (chatOpen.from) { setChatOpen(null); setOverlay({ tab: chatOpen.from }); } else { setChatOpen(null); } }} onRoute={navigate} diag={diag} onCost={(inr) => setSessCost((c) => c + (inr || 0))} />)
     : <ChatHome onOpen={openFromChat} />;
 

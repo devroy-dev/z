@@ -51,7 +51,8 @@ import DebateMatch from './games/debate/Match';
 import TriviaMatch from './games/trivia/Match';
 import VerbalMatch from './games/verbal/Match';
 import Rooms from './Rooms';
-import RoomChat from './RoomChat';
+import DMScreen from './DMScreen';   // [zip49] the dismantle: RoomChat died here
+import CuratedRoomScreen from './CuratedRoomScreen';
 import Desk from './Desk';
 import You from './You';
 import Door from './Door';
@@ -217,7 +218,9 @@ function RoomsWorld() {
     if (openRoom.kind === 'public') {
       return <PublicRoom room={openRoom} onExit={() => setOpenRoom(null)} />;
     }
-    return <RoomChat room={openRoom} onBack={() => setOpenRoom(null)} />;
+    return ((openRoom?.personas && openRoom.personas.length) || openRoom?.persona)
+      ? <CuratedRoomScreen room={openRoom} onBack={() => setOpenRoom(null)} />
+      : <DMScreen room={openRoom} onBack={() => setOpenRoom(null)} />;
   }
   return <Rooms onOpen={(r) => setOpenRoom(r)} />;
 }
