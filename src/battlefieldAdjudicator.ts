@@ -11,11 +11,12 @@
 //
 // The codex owns HOW he judges; deterministic game code owns turns/phases/floors.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { readContentFile } from './content.js';
 import { logUsage } from './usage.js';
 import { extractIndex, indexAsText, sliceSection } from './codexRetrieval.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // ── load the always-on pieces once at boot (his permanent self) ──

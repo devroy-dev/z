@@ -13,6 +13,11 @@ export const MODELS: Record<string, { tier: Tier; usdInPerM: number; usdOutPerM:
   'claude-haiku-4-5-20251001': { tier: 'entry', usdInPerM: 1, usdOutPerM: 5 },
   'claude-haiku-4-5':          { tier: 'entry', usdInPerM: 1, usdOutPerM: 5 },
   'claude-sonnet-4-6':         { tier: 'top',   usdInPerM: 3, usdOutPerM: 15 },
+  // [zip34] the second generator's providers, at real rates (ledger-ready for the full build)
+  'glm-4.7-flash':             { tier: 'entry', usdInPerM: 0, usdOutPerM: 0 },
+  'glm-4.5-flash':             { tier: 'entry', usdInPerM: 0, usdOutPerM: 0 },
+  'deepseek-v4-flash':         { tier: 'entry', usdInPerM: 0.14, usdOutPerM: 0.28 },
+  'deepseek-v4-pro':           { tier: 'top',   usdInPerM: 0.435, usdOutPerM: 0.87 },
 };
 
 export const USD_TO_INR = 100;   // the working conversion (Dream Engine convention)

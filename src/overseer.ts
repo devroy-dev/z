@@ -5,6 +5,7 @@
 // Reads feeling, never mind. Not a persona — no user talks to it. Writes via the
 // service-role client (bypasses RLS), into z.user_summaries (kind: daily|weekly).
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { soulFor } from './content.js';
 import { runRoomMemoryHarvest } from './roomMemory.js';
@@ -12,7 +13,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-const anthropic = new Anthropic();
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

@@ -12,8 +12,9 @@
 
 import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const JUDGE_MODEL = process.env.MODERATION_MODEL || 'claude-haiku-4-5-20251001';
 
 // ── Layer 1: deterministic classes ──────────────────────────────────────

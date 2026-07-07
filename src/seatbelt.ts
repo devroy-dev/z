@@ -8,10 +8,11 @@
 //  ships without passing through here.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { logUsage } from './usage.js';
 
 // shared client on native fetch — the premature-close lesson (see index.ts)
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const SEATBELT_MODEL = 'claude-haiku-4-5-20251001';
 
 const GATE = `You are a strict safety gate on PROACTIVE messages an AI persona wants to send a user who did NOT message first. You do not rewrite; you only approve or reject.

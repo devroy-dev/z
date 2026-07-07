@@ -6,6 +6,7 @@
 // just looped over members. Each member's reply is tagged with its persona key so the
 // surface can show the right name/face per bubble.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { withGapMarker, sinceLine } from './timegap.js';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
@@ -16,7 +17,7 @@ import { personaByKey, type CodexKey } from './personas.js';
 import { broadcastRoomMessage } from './broadcast.js';
 import { stateBlockFor } from './personaStates.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // ── THE DIRECTOR ───────────────────────────────────────────────────────────

@@ -13,13 +13,14 @@
 // path is unit-testable without the model. Generation reuses the triviaDuel shape:
 // strict JSON, per-item validation, safe fallbacks — a bad generation never bricks a day.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { embedQueryLiteral } from './coachEmbed.js';
 import { LIBRARIAN_ID } from './coachLibrary.js';
 import { codexText } from './content.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // The coach's SOUL — his voice/manner, loaded once. It colors HOW he teaches and

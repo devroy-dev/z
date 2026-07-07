@@ -6,6 +6,7 @@
 //  per day, shared by every user. The soap-opera engine.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { readFileSync } from 'fs';
 
@@ -21,7 +22,7 @@ function lifeSection(personaKey: string): string {
 import { personaByKey } from './personas.js';
 import { PURSUITS } from './pursuits.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 const RUN_HOUR_IST = 5;                     // states ready before the house wakes
 

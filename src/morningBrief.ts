@@ -6,12 +6,13 @@
 //  it appears in "left at the desk" and in the front desk's thread.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { personaByKey } from './personas.js';
 import { logUsage } from './usage.js';
 import { ARCS } from './arcs.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 const RUN_HOUR_IST = 7;                      // after the diarist (5), before the day
 

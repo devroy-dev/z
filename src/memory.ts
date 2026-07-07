@@ -18,10 +18,11 @@
 // Semantic dedupe / contradiction resolution across OLD rows = memoryGardener.ts.
 import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { logUsage } from './usage.js';
 
 // shared client on native fetch — per the /banter premature-close lesson (see index.ts)
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // Pull the user's memory into a context block. Ordered by weight, capped so it

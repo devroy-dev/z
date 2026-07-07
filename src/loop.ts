@@ -4,6 +4,7 @@
 //   DYNAMIC (uncached): today's date + the shared memory block. Changes per turn.
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPersonas.js';
 import { buildCustomPrefix } from './content.js';
@@ -18,7 +19,7 @@ import { executeConciergeTags, parseWhen } from './concierge.js';
 // Use Node's native fetch (undici) instead of the SDK's default node-fetch@2, which
 // premature-closes streaming responses on Node 22 (this engine pins Node 22 for supabase
 // realtime). The SDK reads native fetch's web ReadableStream body fine.
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 export interface ZTurnInput {

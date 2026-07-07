@@ -7,11 +7,12 @@
 // of a lesson is his voice). Client-side retrieval tools can't ride the streaming path,
 // so we retrieve first (fast, non-streamed), inject, then stream normally.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { readContentFile } from './content.js';
 import { logUsage } from './usage.js';
 import { extractIndex, indexAsText, sliceSection } from './codexRetrieval.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // The Grand Master's OWN corpus — a superset of the adjudicator's, deeper and wider,

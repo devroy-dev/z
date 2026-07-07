@@ -9,12 +9,13 @@
 // natively → §-numbered page-mapped JSON Brief → salvage-on-truncation → insert (the
 // trigger lays the §-rows) → embedBriefOnShelve fills the vectors. Briefs are IMMUTABLE.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { embedBriefOnShelve } from './coachEmbed.js';
 import { calcCostInr, usageFromApi } from './models.js';
 import { logUsage } from './usage.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const CLERK_MODEL = 'claude-sonnet-4-6';   // the one-time reading clerk (careful, native PDF)
 const BUCKET = 'coach-docs';
 const CLERK_MAX_TOKENS = 16000;

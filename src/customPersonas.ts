@@ -14,13 +14,14 @@
 import type express from 'express';
 import { randomBytes } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { resolveUser } from './zAccess.js';
 import { logUsage } from './usage.js';
 import { PERSONAS } from './personas.js';
 import { readContentFile } from './content.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const MAX_CUSTOMS = 3;

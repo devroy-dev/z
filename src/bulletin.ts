@@ -5,10 +5,11 @@
 //  reader can walk into his studio and interrogate any of them.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { logUsage } from './usage.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const istToday = () => {

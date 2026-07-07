@@ -8,6 +8,7 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
@@ -61,7 +62,7 @@ const __dirname2 = dirname(fileURLToPath(import.meta.url));
 // Per-request `new Anthropic()` via dynamic import was causing "Premature close" on /banter.
 // Native fetch (undici) — NOT the SDK's default node-fetch@2, which premature-closes
 // streams on Node 22. Same fix as loop.ts; applies to /banter + /dev/echo.
-const anthropicShared = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropicShared = llm();   // [zip34] the second generator — provider-routable
 startFollowupScheduler();
 startStateScheduler();
 startBriefScheduler();

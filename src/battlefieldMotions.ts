@@ -11,11 +11,12 @@
 // The codex owns the standard (CORE = the adjudication discipline); this module just
 // applies it to a motion before any debate happens.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { readContentFile } from './content.js';
 import { logUsage } from './usage.js';
 import { DOMAIN_LABELS, type DebateDomain } from './battlefieldAdjudicator.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const CORE = (() => { try { return readContentFile('debate-adjudication-core.md'); } catch { return ''; } })();

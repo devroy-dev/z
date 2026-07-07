@@ -11,12 +11,13 @@
 //  corpus per the roadmap amendment; enforcement comes after real data).
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { personaByKey } from './personas.js';
 import { seatbeltCheck } from './seatbelt.js';
 import { logUsage } from './usage.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 const RUN_HOUR_IST = 18;                       // ~6pm IST — the evening nudge
 

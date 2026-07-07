@@ -12,8 +12,9 @@
 import { supabase } from './db.js';
 import { personaByKey } from './personas.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from './llm.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // Pull the room's memory for THIS persona's turn: the collective memory everyone
