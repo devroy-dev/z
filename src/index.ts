@@ -8,7 +8,7 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
-import { llm, firstText, setLlmOverride, llmStatus } from './llm.js';
+import { llm, firstText, setLlmOverride, setLlmWeb, llmStatus } from './llm.js';   // [zip40]
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
@@ -1081,8 +1081,9 @@ app.get('/dev/llm', async (req, res) => {
 app.post('/dev/llm', async (req, res) => {
   const key = process.env.DEV_KEY;
   if (!key || req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
-  const active = setLlmOverride(req.body?.provider ?? null);
-  console.log('[llm] console switch → override:', req.body?.provider ?? null, '→ active:', active);
+  if ('web' in (req.body ?? {})) { setLlmWeb(req.body.web); console.log('[llm] console web switch →', req.body.web); }   // [zip40]
+  const active = ('provider' in (req.body ?? {})) ? setLlmOverride(req.body.provider ?? null) : llmStatus().active as any;
+  console.log('[llm] console switch → provider:', req.body?.provider, '→ active:', active);
   res.json({ ...llmStatus(), recentCalls: costSnapshot() });
 });
 app.post('/dev/llm/probe', async (req, res) => {

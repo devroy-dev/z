@@ -57,12 +57,15 @@ const CONF: Record<ProviderKey, {
     baseURL: 'https://api.deepseek.com/anthropic',
     keyEnv: 'DEEPSEEK_API_KEY',
     model: () => process.env.LLM_DEEPSEEK_MODEL || 'deepseek-v4-flash',
-    webSearch: () => process.env.DEEPSEEK_WEB === '1',
+    webSearch: () => deepseekWeb(),
     cache: false,
     noThink: true,   // probe-proven: silent reasoning ate a 220-token note whole
   },
 };
 
+let _webOverride: boolean | null = null;   // [zip40] the console's search switch
+export function setLlmWeb(v: boolean | null): void { _webOverride = typeof v === 'boolean' ? v : null; }
+function deepseekWeb(): boolean { return _webOverride ?? (process.env.DEEPSEEK_WEB === '1'); }
 let _override: ProviderKey | null = null;   // [zip37] the console's fast lever — resets on restart, env stays durable
 export function setLlmOverride(p: string | null): ProviderKey {
   _override = p && CONF[p as ProviderKey] ? (p as ProviderKey) : null;
@@ -79,6 +82,7 @@ export function llmStatus() {
       glm: !!process.env.ZAI_API_KEY,
       deepseek: !!process.env.DEEPSEEK_API_KEY,
     },
+    web: { active: deepseekWeb(), override: _webOverride, env: process.env.DEEPSEEK_WEB === '1' },
   };
 }
 export function llmProvider(): ProviderKey {

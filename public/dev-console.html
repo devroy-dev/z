@@ -44,6 +44,14 @@
     <button data-p="">env default</button>
   </div>
   <div class="note">runtime switch — instant, no redeploy. resets to the env default on restart/deploy (by design: env is durable, this is the fast lever).</div>
+  <!-- [zip40] -->
+  <div style="height:14px"></div>
+  <label>deepseek web search</label>
+  <div class="row" id="webBtns">
+    <button data-w="on">search on</button>
+    <button data-w="off">search off</button>
+    <button data-w="">env default</button>
+  </div>
 </div>
 
 <div class="card">
@@ -73,7 +81,12 @@ async function refresh() {
     $('status').innerHTML = 'active: <b>' + j.active + '</b>' +
       (j.override ? ' <span class="pill">runtime override</span>' : ' <span class="pill">from env</span>') +
       '<br/>keys: ' + ['anthropic','deepseek','glm'].map(p => p + ' <span class="pill ' + (j.keys[p] ? 'ok' : '') + '">' + (j.keys[p] ? 'set' : 'missing') + '</span>').join(' · ') +
-      (j.recentCalls != null ? '<br/>calls since boot: <b>' + j.recentCalls + '</b>' : '');
+      (j.recentCalls != null ? '<br/>calls since boot: <b>' + j.recentCalls + '</b>' : '') +
+      (j.web ? '<br/>deepseek search: <b>' + (j.web.active ? 'on' : 'off') + '</b>' + (j.web.override !== null ? ' <span class="pill">runtime override</span>' : ' <span class="pill">from env</span>') : '');
+    document.querySelectorAll('#webBtns button').forEach(b => {
+      const st = b.dataset.w === 'on' ? true : b.dataset.w === 'off' ? false : null;
+      b.classList.toggle('on', j.web && ((st === null && j.web.override === null) || (st !== null && j.web.override === st)));
+    });
     document.querySelectorAll('#btns button').forEach(b => {
       b.classList.toggle('on', (b.dataset.p || j.env) === j.active && (b.dataset.p !== '' || !j.override));
       if (b.dataset.p && !j.keys[b.dataset.p]) b.classList.add('dead'); else b.classList.remove('dead');
@@ -83,6 +96,11 @@ async function refresh() {
 
 document.querySelectorAll('#btns button').forEach(b => b.addEventListener('click', async () => {
   await fetch('/dev/llm', { method: 'POST', headers: H(), body: JSON.stringify({ provider: b.dataset.p || null }) });
+  refresh();
+}));
+document.querySelectorAll('#webBtns button').forEach(b => b.addEventListener('click', async () => {
+  const w = b.dataset.w === 'on' ? true : b.dataset.w === 'off' ? false : null;
+  await fetch('/dev/llm', { method: 'POST', headers: H(), body: JSON.stringify({ web: w }) });
   refresh();
 }));
 
