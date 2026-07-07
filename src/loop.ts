@@ -94,6 +94,17 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       + '6. THE CLOSE. When the spar runs its course or they yield: the debrief — two sentences on what they did well, ONE weakness to train, ONE move to practice. Then the door: another take, or the battlefield.]';
   }
 
+  // [zip27] THE INTERVIEWER'S CRAFT — his method (rubric, choreographies, press
+  // patterns, India fidelity) rides the cached prefix like the GM's forge bank:
+  // constant text, one cache bust, then read at ~10%. Silent preparation — the
+  // framing forbids naming or reciting it.
+  if (t.persona_key === 'the_interviewer') {
+    try {
+      const craft = readContentFile('codex-interviewer-craft.md');
+      if (craft) staticPrefix += '\n\n[YOUR CRAFT — the method of your desk, held as instinct. This governs HOW you run rounds, press evasions, and reach verdicts: the hire-signal follows the evidence ledger, never mood. You never name this material, never recite it, never show the rubric to a candidate — it simply is how you work.]\n\n' + craft;
+    } catch { /* craft not shipped — he runs on soul alone */ }
+  }
+
   // ── DYNAMIC (uncached): date + shared memory ──────────────────────────
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
   const memoryBlock = institutional ? '' : await readMemoryBlock(userId);   // [zip04] institutions know name+region, nothing more
