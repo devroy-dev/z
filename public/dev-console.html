@@ -46,7 +46,7 @@
   <div class="note">runtime switch — instant, no redeploy. resets to the env default on restart/deploy (by design: env is durable, this is the fast lever).</div>
   <!-- [zip40] -->
   <div style="height:14px"></div>
-  <label>deepseek web search</label>
+  <label>web search (active provider)</label> <!-- [zip43] -->
   <div class="row" id="webBtns">
     <button data-w="on">search on</button>
     <button data-w="off">search off</button>
@@ -62,6 +62,7 @@
   <div class="row">
     <button id="probe" style="flex:2">fire probe</button>
     <input id="ptok" type="number" value="220" style="flex:1; min-width:70px" title="max_tokens" />
+    <button id="pweb" style="flex:1; min-width:90px" title="attach the web_search tool">web: off</button>
   </div>
   <pre id="pout" style="display:none"></pre>
 </div>
@@ -104,12 +105,14 @@ document.querySelectorAll('#webBtns button').forEach(b => b.addEventListener('cl
   refresh();
 }));
 
+let probeWeb = false;
+$('pweb').addEventListener('click', () => { probeWeb = !probeWeb; $('pweb').textContent = 'web: ' + (probeWeb ? 'ON' : 'off'); $('pweb').classList.toggle('on', probeWeb); });
 $('probe').addEventListener('click', async () => {
   $('pout').style.display = 'block'; $('pout').textContent = '…';
   try {
     const r = await fetch('/dev/llm/probe', { method: 'POST', headers: H(), body: JSON.stringify({
       system: $('psys').value || undefined, message: $('pmsg').value || 'Say hello in one line.',
-      max_tokens: parseInt($('ptok').value, 10) || 220,
+      max_tokens: parseInt($('ptok').value, 10) || 220, web: probeWeb || undefined,
     })});
     $('pout').textContent = JSON.stringify(await r.json(), null, 2);
   } catch (e) { $('pout').textContent = String(e); }

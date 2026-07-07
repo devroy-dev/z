@@ -50,7 +50,7 @@ const CONF: Record<ProviderKey, {
     baseURL: 'https://api.z.ai/api/anthropic',
     keyEnv: 'ZAI_API_KEY',
     model: () => process.env.LLM_GLM_MODEL || 'glm-4.7-flash',
-    webSearch: () => false,
+    webSearch: () => glmWeb(),   // [zip43] probe-decided, not assumed — the blind notice covers whenever off or unsupported
     cache: false,
   },
   deepseek: {
@@ -66,6 +66,7 @@ const CONF: Record<ProviderKey, {
 let _webOverride: boolean | null = null;   // [zip40] the console's search switch
 export function setLlmWeb(v: boolean | null): void { _webOverride = typeof v === 'boolean' ? v : null; }
 function deepseekWeb(): boolean { return _webOverride ?? (process.env.DEEPSEEK_WEB === '1'); }
+function glmWeb(): boolean { return _webOverride ?? (process.env.GLM_WEB === '1'); }   // [zip43] symmetric switch; the console override governs the ACTIVE provider
 let _override: ProviderKey | null = null;   // [zip37] the console's fast lever — resets on restart, env stays durable
 export function setLlmOverride(p: string | null): ProviderKey {
   _override = p && CONF[p as ProviderKey] ? (p as ProviderKey) : null;
@@ -82,7 +83,11 @@ export function llmStatus() {
       glm: !!process.env.ZAI_API_KEY,
       deepseek: !!process.env.DEEPSEEK_API_KEY,
     },
-    web: { active: deepseekWeb(), override: _webOverride, env: process.env.DEEPSEEK_WEB === '1' },
+    web: {
+      active: llmProvider() === 'glm' ? glmWeb() : llmProvider() === 'deepseek' ? deepseekWeb() : true,
+      override: _webOverride,
+      env: llmProvider() === 'glm' ? (process.env.GLM_WEB === '1') : (process.env.DEEPSEEK_WEB === '1'),
+    },   // [zip43] the active provider's truth
   };
 }
 export function llmProvider(): ProviderKey {

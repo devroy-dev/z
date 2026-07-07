@@ -1090,7 +1090,7 @@ app.post('/dev/llm/probe', async (req, res) => {
   try {
     const key = process.env.DEV_KEY;
     if (!key || req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
-    const { system, message, max_tokens, model } = req.body ?? {};
+    const { system, message, max_tokens, model, web } = req.body ?? {};
     if (!message) return res.status(400).json({ error: 'need { message }' });
     const params: any = {
       model: model || 'claude-haiku-4-5-20251001',
@@ -1099,6 +1099,7 @@ app.post('/dev/llm/probe', async (req, res) => {
       messages: [{ role: 'user', content: String(message) }],
     };
     if (system) params.system = String(system);
+    if (web === true) params.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }];   // [zip43] the exact block our web personas send
     const msg: any = await anthropicShared.messages.create(params);
     res.json({
       provider: llmStatus().active,
