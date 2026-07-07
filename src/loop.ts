@@ -153,6 +153,18 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   }
 
   // ── THE FRONT DESK: inject the user's task list + how to manage it ──────
+  // [zip54d] THE CLIENT BRIEF — the advisor never asks for what he has already been
+  // told; his own working notes on this client ride every turn.
+  let mmBlock = '';
+  if (String(t.persona_key || '') === 'the_media_manager') {
+    try {
+      const { data: brief } = await supabase.from('mm_brief').select('*').eq('user_id', t.user_id).maybeSingle();
+      if (brief) {
+        const f = (label: string, v: any) => (v ? `\n  ${label}: ${String(v).slice(0, 400)}` : '');
+        mmBlock = `\n\n[THE CLIENT BRIEF — your own working notes on the client in front of you, gathered quietly over your time together. This is what you already know; never ask for what is written here. An empty line is a gap you hold in your notes and fill in its own time, never by interrogation.${f('name / handle', brief.display_name || brief.handle)}${f('platforms', brief.platforms)}${f('niche', brief.niche)}${f('content pillars', brief.pillars)}${f('audience', brief.audience)}${f('stage', brief.stage)}${f('the goal', brief.goal)}${f('active deals', brief.deals)}${f('cadence', brief.cadence)}${f('standing notes', brief.notes)}]`;
+      }
+    } catch (e: any) { console.error('[mm] brief failed:', e?.message || e); }
+  }
   let frontDeskBlock = '';
   if (t.persona_key === 'the_front_desk') {
     const { data: tasks } = await supabase.from('tasks')
@@ -228,7 +240,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   let lifeBlock = '';
   try { if (!institutional) lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }   // [zip04] an institution has no diary to leak
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${lifeBlock}${memoryBlock}${registerNote}`;
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the

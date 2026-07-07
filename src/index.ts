@@ -1113,6 +1113,31 @@ app.post('/dev/llm/probe', async (req, res) => {
   }
 });
 
+// [zip54d] ── THE CLIENT BRIEF ── the advisor's working notes on the one client he
+// manages (the user). The room writes it; the loop reads it every turn.
+app.get('/mm/brief', async (req: any, res: any) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('mm_brief').select('*').eq('user_id', user.id).maybeSingle();
+    res.json({ brief: data ?? null });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/mm/brief', async (req: any, res: any) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const FIELDS = ['display_name', 'handle', 'platforms', 'niche', 'pillars', 'audience', 'stage', 'goal', 'deals', 'cadence', 'notes'];
+    const row: any = { user_id: user.id, updated_at: new Date().toISOString() };
+    for (const f of FIELDS) if (f in (req.body ?? {})) row[f] = String(req.body[f] ?? '').slice(0, 800) || null;
+    const { error } = await supabase.from('mm_brief').upsert(row, { onConflict: 'user_id' });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.post('/dev/echo', async (req, res) => {
   try {
     const key = process.env.DEV_KEY;
