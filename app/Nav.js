@@ -185,7 +185,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} onOpenChat={navigate} />;
     if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} onJournal={() => setOverlay({ tab: 'journal' })} />;
     if (overlay.tab === 'journal') return <Journal onBack={() => setOverlay({ tab: 'quiet' })} />;
-    if (overlay.tab === 'coach') return <Coach onBack={() => setOverlay(null)} onAskCoach={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_coach', from: 'coach' }); }} />;
+    if (overlay.tab === 'coach') return <Coach onBack={() => setOverlay(null)} onAskCoach={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_coach', from: 'coach' }); }} onInterview={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', from: 'coach' }); }} />;   // [zip26]
     if (overlay.tab === 'forge') return <GMForge onBack={() => setOverlay(null)} onSpar={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_grandmaster', draft, autoSend: true, from: 'forge' }); }} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_grandmaster', from: 'forge' }); }} onArena={() => { setOverlay(null); navigate('play'); }} />;   // [zip23]
     if (overlay.tab === 'bulletin') return (
       <Bulletin

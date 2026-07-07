@@ -60,7 +60,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   const codexKeys: CodexKey[] = [((persona?.codex as CodexKey) || (t.codex_key as CodexKey))];
   // [zip04] the institutional class: no memory dump, no diary, slim owner line,
   // professional register (see content.ts INSTITUTIONAL for the assembly side).
-  const institutional = ['the_anchor', 'the_grandmaster', 'the_coach', 'the_moderator'].includes(String(t.persona_key || ''));
+  const institutional = ['the_anchor', 'the_grandmaster', 'the_coach', 'the_moderator', 'the_interviewer'].includes(String(t.persona_key || ''));   // [zip26]
 
   // ── CUSTOM PERSONAS: codex lives in the DB, scoped to its owner; the house
   // seatbelt rides AFTER the creator's text so it always wins. Missing or

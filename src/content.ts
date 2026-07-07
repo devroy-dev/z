@@ -70,6 +70,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   grandmaster:    'codex-grandmaster.md',
   conspiracy:     'codex-conspiracy.md',
   coach:          'codex-coach.md',
+  interviewer:    'codex-interviewer.md',   // [zip26]
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};
@@ -90,7 +91,7 @@ const SMALL_TALK_LENS_EXEMPT = new Set<CodexKey>(['anchor']);
 // companions. They do NOT stand on the Z soul at all: codex-only assembly, with a
 // slim preamble carrying the two laws that must survive the substrate cut
 // (honesty; the crisis edge-of-the-lane). Members per the 2026-07-07 ruling.
-export const INSTITUTIONAL = new Set<CodexKey>(['anchor', 'grandmaster', 'coach', 'moderator']);
+export const INSTITUTIONAL = new Set<CodexKey>(['anchor', 'grandmaster', 'coach', 'moderator', 'interviewer']);   // [zip26]
 
 const INSTITUTIONAL_PREAMBLE =
   `[THE HOUSE — context, not character. You are one of the institutional residents of ` +

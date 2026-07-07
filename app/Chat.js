@@ -74,6 +74,7 @@ const PERSONAS = {
   the_teacher:{name:'the professor',desc:"you're not bad at it. it was explained badly. let's fix that.",rgb:'120,190,170'},
   the_grandmaster:{name:'the Grand Master',desc:"come empty-handed. leave understanding what the world runs on.",rgb:'198,168,120'},
   the_coach:{name:'the coach',desc:"name a subject. i'll build the road and walk it with you.",rgb:'231,176,122'},
+  the_interviewer:{name:'the interviewer',desc:"name the company and the chair. i'll run the room the way they will.",rgb:'138,160,196'},   // [zip26]
   the_leader_opp:{name:'the leader of opposition',desc:"whatever side you're on, i'm on the other. facts not opinions.",rgb:'200,120,110'},
   the_hippie:{name:'the hippie',desc:"the rat race has a prize, man — a slightly richer rat. come breathe. the sunset's free.",rgb:'120,170,120'},
   the_diva:{name:'the diva',desc:"darling, taste isn't about money — it's knowing exactly who you are and dressing the part.",rgb:'210,90,150'},

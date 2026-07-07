@@ -11,7 +11,7 @@ export type CodexKey =
   | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
   | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator'
   | 'hippie' | 'diva' | 'cousin' | 'front-desk'
-  | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague' | 'anchor' | 'grandmaster' | 'conspiracy' | 'coach';
+  | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague' | 'anchor' | 'grandmaster' | 'conspiracy' | 'coach' | 'interviewer';   // [zip26]
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -39,6 +39,7 @@ export const PERSONAS: Record<string, Persona> = {
   the_anchor:       { key: 'the_anchor',       defaultName: 'the anchor',       codex: 'anchor',     webEnabled: true  },
   the_grandmaster:  { key: 'the_grandmaster',  defaultName: 'the Grand Master',  codex: 'grandmaster', webEnabled: true  },
   the_coach:        { key: 'the_coach',        defaultName: 'the coach',        codex: 'coach',      webEnabled: true  },
+  the_interviewer:  { key: 'the_interviewer',  defaultName: 'the interviewer',  codex: 'interviewer', webEnabled: true  },   // [zip26]
   z_serious:        { key: 'z_serious',        defaultName: 'Z',                codex: 'serious',    webEnabled: true  },
   the_wannabe:      { key: 'the_wannabe',      defaultName: 'the wannabe hustler', codex: 'wannabe', webEnabled: true },
   the_orator:       { key: 'the_orator',       defaultName: 'the orator',       codex: 'orator',    webEnabled: true  },

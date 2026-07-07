@@ -129,7 +129,7 @@ function Prose({ text }) {
   );
 }
 
-export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
+export default function Coach({ onBack = () => {}, onAskCoach = () => {}, onInterview = () => {} }) {   // [zip26]
   const [stage, setStage] = useState('loading');
   const [course, setCourse] = useState(null);
   const [busyKey, setBusyKey] = useState(null);
@@ -371,6 +371,10 @@ export default function Coach({ onBack = () => {}, onAskCoach = () => {} }) {
             <Pressable style={s.pick} onPress={() => setEntryStep('custom')}>
               <Text style={s.pickT}>Bring your own material</Text>
               <Text style={s.pickSub}>Hand me a page of your notes. I'll build the plan around what you give me.</Text>
+            </Pressable>
+            <Pressable style={s.pick} onPress={onInterview}>
+              <Text style={s.pickT}>Practice an interview</Text>
+              <Text style={s.pickSub}>Sit with the interviewer. Name the company and the chair — he runs the room the way they will, then tells you the truth.</Text>
             </Pressable>
             <Err />
           </ScrollView>
