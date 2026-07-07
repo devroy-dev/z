@@ -426,6 +426,10 @@ export async function getBattlefieldMotions(tier) {
 // [zip54d] the client brief — the Media Manager's file on you
 export async function getMmBrief() { return authedJSON('GET', '/mm/brief'); }
 export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief', brief); }
+// [zip54j] the wardrobe — the stylist's index of what you own
+export async function getWardrobe() { return authedJSON('GET', '/stylist/wardrobe'); }
+export async function addWardrobePiece(image) { return authedJSON('POST', '/stylist/wardrobe', { image }); }
+export async function deleteWardrobePiece(id) { return authedJSON('DELETE', `/stylist/wardrobe/${id}`); }
 // read-only spectator view of a duel (no seat required) → { motion, phase, turns, verdict, ... }
 export async function watchBattlefieldDuel(sessionId) {
   return authedJSON('GET', `/battlefield/watch/${sessionId}`);

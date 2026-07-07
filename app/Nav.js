@@ -16,6 +16,7 @@ import Coach from './Coach';
 import GMForge from './GMForge';   // [zip23] the Grand Master's front door
 import Panel from './Panel';   // [zip31] the interviewer's front door
 import MediaRoom from './MediaRoom';   // [zip54d] the Media Manager's front door
+import StylistRoom from './StylistRoom';   // [zip54j] the stylist's front door
 import Consult from './Consult';
 import QuietRoom from './QuietRoom';
 import Journal from './Journal';
@@ -165,6 +166,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'coach') return setOverlay({ tab: 'coach' });
     if (dest.kind === 'forge') return setOverlay({ tab: 'forge' });   // [zip23]
     if (dest.kind === 'mmroom') return setOverlay({ tab: 'mmroom' });   // [zip54d]
+    if (dest.kind === 'stylist') return setOverlay({ tab: 'stylist' });   // [zip54j]
     if (dest.kind === 'panel') return setOverlay({ tab: 'panel' });   // [zip31]
     if (dest.kind === 'consult') return setOverlay({ tab: 'consult' });
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
@@ -194,6 +196,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (overlay.tab === 'forge') return <GMForge onBack={() => setOverlay(null)} onSpar={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_grandmaster', draft, autoSend: true, from: 'forge' }); }} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_grandmaster', from: 'forge' }); }} onArena={() => { setOverlay(null); navigate('play'); }} />;   // [zip23]
     if (overlay.tab === 'panel') return <Panel onBack={() => setOverlay(null)} onStart={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', draft, autoSend: true, from: 'panel' }); }} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', from: 'panel' }); }} />;   // [zip31]
     if (overlay.tab === 'mmroom') return <MediaRoom onBack={() => setOverlay(null)} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_media_manager', from: 'mmroom' }); }} />;   // [zip54d]
+    if (overlay.tab === 'stylist') return <StylistRoom onBack={() => setOverlay(null)} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_diva', from: 'stylist' }); }} onAsk={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_diva', draft, autoSend: true, from: 'stylist' }); }} />;   // [zip54j]
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}
