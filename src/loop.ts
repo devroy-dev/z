@@ -393,7 +393,11 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
 
   // harvest memory out-of-band — never block the reply
-  void harvestMemory(userId, threadId, message, reply);
+  // [zip47] THE PRACTICE GATE: institutional rooms (coach, interviewer, GM,
+  // anchor, moderator) are practice spaces — drill answers, spar stances, and
+  // intake details must never become biography. They read no memory (zip04)
+  // and now write none.
+  if (!institutional) void harvestMemory(userId, threadId, message, reply);
 
   return { reply, usage, sources, routes };
 }

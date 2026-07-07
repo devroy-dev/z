@@ -17,6 +17,7 @@ import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { llm, firstText } from './llm.js';
 import { logUsage } from './usage.js';
+import { PERSONAS } from './personas.js';   // [zip47] the gardener must know the house's own faces
 
 const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -50,6 +51,7 @@ export async function gardenUserMemory(userId: string): Promise<GardenSummary> {
       + '(6) MIRROR ROWS — rows describing the AI friend or any persona (their manner, their advice style, what they offer or are like) rather than the user: delete. '
       + '(7) META ROWS — rows about this app itself, its personas, features, tests, product plans, or the conversation ("discussed the wingman persona", "running a tour/feature"): delete. '
       + '(8) NEVER invent facts, never rewrite meaning, never touch rows you are unsure about — when in doubt, KEEP. [bit] rows are kept unless literal duplicates — and a bit that describes the FRIEND\'S service rather than the friendship\'s shared color is a mirror row: delete. '
+      + `THE HOUSE ROSTER — these are AI personas of this app, NOT people in the user's life: ${Object.values(PERSONAS).map((p: any) => p.defaultName).join(', ')}. Any row that treats one of these as a real friend, acquaintance, teacher, or 'someone the user knows' (by name or by unmistakable description) is a MIRROR row: delete. `
       + 'Return ONLY {"delete":[row numbers],"rewrite":[{"i":row number,"value":"new wording"}]} — valid JSON, no prose, no markdown.',
     messages: [{ role: 'user', content: `THE ROWS:\n${numbered}` }],
   });
