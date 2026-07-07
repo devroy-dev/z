@@ -132,10 +132,11 @@ export function startProgrammeScheduler() {
   }
   const tick = async () => {
     const istHour = Math.floor((new Date().getUTCHours() + 5.5) % 24);
-    if (istHour !== RUN_HOUR_IST) return;
+    if (istHour < RUN_HOUR_IST) return;   // [zip33] catch-up — per-day guard makes repeats cheap
     try { const r = await runEveningProgrammes(); console.log('[programme] ran:', r); }
     catch (e: any) { console.error('[programme] run failed:', e?.message || e); }
   };
+  setTimeout(tick, 90 * 1000);   // [zip33] boot tick
   setInterval(tick, 55 * 60 * 1000);
-  console.log('[programme] scheduler armed for', RUN_HOUR_IST, 'IST');
+  console.log('[programme] scheduler armed: catch-up past', RUN_HOUR_IST, 'IST + boot tick');
 }

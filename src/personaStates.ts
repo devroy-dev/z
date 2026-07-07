@@ -108,9 +108,10 @@ export async function stateBlockFor(personaKey: string): Promise<string> {
 export function startStateScheduler() {
   const tick = async () => {
     const istHour = Math.floor((new Date().getUTCHours() + 5.5) % 24);
-    if (istHour !== RUN_HOUR_IST) return;
+    if (istHour < RUN_HOUR_IST) return;   // [zip33] catch-up: any tick after the hour runs; per-persona/day idempotency makes repeats a SELECT
     try { await runStateWriter(); } catch (e: any) { console.error('[states] run failed:', e?.message || e); }
   };
+  setTimeout(tick, 90 * 1000);   // [zip33] boot tick — a restart inside the window writes on arrival
   setInterval(tick, 55 * 60 * 1000);
-  console.log('[states] scheduler armed for', RUN_HOUR_IST, 'IST');
+  console.log('[states] scheduler armed: catch-up past', RUN_HOUR_IST, 'IST + boot tick');
 }

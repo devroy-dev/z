@@ -73,7 +73,7 @@ export function startBulletinScheduler() {
   const RUN_HOUR_IST = 5;
   const tick = async () => {
     const istHour = Math.floor((new Date().getUTCHours() + 5.5) % 24);
-    if (istHour !== RUN_HOUR_IST) return;
+    if (istHour < RUN_HOUR_IST) return;   // [zip33] catch-up — the day-cache in getBulletin makes repeats a SELECT
     try { await getBulletin('in'); } catch (e: any) { console.error('[bulletin] morning run failed:', e?.message || e); }
   };
   // hourly top-up: the anchor adds up to two stories ONLY if something genuinely
@@ -93,7 +93,8 @@ export function startBulletinScheduler() {
       console.log('[bulletin] top-up added', fresh.length);
     } catch (e: any) { console.error('[bulletin] top-up failed:', e?.message || e); }
   };
+  setTimeout(tick, 90 * 1000);   // [zip33] boot tick
   setInterval(tick, 55 * 60 * 1000);
   setInterval(topUp, 60 * 60 * 1000);
-  console.log('[bulletin] the anchor clocks in at', RUN_HOUR_IST, 'IST, tops up hourly');
+  console.log('[bulletin] the anchor clocks in past', RUN_HOUR_IST, 'IST (catch-up + boot tick), tops up hourly');
 }

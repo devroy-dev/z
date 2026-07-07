@@ -223,12 +223,13 @@ export async function runFollowups(opts?: { onlyUserId?: string }): Promise<{ co
 export function startFollowupScheduler() {
   const tick = async () => {
     const istHour = (new Date().getUTCHours() + 5.5) % 24;
-    if (Math.floor(istHour) !== RUN_HOUR_IST) return;
+    if (Math.floor(istHour) < RUN_HOUR_IST) return;   // [zip33] catch-up — per-user idempotency makes repeats harmless (its own comment says so)
     try {
       const r = await runFollowups();
       console.log(`[followups] nightly run: ${r.sent}/${r.considered} pinged`);
     } catch (e: any) { console.error('[followups] run failed:', e?.message || e); }
   };
+  setTimeout(tick, 90 * 1000);   // [zip33] boot tick
   setInterval(tick, 55 * 60 * 1000);            // hourly-ish; per-user idempotency makes double-fires harmless
   console.log('[followups] scheduler armed for', RUN_HOUR_IST, 'IST');
 }
