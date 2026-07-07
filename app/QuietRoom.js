@@ -387,16 +387,17 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
 
           {/* the moon-door: journal · what i remember */}
           {sheet ? (
-            <Pressable style={styles.sheetVeil} onPress={() => setSheet(false)}>
-              <View style={styles.sheet}>
-                <View style={styles.sheetHandle} />
-                <Pressable onPress={() => { setSheet(false); onJournal(); }} hitSlop={8}>
-                  <Text style={styles.sheetLine}>the journal ›</Text>
+            <Pressable style={styles.popVeil} onPress={() => setSheet(false)}>
+              {/* [zip29] the menu opens where you touched; the page is the dismiss */}
+              <Pressable style={styles.popover} onPress={() => {}}>
+                <Pressable onPress={() => { setSheet(false); onJournal(); }} hitSlop={6} style={styles.popRow}>
+                  <Text style={styles.popLine}>the journal ›</Text>
                 </Pressable>
-                <Pressable onPress={openStory} hitSlop={8}>
-                  <Text style={[styles.sheetLine, { marginTop: 18 }]}>what i remember ›</Text>
+                <View style={styles.popDivider} />
+                <Pressable onPress={openStory} hitSlop={6} style={styles.popRow}>
+                  <Text style={styles.popLine}>what i remember ›</Text>
                 </Pressable>
-              </View>
+              </Pressable>
             </Pressable>
           ) : null}
         </SafeAreaView>
@@ -437,8 +438,9 @@ const styles = StyleSheet.create({
   micLive: { color: '#FF6B5A', fontSize: 17 },
   sendMoon: { paddingLeft: 8, paddingBottom: 8 },
 
-  sheetVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,5,10,0.72)', justifyContent: 'flex-end' },
-  sheet: { paddingHorizontal: 34, paddingTop: 14, paddingBottom: 46, backgroundColor: 'rgba(17,20,38,0.98)', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTopWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(240,241,250,0.12)', alignItems: 'stretch' },
-  sheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(240,241,250,0.22)', marginBottom: 22 },
-  sheetLine: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonDim, fontSize: 17, letterSpacing: 0.3 },
+  popVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,5,10,0.30)' },   // [zip29] barely-there — its whole job is tap-anywhere
+  popover: { position: 'absolute', top: 54, right: 18, minWidth: 190, backgroundColor: 'rgba(17,20,38,0.98)', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(240,241,250,0.14)', paddingVertical: 4, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  popRow: { paddingHorizontal: 18, paddingVertical: 12 },
+  popDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(240,241,250,0.10)', marginHorizontal: 12 },
+  popLine: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonDim, fontSize: 15.5, letterSpacing: 0.3 },
 });
