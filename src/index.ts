@@ -2419,6 +2419,62 @@ app.delete('/notes/:kind/:id', async (req, res) => {
 // HIDE for you only (you stay a silent member; the friend's next message brings it
 // back — the auto-unhide lives in the DM send path). Room: owner deletes for all,
 // a member LEAVES (last one out retires it). Never {ok:true} on a no-op.
+// [zip48] ═══ R0: REPORT + BLOCK — the safety floor ═══
+// Any member may report a human or persona in a room (optionally pinning a
+// message). Blocks are a user-level wall: DMs close both ways; the client
+// hides the blocked user's lines (GET /me/blocks is the hide-list).
+app.post('/rooms/:id/report', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const threadId = req.params.id;
+    if (!(await isRoomMember(threadId, user.id))) {
+      const { data: th } = await supabase.from('threads').select('user_id').eq('id', threadId).maybeSingle();
+      if (!th || th.user_id !== user.id) return res.status(403).json({ error: 'not a member' });
+    }
+    const { targetUserId, targetPersona, messageId, reason } = req.body ?? {};
+    if (!targetUserId && !targetPersona) return res.status(400).json({ error: 'need targetUserId or targetPersona' });
+    const { error } = await supabase.from('room_reports').insert({
+      thread_id: threadId, reporter_id: user.id,
+      target_user_id: targetUserId ?? null, target_persona: targetPersona ?? null,
+      message_id: messageId ?? null, reason: (reason ? String(reason).slice(0, 500) : null),
+    });
+    if (error) return res.status(500).json({ error: 'report failed: ' + error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'report failed: ' + (e?.message || String(e)) }); }
+});
+app.post('/users/:id/block', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const blockedId = req.params.id;
+    if (!blockedId || blockedId === user.id) return res.status(400).json({ error: 'nope' });
+    const { error } = await supabase.from('user_blocks').upsert({ blocker_id: user.id, blocked_id: blockedId });
+    if (error) return res.status(500).json({ error: 'block failed: ' + error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'block failed: ' + (e?.message || String(e)) }); }
+});
+app.delete('/users/:id/block', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    await supabase.from('user_blocks').delete().eq('blocker_id', user.id).eq('blocked_id', req.params.id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'unblock failed: ' + (e?.message || String(e)) }); }
+});
+app.get('/me/blocks', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('user_blocks').select('blocked_id, created_at').eq('blocker_id', user.id);
+    res.json({ blocked: (data ?? []).map((r: any) => r.blocked_id) });
+  } catch (e: any) { res.status(500).json({ error: 'blocks failed: ' + (e?.message || String(e)) }); }
+});
+
 app.delete('/threads/:id', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -3108,6 +3164,19 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
     if (isDM) {
       if (!isOwner && !(await isRoomMember(threadId, user.id))) {
         res.write(`data: ${JSON.stringify({ error: 'not your conversation' })}\n\n`); return res.end();
+      }
+      // [zip48] THE BLOCK WALL: if either side has blocked the other, the DM is
+      // closed — said plainly, no message persisted, no bump fired.
+      const { data: peerRows } = await supabase.from('room_members')
+        .select('user_id').eq('thread_id', threadId).neq('user_id', user.id).limit(1);
+      const peerId = peerRows?.[0]?.user_id;
+      if (peerId) {
+        const { data: blk } = await supabase.from('user_blocks').select('blocker_id')
+          .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${peerId}),and(blocker_id.eq.${peerId},blocked_id.eq.${user.id})`)
+          .limit(1);
+        if (blk && blk.length) {
+          res.write(`data: ${JSON.stringify({ error: "you can't message each other" })}\n\n`); return res.end();
+        }
       }
       if (!message || !String(message).trim()) {
         res.write(`data: ${JSON.stringify({ error: 'empty message' })}\n\n`); return res.end();
