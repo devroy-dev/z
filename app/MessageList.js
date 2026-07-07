@@ -7,13 +7,31 @@ import { N, nameOf, rgbOf, fmtTime } from './roomTheme';
 
 const flat = (t) => String(t || '').replace(/\*\*?/g, '');
 
-export function RoomLine({ line, hideSpeaker }) {
+// [zip50] sent bubbles paint @mentions: the mentioned persona's color when the
+// name matches a mentionable, member-blue otherwise. Plain Text spans — no hacks.
+function MentionedText({ text, mentionables = [], style }) {
+  const parts = String(text || '').split(/(@[a-z]+(?:\s[a-z]+)?)/gi);
+  if (parts.length === 1) return <Text style={style}>{text}</Text>;
+  return (
+    <Text style={style}>
+      {parts.map((p, i) => {
+        if (!p.startsWith('@')) return <Text key={i}>{p}</Text>;
+        const q = p.slice(1).trim().toLowerCase();
+        const hit = mentionables.find((m) => m.label.toLowerCase() === q || m.label.toLowerCase().startsWith(q));
+        const color = hit ? (hit.type === 'human' ? N.human : `rgb(${hit.color})`) : N.human;
+        return <Text key={i} style={{ color, fontFamily: 'Figtree_600SemiBold' }}>{p}</Text>;
+      })}
+    </Text>
+  );
+}
+
+export function RoomLine({ line, hideSpeaker, mentionables }) {
   if (line.who === 'you') {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-end' }]}>
         <View style={{ alignItems: 'flex-end', maxWidth: '84%' }}>
           {line.imageUri ? <Image source={{ uri: line.imageUri }} style={styles.sharedPhoto} /> : null}
-          {line.text ? <View style={[styles.bubble, styles.bubbleYou, line.imageUri && { marginTop: 4 }]}><Text style={styles.bubbleText}>{line.text}</Text>{line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}</View> : null}
+          {line.text ? <View style={[styles.bubble, styles.bubbleYou, line.imageUri && { marginTop: 4 }]}><MentionedText text={line.text} mentionables={mentionables} style={styles.bubbleText} />{line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}</View> : null}
         </View>
       </View>
     );
@@ -40,7 +58,7 @@ export function RoomLine({ line, hideSpeaker }) {
   );
 }
 
-export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.' }) {
+export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.', mentionables = [] }) {
   const ref = useRef(null);
   return (
     <ScrollView
@@ -50,7 +68,7 @@ export default function MessageList({ lines, booted, hideSpeaker = false, emptyC
     >
       {lines.length === 0
         ? (booted ? <Text style={styles.empty}>{emptyCopy}</Text> : null)
-        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} />)}
+        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} mentionables={mentionables} />)}
     </ScrollView>
   );
 }

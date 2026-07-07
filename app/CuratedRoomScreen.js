@@ -24,6 +24,8 @@ import Composer from './Composer';
 import { RoomPresence, HumanPresence } from './Presences';
 import { N, nameOf, rgbOf } from './roomTheme';
 
+// [zip50] the room's mentionables: personas with their aura colors + human members in blue.
+
 export default function CuratedRoomScreen({ room, onBack = () => {} }) {
   const roomId = room?.id;
   const personas = (room?.personas && room.personas.length) ? room.personas : (room?.persona ? [room.persona] : []);
@@ -77,6 +79,11 @@ export default function CuratedRoomScreen({ room, onBack = () => {} }) {
       alert((r && r.error) || 'could not remove them');
     }
   };
+
+  const mentionables = [
+    ...personas.map((k) => ({ key: k, label: nameOf(k), color: rgbOf(k), type: 'persona' })),
+    ...humans.map((h) => ({ key: h.id, label: (h.name || 'someone'), color: '159,176,206', type: 'human' })),
+  ];
 
   const onSend = ({ text, image }) => {
     const ok = feed.send({ text, image, addressed });
@@ -162,8 +169,8 @@ export default function CuratedRoomScreen({ room, onBack = () => {} }) {
           {humans.map((h) => <HumanPresence key={h.id} name={h.name} active={feed.floor === h.id} />)}
         </View>
 
-        <MessageList lines={feed.lines} booted={feed.booted} />
-        <Composer onSend={onSend} sending={feed.sending} />
+        <MessageList lines={feed.lines} booted={feed.booted} mentionables={mentionables} />
+        <Composer onSend={onSend} sending={feed.sending} mentionables={mentionables} addressed={addressed} onAddressed={setAddressed} />
       </SafeAreaView>
       </KeyboardAvoidingView>
     </View>

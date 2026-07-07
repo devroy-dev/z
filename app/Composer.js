@@ -1,18 +1,44 @@
-// yourZ — Composer · draft, mic, photo, send — lifted verbatim from RoomChat (R0).
-// Owns its voice hook + pending image; hands the send upward as {text, image}.
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, Image, Alert } from 'react-native';
+// yourZ — Composer · draft, mic, photo, send + THE MENTION SYSTEM (zip50).
+// Type '@' → a popover of the room's mentionables (personas with aura dots,
+// humans in blue); tap → the name inserts AND the persona joins the addressed
+// set — mechanism, not regex luck. Addressed chips above the field show who'll
+// be summoned; tap a chip to release them. DMs pass no mentionables and see none
+// of this. Owns its voice hook + pending image; hands the send upward.
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, Image, Alert, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { transcribeVoice } from './api';
 import { useVoiceNote } from './voice';
 import { N } from './roomTheme';
 
-export default function Composer({ onSend, sending = false, placeholder = 'say something to the room…' }) {
+export default function Composer({
+  onSend, sending = false, placeholder = 'say something to the room…',
+  mentionables = [],            // [{ key, label, color, type: 'persona'|'human' }]
+  addressed = [], onAddressed,  // controlled addressed set (persona keys)
+}) {
   const [draft, setDraft] = useState('');
   const [pendingImage, setPendingImage] = useState(null);
   const voice = useVoiceNote();
   const [transcribing, setTranscribing] = useState(false);
+
+  // ── the mention popover: open while the draft's tail is an unfinished @word ──
+  const mention = useMemo(() => {
+    if (!mentionables.length) return null;
+    const m = /@([a-z ]*)$/i.exec(draft);
+    if (!m) return null;
+    const q = m[1].trim().toLowerCase();
+    const hits = mentionables.filter((p) => !q || p.label.toLowerCase().includes(q));
+    return hits.length ? { start: m.index, hits: hits.slice(0, 6) } : null;
+  }, [draft, mentionables]);
+
+  const pickMention = (p) => {
+    setDraft((d) => d.slice(0, mention.start) + '@' + p.label + ' ');
+    if (p.type === 'persona' && onAddressed && !addressed.includes(p.key)) onAddressed([...addressed, p.key]);
+  };
+
+  const labelOf = (key) => (mentionables.find((p) => p.key === key)?.label) || key;
+  const colorOf = (key) => (mentionables.find((p) => p.key === key)?.color) || '231,176,122';
 
   const onMic = async () => {
     if (voice.recording) {
@@ -48,6 +74,27 @@ export default function Composer({ onSend, sending = false, placeholder = 'say s
 
   return (
     <>
+      {mention ? (
+        <View style={styles.mentionPop}>
+          {mention.hits.map((p) => (
+            <Pressable key={p.key} style={styles.mentionRow} onPress={() => pickMention(p)}>
+              <View style={[styles.mentionDot, { backgroundColor: p.type === 'human' ? N.human : `rgb(${p.color})` }]} />
+              <Text style={styles.mentionName}>{p.label}</Text>
+              {p.type === 'human' ? <Text style={styles.mentionKind}>member</Text> : null}
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {addressed.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
+          {addressed.map((k) => (
+            <Pressable key={k} style={[styles.chip, { borderColor: `rgba(${colorOf(k)},0.55)` }]} onPress={() => onAddressed && onAddressed(addressed.filter((x) => x !== k))}>
+              <Text style={[styles.chipTxt, { color: `rgb(${colorOf(k)})` }]}>@{labelOf(k)}</Text>
+              <Text style={styles.chipX}>✕</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
       {pendingImage ? (
         <View style={styles.pendingStrip}>
           <Image source={{ uri: pendingImage.uri }} style={styles.pendingThumb} />
@@ -77,6 +124,15 @@ export default function Composer({ onSend, sending = false, placeholder = 'say s
 }
 
 const styles = StyleSheet.create({
+  mentionPop: { marginHorizontal: 16, marginBottom: 6, borderRadius: 14, borderWidth: 1, borderColor: N.hair, backgroundColor: 'rgba(16,14,21,0.98)', overflow: 'hidden' },
+  mentionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(233,232,240,0.06)' },
+  mentionDot: { width: 8, height: 8, borderRadius: 4 },
+  mentionName: { fontFamily: 'Figtree_500Medium', color: N.moon, fontSize: 14, flex: 1 },
+  mentionKind: { fontFamily: 'Figtree_300Light', color: N.moonFaint, fontSize: 11 },
+  chipRow: { maxHeight: 34, marginBottom: 4 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 100, borderWidth: 1, backgroundColor: 'rgba(233,232,240,0.04)' },
+  chipTxt: { fontFamily: 'Figtree_500Medium', fontSize: 12.5 },
+  chipX: { color: N.moonFaint, fontSize: 10 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 10 },
   inlineBtn: { paddingHorizontal: 8, paddingBottom: 10, alignItems: 'center', justifyContent: 'flex-end' },
   inlineBtnTxt: { fontSize: 23, color: '#F0A765', lineHeight: 25 },
