@@ -1,3 +1,4 @@
+// [zip24] identity: chalkboard sage — the clear-explainer's studious calm
 // ════════════════════════════════════════════════════════════════════════
 //  yourZ — THE COACH. Name any exam or subject; a web-grounded, day-by-day
 //  course that teaches, quizzes, grades, and bends to your weak spots.
@@ -21,14 +22,14 @@ import {
 } from './api';
 
 const P = {
-  ground: '#0A0806', panel: 'rgba(255,255,255,0.03)', line: 'rgba(231,215,199,0.10)',
-  cream: '#F3EBDF', dim: 'rgba(243,235,223,0.9)', muted: '#A2938A', faint: '#6E605A',
-  ember: '#E7B07A', emberDim: 'rgba(231,176,122,0.5)', rose: '#F0708C',
-  lamp: '#EEC891',                          // warm lamplight — the coach's light
-  lampGlow: 'rgba(238,200,145,0.14)',
+  ground: '#070A08', panel: 'rgba(255,255,255,0.03)', line: 'rgba(210,235,220,0.10)',
+  cream: '#EDF5EF', dim: 'rgba(237,245,239,0.9)', muted: '#93A79A', faint: '#5E6E64',
+  ember: '#8FD9A8', emberDim: 'rgba(143,217,168,0.5)', rose: '#F0708C',
+  lamp: '#A9E3BC',                          // chalk-light — the coach's clarity
+  lampGlow: 'rgba(169,227,188,0.14)',
 };
 // the study — a warm 3-stop ground, like every other world has its own temperature
-const GRAD = ['#1B130B', '#120E0A', '#0A0806'];
+const GRAD = ['#0C1710', '#09110C', '#070A08'];
 const FACE = `${API_BASE}/faces/the_coach.jpg?v=4`;
 const HUB_FACE = `${API_BASE}/faces/the_coaching_hub.jpg?v=5`;
 const OPT = ['A', 'B', 'C', 'D'];

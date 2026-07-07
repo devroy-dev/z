@@ -1,3 +1,4 @@
+// [zip24] identity: forge-rose on ink — the battlefield's kin, lighter
 // ════════════════════════════════════════════════════════════════════════
 //  yourZ — THE FORGE (the Grand Master's front door; Phase 6, GM surface v1)
 //  The training half of debate. A board of TAKES — contested positions from
@@ -14,14 +15,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getBattlefieldMotions } from './api';
 import { FONTS } from './theme';
 
-const GOLD = 'rgb(198,168,120)';
+const GOLD = '#E8788E';   // forge-rose: the battlefield's crimson, before the arena sharpens it
 const G = {
-  ground: '#0B0A08',
-  raise: 'rgba(198,168,120,0.06)',
-  hair: 'rgba(198,168,120,0.14)',
-  ink: '#EAE2D4',
-  mist: 'rgba(234,226,212,0.55)',
-  faint: 'rgba(234,226,212,0.30)',
+  ground: '#0C080B',
+  raise: 'rgba(232,120,142,0.06)',
+  hair: 'rgba(232,120,142,0.14)',
+  ink: '#F2E9EC',
+  mist: 'rgba(242,233,236,0.55)',
+  faint: 'rgba(242,233,236,0.30)',
 };
 
 export default function GMForge({ onBack = () => {}, onSpar = () => {}, onChat = () => {}, onArena = () => {} }) {
@@ -61,7 +62,7 @@ export default function GMForge({ onBack = () => {}, onSpar = () => {}, onChat =
   return (
     <View style={st.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient colors={['rgba(198,168,120,0.10)', 'rgba(198,168,120,0.03)', G.ground]} locations={[0, 0.3, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <LinearGradient colors={['rgba(232,120,142,0.10)', 'rgba(232,120,142,0.03)', G.ground]} locations={[0, 0.3, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 6 }}>
           <Pressable onPress={onBack} hitSlop={14}><Text style={st.backTxt}>‹  back</Text></Pressable>
@@ -107,7 +108,7 @@ export default function GMForge({ onBack = () => {}, onSpar = () => {}, onChat =
 
           {/* the door to the arena */}
           <Pressable onPress={onArena} style={st.arena}>
-            <Text style={st.arenaTxt}>when you're ready, the arena awaits ›</Text>
+            <Text style={st.arenaTxt}>when you're ready, the battlefield awaits ›</Text>
             <Text style={st.arenaSub}>real duels, a judge on the bench — through the Play door.</Text>
           </Pressable>
         </ScrollView>
@@ -155,9 +156,9 @@ const st = StyleSheet.create({
   arenaSub: { fontFamily: FONTS.body, color: G.faint, fontSize: 12.5, marginTop: 4 },
 
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,3,2,0.72)', justifyContent: 'flex-end' },
-  sheet: { paddingHorizontal: 28, paddingTop: 14, paddingBottom: 44, backgroundColor: '#141210', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTopWidth: 1, borderColor: G.hair },
-  handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(234,226,212,0.22)', marginBottom: 18 },
+  sheet: { paddingHorizontal: 28, paddingTop: 14, paddingBottom: 44, backgroundColor: '#150F13', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTopWidth: 1, borderColor: G.hair },
+  handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(242,233,236,0.22)', marginBottom: 18 },
   sheetTake: { fontFamily: FONTS.display, color: G.ink, fontSize: 17, lineHeight: 25, marginBottom: 20 },
-  side: { paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(198,168,120,0.35)', alignItems: 'center', marginBottom: 10, backgroundColor: 'rgba(198,168,120,0.07)' },
+  side: { paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(232,120,142,0.35)', alignItems: 'center', marginBottom: 10, backgroundColor: 'rgba(232,120,142,0.07)' },
   sideTxt: { fontFamily: FONTS.medium, color: G.ink, fontSize: 15 },
 });

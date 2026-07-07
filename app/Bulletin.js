@@ -1,3 +1,4 @@
+// [zip24] identity: cold signal — slate control room, monitor-cyan; a newsroom is never amber
 // ════════════════════════════════════════════════════════════════════════
 //  yourZ — THE BULLETIN. The anchor's morning broadcast: your city first,
 //  then the nation and the world. Tap any story and walk into his studio
@@ -12,7 +13,7 @@ import { C, FONTS } from './theme';
 import { getBulletinFeed, setBulletinCity } from './api';
 import { API_BASE } from './api';
 
-const GOLD = '#E0C088';
+const GOLD = '#7FD6EC';   // signal-cyan: the monitor glow
 const KICK_TONE = { INDIA: '#F0A765', WORLD: '#8FB8E0', BUSINESS: '#8FD98F', TECH: '#B98CF0', SPORT: '#F0708C', CITY: GOLD };
 
 export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) {
@@ -46,7 +47,7 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
 
   return (
     <View style={st.root}>
-      <LinearGradient colors={['#14100A', '#0D0B08', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#0A1218', '#080D12', C.ground]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
       <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <View style={st.bar}>
@@ -111,27 +112,27 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
 }
 
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0D0B08' },
+  root: { flex: 1, backgroundColor: '#080D12' },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14 },
-  askBar: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(224,192,136,0.32)', borderRadius: 16, paddingHorizontal: 15, marginBottom: 20, backgroundColor: 'rgba(224,192,136,0.04)' },
+  askBar: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(127,214,236,0.32)', borderRadius: 16, paddingHorizontal: 15, marginBottom: 20, backgroundColor: 'rgba(127,214,236,0.04)' },
   askInput: { flex: 1, fontFamily: FONTS.body, color: C.cream, fontSize: 14, paddingVertical: 12 },
   askGo: { fontFamily: FONTS.display, color: '#E0C088', fontSize: 24, paddingLeft: 10 },
   chev: { color: C.muted, fontSize: 30, width: 26, marginTop: -3 },
   masthead: { fontFamily: FONTS.display, color: C.cream, fontSize: 17, letterSpacing: 3 },
   edition: { fontFamily: FONTS.body, color: GOLD, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.8, marginTop: 2 },
-  face: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(224,192,136,0.5)' },
+  face: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(127,214,236,0.5)' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loading: { fontFamily: FONTS.displayItalic, color: C.muted, fontSize: 13.5 },
   section: { fontFamily: FONTS.light, color: C.faint, fontSize: 10.5, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 10, marginTop: 4 },
-  story: { borderWidth: 1, borderColor: 'rgba(224,192,136,0.18)', backgroundColor: 'rgba(255,255,255,0.025)', borderRadius: 16, padding: 15, marginBottom: 11 },
+  story: { borderWidth: 1, borderColor: 'rgba(127,214,236,0.18)', backgroundColor: 'rgba(255,255,255,0.025)', borderRadius: 16, padding: 15, marginBottom: 11 },
   kick: { fontFamily: FONTS.semibold, fontSize: 10, letterSpacing: 2.5 },
   head: { fontFamily: FONTS.display, color: C.cream, fontSize: 17.5, lineHeight: 23, marginTop: 5 },
   brief: { fontFamily: FONTS.body, color: 'rgba(231,215,199,0.75)', fontSize: 13.5, lineHeight: 19.5, marginTop: 6 },
   ask: { fontFamily: FONTS.medium, color: GOLD, fontSize: 11.5, marginTop: 9, opacity: 0.85 },
   quietLine: { fontFamily: FONTS.displayItalic, color: C.muted, fontSize: 13.5, lineHeight: 20, paddingHorizontal: 4 },
-  cityAsk: { borderWidth: 1, borderColor: 'rgba(224,192,136,0.3)', borderStyle: 'dashed', borderRadius: 16, padding: 15 },
+  cityAsk: { borderWidth: 1, borderColor: 'rgba(127,214,236,0.3)', borderStyle: 'dashed', borderRadius: 16, padding: 15 },
   cityPrompt: { fontFamily: FONTS.displayItalic, color: 'rgba(245,236,225,0.85)', fontSize: 14, marginBottom: 12 },
-  cityInput: { flex: 1, fontFamily: FONTS.body, color: C.cream, fontSize: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(224,192,136,0.35)', paddingVertical: 8, paddingHorizontal: 4 },
+  cityInput: { flex: 1, fontFamily: FONTS.body, color: C.cream, fontSize: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(127,214,236,0.35)', paddingVertical: 8, paddingHorizontal: 4 },
   cityBtn: { justifyContent: 'center', paddingHorizontal: 14 },
   cityBtnTxt: { fontFamily: FONTS.semibold, color: GOLD, fontSize: 14 },
   foot: { fontFamily: FONTS.displayItalic, color: C.faint, fontSize: 12, textAlign: 'center', marginTop: 16 },
