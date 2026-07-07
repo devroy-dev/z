@@ -426,6 +426,10 @@ export async function getBattlefieldMotions(tier) {
 // [zip54d] the client brief — the Media Manager's file on you
 export async function getMmBrief() { return authedJSON('GET', '/mm/brief'); }
 export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief', brief); }
+// [zip54l] the desk that watches — analytics under his eye, his weekly memos
+export async function getMmAnalytics() { return authedJSON('GET', '/mm/analytics'); }
+export async function uploadMmAnalytics(image) { return authedJSON('POST', '/mm/analytics', { image }); }
+export async function getMmDeskNotes() { return authedJSON('GET', '/mm/desknotes'); }
 // [zip54j] the wardrobe — the stylist's index of what you own
 export async function getWardrobe() { return authedJSON('GET', '/stylist/wardrobe'); }
 export async function addWardrobePiece(image) { return authedJSON('POST', '/stylist/wardrobe', { image }); }

@@ -92,6 +92,7 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <Image source={{ uri: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1' }} style={{ width: '100%', height: 150, borderRadius: 14, marginBottom: 6 }} resizeMode="cover" />{/* [zip54l] her atelier */}
         {/* THE WARDROBE */}
         {pieces === null ? (
           <ActivityIndicator color={BLUSH} style={{ marginVertical: 30 }} />
