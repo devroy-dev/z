@@ -43,6 +43,7 @@ export default function Panel({ onBack = () => {}, onStart = () => {}, onChat = 
   const [round, setRound] = useState(null);
   const [jd, setJd] = useState('');
   const [jdOpen, setJdOpen] = useState(false);
+  const [mode, setMode] = useState('drill');   // [zip42] 'drill' (learn the answers) | 'round' (survive the room)
 
   const ready = position.trim().length > 0;
 
@@ -51,7 +52,9 @@ export default function Panel({ onBack = () => {}, onStart = () => {}, onChat = 
     const lv = LEVELS.find((l) => l.id === level)?.label || 'unstated — read it from my answers';
     const rd = ROUNDS.find((r) => r.id === round)?.label || 'your call — run what this role would face first';
     const co = company.trim() || 'none — general practice';
-    let opener = `Run an interview. Company: ${co}. Position: ${position.trim()}. Level: ${lv}. Round: ${rd}.`;
+    let opener = mode === 'drill'
+      ? `Run a DRILL — teach me before the real room. Company: ${co}. Position: ${position.trim()}. Level: ${lv}. Round: ${rd}. One question at a time: read my answer, show me the stronger shape, make me redo it.`
+      : `Run an interview. Company: ${co}. Position: ${position.trim()}. Level: ${lv}. Round: ${rd}.`;
     if (jd.trim()) opener += `\n\nThe job description, as posted:\n${jd.trim()}`;
     onStart(opener);
   };
@@ -71,6 +74,17 @@ export default function Panel({ onBack = () => {}, onStart = () => {}, onChat = 
           <Text style={st.kicker}>the panel</Text>
           <Text style={st.lead}>Name the company{'\n'}and the chair.</Text>
           <Text style={st.leadSub}>He runs the room the way they will — then tells you the truth.</Text>
+
+          <View style={{ flexDirection: 'row', gap: 9, marginHorizontal: 20, marginBottom: 18 }}>
+            <Pressable onPress={() => setMode('drill')} style={[st.mode, mode === 'drill' && st.modeOn]}>
+              <Text style={[st.modeT, mode === 'drill' && { color: P.ink }]}>the drill</Text>
+              <Text style={st.modeSub}>learn the answers first — he reads yours, shows the stronger shape, makes you redo it.</Text>
+            </Pressable>
+            <Pressable onPress={() => setMode('round')} style={[st.mode, mode === 'round' && st.modeOn]}>
+              <Text style={[st.modeT, mode === 'round' && { color: P.ink }]}>the round</Text>
+              <Text style={st.modeSub}>survive the room — no pauses, real physics, the truth at the end.</Text>
+            </Pressable>
+          </View>
 
           {/* the intake — fields, not prose: these become records later */}
           <View style={st.fieldWrap}>
@@ -112,7 +126,7 @@ export default function Panel({ onBack = () => {}, onStart = () => {}, onChat = 
 
           {/* the chair */}
           <Pressable onPress={start} disabled={!ready} style={[st.cta, !ready && { opacity: 0.35 }]}>
-            <Text style={st.ctaTxt}>take the chair</Text>
+            <Text style={st.ctaTxt}>{mode === 'drill' ? 'begin the drill' : 'take the chair'}</Text>
           </Pressable>
           {!ready ? <Text style={st.ctaHint}>name the position and the chair is yours.</Text> : null}
         </ScrollView>
@@ -150,6 +164,10 @@ const st = StyleSheet.create({
 
   jdToggle: { fontFamily: FONTS.displayItalic, color: P.mist, fontSize: 13.5 },
 
+  mode: { flex: 1, padding: 12, borderRadius: 13, borderWidth: 1, borderColor: P.hair, backgroundColor: P.raise },
+  modeOn: { borderColor: 'rgba(138,160,196,0.55)', backgroundColor: 'rgba(138,160,196,0.12)' },
+  modeT: { fontFamily: FONTS.medium, color: P.mist, fontSize: 14.5, marginBottom: 3 },
+  modeSub: { fontFamily: FONTS.body, color: P.faint, fontSize: 11.5, lineHeight: 15 },
   cta: { marginTop: 26, marginHorizontal: 20, paddingVertical: 15, borderRadius: 14, alignItems: 'center', backgroundColor: 'rgba(138,160,196,0.16)', borderWidth: 1, borderColor: 'rgba(138,160,196,0.5)' },
   ctaTxt: { fontFamily: FONTS.semibold, color: P.ink, fontSize: 15.5, letterSpacing: 0.4 },
   ctaHint: { fontFamily: FONTS.body, color: P.faint, fontSize: 12, textAlign: 'center', marginTop: 8 },
