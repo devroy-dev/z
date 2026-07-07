@@ -153,6 +153,18 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   }
 
   // ── THE FRONT DESK: inject the user's task list + how to manage it ──────
+  // [zip54i] THE WARDROBE — the stylist counsels from what the client actually owns;
+  // she never asks to be shown what is already filed under her eye.
+  let wardrobeBlock = '';
+  if (String(t.persona_key || '') === 'the_diva') {
+    try {
+      const { data: pieces } = await supabase.from('wardrobe_pieces').select('kind, colors, tags, her_read').eq('user_id', t.user_id).order('created_at', { ascending: false }).limit(30);
+      if (pieces && pieces.length) {
+        const lines = pieces.map((p: any) => `  • ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}${p.her_read ? ` — ${p.her_read}` : ''}`).join('\n');
+        wardrobeBlock = `\n\n[THE WARDROBE — the pieces this client owns, filed under your own eye, newest first. When they ask what to wear — for an occasion, a mood, a day — you style them FROM these pieces first, by name, and only then suggest what\'s missing. Never ask them to list what they own; it is written here.\n${lines}]`;
+      }
+    } catch (e: any) { console.error('[wardrobe] block failed:', e?.message || e); }
+  }
   // [zip54d] THE CLIENT BRIEF — the advisor never asks for what he has already been
   // told; his own working notes on this client ride every turn.
   let mmBlock = '';
@@ -242,7 +254,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   let lifeBlock = '';
   try { if (!institutional) lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }   // [zip04] an institution has no diary to leak
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${wardrobeBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the

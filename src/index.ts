@@ -1115,6 +1115,83 @@ app.post('/dev/llm/probe', async (req, res) => {
 
 // [zip54d] ── THE CLIENT BRIEF ── the advisor's working notes on the one client he
 // manages (the user). The room writes it; the loop reads it every turn.
+// [zip54i] ── THE WARDROBE ── the stylist's index of what the client owns. Photos in
+// the private 'wardrobe' bucket (created on first use); each piece filed with her read.
+const WARDROBE_BUCKET = 'wardrobe';
+let __wardrobeBucketReady = false;
+async function ensureWardrobeBucket(): Promise<void> {
+  if (__wardrobeBucketReady) return;
+  try { await supabase.storage.createBucket(WARDROBE_BUCKET, { public: false }); } catch { /* exists */ }
+  __wardrobeBucketReady = true;
+}
+app.post('/stylist/wardrobe', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const img = req.body?.image;
+    if (!img?.data || !/^image\/(jpeg|png|webp)$/.test(String(img.media_type || ''))) {
+      return res.status(400).json({ error: 'need { image: { media_type: image/jpeg|png|webp, data: base64 } }' });
+    }
+    await ensureWardrobeBucket();
+    const ext = String(img.media_type).split('/')[1];
+    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+    const bytes = Buffer.from(String(img.data), 'base64');
+    if (bytes.length > 6 * 1024 * 1024) return res.status(400).json({ error: 'image too large (6MB cap)' });
+    const up = await supabase.storage.from(WARDROBE_BUCKET).upload(path, bytes, { contentType: img.media_type, upsert: false });
+    if (up.error) return res.status(500).json({ error: up.error.message });
+    // her eye on the piece — vision rides the zip54g route to Anthropic; best-effort.
+    let extracted: any = {};
+    try {
+      const msg: any = await anthropicShared.messages.create({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 300, temperature: 0,
+        system: 'You are a sharp, warm fashion stylist cataloguing a client\'s wardrobe. For the garment/footwear/accessory photo, reply with ONLY strict JSON, no fences: {"kind": one of top|bottom|dress|outerwear|footwear|accessory|other, "colors": "the 1-3 dominant colors", "tags": "comma-separated: fabric/cut/occasion/vibe, max 6", "her_read": "ONE stylish sentence in your own voice about this piece \u2014 what it is and where it shines"}',
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: img.media_type, data: String(img.data) } },
+          { type: 'text', text: 'catalogue this piece.' },
+        ] }],
+      });
+      const raw = firstText(msg).replace(/```json|```/g, '').trim();
+      extracted = JSON.parse(raw);
+    } catch (e: any) { console.error('[wardrobe] extraction failed (piece still files):', e?.message || e); }
+    const row: any = {
+      user_id: user.id, storage_path: path,
+      kind: String(extracted.kind || '').slice(0, 30) || null,
+      colors: String(extracted.colors || '').slice(0, 120) || null,
+      tags: String(extracted.tags || '').slice(0, 240) || null,
+      her_read: String(extracted.her_read || '').slice(0, 400) || null,
+    };
+    const ins = await supabase.from('wardrobe_pieces').insert(row).select().single();
+    if (ins.error) return res.status(500).json({ error: ins.error.message });
+    res.json({ piece: ins.data });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/stylist/wardrobe', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('wardrobe_pieces').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(80);
+    const pieces = await Promise.all((data ?? []).map(async (p: any) => {
+      const s = await supabase.storage.from(WARDROBE_BUCKET).createSignedUrl(p.storage_path, 3600);
+      return { ...p, url: s.data?.signedUrl ?? null };
+    }));
+    res.json({ pieces });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.delete('/stylist/wardrobe/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data: piece } = await supabase.from('wardrobe_pieces').select('*').eq('id', req.params.id).eq('user_id', user.id).maybeSingle();
+    if (!piece) return res.status(404).json({ error: 'not found' });
+    await supabase.storage.from(WARDROBE_BUCKET).remove([piece.storage_path]).then(() => {}, () => {});
+    await supabase.from('wardrobe_pieces').delete().eq('id', piece.id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.get('/mm/brief', async (req: any, res: any) => {
   try {
     const authId = await authUser(req);
