@@ -336,6 +336,10 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,
+      // [zip51] THE ROOM CONDUCT LAW — the one surface that had no conduct law,
+      // and exactly where the narration leak appeared ("Dev walks in, drops
+      // three letters, and the silence waits."). Written law beats implicit norm.
+      { type: 'text', text: '[ROOM CONDUCT — absolute: You are speaking IN A GROUP CHAT, as yourself, in first person. Your reply is ONLY the message you send — never narration, never a third-person description of the scene or of what anyone did or said, never stage directions, never a preamble about the moment. Begin directly with your own spoken words. And speak PLAINLY: everyday words, short sentences, the way real people talk in a group chat — no literary flourishes, no poetic scene-setting.]' },
     ];
     if (dynamic.trim()) system.push({ type: 'text', text: dynamic });
 
