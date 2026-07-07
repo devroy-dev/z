@@ -57,6 +57,34 @@ export function unsubscribe() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
+//  [zip53] THE INBOX CHANNEL — the user's own `user-<id>` topic. The server
+//  (zip48) batches an 'inbox' bump onto every room-message fan-out:
+//  {thread_id, last_active, preview, persona_key, sender_user_id, sender_name}.
+//  Rides ITS OWN singleton (the duel channels' escape from the shared-handle
+//  trap) so the chats list and an open room never kill each other's socket.
+// ════════════════════════════════════════════════════════════════════════
+let _inboxChannel = null;
+let _inboxUserId = null;
+
+export async function subscribeInbox(userId, onBump, onStatus) {
+  const sb = await getClient();
+  if (!sb) { onStatus && onStatus('no-client'); return () => {}; }
+  if (_inboxChannel && _inboxUserId === userId) return unsubscribeInbox; // already live
+  unsubscribeInbox();
+  _inboxUserId = userId;
+  _inboxChannel = sb.channel('user-' + userId, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'inbox' }, (payload) => {
+      const b = payload && payload.payload; if (b) onBump(b);
+    })
+    .subscribe((status, err) => { onStatus && onStatus(status, err); });
+  return unsubscribeInbox;
+}
+
+export function unsubscribeInbox() {
+  if (_inboxChannel && _sb) { try { _sb.removeChannel(_inboxChannel); } catch (e) {} _inboxChannel = null; _inboxUserId = null; }
+}
+
+// ════════════════════════════════════════════════════════════════════════
 //  THE BATTLEFIELD — live keystroke streaming. A debater's composition is
 //  broadcast to the room as throttled full-textbox-state (client→client, never
 //  persisted): pauses show as no-change, deletes as text-shrink, bursts as

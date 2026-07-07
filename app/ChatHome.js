@@ -4,7 +4,7 @@
 //  then recents — personas and rooms as one list. Inner tabs: Chats ·
 //  Updates · Groups · Rooms.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';   // [zip53]
 import { TextInput } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path as SvgPath } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSpring, Easing, runOnJS } from 'react-native-reanimated';
@@ -12,7 +12,8 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';   // [z
 import { Dimensions } from 'react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread } from './api';   // [zip12]
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe } from './api';   // [zip12]
+import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -290,6 +291,52 @@ export default function ChatHome({ onOpen = () => {} }) {
       AsyncStorage.setItem('z_home_cache', JSON.stringify({ t: tt, r: rr })).catch(() => {});
     } catch (e) {}
   }, []);
+  // [zip53] THE LIVE LIST — every room-message fan-out whispers to this user's
+  // own channel; a bump restamps the row (the render sorts by last_active, so
+  // it RISES), writes the cache through, and bumps unread for threads someone
+  // else spoke in. An unknown thread_id (a reappearing hidden DM, a brand-new
+  // room) means one load() — server truth carries the full row in.
+  const knownIdsRef = useRef(new Set());
+  const meIdRef = useRef(null);
+  useEffect(() => {
+    knownIdsRef.current = new Set([...(threads || []).map((t) => t.id), ...(rooms || []).map((r) => r.id)]);
+  }, [threads, rooms]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const me = await getMe();
+        if (!alive || !me?.id) return;
+        meIdRef.current = me.id;
+        await subscribeInbox(me.id, (b) => {
+          if (!b || !b.thread_id) return;
+          const stamp = b.last_active || new Date().toISOString();
+          if (!knownIdsRef.current.has(b.thread_id)) { load(); return; }
+          const mine = b.sender_user_id && meIdRef.current && b.sender_user_id === meIdRef.current;
+          setThreads((cur) => {
+            let hit = false;
+            const next = (cur || []).map((t) => t.id === b.thread_id
+              ? (hit = true, { ...t, last_active: stamp, last_message: (b.preview || t.last_message), unread: mine ? t.unread : ((t.unread || 0) + 1) })
+              : t);
+            if (hit) AsyncStorage.getItem('z_home_cache').then((c) => {
+              try { const s = c ? JSON.parse(c) : { t: [], r: [] }; s.t = next; AsyncStorage.setItem('z_home_cache', JSON.stringify(s)); } catch (e) {}
+            }).catch(() => {});
+            return next;
+          });
+          setRooms((cur) => {
+            let hit = false;
+            const next = (cur || []).map((r) => r.id === b.thread_id ? (hit = true, { ...r, last_active: stamp }) : r);
+            if (hit) AsyncStorage.getItem('z_home_cache').then((c) => {
+              try { const s = c ? JSON.parse(c) : { t: [], r: [] }; s.r = next; AsyncStorage.setItem('z_home_cache', JSON.stringify(s)); } catch (e) {}
+            }).catch(() => {});
+            return next;
+          });
+        });
+      } catch (e) {}
+    })();
+    return () => { alive = false; try { unsubscribeInbox(); } catch (e) {} };
+  }, [load]);
+
   // tap a friend → open (or create) the DM thread, then land in the normal chat surface.
   const openFriendDM = useCallback(async (friend) => {
     if (opening) return;
