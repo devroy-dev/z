@@ -32,6 +32,7 @@ import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
 import { getBulletin, startBulletinScheduler } from './bulletin.js';
+import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler } from './mmDesk.js';   // [zip54k]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
 import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.js';
@@ -68,6 +69,7 @@ startStateScheduler();
 startBriefScheduler();
 startProgrammeScheduler();
 startPingScheduler();
+startDeskNoteScheduler();   // [zip54k] the weekly memo joins the house's jobs
 startBulletinScheduler();
 startSimScheduler();
 startFfScheduler();
@@ -1189,6 +1191,38 @@ app.delete('/stylist/wardrobe/:id', async (req, res) => {
     await supabase.storage.from(WARDROBE_BUCKET).remove([piece.storage_path]).then(() => {}, () => {});
     await supabase.from('wardrobe_pieces').delete().eq('id', piece.id);
     res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [zip54k] ── THE DESK THAT WATCHES ── analytics under his eye; his weekly memos.
+app.post('/mm/analytics', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const img = req.body?.image;
+    if (!img?.data || !/^image\/(jpeg|png|webp)$/.test(String(img.media_type || ''))) {
+      return res.status(400).json({ error: 'need { image: { media_type: image/jpeg|png|webp, data: base64 } }' });
+    }
+    if (Buffer.from(String(img.data), 'base64').length > 6 * 1024 * 1024) return res.status(400).json({ error: 'image too large (6MB cap)' });
+    const filing = await ingestAnalytics(user.id, { media_type: String(img.media_type), data: String(img.data) });
+    res.json({ filing });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/mm/analytics', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ timeline: await analyticsTimeline(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/mm/desknotes', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ notes: await deskNotes(user.id) });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 

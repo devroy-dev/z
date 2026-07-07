@@ -175,6 +175,13 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
         const f = (label: string, v: any) => (v ? `\n  ${label}: ${String(v).slice(0, 400)}` : '');
         mmBlock = `\n\n[THE CLIENT BRIEF — your own working notes on the client in front of you, gathered quietly over your time together. This is what you already know; never ask for what is written here. An empty line is a gap you hold in your notes and fill in its own time, never by interrogation.${f('name / handle', brief.display_name || brief.handle)}${f('platforms', brief.platforms)}${f('niche', brief.niche)}${f('content pillars', brief.pillars)}${f('audience', brief.audience)}${f('stage', brief.stage)}${f('the goal', brief.goal)}${f('active deals', brief.deals)}${f('cadence', brief.cadence)}${f('standing notes', brief.notes)}]`;
       }
+      // [zip54k] THE NUMBERS — the client's actual trajectory rides beside the brief.
+      const { data: nums } = await supabase.from('mm_analytics').select('platform, followers, reach, growth, period, created_at')
+        .eq('user_id', t.user_id).order('created_at', { ascending: false }).limit(6);
+      if (nums && nums.length) {
+        const nl = nums.map((r: any) => `  • ${[r.platform, r.followers && `${r.followers} followers`, r.reach && `reach ${r.reach}`, r.growth, r.period && `(${r.period})`].filter(Boolean).join(', ')}`).join('\n');
+        mmBlock += `\n\n[THE NUMBERS — the client's filed analytics, newest first. This is their real trajectory: read direction across filings, cite the figures when they sharpen your counsel, and never ask for numbers already written here.\n${nl}]`;
+      }
     } catch (e: any) { console.error('[mm] brief failed:', e?.message || e); }
   }
   let frontDeskBlock = '';
