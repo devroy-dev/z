@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>z · generator console</title>
+<style>
+  :root { --ink:#EDEFF6; --mist:rgba(237,239,246,.55); --faint:rgba(237,239,246,.3);
+          --hair:rgba(237,239,246,.14); --ground:#0A0C12; --card:rgba(255,255,255,.03); }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--ground); color:var(--ink); font:15px/1.5 -apple-system,system-ui,sans-serif; padding:28px 18px 60px; max-width:640px; margin:0 auto; }
+  h1 { font-size:13px; letter-spacing:3px; text-transform:uppercase; color:var(--mist); font-weight:500; margin-bottom:22px; }
+  .card { background:var(--card); border:1px solid var(--hair); border-radius:14px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:10.5px; letter-spacing:1.6px; text-transform:uppercase; color:var(--faint); margin-bottom:6px; }
+  input, textarea { width:100%; background:rgba(255,255,255,.04); border:1px solid var(--hair); border-radius:10px; color:var(--ink); padding:10px 12px; font:inherit; }
+  textarea { min-height:70px; resize:vertical; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  button { flex:1; min-width:100px; padding:12px 8px; border-radius:11px; border:1px solid var(--hair); background:rgba(255,255,255,.04); color:var(--mist); font:inherit; font-size:14px; cursor:pointer; }
+  button.on { border-color:rgba(140,220,170,.6); background:rgba(140,220,170,.12); color:var(--ink); }
+  button.dead { opacity:.4; }
+  #status { font-size:13.5px; color:var(--mist); }
+  #status b { color:var(--ink); font-weight:600; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:9px; border:1px solid var(--hair); font-size:11.5px; color:var(--faint); margin-left:6px; }
+  .pill.ok { border-color:rgba(140,220,170,.5); color:rgb(160,225,185); }
+  pre { background:rgba(0,0,0,.35); border:1px solid var(--hair); border-radius:10px; padding:12px; font-size:12px; overflow:auto; white-space:pre-wrap; margin-top:10px; max-height:340px; }
+  .note { font-size:12px; color:var(--faint); margin-top:8px; }
+</style>
+</head>
+<body>
+<h1>the generator console</h1>
+
+<div class="card">
+  <label>dev key</label>
+  <input id="key" type="password" placeholder="x-dev-key" />
+  <div class="note">held in this browser only (localStorage). every call below carries it.</div>
+</div>
+
+<div class="card">
+  <div id="status">…</div>
+  <div class="row" id="btns">
+    <button data-p="anthropic">haiku</button>
+    <button data-p="deepseek">deepseek</button>
+    <button data-p="glm">glm free</button>
+    <button data-p="">env default</button>
+  </div>
+  <div class="note">runtime switch — instant, no redeploy. resets to the env default on restart/deploy (by design: env is durable, this is the fast lever).</div>
+</div>
+
+<div class="card">
+  <label>probe — one raw call through the facade</label>
+  <textarea id="psys" placeholder="system (optional)"></textarea>
+  <div style="height:8px"></div>
+  <textarea id="pmsg" placeholder="message"></textarea>
+  <div class="row">
+    <button id="probe" style="flex:2">fire probe</button>
+    <input id="ptok" type="number" value="220" style="flex:1; min-width:70px" title="max_tokens" />
+  </div>
+  <pre id="pout" style="display:none"></pre>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const key = $('key');
+key.value = localStorage.getItem('zdk') || '';
+key.addEventListener('change', () => localStorage.setItem('zdk', key.value.trim()));
+const H = () => ({ 'content-type': 'application/json', 'x-dev-key': key.value.trim() });
+
+async function refresh() {
+  try {
+    const r = await fetch('/dev/llm', { headers: H() });
+    const j = await r.json();
+    if (!r.ok) { $('status').textContent = j.error || 'unauthorized — set the dev key'; return; }
+    $('status').innerHTML = 'active: <b>' + j.active + '</b>' +
+      (j.override ? ' <span class="pill">runtime override</span>' : ' <span class="pill">from env</span>') +
+      '<br/>keys: ' + ['anthropic','deepseek','glm'].map(p => p + ' <span class="pill ' + (j.keys[p] ? 'ok' : '') + '">' + (j.keys[p] ? 'set' : 'missing') + '</span>').join(' · ') +
+      (j.recentCalls != null ? '<br/>calls since boot: <b>' + j.recentCalls + '</b>' : '');
+    document.querySelectorAll('#btns button').forEach(b => {
+      b.classList.toggle('on', (b.dataset.p || j.env) === j.active && (b.dataset.p !== '' || !j.override));
+      if (b.dataset.p && !j.keys[b.dataset.p]) b.classList.add('dead'); else b.classList.remove('dead');
+    });
+  } catch (e) { $('status').textContent = 'unreachable'; }
+}
+
+document.querySelectorAll('#btns button').forEach(b => b.addEventListener('click', async () => {
+  await fetch('/dev/llm', { method: 'POST', headers: H(), body: JSON.stringify({ provider: b.dataset.p || null }) });
+  refresh();
+}));
+
+$('probe').addEventListener('click', async () => {
+  $('pout').style.display = 'block'; $('pout').textContent = '…';
+  try {
+    const r = await fetch('/dev/llm/probe', { method: 'POST', headers: H(), body: JSON.stringify({
+      system: $('psys').value || undefined, message: $('pmsg').value || 'Say hello in one line.',
+      max_tokens: parseInt($('ptok').value, 10) || 220,
+    })});
+    $('pout').textContent = JSON.stringify(await r.json(), null, 2);
+  } catch (e) { $('pout').textContent = String(e); }
+});
+
+key.addEventListener('input', () => { localStorage.setItem('zdk', key.value.trim()); refresh(); });
+refresh(); setInterval(refresh, 20000);
+</script>
+</body>
+</html>

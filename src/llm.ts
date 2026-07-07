@@ -61,7 +61,26 @@ const CONF: Record<ProviderKey, {
   },
 };
 
+let _override: ProviderKey | null = null;   // [zip37] the console's fast lever — resets on restart, env stays durable
+export function setLlmOverride(p: string | null): ProviderKey {
+  _override = p && CONF[p as ProviderKey] ? (p as ProviderKey) : null;
+  return llmProvider();
+}
+export function llmStatus() {
+  const env = String(process.env.LLM_PROVIDER || 'anthropic');
+  return {
+    active: llmProvider(),
+    override: _override,
+    env: CONF[env as ProviderKey] ? env : 'anthropic',
+    keys: {
+      anthropic: !!process.env.ANTHROPIC_API_KEY,
+      glm: !!process.env.ZAI_API_KEY,
+      deepseek: !!process.env.DEEPSEEK_API_KEY,
+    },
+  };
+}
 export function llmProvider(): ProviderKey {
+  if (_override) return _override;
   const p = String(process.env.LLM_PROVIDER || 'anthropic') as ProviderKey;
   return CONF[p] ? p : 'anthropic';
 }

@@ -8,7 +8,7 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
-import { llm, firstText } from './llm.js';
+import { llm, firstText, setLlmOverride, llmStatus } from './llm.js';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
@@ -1070,6 +1070,45 @@ app.post('/dev/seatbelt', async (req, res) => {
     const out = await seatbeltCheck(String(ping), { personaKey: persona ?? null });
     res.json(out);
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [zip37] ── the generator console's rails ──
+app.get('/dev/llm', async (req, res) => {
+  const key = process.env.DEV_KEY;
+  if (!key || req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+  res.json({ ...llmStatus(), recentCalls: costSnapshot() });
+});
+app.post('/dev/llm', async (req, res) => {
+  const key = process.env.DEV_KEY;
+  if (!key || req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+  const active = setLlmOverride(req.body?.provider ?? null);
+  console.log('[llm] console switch → override:', req.body?.provider ?? null, '→ active:', active);
+  res.json({ ...llmStatus(), recentCalls: costSnapshot() });
+});
+app.post('/dev/llm/probe', async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key || req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    const { system, message, max_tokens, model } = req.body ?? {};
+    if (!message) return res.status(400).json({ error: 'need { message }' });
+    const params: any = {
+      model: model || 'claude-haiku-4-5-20251001',
+      max_tokens: Math.max(16, Math.min(4096, Number(max_tokens) || 220)),
+      temperature: 0,
+      messages: [{ role: 'user', content: String(message) }],
+    };
+    if (system) params.system = String(system);
+    const msg: any = await anthropicShared.messages.create(params);
+    res.json({
+      provider: llmStatus().active,
+      stop_reason: msg?.stop_reason ?? null,
+      types: Array.isArray(msg?.content) ? msg.content.map((b: any) => b?.type) : [],
+      usage: msg?.usage ?? null,
+      content: msg?.content ?? null,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: 'probe failed: ' + (e?.message || String(e)) });
+  }
 });
 
 app.post('/dev/echo', async (req, res) => {
