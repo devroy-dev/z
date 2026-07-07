@@ -1137,15 +1137,24 @@ app.post('/dev/echo', async (req, res) => {
     }
     if (serious) dyn += `\n\n[SERIOUS MODE IS ON. Set the bits and deflection aside; be warm, grounded, careful. If real danger shows, steer to real human help.]`;
 
-    const system: any[] = [{ type: 'text', text: staticPrefix }];
+    // [zip54c] ECHO FIDELITY — the probe mirrors a real turn: register + conduct (+ the
+    // anchor's fact-check) ride; webEnabled personas get the tool; temperature pinned;
+    // the response reports the real provider + model, never a hardcoded label.
+    const inst = ['the_anchor', 'the_grandmaster', 'the_coach', 'the_moderator', 'the_interviewer', 'the_media_manager'].includes(p.key);
+    let registerNote = inst ? '[THE INSTITUTIONAL REGISTER: you are a professional at your desk, not a friend on WhatsApp. Clean, complete, measured sentences — no slang, no lowercase drift, no emoji, no filler. Be concise: most replies 2-5 sentences; a longer answer splits into short paragraphs with a blank line between them. THE PERSONAL-LIFE LAW: you never ask about the user\'s personal life, day, mood, plans, work, or circumstances — not as warmth, not as small talk, not as a sign-off. The only questions you ask serve the matter at hand. Their life enters the room only if THEY bring it — and even then you address the matter they raised, never their biography.]' : '[TEXTING REGISTER: this is a phone chat. Keep messages SHORT — most under 25 words. When you have more to say, break it into 2-3 separate short messages with a blank line between them (each becomes its own bubble). A question lands alone in its own bubble. Never write essays.]';
+    registerNote += '\n\n[THE CONDUCT LAW — absolute, every reply: you are SPEAKING to a person, not writing a scene. Your reply is ONLY the message you send, in first person, beginning directly with your own spoken words. Never narration, never stage directions, never asterisked actions, never a third-person description of the moment or of what you are doing. If a sentence describes the scene instead of speaking to the person, delete it.]';
+    if (p.key === 'the_anchor') registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly. Never soften a correction into ambiguity; never confirm what you have not verified.]';
+    const system: any[] = [{ type: 'text', text: staticPrefix }, { type: 'text', text: registerNote }];
     if (dyn) system.push({ type: 'text', text: dyn });
-    const msg = await anthropicShared.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 1024,
+    const echoArgs: any = {
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1024, temperature: 0,
       system,
       messages: [{ role: 'user', content: String(message).slice(0, 2000) }],
-    });
+    };
+    if (p.webEnabled) echoArgs.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }];
+    const msg = await anthropicShared.messages.create(echoArgs);
     const reply = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
-    res.json({ persona: p.key, codex: p.codex, model: 'claude-haiku-4-5-20251001', reply });
+    res.json({ persona: p.key, codex: p.codex, provider: llmStatus().active, model: (msg as any)?.model ?? null, web: !!p.webEnabled, reply });
   } catch (e: any) { res.status(500).json({ error: 'dev echo failed: ' + (e?.message || String(e)) }); }
 });
 

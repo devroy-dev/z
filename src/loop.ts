@@ -61,7 +61,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   const codexKeys: CodexKey[] = [((persona?.codex as CodexKey) || (t.codex_key as CodexKey))];
   // [zip04] the institutional class: no memory dump, no diary, slim owner line,
   // professional register (see content.ts INSTITUTIONAL for the assembly side).
-  const institutional = ['the_anchor', 'the_grandmaster', 'the_coach', 'the_moderator', 'the_interviewer'].includes(String(t.persona_key || ''));   // [zip26]
+  const institutional = ['the_anchor', 'the_grandmaster', 'the_coach', 'the_moderator', 'the_interviewer', 'the_media_manager'].includes(String(t.persona_key || ''));   // [zip26] [zip54c] the advisor's desk, register side
 
   // ── CUSTOM PERSONAS: codex lives in the DB, scoped to its owner; the house
   // seatbelt rides AFTER the creator's text so it always wins. Missing or
@@ -218,6 +218,8 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   let registerNote = institutional
     ? '\n\n[THE INSTITUTIONAL REGISTER: you are a professional at your desk, not a friend on WhatsApp. Clean, complete, measured sentences — no slang, no lowercase drift, no emoji, no filler. Be concise: most replies 2-5 sentences; a longer answer splits into short paragraphs with a blank line between them. THE PERSONAL-LIFE LAW: you never ask about the user\'s personal life, day, mood, plans, work, or circumstances — not as warmth, not as small talk, not as a sign-off. The only questions you ask serve the matter at hand (clarifying the story, the lesson, the material, the motion). Their life enters the room only if THEY bring it — and even then you address the matter they raised, never their biography.]'
     : '\n\n[TEXTING REGISTER: this is a phone chat. Keep messages SHORT — most under 25 words. When you have more to say, break it into 2-3 separate short messages with a blank line between them (each becomes its own bubble). A question lands alone in its own bubble. Never write essays.]';
+  // [zip54c] zip51's room conduct law, adapted for 1-on-1 — written law beats implicit norm, on EVERY speaking surface.
+  registerNote += '\n\n[THE CONDUCT LAW — absolute, every reply: you are SPEAKING to a person, not writing a scene. Your reply is ONLY the message you send, in first person, beginning directly with your own spoken words. Never narration, never stage directions, never asterisked actions, never a third-person description of the moment or of what you are doing. If a sentence describes the scene instead of speaking to the person, delete it.]';
   if (t?.persona_key === 'the_anchor') {
     registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly: "that is a misstatement" / "that forward is fabricated - here is what actually happened." Never soften a correction into ambiguity; never confirm what you have not verified.]';
   }
