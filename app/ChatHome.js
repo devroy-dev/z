@@ -452,7 +452,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
-          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=4`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'persona', key: 'the_grandmaster' })} />
+          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=4`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] */ })} />
           <View style={st.divider} />
           {filt === 'friends' ? (
             friendList.length === 0 ? (
