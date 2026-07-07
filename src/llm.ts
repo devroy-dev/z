@@ -124,8 +124,8 @@ function stripCache(v: any): any {
   return v;
 }
 
-function translate(params: any): any {
-  const p = llmProvider();
+function translate(params: any): any { return translateFor(llmProvider(), params); }   // [zip54g] provider now explicit
+function translateFor(p: ProviderKey, params: any): any {
   if (p === 'anthropic') return params;
   const c = CONF[p];
   let out = { ...params, model: c.model(String(params?.model || '')) };
@@ -150,6 +150,16 @@ function translate(params: any): any {
 
 // [zip36] firstText — extraction BY TYPE, never by position. Some providers return a
 // leading non-text block (thinking, etc.); content[0] is a bet, find() is a law.
+// [zip54g] THE DSML SCRUB — DeepSeek leaked raw '<\uFF5C\uFF5CDSML\uFF5C\uFF5C...' tool markup into a
+// user-visible reply (Taiwan probe). The fullwidth bar never appears in honest prose;
+// everything from its first occurrence is machine junk — truncate there.
+export function scrubProviderMarkup(s: string): string {
+  const i = s.indexOf('\uFF5C');
+  if (i === -1) return s;
+  const cut = s.lastIndexOf('<', i);
+  return s.slice(0, cut > -1 && i - cut < 4 ? cut : i).trimEnd();
+}
+
 export function firstText(msg: any): string {
   const c = msg?.content;
   if (!Array.isArray(c)) return '';
@@ -157,13 +167,59 @@ export function firstText(msg: any): string {
   return typeof b?.text === 'string' ? b.text : '';
 }
 
+// [zip54g] PERSONA PINS — trades whose ground truth cannot ride a stale or filtered
+// index. World affairs is Haiku's, always (Dev ruling, battery-proven 2026-07-07).
+const PROVIDER_PINS: Record<string, ProviderKey> = {
+  the_anchor: 'anthropic',
+  the_grandmaster: 'anthropic',
+};
+export function pinnedProvider(personaKey?: string | null): ProviderKey | null {
+  return (personaKey && PROVIDER_PINS[personaKey]) || null;
+}
+
+// [zip54g] VISION ROUTE — DeepSeek's gateway silently replaces images with
+// '[Unsupported Image]' and the model reasons around the placeholder (probe-proven).
+// Image-bearing calls route to Anthropic; with no Anthropic key, WE strip the image
+// and say so, loudly, so no persona ever performs sight.
+function hasImageBlocks(params: any): boolean {
+  return Array.isArray(params?.messages) && params.messages.some((m: any) =>
+    Array.isArray(m?.content) && m.content.some((b: any) => b?.type === 'image'));
+}
+const BLIND_SIGHT = '\n\n[NOTICE — an image was sent but you CANNOT SEE IT: no vision is available right now. Say plainly that you cannot view the image and ask them to describe it. Never describe, analyse, or pretend to have seen it.]';
+function stripImages(params: any): any {
+  const q = { ...params };
+  q.messages = q.messages.map((m: any) => !Array.isArray(m?.content) ? m : {
+    ...m,
+    content: (() => {
+      const kept = m.content.filter((b: any) => b?.type !== 'image');
+      return kept.length ? kept : [{ type: 'text', text: '[the person sent an image you cannot see]' }];
+    })(),
+  });
+  if (typeof q.system === 'string') q.system = q.system + BLIND_SIGHT;
+  else if (Array.isArray(q.system)) q.system = [...q.system, { type: 'text', text: BLIND_SIGHT }];
+  else q.system = BLIND_SIGHT.trim();
+  return q;
+}
+function route(params: any): { p: ProviderKey; q: any } {
+  let q = { ...params };
+  const pin = q.__pin as ProviderKey | undefined;
+  delete q.__pin;
+  let p: ProviderKey = (pin && CONF[pin]) ? pin : llmProvider();
+  if (hasImageBlocks(q)) {
+    if (process.env.ANTHROPIC_API_KEY) p = 'anthropic';   // the seeing lane
+    else q = stripImages(q);                               // honest blindness
+  }
+  return { p, q };
+}
+
 // The facade — a drop-in for the per-file `const anthropic = new Anthropic(...)`.
 // Same call shapes (.messages.create / .messages.stream), provider-routed.
+// [zip54g] pins + vision route in front of translation.
 export function llm() {
   return {
     messages: {
-      create: (params: any, opts?: any) => clientFor(llmProvider()).messages.create(translate(params), opts),
-      stream: (params: any, opts?: any) => clientFor(llmProvider()).messages.stream(translate(params), opts),
+      create: (params: any, opts?: any) => { const { p, q } = route(params); return clientFor(p).messages.create(translateFor(p, q), opts); },
+      stream: (params: any, opts?: any) => { const { p, q } = route(params); return clientFor(p).messages.stream(translateFor(p, q), opts); },
     },
   };
 }

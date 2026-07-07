@@ -40,7 +40,7 @@ export function parseStories(text: string) {
 
 async function generate(prompt: string): Promise<any[]> {
   const msg = await anthropic.messages.create({
-    model: MODEL, max_tokens: 1400, system: ANCHOR_SYS,
+    model: MODEL, max_tokens: 1400, system: ANCHOR_SYS, __pin: 'anthropic',   // [zip54g] the newsroom never leaves Haiku
     messages: [{ role: 'user', content: prompt }],
     tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as any],
   });

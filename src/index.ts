@@ -8,7 +8,7 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
-import { llm, firstText, setLlmOverride, setLlmWeb, llmStatus } from './llm.js';   // [zip40]
+import { llm, firstText, setLlmOverride, setLlmWeb, llmStatus, pinnedProvider } from './llm.js';   // [zip40] [zip54g]
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
@@ -1192,8 +1192,8 @@ app.post('/dev/echo', async (req, res) => {
     // the response reports the real provider + model, never a hardcoded label.
     const inst = ['the_anchor', 'the_grandmaster', 'the_coach', 'the_moderator', 'the_interviewer', 'the_media_manager'].includes(p.key);
     let registerNote = inst ? '[THE INSTITUTIONAL REGISTER: you are a professional at your desk, not a friend on WhatsApp. Clean, complete, measured sentences — no slang, no lowercase drift, no emoji, no filler. Be concise: most replies 2-5 sentences; a longer answer splits into short paragraphs with a blank line between them. THE PERSONAL-LIFE LAW: you never ask about the user\'s personal life, day, mood, plans, work, or circumstances — not as warmth, not as small talk, not as a sign-off. The only questions you ask serve the matter at hand. Their life enters the room only if THEY bring it — and even then you address the matter they raised, never their biography.]' : '[TEXTING REGISTER: this is a phone chat. Keep messages SHORT — most under 25 words. When you have more to say, break it into 2-3 separate short messages with a blank line between them (each becomes its own bubble). A question lands alone in its own bubble. Never write essays.]';
-    registerNote += '\n\n[THE CONDUCT LAW — absolute, every reply: you are SPEAKING to a person, not writing a scene. Your reply is ONLY the message you send, in first person, beginning directly with your own spoken words. Never narration, never stage directions, never asterisked actions, never a third-person description of the moment or of what you are doing. If a sentence describes the scene instead of speaking to the person, delete it.]';
-    if (p.key === 'the_anchor') registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly. Never soften a correction into ambiguity; never confirm what you have not verified.]';
+    registerNote += '\n\n[THE CONDUCT LAW — absolute, every reply: you are SPEAKING to a person, not writing a scene. Your reply is ONLY the message you send, in first person, beginning directly with your own spoken words. Never narration, never stage directions, never asterisked actions, never a third-person description of the moment or of what you are doing. If a sentence describes the scene instead of speaking to the person, delete it. TOOLS ARE SILENT: never announce that you are searching, checking, or pulling anything up — no \'let me search\', no \'let me look\'; use the tool without narration and return with the answer itself.]';
+    if (p.key === 'the_anchor') registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly. Never soften a correction into ambiguity; never confirm what you have not verified. DECOMPOSE COMPOUND CLAIMS: a headline bundles an event, an actor, and a statement — verify each part separately; finding nothing for the bundle is never proof the parts are false. THE DATE OUTRANKS YOUR MEMORY: when today\'s date postdates what you were trained knowing, everything you remember about the current state of the world is provisional — offices, wars, leaders may have changed; search it or say unverified, never assert the past as the present. THE RESULT BEATS YOUR OWN WORDS: when a search result contradicts something you said earlier, the result wins — correct the record at once, in that same reply.]';
     const system: any[] = [{ type: 'text', text: staticPrefix }, { type: 'text', text: registerNote }];
     if (dyn) system.push({ type: 'text', text: dyn });
     const echoArgs: any = {
@@ -1202,6 +1202,7 @@ app.post('/dev/echo', async (req, res) => {
       messages: [{ role: 'user', content: String(message).slice(0, 2000) }],
     };
     if (p.webEnabled) echoArgs.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }];
+    (echoArgs as any).__pin = pinnedProvider(p.key) || undefined;   // [zip54g] probes honor the pins
     const msg = await anthropicShared.messages.create(echoArgs);
     const reply = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
     res.json({ persona: p.key, codex: p.codex, provider: llmStatus().active, model: (msg as any)?.model ?? null, web: !!p.webEnabled, reply });

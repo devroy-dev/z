@@ -11,6 +11,7 @@ import { withGapMarker, sinceLine } from './timegap.js';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
+import { pinnedProvider, scrubProviderMarkup } from './llm.js';   // [zip54g]
 import { readMemoryBlock } from './memory.js';
 import { readRoomMemoryBlock } from './roomMemory.js';
 import { personaByKey, type CodexKey } from './personas.js';
@@ -369,6 +370,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const streamArgs: any = {
       model: MODEL, max_tokens: maxTok, system,
       messages: [{ role: 'user', content: turnContent }],
+      __pin: pinnedProvider(key) || undefined,   // [zip54g] world affairs ride Haiku in rooms too
     };
     if (persona?.webEnabled && !turnHasImage) {
       streamArgs.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }];
@@ -384,7 +386,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       if (err?.cause) console.error('[groupLoop] cause=', err.cause);
       throw err;
     });
-    let reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    let reply = scrubProviderMarkup(final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim());   // [zip54g]
     if (key === 'the_media_manager') reply = reply.replace(/\u20B9\s*/g, 'Rs ');   // [zip54b] the Rs law in rooms
     logUsage({ userId, threadId, personaKey: key, surface: 'group', fn: 'group_turn', model: MODEL, usage: (final as any).usage });
 

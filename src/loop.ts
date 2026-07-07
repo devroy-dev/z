@@ -4,7 +4,7 @@
 //   DYNAMIC (uncached): today's date + the shared memory block. Changes per turn.
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, pinnedProvider, scrubProviderMarkup } from './llm.js';   // [zip54g]
 import { supabase } from './db.js';
 import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPersonas.js';
 import { buildCustomPrefix } from './content.js';
@@ -244,9 +244,11 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
     ? '\n\n[THE INSTITUTIONAL REGISTER: you are a professional at your desk, not a friend on WhatsApp. Clean, complete, measured sentences — no slang, no lowercase drift, no emoji, no filler. Be concise: most replies 2-5 sentences; a longer answer splits into short paragraphs with a blank line between them. THE PERSONAL-LIFE LAW: you never ask about the user\'s personal life, day, mood, plans, work, or circumstances — not as warmth, not as small talk, not as a sign-off. The only questions you ask serve the matter at hand (clarifying the story, the lesson, the material, the motion). Their life enters the room only if THEY bring it — and even then you address the matter they raised, never their biography.]'
     : '\n\n[TEXTING REGISTER: this is a phone chat. Keep messages SHORT — most under 25 words. When you have more to say, break it into 2-3 separate short messages with a blank line between them (each becomes its own bubble). A question lands alone in its own bubble. Never write essays.]';
   // [zip54c] zip51's room conduct law, adapted for 1-on-1 — written law beats implicit norm, on EVERY speaking surface.
-  registerNote += '\n\n[THE CONDUCT LAW — absolute, every reply: you are SPEAKING to a person, not writing a scene. Your reply is ONLY the message you send, in first person, beginning directly with your own spoken words. Never narration, never stage directions, never asterisked actions, never a third-person description of the moment or of what you are doing. If a sentence describes the scene instead of speaking to the person, delete it.]';
+  registerNote += '\n\n[THE CONDUCT LAW — absolute, every reply: you are SPEAKING to a person, not writing a scene. Your reply is ONLY the message you send, in first person, beginning directly with your own spoken words. Never narration, never stage directions, never asterisked actions, never a third-person description of the moment or of what you are doing. If a sentence describes the scene instead of speaking to the person, delete it. TOOLS ARE SILENT: never announce that you are searching, checking, or pulling anything up — no \'let me search\', no \'let me look\'; use the tool without narration and return with the answer itself.]';
+  // [zip54g] web is withheld on image turns — the persona must never perform a search that didn't happen.
+  if (persona?.webEnabled && !!input.image) registerNote += '\n\n[NOTICE — this turn carries an image, so your live web search is UNAVAILABLE for it. Never claim or imply you searched or verified anything online in this reply; where checking would matter, say plainly you could not check right now.]';
   if (t?.persona_key === 'the_anchor') {
-    registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly: "that is a misstatement" / "that forward is fabricated - here is what actually happened." Never soften a correction into ambiguity; never confirm what you have not verified.]';
+    registerNote += '\n\n[THE FACT-CHECK LAW: you are a working journalist with live web search. When the user states something checkable, asks about news, or pastes a claim or forward - SEARCH before answering. If a claim is wrong, say so plainly: "that is a misstatement" / "that forward is fabricated - here is what actually happened." Never soften a correction into ambiguity; never confirm what you have not verified. DECOMPOSE COMPOUND CLAIMS: a headline bundles an event, an actor, and a statement — verify each part separately; finding nothing for the bundle is never proof the parts are false. THE DATE OUTRANKS YOUR MEMORY: when today\'s date postdates what you were trained knowing, everything you remember about the current state of the world is provisional — offices, wars, leaders may have changed; search it or say unverified, never assert the past as the present. THE RESULT BEATS YOUR OWN WORDS: when a search result contradicts something you said earlier, the result wins — correct the record at once, in that same reply.]';
   }
   // THE LIFE OUTSIDE — the persona's own diary (written nightly by the state
   // writer, never before injected: personas were oblivious to their own lives).
@@ -314,7 +316,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   if (persona?.webEnabled && !hasImage) {
     tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 4 });
   }
-  const streamArgs: any = { model: MODEL, max_tokens: 1024, system, messages };
+  const streamArgs: any = { model: MODEL, max_tokens: 1024, system, messages, __pin: pinnedProvider(t.persona_key) || undefined };   // [zip54g] world affairs ride Haiku
   if (tools.length) streamArgs.tools = tools;
   const stream = anthropic.messages.stream(streamArgs);
   let __chars = 0;
@@ -331,7 +333,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
     throw err;
   });
 
-  let reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('');
+  let reply = scrubProviderMarkup(final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join(''));   // [zip54g]
   // [zip54b] THE Rs LAW — media manager only, enforced in code (the soul asks; the pipe guarantees).
   if (t.persona_key === 'the_media_manager') reply = reply.replace(/\u20B9\s*/g, 'Rs ');
 
