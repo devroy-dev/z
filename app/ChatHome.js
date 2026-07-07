@@ -372,7 +372,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
-  const PINNED_KEYS = new Set(['the_front_desk', 'z', 'z_serious', 'the_grandmaster', 'the_interviewer']);   // [zip28]
+  const PINNED_KEYS = new Set(['the_front_desk', 'z', 'z_serious', 'the_grandmaster', 'the_interviewer', 'the_media_manager']);   // [zip28] [zip54d]
   // chats tab = 1:1 persona threads + human DMs. Persona ROOMS (with persona members,
   // like "Nolan's Odyssey") stay in the GROUPS tab. A DM is a shared thread with no
   // persona members → it belongs here, as a normal conversation.
@@ -506,6 +506,7 @@ export default function ChatHome({ onOpen = () => {} }) {
           {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
           <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=4`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] */ })} />
           <Row face={`https://callmez.app/faces/the_interviewer.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] */ })} />
+          <Row face={`https://callmez.app/faces/the_media_manager.jpg?v=1`} tone={'rgba(215,245,60,0.30)'} name="the Media Manager" line="file the brief once. i run your career like a business." pinned onPress={() => onOpen({ kind: 'mmroom' /* [zip54d] */ })} />
           <View style={st.divider} />
           {filt === 'friends' ? (
             friendList.length === 0 ? (

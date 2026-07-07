@@ -423,6 +423,9 @@ export async function startBattlefieldPractice(motion, domain, difficulty) {
 export async function getBattlefieldMotions(tier) {
   return authedJSON('GET', '/battlefield/motions' + (tier ? ('?tier=' + tier) : ''));
 }
+// [zip54d] the client brief — the Media Manager's file on you
+export async function getMmBrief() { return authedJSON('GET', '/mm/brief'); }
+export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief', brief); }
 // read-only spectator view of a duel (no seat required) → { motion, phase, turns, verdict, ... }
 export async function watchBattlefieldDuel(sessionId) {
   return authedJSON('GET', `/battlefield/watch/${sessionId}`);
