@@ -426,9 +426,6 @@ export async function getBattlefieldMotions(tier) {
 // [zip54d] the client brief — the Media Manager's file on you
 export async function getMmBrief() { return authedJSON('GET', '/mm/brief'); }
 export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief', brief); }
-// [zip54e] the money file — the Money Man's file on your money
-export async function getMoneyFile() { return authedJSON('GET', '/money/file'); }
-export async function saveMoneyFile(file) { return authedJSON('POST', '/money/file', file); }
 // read-only spectator view of a duel (no seat required) → { motion, phase, turns, verdict, ... }
 export async function watchBattlefieldDuel(sessionId) {
   return authedJSON('GET', `/battlefield/watch/${sessionId}`);

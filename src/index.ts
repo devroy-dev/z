@@ -1138,31 +1138,6 @@ app.post('/mm/brief', async (req: any, res: any) => {
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
-// [zip54e] ── MONEY TALK ── the Money Man's file on the client's money. The room
-// writes it; the loop reads it every turn. Facts and tradeoffs; decisions stay theirs.
-app.get('/money/file', async (req, res) => {
-  try {
-    const authId = await authUser(req);
-    if (!authId) return res.status(401).json({ error: 'unauthorized' });
-    const user = await resolveUser(authId);
-    const { data } = await supabase.from('money_file').select('*').eq('user_id', user.id).maybeSingle();
-    res.json({ file: data ?? null });
-  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
-});
-app.post('/money/file', async (req, res) => {
-  try {
-    const authId = await authUser(req);
-    if (!authId) return res.status(401).json({ error: 'unauthorized' });
-    const user = await resolveUser(authId);
-    const FIELDS = ['savings', 'invested', 'monthly_budget', 'goals', 'holdings', 'risk', 'notes'];
-    const row: any = { user_id: user.id, updated_at: new Date().toISOString() };
-    for (const f of FIELDS) if (f in (req.body ?? {})) row[f] = String(req.body[f] ?? '').slice(0, 1200) || null;
-    const { error } = await supabase.from('money_file').upsert(row, { onConflict: 'user_id' });
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ ok: true });
-  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
-});
-
 app.post('/dev/echo', async (req, res) => {
   try {
     const key = process.env.DEV_KEY;

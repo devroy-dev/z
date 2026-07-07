@@ -153,19 +153,6 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   }
 
   // ── THE FRONT DESK: inject the user's task list + how to manage it ──────
-  // [zip54e] MONEY TALK — the Money Man's file on this client's money rides every
-  // turn. He informs from it with facts and tradeoffs; he never issues a transaction
-  // directive, and he never asks for what is already written here.
-  let moneyBlock = '';
-  if (String(t.persona_key || '') === 'the_economist') {
-    try {
-      const { data: mf } = await supabase.from('money_file').select('*').eq('user_id', t.user_id).maybeSingle();
-      if (mf) {
-        const g = (label: string, v: any) => (v ? `\n  ${label}: ${String(v).slice(0, 600)}` : '');
-        moneyBlock = `\n\n[THE MONEY FILE — your own working file on this person's money, built from what they have chosen to share. This is what you already know; never ask for what is written here, and treat an empty line as a gap to fill in its own time. You inform from this file — facts, tradeoffs, the honest picture — and the decisions remain theirs, always: you never issue a buy/sell/transaction directive.${g('savings', mf.savings)}${g('invested', mf.invested)}${g('monthly budget', mf.monthly_budget)}${g('goals', mf.goals)}${g('holdings / watchlist', mf.holdings)}${g('risk appetite', mf.risk)}${g('standing notes', mf.notes)}]`;
-      }
-    } catch (e: any) { console.error('[money] file failed:', e?.message || e); }
-  }
   // [zip54d] THE CLIENT BRIEF — the advisor never asks for what he has already been
   // told; his own working notes on this client ride every turn.
   let mmBlock = '';
@@ -255,7 +242,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   let lifeBlock = '';
   try { if (!institutional) lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }   // [zip04] an institution has no diary to leak
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${moneyBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides [zip54e] the file too
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
