@@ -94,6 +94,14 @@ function ZLight({ speaking }) {
   );
 }
 
+// [zip30] the popover announces itself — a 140ms breath in
+function PopIn({ children }) {
+  const o = useSharedValue(0);
+  useEffect(() => { o.value = withTiming(1, { duration: 140, easing: Easing.out(Easing.ease) }); }, []);
+  const st = useAnimatedStyle(() => ({ opacity: o.value }));
+  return <Animated.View style={st} pointerEvents="box-none">{children}</Animated.View>;
+}
+
 // ── a story paragraph that arrives like a breath — staggered, slow ──
 function FadePara({ children, delay }) {
   const o = useSharedValue(0);
@@ -388,7 +396,8 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
           {/* the moon-door: journal · what i remember */}
           {sheet ? (
             <Pressable style={styles.popVeil} onPress={() => setSheet(false)}>
-              {/* [zip29] the menu opens where you touched; the page is the dismiss */}
+              {/* [zip29][zip30] the menu opens where you touched; the page is the dismiss */}
+              <PopIn>
               <Pressable style={styles.popover} onPress={() => {}}>
                 <Pressable onPress={() => { setSheet(false); onJournal(); }} hitSlop={6} style={styles.popRow}>
                   <Text style={styles.popLine}>the journal ›</Text>
@@ -398,6 +407,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
                   <Text style={styles.popLine}>what i remember ›</Text>
                 </Pressable>
               </Pressable>
+              </PopIn>
             </Pressable>
           ) : null}
         </SafeAreaView>
@@ -438,8 +448,8 @@ const styles = StyleSheet.create({
   micLive: { color: '#FF6B5A', fontSize: 17 },
   sendMoon: { paddingLeft: 8, paddingBottom: 8 },
 
-  popVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,5,10,0.30)' },   // [zip29] barely-there — its whole job is tap-anywhere
-  popover: { position: 'absolute', top: 54, right: 18, minWidth: 190, backgroundColor: 'rgba(17,20,38,0.98)', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(240,241,250,0.14)', paddingVertical: 4, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  popVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,5,10,0.45)', zIndex: 90 },   // [zip30] felt, and deterministically on top
+  popover: { position: 'absolute', top: 54, right: 18, minWidth: 190, backgroundColor: '#141830', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(240,241,250,0.16)', paddingVertical: 4, elevation: 10, zIndex: 99 },
   popRow: { paddingHorizontal: 18, paddingVertical: 12 },
   popDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(240,241,250,0.10)', marginHorizontal: 12 },
   popLine: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonDim, fontSize: 15.5, letterSpacing: 0.3 },
