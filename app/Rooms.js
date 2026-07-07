@@ -6,6 +6,7 @@
 //  then YOUR rooms (live), then PUBLIC (coming soon).
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
+import useCachedState from './useCachedState';   // [zip52] the local-first law — first migration
 import { View, Text, StyleSheet, Pressable, Image, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -117,10 +118,25 @@ export default function Rooms({ onOpen = () => {} }) {
   const [picker, setPicker] = useState(false);
   const [picked, setPicked] = useState([]);
 
+  // the local-first law: both lists seed from their snapshots INSTANTLY, then
+  // the network reconciles. The spinner beat on this tab dies here.
+  const suggC = useCachedState('z_rooms_sugg', getRoomSuggestions);
+  const roomsC = useCachedState('z_rooms_list', async () => {
+    const r = await listRooms();
+    return Array.isArray(r) ? r.filter((x) => (x.personas || []).filter(Boolean).length > 0) : [];
+  });
   useEffect(() => {
-    getRoomSuggestions().then((items) => { setSuggestions(items); setSuggShown(shuffle(items)); setLoadingSugg(false); });
-    listRooms().then((r) => setRooms(Array.isArray(r) ? r.filter((x) => (x.personas || []).filter(Boolean).length > 0) : []));
-  }, []);
+    if (Array.isArray(suggC.value) && suggC.value.length) {
+      setSuggestions(suggC.value);
+      setSuggShown((cur) => (cur.length ? cur : shuffle(suggC.value)));
+      setLoadingSugg(false);
+    } else if (suggC.booted && suggC.value == null) {
+      // no snapshot yet — first ever visit keeps its honest loading beat
+    }
+  }, [suggC.value, suggC.booted]);
+  useEffect(() => {
+    if (Array.isArray(roomsC.value)) setRooms(roomsC.value);
+  }, [roomsC.value]);
 
   const reroll = useCallback(() => { setSuggShown((cur) => shuffle(cur.length ? cur : suggestions)); }, [suggestions]);
 
@@ -213,7 +229,7 @@ export default function Rooms({ onOpen = () => {} }) {
             <View style={styles.sheet}>
               <Text style={styles.sheetTitle}>who's in the room?</Text>
               <Text style={styles.sheetSub}>pick up to 5 — invite friends once you're inside</Text>
-              <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
                 {SHAREABLE.map((k) => {
                   const on = picked.includes(k);
                   return (
@@ -270,7 +286,7 @@ const styles = StyleSheet.create({
   poolFace: { overflow: 'hidden', borderWidth: 1.5, backgroundColor: N.night },
 
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,4,8,0.72)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: N.night2, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 34, borderWidth: 1, borderColor: N.hair },
+  sheet: { backgroundColor: N.night2, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 104, borderWidth: 1, borderColor: N.hair },   // [zip52] the gather button rides above the tab bar
   sheetTitle: { fontFamily: 'Fraunces_400Regular', color: N.moon, fontSize: 22 },
   sheetSub: { fontFamily: 'Figtree_300Light', color: N.moonDim, fontSize: 13, marginTop: 4, marginBottom: 14 },
   pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
