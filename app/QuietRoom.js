@@ -12,7 +12,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Image, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, LinearGradient as SvgLinear, Stop, Circle, Ellipse, Rect } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, LinearGradient as SvgLinear, Stop, Circle, Ellipse, Rect, Path } from 'react-native-svg';   // [zip21]
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular } from '@expo-google-fonts/figtree';
@@ -23,17 +23,17 @@ import { useVoiceNote } from './voice';
 const SCREEN = Dimensions.get('window');
 
 // ── the moonlit palette — cool, deep, with a floor ──
-const Q = {
-  top: '#20253c',
-  upper: '#161a2c',
-  mid: '#0e1120',
-  deep: '#06070d',
-  moon: '#EAECF5',
-  moonDim: 'rgba(234,236,245,0.5)',
-  moonFaint: 'rgba(234,236,245,0.26)',
-  star: '#CBD2E8',
-  glow: '#9FB0E0',
-  hair: 'rgba(234,236,245,0.08)',
+const Q = {   // [zip21] indigo-violet night — hers, not grey slate
+  top: '#272c50',
+  upper: '#1a1d38',
+  mid: '#0f1124',
+  deep: '#06070f',
+  moon: '#F0F1FA',
+  moonDim: 'rgba(240,241,250,0.52)',
+  moonFaint: 'rgba(240,241,250,0.27)',
+  star: '#D3D9F0',
+  glow: '#A8B6EE',
+  hair: 'rgba(240,241,250,0.08)',
 };
 
 // ── a single star: faint, slow twinkle, size variance ──
@@ -62,16 +62,16 @@ function ZLight({ speaking }) {
   const wrap = useAnimatedStyle(() => ({ transform: [{ translateX: (drift.value - 0.5) * 8 }, { translateY: (drift.value - 0.5) * 5 }] }));
   const core = useAnimatedStyle(() => ({ transform: [{ scale: breath.value }] }));
   const halo = useAnimatedStyle(() => ({ opacity: glow.value, transform: [{ scale: breath.value * 1.1 }] }));
-  const R = 320;
+  const R = 380;   // [zip21] the halo carries the atmosphere now
   return (
     <Animated.View style={[styles.zWrap, wrap]} pointerEvents="none">
       {/* the wide halo — atmosphere, not a sticker */}
       <Animated.View style={[styles.zCenter, halo]}>
         <Svg width={R} height={R}>
           <Defs><RadialGradient id="zhalo" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.35" />
-            <Stop offset="30%" stopColor={Q.glow} stopOpacity="0.14" />
-            <Stop offset="62%" stopColor={Q.glow} stopOpacity="0.05" />
+            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.44" />
+            <Stop offset="28%" stopColor={Q.glow} stopOpacity="0.18" />
+            <Stop offset="60%" stopColor={Q.glow} stopOpacity="0.07" />
             <Stop offset="100%" stopColor={Q.glow} stopOpacity="0" />
           </RadialGradient></Defs>
           <Circle cx={R / 2} cy={R / 2} r={R / 2} fill="url(#zhalo)" />
@@ -89,17 +89,7 @@ function ZLight({ speaking }) {
           <Circle cx="43" cy="43" r="43" fill="url(#zcore)" />
         </Svg>
       </Animated.View>
-      {/* the shaft — light falling toward where her words live */}
-      <View style={{ position: 'absolute', top: 120, alignItems: 'center' }}>
-        <Svg width="220" height={SCREEN.height * 0.42}>
-          <Defs><RadialGradient id="zshaft" cx="50%" cy="0%" r="100%">
-            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.10" />
-            <Stop offset="55%" stopColor={Q.glow} stopOpacity="0.03" />
-            <Stop offset="100%" stopColor={Q.glow} stopOpacity="0" />
-          </RadialGradient></Defs>
-          <Ellipse cx="110" cy="0" rx="110" ry={SCREEN.height * 0.42} fill="url(#zshaft)" />
-        </Svg>
-      </View>
+      {/* [zip21] the shaft died a rectangle's death — the halo carries the light now */}
     </Animated.View>
   );
 }
@@ -315,8 +305,8 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
             <Pressable style={styles.back} onPress={onBack} hitSlop={14}>
               <Text style={styles.backTxt}>‹  step out</Text>
             </Pressable>
-            <Pressable onPress={() => setSheet(true)} hitSlop={14} style={{ paddingRight: 22, paddingTop: 6 }}>
-              <Text style={{ color: Q.moonFaint, fontSize: 17 }}>☾</Text>
+            <Pressable onPress={() => setSheet(true)} hitSlop={10} style={{ marginRight: 18, marginTop: 4, width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: 'rgba(240,241,250,0.16)', backgroundColor: 'rgba(168,182,238,0.07)', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: Q.moonDim, fontSize: 18, marginTop: -1 }}>☾</Text>
             </Pressable>
           </View>
 
@@ -378,13 +368,14 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
             ) : null}
             {draft.trim() || pendingImage ? (
               <Pressable style={styles.sendMoon} onPress={doSend} hitSlop={10}>
-                <Svg width="30" height="30" viewBox="0 0 30 30">
-                  <Defs><RadialGradient id="qmoon" cx="42%" cy="38%" r="62%">
-                    <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
-                    <Stop offset="60%" stopColor={Q.glow} stopOpacity="0.8" />
-                    <Stop offset="100%" stopColor={Q.glow} stopOpacity="0.25" />
+                <Svg width="34" height="34" viewBox="0 0 34 34">
+                  <Defs><RadialGradient id="qmoon" cx="44%" cy="38%" r="62%">
+                    <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.96" />
+                    <Stop offset="58%" stopColor={Q.glow} />
+                    <Stop offset="100%" stopColor="#5d6ca6" />
                   </RadialGradient></Defs>
-                  <Circle cx="15" cy="15" r="12" fill="url(#qmoon)" />
+                  <Circle cx="17" cy="17" r="13.5" fill="url(#qmoon)" />
+                  <Path d="M17 22 L17 12.5 M12.8 16.4 L17 12 L21.2 16.4" stroke="#0B0E1A" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                 </Svg>
               </Pressable>
             ) : null}
@@ -394,6 +385,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
           {sheet ? (
             <Pressable style={styles.sheetVeil} onPress={() => setSheet(false)}>
               <View style={styles.sheet}>
+                <View style={styles.sheetHandle} />
                 <Pressable onPress={() => { setSheet(false); onJournal(); }} hitSlop={8}>
                   <Text style={styles.sheetLine}>the journal ›</Text>
                 </Pressable>
@@ -432,7 +424,7 @@ const styles = StyleSheet.create({
   pendingX: { position: 'absolute', left: 66, top: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' },
   pendingXTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
-  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: Q.hair, marginHorizontal: 24 },
+  hairline: { height: 1, backgroundColor: 'rgba(240,241,250,0.11)', marginHorizontal: 24 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: 6, paddingBottom: 10, minHeight: 48 },
   input: { flex: 1, fontFamily: 'Figtree_300Light', color: Q.moon, fontSize: 15.5, paddingVertical: 10, maxHeight: 120 },
   inlineBtn: { paddingHorizontal: 7, paddingBottom: 12 },
@@ -441,7 +433,8 @@ const styles = StyleSheet.create({
   micLive: { color: '#FF6B5A', fontSize: 17 },
   sendMoon: { paddingLeft: 8, paddingBottom: 8 },
 
-  sheetVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,6,12,0.55)', justifyContent: 'flex-end' },
-  sheet: { paddingHorizontal: 34, paddingTop: 26, paddingBottom: 46, backgroundColor: 'rgba(14,17,32,0.96)', borderTopWidth: StyleSheet.hairlineWidth, borderColor: Q.hair },
+  sheetVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,5,10,0.72)', justifyContent: 'flex-end' },
+  sheet: { paddingHorizontal: 34, paddingTop: 14, paddingBottom: 46, backgroundColor: 'rgba(17,20,38,0.98)', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTopWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(240,241,250,0.12)', alignItems: 'stretch' },
+  sheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(240,241,250,0.22)', marginBottom: 22 },
   sheetLine: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonDim, fontSize: 17, letterSpacing: 0.3 },
 });
