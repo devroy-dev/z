@@ -242,6 +242,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
+  const retryImgRef = useRef(null);   // [zip22] dodges the stale-closure trap on retry
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current || !initialDraft) return;
@@ -303,7 +304,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     if (!messages.length) return;
     const t = setTimeout(() => {
       const snap = messages
-        .filter((m) => m && m.text && !m.typing)
+        .filter((m) => m && m.text && !m.typing && !m.notSent)   // [zip22] failures never become history
         .slice(-40)
         .map(({ id, who, text, at }) => ({ id, who, text, at }));
       if (snap.length) AsyncStorage.setItem('z_msgs_' + KEY, JSON.stringify(snap)).catch(() => {});
@@ -447,7 +448,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
 
   const doSend = async (overrideText) => {
     const text = (typeof overrideText === 'string' ? overrideText : draft).trim();
-    const img = pendingImage;                     // capture before we clear it
+    const img = pendingImage || retryImgRef.current;   // [zip22] retry rides its ref
+    retryImgRef.current = null;
     if ((!text && !img) || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
@@ -488,7 +490,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       },
       onError: (msg) => {
         pacingRef.current = false;
-        setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: msg, typing: false } : m));
+        // [zip22] E2(b): the gate stayed shut, nothing persisted — no phantom reply;
+        // your bubble tells the truth and offers the retry.
+        setMessages((cur) => cur.filter((m) => m.id !== zId).map((m) => m.id === youMsg.id ? { ...m, notSent: true, reason: msg } : m));
         sendingRef.current = false; setSending(false);
       },
     });
@@ -613,9 +617,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   {(m.text || '').trim() === '*buzz*' ? (
                     <Text style={[styles.buzzChip, m.who === 'you' && { alignSelf: 'flex-end' }]}>⚡ buzz</Text>
                   ) : m.who === 'you' ? (
-                    <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '82%' }}>
+                    <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '82%', opacity: m.notSent ? 0.6 : 1 }}>
                       {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
                       {m.text ? <View style={[styles.youWrap, !WARM && styles.youWrapMoon, m.imageUri && { marginTop: 4 }]}><Text style={[styles.youText, !WARM && styles.youTextMoon]}>{m.text}</Text></View> : null}
+                      {m.notSent ? <Pressable onPress={() => { setMessages((cur) => cur.filter((x) => x.id !== m.id)); if (m.imageUri && m.imageUri.startsWith('data:')) retryImgRef.current = { data: m.imageUri.split(',')[1], uri: m.imageUri }; setTimeout(() => doSend(m.text || ''), 60); }} hitSlop={8}><Text style={{ color: '#E8A08A', fontSize: 11.5, marginTop: 5, letterSpacing: 0.2 }}>not sent — tap to retry</Text></Pressable> : null}
                     </View>
                   ) : m.text ? (
                     (() => { const parsed = parseCards(m.text); return (
@@ -639,7 +644,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   ) : (
                     <Text style={styles.themText}>{m.typing ? '…' : ''}</Text>
                   )}
-                  {m.at && !m.typing ? <Text style={[pcStyles.stamp, m.who === 'you' && { alignSelf: 'flex-end' }]}>{fmtTime(m.at)}</Text> : null}
+                  {m.at && !m.typing && !m.notSent ? <Text style={[pcStyles.stamp, m.who === 'you' && { alignSelf: 'flex-end' }]}>{fmtTime(m.at)}</Text> : null}
                   {diag && m.who === 'them' && m.cost && !m.typing ? <Text style={styles.costWhisper}>₹{Number(m.cost.cost_inr).toFixed(4)} · {m.cost.fn}{m.cost.usage ? ' · ' + m.cost.usage.in + '→' + m.cost.usage.out : ''}</Text> : null}
                 </View>
               ))

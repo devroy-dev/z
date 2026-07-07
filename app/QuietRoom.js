@@ -119,6 +119,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
+  const retryImgRef = useRef(null);   // [zip22]
   const targetRef = useRef('');
   const shownRef = useRef('');
   const streamDoneRef = useRef(false);
@@ -199,7 +200,8 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
 
   const doSend = async () => {
     const text = draft.trim();
-    const img = pendingImage;
+    const img = pendingImage || retryImgRef.current;   // [zip22]
+    retryImgRef.current = null;
     if ((!text && !img) || sendingRef.current) return;
     sendingRef.current = true; setSending(true); setSpeaking(true);
     let tid = threadId;
@@ -221,7 +223,8 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
       onDone: (acc) => { targetRef.current = acc || targetRef.current; streamDoneRef.current = true; },
       onError: (msg) => {
         pacingRef.current = false;
-        setMessages((cur) => cur.map((m) => m.id === zId ? { ...m, text: msg, typing: false } : m));
+        // [zip22] no phantom words from her — your line tells the truth instead.
+        setMessages((cur) => cur.filter((m) => m.id !== zId).map((m) => m.id === youMsg.id ? { ...m, notSent: true, reason: msg } : m));
         sendingRef.current = false; setSending(false); setSpeaking(false);
       },
     });
@@ -332,7 +335,8 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
                   {m.who === 'you'
                     ? <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '82%' }}>
                         {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
-                        {m.text ? <Text style={[styles.youBare, { fontSize: sizeFor(i, 'you') }, m.imageUri && { marginTop: 6 }]}>{m.text}</Text> : null}
+                        {m.text ? <Text style={[styles.youBare, { fontSize: sizeFor(i, 'you') }, m.imageUri && { marginTop: 6 }, m.notSent && { opacity: 0.6 }]}>{m.text}</Text> : null}
+                        {m.notSent ? <Pressable onPress={() => { setMessages((cur) => cur.filter((x) => x.id !== m.id)); if (m.imageUri && m.imageUri.startsWith('data:')) retryImgRef.current = { data: m.imageUri.split(',')[1], uri: m.imageUri }; setDraft(m.text || ''); }} hitSlop={8}><Text style={{ color: '#E8A08A', fontSize: 11.5, marginTop: 5, letterSpacing: 0.2 }}>not sent — tap to put it back</Text></Pressable> : null}
                       </View>
                     : <Text style={[styles.zNow, { fontSize: sizeFor(i, 'z'), lineHeight: sizeFor(i, 'z') * 1.62 }]}>{m.text || (m.typing ? '…' : '')}</Text>}
                 </View>
