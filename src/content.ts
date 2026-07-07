@@ -20,7 +20,13 @@ export function readContentFile(file: string): string { return load(file); }
 // strip the HTML build-comment — notes for us, not for Z
 const stripBuildComment = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '').trim();
 
-const RAW_SOUL = stripBuildComment(load('Z_SOUL.md'));
+// [zip54a] THE SOUL SPLIT — the roster and custom companions stand on the PERSONA
+// SOUL (the character actor: codex governs, delight underneath, never breaks
+// character but for the one edge). Z_SOUL.md stays in content as archive only;
+// the anchor was never on this path (institutional, her codex governs).
+const RAW_SOUL = stripBuildComment(load('PERSONA_SOUL.md'));
+// [zip54a] the advisor's soul — rides above the Operator's Codex for the media manager.
+const MEDIA_MANAGER_SOUL = (() => { try { return stripBuildComment(load('media-manager-soul.md')); } catch { return ''; } })();
 
 // The small-talk handbook is a PERMANENT lens — not a per-persona Codex. It governs
 // how Z converses with everyone, in every thread, always: statements over questions,
@@ -91,7 +97,7 @@ const SMALL_TALK_LENS_EXEMPT = new Set<CodexKey>(['anchor']);
 // companions. They do NOT stand on the Z soul at all: codex-only assembly, with a
 // slim preamble carrying the two laws that must survive the substrate cut
 // (honesty; the crisis edge-of-the-lane). Members per the 2026-07-07 ruling.
-export const INSTITUTIONAL = new Set<CodexKey>(['anchor', 'grandmaster', 'coach', 'moderator', 'interviewer']);   // [zip26]
+export const INSTITUTIONAL = new Set<CodexKey>(['anchor', 'grandmaster', 'coach', 'moderator', 'interviewer', 'media_manager']);   // [zip26] [zip54a] the advisor takes his desk
 
 const INSTITUTIONAL_PREAMBLE =
   `[THE HOUSE — context, not character. You are one of the institutional residents of ` +
@@ -120,12 +126,11 @@ export function soulFor(
     .replaceAll('[companion_name]', companionName || 'you')
     .replaceAll('[companion_gender]', gender || 'neither');
   // the small-talk lens rides under the soul for every persona EXCEPT the exempt few
-  // (SMALL_TALK_LENS_EXEMPT), whose codex owns their register outright. The "read"
-  // (psychology) lens is register-neutral and stays for everyone.
+  // (SMALL_TALK_LENS_EXEMPT), whose codex owns their register outright. [zip54a]
+  // THE READ (psychology) no longer rides here — it is the anchor's alone.
   let out = soul;
   if (smallTalkLens && SMALL_TALK) out += '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK;
   if (smallTalkLens && SMALL_TALK_WORLD) out += '\n\n[TALKING ACROSS CULTURES — a permanent lens. Meet each person the way people talk where they are from; lower your own defaults and read theirs.]\n' + SMALL_TALK_WORLD;
-  if (PSYCHOLOGY) out += '\n\n[THE READ — a permanent lens, true under every role. How you understand people: as intuition, never as diagnosis or label, never named aloud, never as leverage.]\n' + PSYCHOLOGY;
   return out;
 }
 
@@ -198,6 +203,10 @@ export function buildStaticPrefix(
   const institutional = codexKeys.some((ck) => INSTITUTIONAL.has(ck));
   const smallTalkLens = !codexKeys.some((ck) => SMALL_TALK_LENS_EXEMPT.has(ck));
   let prefix = institutional ? INSTITUTIONAL_PREAMBLE : soulFor(companionName, gender, { smallTalkLens });
+  // [zip54a] soul-on-top riders for institutional selves: the advisor above his book;
+  // THE READ under the anchor alone (the depth-seeker of the house).
+  if (institutional && codexKeys.includes('media_manager') && MEDIA_MANAGER_SOUL) prefix += '\n\n' + MEDIA_MANAGER_SOUL;
+  if (institutional && codexKeys.includes('anchor') && PSYCHOLOGY) prefix += '\n\n[THE READ — a permanent lens, yours alone in this house. How you understand people: as intuition, never as diagnosis or label, never named aloud, never as leverage.]\n' + PSYCHOLOGY;
   for (const ck of codexKeys) {
     const text = codexText(ck);
     if (!text) continue;
