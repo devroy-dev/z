@@ -453,7 +453,7 @@ export default function ChatHome({ onOpen = () => {} }) {
           </Pressable>
           {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
           <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=4`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] */ })} />
-          <Row face={`https://callmez.app/faces/the_interviewer.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'persona', key: 'the_interviewer' /* [zip28] */ })} />
+          <Row face={`https://callmez.app/faces/the_interviewer.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] */ })} />
           <View style={st.divider} />
           {filt === 'friends' ? (
             friendList.length === 0 ? (

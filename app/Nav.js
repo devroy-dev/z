@@ -14,6 +14,7 @@ import Stage from './stage/Stage';
 import Bulletin from './Bulletin';
 import Coach from './Coach';
 import GMForge from './GMForge';   // [zip23] the Grand Master's front door
+import Panel from './Panel';   // [zip31] the interviewer's front door
 import Consult from './Consult';
 import QuietRoom from './QuietRoom';
 import Journal from './Journal';
@@ -161,6 +162,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
     if (dest.kind === 'coach') return setOverlay({ tab: 'coach' });
     if (dest.kind === 'forge') return setOverlay({ tab: 'forge' });   // [zip23]
+    if (dest.kind === 'panel') return setOverlay({ tab: 'panel' });   // [zip31]
     if (dest.kind === 'consult') return setOverlay({ tab: 'consult' });
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
     if (dest.kind === 'z') return setOverlay({ tab: 'quiet' });
@@ -185,8 +187,9 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (overlay.tab === 'you') return <You onBack={() => setOverlay(null)} onLogout={onLogout} onOpenChat={navigate} />;
     if (overlay.tab === 'quiet') return <QuietRoom onBack={() => setOverlay(null)} onJournal={() => setOverlay({ tab: 'journal' })} />;
     if (overlay.tab === 'journal') return <Journal onBack={() => setOverlay({ tab: 'quiet' })} />;
-    if (overlay.tab === 'coach') return <Coach onBack={() => setOverlay(null)} onAskCoach={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_coach', from: 'coach' }); }} onInterview={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', from: 'coach' }); }} />;   // [zip26]
+    if (overlay.tab === 'coach') return <Coach onBack={() => setOverlay(null)} onAskCoach={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_coach', from: 'coach' }); }} onInterview={() => setOverlay({ tab: 'panel' })} />;   // [zip26][zip31] one front door everywhere
     if (overlay.tab === 'forge') return <GMForge onBack={() => setOverlay(null)} onSpar={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_grandmaster', draft, autoSend: true, from: 'forge' }); }} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_grandmaster', from: 'forge' }); }} onArena={() => { setOverlay(null); navigate('play'); }} />;   // [zip23]
+    if (overlay.tab === 'panel') return <Panel onBack={() => setOverlay(null)} onStart={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', draft, autoSend: true, from: 'panel' }); }} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', from: 'panel' }); }} />;   // [zip31]
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}
