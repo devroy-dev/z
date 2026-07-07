@@ -18,9 +18,9 @@ import { FONTS } from './theme';
 
 const FLUORO = '#D7F53C';   // light fluorescent yellow — the highlighter on the file
 const M = {
-  ground: '#8B877B',                    // extremely dirty white — paper that has lived
-  raise: 'rgba(23,22,16,0.06)',
-  hair: 'rgba(23,22,16,0.18)',
+  ground: '#CBC7BA',                    // [zip54f] true dirty white — the swamp is drained                    // extremely dirty white — paper that has lived
+  raise: 'rgba(255,255,255,0.45)',
+  hair: 'rgba(25,24,17,0.25)',
   ink: '#191811',                       // dark ink on the lit ground (the inverted room)
   mist: 'rgba(25,24,17,0.60)',
   faint: 'rgba(25,24,17,0.35)',
@@ -36,6 +36,41 @@ const GOALS = [
   { id: 'growth', label: 'growth' },
   { id: 'authority', label: 'authority' },
 ];
+
+
+// [zip54f] module-scope inputs — defined INSIDE the screen these remounted on every
+// keystroke (new component identity per render), dropping the keyboard. Hoisted, keyed
+// by (value, onChange), the TextInput now survives re-renders.
+function Field({ label, value, onChange, placeholder, multiline }) {
+  return (
+    <View style={st.field}>
+      <Text style={st.label}>{label}</Text>
+      <TextInput
+        style={[st.input, multiline && { minHeight: 64, textAlignVertical: 'top' }]}
+        value={value || ''}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={M.faint}
+        multiline={!!multiline}
+      />
+    </View>
+  );
+}
+function Chips({ label, value, onChange, options }) {
+  return (
+    <View style={st.field}>
+      <Text style={st.label}>{label}</Text>
+      <View style={st.chipRow}>
+        {options.map((o) => (
+          <Pressable key={o.id} onPress={() => onChange(value === o.id ? '' : o.id)}
+            style={[st.chip, value === o.id && st.chipOn]}>
+            <Text style={[st.chipTxt, value === o.id && st.chipTxtOn]}>{o.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
   const [brief, setBrief] = useState({});
@@ -55,34 +90,6 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
     setSaving(false);
   };
 
-  const Field = ({ label, k, placeholder, multiline }) => (
-    <View style={st.field}>
-      <Text style={st.label}>{label}</Text>
-      <TextInput
-        style={[st.input, multiline && { minHeight: 64, textAlignVertical: 'top' }]}
-        value={brief[k] || ''}
-        onChangeText={set(k)}
-        placeholder={placeholder}
-        placeholderTextColor={M.faint}
-        multiline={!!multiline}
-      />
-    </View>
-  );
-
-  const Chips = ({ label, k, options }) => (
-    <View style={st.field}>
-      <Text style={st.label}>{label}</Text>
-      <View style={st.chipRow}>
-        {options.map((o) => (
-          <Pressable key={o.id} onPress={() => set(k)(brief[k] === o.id ? '' : o.id)}
-            style={[st.chip, brief[k] === o.id && st.chipOn]}>
-            <Text style={[st.chipTxt, brief[k] === o.id && st.chipTxtOn]}>{o.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-
   return (
     <SafeAreaView style={st.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" />
@@ -101,16 +108,16 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
             <Text style={st.note}>fill what you have. he reads this file before every word he says to you — and never asks for what is already written here. leave a line empty and he treats it as a gap in his notes, to fill in its own time.</Text>
 
-            <Field label="name / handle" k="handle" placeholder="@yourhandle, or the name you go by" />
-            <Field label="platforms" k="platforms" placeholder="instagram · youtube · shorts · linkedin · x" />
-            <Field label="niche" k="niche" placeholder="what your content is about, in one line" />
-            <Field label="content pillars" k="pillars" placeholder="the 2–4 recurring themes you post on" multiline />
-            <Field label="audience" k="audience" placeholder="size per platform, who they are" multiline />
-            <Chips label="stage" k="stage" options={STAGES} />
-            <Chips label="the goal" k="goal" options={GOALS} />
-            <Field label="active deals" k="deals" placeholder="brands, rates, what's in the pipeline" multiline />
-            <Field label="cadence" k="cadence" placeholder="how often you publish, per platform" />
-            <Field label="standing notes" k="notes" placeholder="anything else he should carry" multiline />
+            <Field label="name / handle" value={brief.handle} onChange={set('handle')} placeholder="@yourhandle, or the name you go by" />
+            <Field label="platforms" value={brief.platforms} onChange={set('platforms')} placeholder="instagram · youtube · shorts · linkedin · x" />
+            <Field label="niche" value={brief.niche} onChange={set('niche')} placeholder="what your content is about, in one line" />
+            <Field label="content pillars" value={brief.pillars} onChange={set('pillars')} placeholder="the 2–4 recurring themes you post on" multiline />
+            <Field label="audience" value={brief.audience} onChange={set('audience')} placeholder="size per platform, who they are" multiline />
+            <Chips label="stage" value={brief.stage} onChange={set('stage')} options={STAGES} />
+            <Chips label="the goal" value={brief.goal} onChange={set('goal')} options={GOALS} />
+            <Field label="active deals" value={brief.deals} onChange={set('deals')} placeholder="brands, rates, what's in the pipeline" multiline />
+            <Field label="cadence" value={brief.cadence} onChange={set('cadence')} placeholder="how often you publish, per platform" />
+            <Field label="standing notes" value={brief.notes} onChange={set('notes')} placeholder="anything else he should carry" multiline />
 
             <Pressable onPress={save} style={[st.cta, saving && { opacity: 0.6 }]}>
               <Text style={st.ctaTxt}>{saving ? 'filing…' : savedAt ? 'filed ✓ — update the brief' : 'file the brief'}</Text>

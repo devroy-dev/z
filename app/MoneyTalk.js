@@ -31,6 +31,32 @@ const RISKS = [
   { id: 'aggressive', label: 'aggressive' },
 ];
 
+
+// [zip54f] module-scope inputs — the inline defs remounted the TextInput per keystroke.
+function Stat({ label, value }) {
+  return (
+    <View style={st.stat}>
+      <Text style={st.statLabel}>{label}</Text>
+      <Text style={st.statVal} numberOfLines={1}>{value || '\u2014'}</Text>
+    </View>
+  );
+}
+function Field({ label, value, onChange, placeholder, multiline }) {
+  return (
+    <View style={st.field}>
+      <Text style={st.label}>{label}</Text>
+      <TextInput
+        style={[st.input, multiline && { minHeight: 64, textAlignVertical: 'top' }]}
+        value={value || ''}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={B.faint}
+        multiline={!!multiline}
+      />
+    </View>
+  );
+}
+
 export default function MoneyTalk({ onBack = () => {}, onRun = () => {}, onChat = () => {} }) {
   const [file, setFile] = useState({});
   const [loaded, setLoaded] = useState(false);
@@ -48,27 +74,6 @@ export default function MoneyTalk({ onBack = () => {}, onRun = () => {}, onChat 
     try { await saveMoneyFile(file); setSavedAt(Date.now()); } catch (e) {}
     setSaving(false);
   };
-
-  const Stat = ({ label, k }) => (
-    <View style={st.stat}>
-      <Text style={st.statLabel}>{label}</Text>
-      <Text style={st.statVal} numberOfLines={1}>{file[k] || '—'}</Text>
-    </View>
-  );
-
-  const Field = ({ label, k, placeholder, multiline }) => (
-    <View style={st.field}>
-      <Text style={st.label}>{label}</Text>
-      <TextInput
-        style={[st.input, multiline && { minHeight: 64, textAlignVertical: 'top' }]}
-        value={file[k] || ''}
-        onChangeText={set(k)}
-        placeholder={placeholder}
-        placeholderTextColor={B.faint}
-        multiline={!!multiline}
-      />
-    </View>
-  );
 
   return (
     <SafeAreaView style={st.safe} edges={['top']}>
@@ -88,19 +93,19 @@ export default function MoneyTalk({ onBack = () => {}, onRun = () => {}, onChat 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
             {/* THE PICTURE */}
             <View style={st.statRow}>
-              <Stat label="savings" k="savings" />
-              <Stat label="invested" k="invested" />
-              <Stat label="monthly budget" k="monthly_budget" />
+              <Stat label="savings" value={file.savings} />
+              <Stat label="invested" value={file.invested} />
+              <Stat label="monthly budget" value={file.monthly_budget} />
             </View>
 
             <Text style={st.note}>write it the way you'd say it — any currency, any shorthand. he reads this file before every word he says to you, and never asks for what's already here.</Text>
 
             {/* THE FILE */}
-            <Field label="savings" k="savings" placeholder="what's parked, and where" />
-            <Field label="invested" k="invested" placeholder="what's deployed, roughly" />
-            <Field label="monthly budget" k="monthly_budget" placeholder="what a normal month costs you" />
-            <Field label="goals" k="goals" placeholder="one per line — the thing, the number, the when" multiline />
-            <Field label="holdings / watchlist" k="holdings" placeholder="what you own or track" multiline />
+            <Field label="savings" value={file.savings} onChange={set('savings')} placeholder="what's parked, and where" />
+            <Field label="invested" value={file.invested} onChange={set('invested')} placeholder="what's deployed, roughly" />
+            <Field label="monthly budget" value={file.monthly_budget} onChange={set('monthly_budget')} placeholder="what a normal month costs you" />
+            <Field label="goals" value={file.goals} onChange={set('goals')} placeholder="one per line — the thing, the number, the when" multiline />
+            <Field label="holdings / watchlist" value={file.holdings} onChange={set('holdings')} placeholder="what you own or track" multiline />
             <View style={st.field}>
               <Text style={st.label}>risk appetite</Text>
               <View style={st.chipRow}>
@@ -112,7 +117,7 @@ export default function MoneyTalk({ onBack = () => {}, onRun = () => {}, onChat 
                 ))}
               </View>
             </View>
-            <Field label="standing notes" k="notes" placeholder="anything else he should carry" multiline />
+            <Field label="standing notes" value={file.notes} onChange={set('notes')} placeholder="anything else he should carry" multiline />
 
             <Pressable onPress={save} style={[st.cta, saving && { opacity: 0.6 }]}>
               <Text style={st.ctaTxt}>{saving ? 'filing…' : savedAt ? 'filed ✓ — update the file' : 'file it'}</Text>
