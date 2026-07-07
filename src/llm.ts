@@ -127,7 +127,17 @@ function translate(params: any): any {
   if (c.noThink && out.thinking === undefined) out.thinking = { type: 'disabled' };   // no muttering — callers may still opt in explicitly
   if (!c.cache) out = stripCache(out);
   if (Array.isArray(out.tools)) {
+    const before = out.tools.length;
     if (!c.webSearch()) out.tools = out.tools.filter((t: any) => !String(t?.type || '').startsWith('web_search'));
+    // [zip41] the blind notice — a persona whose codex promises live web access will
+    // otherwise PERFORM a check it cannot make (the staged "[silent check]" of
+    // 2026-07-07). If we take the tool, we must tell them it's gone.
+    if (out.tools.length < before) {
+      const notice = '\n\n[NOTICE — your live web access is UNAVAILABLE right now. Anything your instructions say about searching or checking the web does not currently apply. Never claim, imply, or perform having checked, searched, or verified anything online. Where current information would matter, say plainly that you could not confirm it and proceed on general knowledge, honestly framed.]';
+      if (typeof out.system === 'string') out.system = out.system + notice;
+      else if (Array.isArray(out.system)) out.system = [...out.system, { type: 'text', text: notice }];
+      else if (out.system === undefined) out.system = notice.trim();
+    }
     if (out.tools.length === 0) delete out.tools;
   }
   return out;
