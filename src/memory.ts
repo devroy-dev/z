@@ -69,6 +69,10 @@ export async function harvestMemory(
         + 'THE DURABILITY BAR: transient state is not memory. Current mood, what they are doing right now, today\'s plan, a temporary stance ("not investing at this time", "busy this week") — tag "durability":"transient". '
         + 'Only lasting facts (name, family, work, home, enduring preferences, real history) are "durability":"durable". '
         + 'The block under "CONTEXT" is the friend\'s reply and exists ONLY to help you resolve what the user meant. NEVER extract a fact FROM the context. The friend is an AI persona with their own life; none of that is ever a fact about the user. '
+        // [zip46] THE SINCERITY LAWS — the persona-confusion fix
+        + 'THE PERFORMANCE LAW: a position the user takes inside a debate, spar, argument practice, roleplay, hypothetical, or while TESTING or INSTRUCTING the friend is a PERFORMANCE, never a belief. If the exchange reads as adversarial practice, a game, or product testing, tag any stance "durability":"transient". A creed becomes memory only when stated sincerely in ordinary conversation. '
+        + 'THE MIRROR LAW: anything describing the FRIEND — their manner, their style, the advice they give, what they said, offered, or are like — is never a fact about the user, even when the USER is the one saying it. Tag "subject":"other". '
+        + 'THE META LAW: talk about this app, its personas, its features, tests, plans, or this conversation itself is product noise, never biography. Tag "subject":"other". '
         + 'NEVER store the user\'s age or date of birth, in any form — not even when they state it directly. '
         + 'The account profile is the only authority on age; chat claims about age are noise. Skip them entirely. '
         + 'ALSO harvest BITS — the color of the friendship, not facts: an inside joke being born, a nickname coined, a recurring tease. Mark these "kind":"bit". A bit must be genuinely re-usable later and grounded in what the USER said. '
@@ -100,7 +104,7 @@ export async function harvestMemory(
         temperature: 0,
         system:
           'You are an auditor. Given the user\'s message and candidate memory facts, verify EACH candidate: '
-          + 'ok=true ONLY if (a) the USER themselves stated it, (b) it is about the USER\'S own life (not someone they were discussing or asking about), and (c) it is a lasting fact, not a passing state. '
+          + 'ok=true ONLY if (a) the USER themselves stated it, (b) it is about the USER\'S own life (not someone they were discussing or asking about), (c) it is a lasting fact, not a passing state, (d) it was said SINCERELY in ordinary conversation — never a stance performed inside a debate, spar, roleplay, hypothetical, or test, and (e) it is about the user\'s life OUTSIDE this app — never about the app, its personas, or the conversation itself. '   // [zip46]
           + 'When in doubt, ok=false. Return ONLY a JSON array of {"i":<index>,"ok":true|false}. No prose.',
         messages: [{ role: 'user', content: `USER'S MESSAGE:\n${userMsg}\n\nCANDIDATES:\n${survivors.map((f, i) => `${i}. ${f.key ? f.key + ': ' : ''}${f.value}`).join('\n')}` }],
       });

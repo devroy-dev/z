@@ -46,7 +46,10 @@ export async function gardenUserMemory(userId: string): Promise<GardenSummary> {
       + '(2) CONTRADICTIONS — rows that cannot both be true: the newest wins; delete the older. '
       + '(3) TRANSIENT WEEDS — passing states stored as facts ("not investing at this time", a mood, a today-plan): delete. '
       + '(4) THIRD-PARTY FACTS — rows clearly about a public figure, celebrity, or someone the user was merely discussing (a cricketer\'s debut, an actor\'s tour, a politician\'s statement) rather than the user\'s own life: delete. Biographical claims that fit a known public figure and sit oddly beside the user\'s other rows are third-party. '
-      + '(5) NEVER invent facts, never rewrite meaning, never touch rows you are unsure about — when in doubt, KEEP. [bit] rows are kept unless literal duplicates. '
+      + '(5) PERFORMED STANCES — beliefs or positions that read as debate stances, spar sides, or argument-practice postures rather than sincere life facts ("believes X always beats Y" with no life context): delete. '   // [zip46]
+      + '(6) MIRROR ROWS — rows describing the AI friend or any persona (their manner, their advice style, what they offer or are like) rather than the user: delete. '
+      + '(7) META ROWS — rows about this app itself, its personas, features, tests, product plans, or the conversation ("discussed the wingman persona", "running a tour/feature"): delete. '
+      + '(8) NEVER invent facts, never rewrite meaning, never touch rows you are unsure about — when in doubt, KEEP. [bit] rows are kept unless literal duplicates — and a bit that describes the FRIEND\'S service rather than the friendship\'s shared color is a mirror row: delete. '
       + 'Return ONLY {"delete":[row numbers],"rewrite":[{"i":row number,"value":"new wording"}]} — valid JSON, no prose, no markdown.',
     messages: [{ role: 'user', content: `THE ROWS:\n${numbered}` }],
   });
