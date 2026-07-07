@@ -57,7 +57,7 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
             <Text style={st.edition}>{edition} · with the anchor</Text>
           </View>
           <Pressable hitSlop={10} onPress={async () => { try { setFeed(null); await refreshBulletinFeed(); } catch (e) {} await load(); }}><Text style={{ color: '#C9A86A', fontSize: 20 }}>↻</Text></Pressable>{/* [zip54n] ask the wire */}
-          <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=4` }} style={st.face} />
+          <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=5` }} style={st.face} />
         </View>
 
         {!feed ? (

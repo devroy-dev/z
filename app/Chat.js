@@ -587,6 +587,9 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
             </View>
           </View>
 
+          {KEY === 'the_front_desk' ? (
+            <Image source={{ uri: 'https://callmez.app/faces/the_front_desk.jpg?v=5' }} style={{ width: 'auto', height: 120, borderRadius: 14, marginHorizontal: 14, marginTop: 6 }} resizeMode="cover" />
+          ) : null}{/* [zip54o] the desk crowns her thread, the media-house treatment */}
           {/* conversation — fills the space; empty state centers instead of leaving a dead zone */}
           <ScrollView
             ref={scrollRef}

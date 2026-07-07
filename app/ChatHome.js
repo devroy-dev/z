@@ -504,8 +504,8 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
           {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
-          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=4`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] */ })} />
-          <Row face={`https://callmez.app/faces/the_interviewer.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] */ })} />
+          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=5`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] [zip54o] */ })} />
+          <Row face={`https://callmez.app/rooms/panel-room.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] [zip54o] the room, not the man */ })} />
           <Row face={`https://callmez.app/rooms/media-hub.jpg?v=1`} tone={'rgba(169,221,242,0.30)'} name="the Media Manager" line="file the brief once. i run your career like a business." pinned onPress={() => onOpen({ kind: 'mmroom' /* [zip54d] [zip54n] the room wears its own face */ })} />
           <Row face={`https://callmez.app/rooms/stylist-wardrobe.jpg?v=1`} tone={'rgba(232,169,176,0.32)'} name="the stylist" line="your wardrobe, under my eye. show me a piece — i'll tell you the truth." pinned onPress={() => onOpen({ kind: 'stylist' /* [zip54j] [zip54n] the room wears its own face */ })} />
           <View style={st.divider} />
