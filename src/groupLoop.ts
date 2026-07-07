@@ -375,7 +375,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     }
     const stream = anthropic.messages.stream(streamArgs);
     let __chars = 0;
-    stream.on('text', (d) => { __chars += d.length; input.onToken?.(key, d); });
+    stream.on('text', (d) => { __chars += d.length; input.onToken?.(key, key === 'the_media_manager' ? d.replace(/\u20B9\s*/g, 'Rs ') : d); });   // [zip54b] the Rs law rides the room stream
     const final = await stream.finalMessage().catch((err: any) => {
       // DIAGNOSTIC: pinpoint the second premature-close. Which persona died, was
       // web_search on, and how far did it get (0 = died at prefill; >0 = mid-stream)?
@@ -384,7 +384,8 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       if (err?.cause) console.error('[groupLoop] cause=', err.cause);
       throw err;
     });
-    const reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    let reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    if (key === 'the_media_manager') reply = reply.replace(/\u20B9\s*/g, 'Rs ');   // [zip54b] the Rs law in rooms
     logUsage({ userId, threadId, personaKey: key, surface: 'group', fn: 'group_turn', model: MODEL, usage: (final as any).usage });
 
     // persist with persona_key so the surface knows who spoke

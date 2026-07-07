@@ -25,6 +25,9 @@ const stripBuildComment = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '').trim(
 // character but for the one edge). Z_SOUL.md stays in content as archive only;
 // the anchor was never on this path (institutional, her codex governs).
 const RAW_SOUL = stripBuildComment(load('PERSONA_SOUL.md'));
+// [zip54b] Z HERSELF — the Quiet Room (z_serious) stands on the original Z soul,
+// with both small-talk lenses and THE READ. She is the depth-seeker of the house.
+const Z_RAW_SOUL = stripBuildComment(load('Z_SOUL.md'));
 // [zip54a] the advisor's soul — rides above the Operator's Codex for the media manager.
 const MEDIA_MANAGER_SOUL = (() => { try { return stripBuildComment(load('media-manager-soul.md')); } catch { return ''; } })();
 
@@ -134,6 +137,17 @@ export function soulFor(
   return out;
 }
 
+// [zip54b] the Quiet Room's substrate: Z soul (name/gender injected) + lenses + THE READ.
+function zSoulFor(companionName: string, gender: string | null): string {
+  let out = Z_RAW_SOUL
+    .replaceAll('[companion_name]', companionName || 'Z')
+    .replaceAll('[companion_gender]', gender || 'neither');
+  if (SMALL_TALK) out += '\n\n[HOW YOU CONVERSE — a permanent lens, true in every thread, under every role you take. This is not knowledge about a topic; it is how you talk to anyone, always.]\n' + SMALL_TALK;
+  if (SMALL_TALK_WORLD) out += '\n\n[TALKING ACROSS CULTURES — a permanent lens. Meet each person the way people talk where they are from; lower your own defaults and read theirs.]\n' + SMALL_TALK_WORLD;
+  if (PSYCHOLOGY) out += '\n\n[THE READ — a permanent lens, true under every role. How you understand people: as intuition, never as diagnosis or label, never named aloud, never as leverage.]\n' + PSYCHOLOGY;
+  return out;
+}
+
 export function codexText(key: CodexKey): string | null {
   return CODEXES[key] ?? null;
 }
@@ -202,11 +216,13 @@ export function buildStaticPrefix(
   // whole self. Everyone else: the soul, with the small-talk lenses unless exempt.
   const institutional = codexKeys.some((ck) => INSTITUTIONAL.has(ck));
   const smallTalkLens = !codexKeys.some((ck) => SMALL_TALK_LENS_EXEMPT.has(ck));
-  let prefix = institutional ? INSTITUTIONAL_PREAMBLE : soulFor(companionName, gender, { smallTalkLens });
-  // [zip54a] soul-on-top riders for institutional selves: the advisor above his book;
-  // THE READ under the anchor alone (the depth-seeker of the house).
+  const zSelf = codexKeys.includes('serious');   // [zip54b] the Quiet Room is Z herself
+  let prefix = institutional ? INSTITUTIONAL_PREAMBLE
+    : zSelf ? zSoulFor(companionName, gender)
+    : soulFor(companionName, gender, { smallTalkLens });
+  // [zip54a] the advisor rides above his book. [zip54b] THE READ is off the anchor
+  // (she is the newsroom, not Z); Z lives in the Quiet Room below.
   if (institutional && codexKeys.includes('media_manager') && MEDIA_MANAGER_SOUL) prefix += '\n\n' + MEDIA_MANAGER_SOUL;
-  if (institutional && codexKeys.includes('anchor') && PSYCHOLOGY) prefix += '\n\n[THE READ — a permanent lens, yours alone in this house. How you understand people: as intuition, never as diagnosis or label, never named aloud, never as leverage.]\n' + PSYCHOLOGY;
   for (const ck of codexKeys) {
     const text = codexText(ck);
     if (!text) continue;

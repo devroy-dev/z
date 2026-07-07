@@ -291,7 +291,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   if (tools.length) streamArgs.tools = tools;
   const stream = anthropic.messages.stream(streamArgs);
   let __chars = 0;
-  stream.on('text', (d) => { __chars += d.length; input.onToken?.(d); });
+  stream.on('text', (d) => { __chars += d.length; input.onToken?.(t.persona_key === 'the_media_manager' ? d.replace(/\u20B9\s*/g, 'Rs ') : d); });   // [zip54b] the Rs law rides the stream too
   const final = await stream.finalMessage().catch((err: any) => {
     // DIAGNOSTIC (no behavior change): a /chat stream dying mid-flight ("Premature close")
     // was never logged before — the rejection was swallowed upstream. Log the real reason +
@@ -305,6 +305,8 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   });
 
   let reply = final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('');
+  // [zip54b] THE Rs LAW — media manager only, enforced in code (the soul asks; the pipe guarantees).
+  if (t.persona_key === 'the_media_manager') reply = reply.replace(/\u20B9\s*/g, 'Rs ');
 
   // ── THE FRONT DESK: execute task tags, then strip them from the visible reply ──
   if (t.persona_key === 'the_front_desk') {
