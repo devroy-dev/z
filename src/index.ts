@@ -1361,8 +1361,9 @@ app.get('/memory/story', async (req, res) => {
     }
     const facts = rows.filter((m: any) => m.kind !== 'bit').map((m: any) => (m.key ? `${m.key}: ${m.value}` : m.value));
     const bits = rows.filter((m: any) => m.kind === 'bit').map((m: any) => (m.key ? `${m.key}: ${m.value}` : m.value));
-    const anthropicStory = new (await import('@anthropic-ai/sdk')).default({ fetch: globalThis.fetch as any });
-    const resp = await anthropicStory.messages.create({
+    // [zip39] the dynamic-import client bypassed the facade (and the sweeps) — the
+    // story now speaks through the generator like everything else in the house.
+    const resp = await anthropicShared.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       system:
