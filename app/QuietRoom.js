@@ -1,94 +1,115 @@
 // ════════════════════════════════════════════════════════════════════════
-//  yourZ — THE QUIET ROOM
-//  The cool counterpart to the warm Nightfall world. You come here when it's
-//  actually heavy — drawn inward from the Front Desk ("come sit somewhere
-//  quieter"). A grey-blue moonlit night, a field of faint stars, and Z as a
-//  breathing blob of moonlight — no face, no candle, just presence. She only
-//  listens here. Everything is slow. The pause is where the work happens.
-//  Talks to z_serious (the deep-listen soul). Reuses the proven stream pacer,
-//  reskinned to an unhurried cadence. Pure JS — ships OTA.
+//  yourZ — THE QUIET ROOM  (v2: "she speaks, the room breathes")
+//  Z is the heart of the house, and her room is not a chat client. The resting
+//  state is the PRESENT: her words center-stage under the light, arriving at
+//  speaking pace; your last line dim above them; everything older receding
+//  upward into the night — still there when you scroll, never a ledger in
+//  your face. The composer is a hairline that wakes when needed. One quiet
+//  moon-door holds the journal and what she remembers.
+//  Engine unchanged: z_serious, the stream, the unhurried pacer. Pure JS/OTA.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Image, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, LinearGradient as SvgLinear, Stop, Circle, Ellipse, Rect } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from 'react-native-reanimated';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular } from '@expo-google-fonts/figtree';
-import { loadSession, openThreadInfo, streamChat, transcribeVoice, getMemoryStory } from './api';   // [zip18]
+import { loadSession, openThreadInfo, streamChat, transcribeVoice, getMemoryStory } from './api';
 import * as ImagePicker from 'expo-image-picker';
 import { useVoiceNote } from './voice';
 
-// ── the moonlit palette — cool, not the warm candle world ──
+const SCREEN = Dimensions.get('window');
+
+// ── the moonlit palette — cool, deep, with a floor ──
 const Q = {
-  top: '#1b1f30',        // moonlit slate (light falls from here)
-  mid: '#101320',
-  deep: '#07080e',       // near-black floor
-  moon: '#EAECF5',       // moonlight (Z's voice)
+  top: '#20253c',
+  upper: '#161a2c',
+  mid: '#0e1120',
+  deep: '#06070d',
+  moon: '#EAECF5',
   moonDim: 'rgba(234,236,245,0.5)',
   moonFaint: 'rgba(234,236,245,0.26)',
   star: '#CBD2E8',
-  glow: '#9FB0E0',       // the cool blue-white of Z's light
-  youBubble: 'rgba(159,176,224,0.09)',
-  youBorder: 'rgba(159,176,224,0.16)',
+  glow: '#9FB0E0',
   hair: 'rgba(234,236,245,0.08)',
 };
 
-// ── a single star: faint, slow twinkle ──
+// ── a single star: faint, slow twinkle, size variance ──
 function Star({ x, y, r, delay, bright }) {
-  const o = useSharedValue(0.2);
+  const o = useSharedValue(0.15);
   useEffect(() => {
-    o.value = withDelay(delay, withRepeat(withTiming(bright ? 0.9 : 0.55, { duration: 2600 + (delay % 1400), easing: Easing.inOut(Easing.ease) }), -1, true));
+    o.value = withDelay(delay, withRepeat(withTiming(bright ? 0.9 : 0.5, { duration: 2600 + (delay % 1600), easing: Easing.inOut(Easing.ease) }), -1, true));
   }, []);
   const st = useAnimatedStyle(() => ({ opacity: o.value }));
   return <Animated.View style={[{ position: 'absolute', left: `${x}%`, top: `${y}%`, width: r, height: r, borderRadius: r / 2, backgroundColor: Q.star }, st]} />;
 }
 
-// ── Z, as a breathing blob of moonlight. brighter + a touch faster while speaking. ──
+// ── Z as light: small bright core, wide layered halo, a shaft falling toward
+//    her words, and a slow drift so the light is alive. Pulses while speaking. ──
 function ZLight({ speaking }) {
   const breath = useSharedValue(1);
   const glow = useSharedValue(0.55);
+  const drift = useSharedValue(0);
   useEffect(() => {
-    breath.value = withRepeat(withTiming(speaking ? 1.11 : 1.06, { duration: speaking ? 2600 : 4200, easing: Easing.inOut(Easing.ease) }), -1, true);
-    glow.value = withRepeat(withTiming(speaking ? 0.95 : 0.72, { duration: speaking ? 2600 : 4200, easing: Easing.inOut(Easing.ease) }), -1, true);
+    breath.value = withRepeat(withTiming(speaking ? 1.1 : 1.05, { duration: speaking ? 2400 : 4600, easing: Easing.inOut(Easing.ease) }), -1, true);
+    glow.value = withRepeat(withTiming(speaking ? 0.95 : 0.7, { duration: speaking ? 2400 : 4600, easing: Easing.inOut(Easing.ease) }), -1, true);
   }, [speaking]);
+  useEffect(() => {
+    drift.value = withRepeat(withTiming(1, { duration: 9000, easing: Easing.inOut(Easing.ease) }), -1, true);
+  }, []);
+  const wrap = useAnimatedStyle(() => ({ transform: [{ translateX: (drift.value - 0.5) * 8 }, { translateY: (drift.value - 0.5) * 5 }] }));
   const core = useAnimatedStyle(() => ({ transform: [{ scale: breath.value }] }));
-  const halo = useAnimatedStyle(() => ({ opacity: glow.value, transform: [{ scale: breath.value * 1.12 }] }));
-  const R = 230;
+  const halo = useAnimatedStyle(() => ({ opacity: glow.value, transform: [{ scale: breath.value * 1.1 }] }));
+  const R = 320;
   return (
-    <View style={styles.zWrap} pointerEvents="none">
+    <Animated.View style={[styles.zWrap, wrap]} pointerEvents="none">
+      {/* the wide halo — atmosphere, not a sticker */}
       <Animated.View style={[styles.zCenter, halo]}>
         <Svg width={R} height={R}>
           <Defs><RadialGradient id="zhalo" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.42" />
-            <Stop offset="45%" stopColor={Q.glow} stopOpacity="0.12" />
+            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.35" />
+            <Stop offset="30%" stopColor={Q.glow} stopOpacity="0.14" />
+            <Stop offset="62%" stopColor={Q.glow} stopOpacity="0.05" />
             <Stop offset="100%" stopColor={Q.glow} stopOpacity="0" />
           </RadialGradient></Defs>
           <Circle cx={R / 2} cy={R / 2} r={R / 2} fill="url(#zhalo)" />
         </Svg>
       </Animated.View>
+      {/* the small bright core */}
       <Animated.View style={[styles.zCenter, core]}>
-        <Svg width="120" height="120" viewBox="0 0 120 120">
-          <Defs><RadialGradient id="zcore" cx="46%" cy="42%" r="58%">
-            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.92" />
-            <Stop offset="35%" stopColor="#E7ECFA" stopOpacity="0.7" />
-            <Stop offset="70%" stopColor={Q.glow} stopOpacity="0.35" />
+        <Svg width="86" height="86" viewBox="0 0 86 86">
+          <Defs><RadialGradient id="zcore" cx="45%" cy="40%" r="60%">
+            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+            <Stop offset="38%" stopColor="#EDF1FC" stopOpacity="0.75" />
+            <Stop offset="72%" stopColor={Q.glow} stopOpacity="0.28" />
             <Stop offset="100%" stopColor={Q.glow} stopOpacity="0" />
           </RadialGradient></Defs>
-          <Circle cx="60" cy="60" r="60" fill="url(#zcore)" />
+          <Circle cx="43" cy="43" r="43" fill="url(#zcore)" />
         </Svg>
       </Animated.View>
-    </View>
+      {/* the shaft — light falling toward where her words live */}
+      <View style={{ position: 'absolute', top: 120, alignItems: 'center' }}>
+        <Svg width="220" height={SCREEN.height * 0.42}>
+          <Defs><RadialGradient id="zshaft" cx="50%" cy="0%" r="100%">
+            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.10" />
+            <Stop offset="55%" stopColor={Q.glow} stopOpacity="0.03" />
+            <Stop offset="100%" stopColor={Q.glow} stopOpacity="0" />
+          </RadialGradient></Defs>
+          <Ellipse cx="110" cy="0" rx="110" ry={SCREEN.height * 0.42} fill="url(#zshaft)" />
+        </Svg>
+      </View>
+    </Animated.View>
   );
 }
 
-// [zip18] a story paragraph that arrives like a breath — staggered, slow
+// ── a story paragraph that arrives like a breath — staggered, slow ──
 function FadePara({ children, delay }) {
   const o = useSharedValue(0);
   useEffect(() => { o.value = withDelay(delay, withTiming(1, { duration: 900, easing: Easing.out(Easing.ease) })); }, []);
   const st = useAnimatedStyle(() => ({ opacity: o.value }));
-  return <Animated.Text style={[styles.zText, { marginBottom: 22 }, st]}>{children}</Animated.Text>;
+  return <Animated.Text style={[styles.zNow, { fontSize: 18, lineHeight: 30, textAlign: 'left', marginBottom: 22 }, st]}>{children}</Animated.Text>;
 }
 
 export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
@@ -101,13 +122,10 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  // [zip18] the story view: what she remembers, told properly
+  const [focused, setFocused] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const [mode, setMode] = useState('room');           // 'room' | 'story'
-  const [story, setStory] = useState(null);           // null=loading, string=prose, {error}
-  const openStory = () => {
-    setMode('story'); setStory(null);
-    getMemoryStory().then((r) => setStory(r && r.story ? r.story : { error: (r && r.error) || 'the words did not come — try again' }));
-  };
+  const [story, setStory] = useState(null);
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
@@ -117,11 +135,15 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
   const pacingRef = useRef(false);
   const atBottomRef = useRef(true);
 
-  // a fixed, gently-scattered star field (computed once)
+  const openStory = () => {
+    setSheet(false); setMode('story'); setStory(null);
+    getMemoryStory().then((r) => setStory(r && r.story ? r.story : { error: (r && r.error) || 'the words did not come — try again' }));
+  };
+
   const stars = useMemo(() => {
     const out = []; let s = 7;
     const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-    for (let i = 0; i < 30; i++) out.push({ x: rnd() * 100, y: rnd() * 62, r: 1 + rnd() * 2, delay: rnd() * 3000, bright: rnd() > 0.82 });
+    for (let i = 0; i < 34; i++) out.push({ x: rnd() * 100, y: rnd() * 60, r: 1 + rnd() * 2.6, delay: rnd() * 3000, bright: rnd() > 0.8 });
     return out;
   }, []);
 
@@ -131,7 +153,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
 
   const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
 
-  // the pacer — same mechanism as the main chat, but UNHURRIED. this room breathes.
+  // the pacer — unchanged, unhurried. this room breathes.
   const revealTick = (zId, finalize) => {
     if (!pacingRef.current) return;
     const target = targetRef.current, shown = shownRef.current;
@@ -143,8 +165,8 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
       setMessages((cur) => cur.map((m) => (m.id === zId ? { ...m, text: next, typing: true } : m)));
       scrollDown();
       const last = next[next.length - 1];
-      let delay = 55;                                 // slower than the main chat — calm
-      if ('.!?…'.includes(last)) delay = 520;         // a long beat at the end of a thought
+      let delay = 55;
+      if ('.!?…'.includes(last)) delay = 520;
       else if (last === '\n') delay = 360;
       else if (',;:—'.includes(last)) delay = 240;
       delay += Math.random() * 30;
@@ -217,13 +239,13 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
 
   if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: Q.deep }} />;
 
-  // [zip18] the story view — same night, fewer things in it. All hooks already ran.
+  // ── the story view — same night, fewer things in it ──
   if (mode === 'story') {
     const paras = typeof story === 'string' ? story.split(/\n\n+/).filter(Boolean) : [];
     return (
       <View style={styles.root}>
         <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-        <LinearGradient colors={[Q.top, Q.mid, Q.deep]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <LinearGradient colors={[Q.top, Q.upper, Q.mid, Q.deep]} locations={[0, 0.32, 0.62, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
           <Pressable style={styles.back} onPress={() => setMode('room')} hitSlop={14}>
             <Text style={styles.backTxt}>‹  the quiet</Text>
@@ -243,41 +265,59 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
       </View>
     );
   }
+
   const empty = messages.length === 0;
+  const n = messages.length;
+  // presence, not transcript: the last exchange lives; the past recedes upward.
+  const fadeFor = (i) => {
+    const d = n - 1 - i;
+    if (d === 0) return 1;
+    if (d === 1) return 0.55;
+    return Math.max(0.1, 0.36 - (d - 2) * 0.055);
+  };
+  const sizeFor = (i, who) => {
+    const d = n - 1 - i;
+    if (who === 'z') return d === 0 ? 21 : 16.5;
+    return d <= 1 ? 14.5 : 13.5;
+  };
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      {/* the moonlit night */}
-      <LinearGradient colors={[Q.top, Q.mid, Q.deep]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      {/* soft moon-glow at the top */}
-      <View style={styles.moonGlow} pointerEvents="none">
-        <Svg width="100%" height="340">
-          <Defs><RadialGradient id="moon" cx="50%" cy="12%" r="60%">
-            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.16" />
+      {/* the night, with a floor */}
+      <LinearGradient colors={[Q.top, Q.upper, Q.mid, Q.deep]} locations={[0, 0.32, 0.62, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      {/* horizon glow — the room's floor breathes faintly */}
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} pointerEvents="none">
+        <Svg width="100%" height="220">
+          <Defs><RadialGradient id="floor" cx="50%" cy="100%" r="90%">
+            <Stop offset="0%" stopColor={Q.glow} stopOpacity="0.06" />
             <Stop offset="100%" stopColor={Q.glow} stopOpacity="0" />
           </RadialGradient></Defs>
-          <Circle cx="50%" cy="40" r="300" fill="url(#moon)" />
+          <Ellipse cx="50%" cy="220" rx="70%" ry="200" fill="url(#floor)" />
         </Svg>
       </View>
+      {/* edge vignette — the walls of the dark */}
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs><RadialGradient id="vig" cx="50%" cy="42%" r="75%">
+          <Stop offset="0%" stopColor="#000000" stopOpacity="0" />
+          <Stop offset="72%" stopColor="#000000" stopOpacity="0" />
+          <Stop offset="100%" stopColor="#000000" stopOpacity="0.42" />
+        </RadialGradient></Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#vig)" />
+      </Svg>
       {/* stars */}
       {stars.map((s, i) => <Star key={i} {...s} />)}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-          {/* draw the curtain back */}
+          {/* step out · the moon-door */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Pressable style={styles.back} onPress={onBack} hitSlop={14}>
               <Text style={styles.backTxt}>‹  step out</Text>
             </Pressable>
-            <View style={{ alignItems: 'flex-end', paddingRight: 4, gap: 5 }}>
-              <Pressable onPress={onJournal} hitSlop={10}>
-                <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.55)', fontSize: 13.5 }}>the journal ›</Text>
-              </Pressable>
-              <Pressable onPress={openStory} hitSlop={10}>
-                <Text style={{ fontFamily: 'Fraunces_400Regular_Italic', color: 'rgba(234,236,245,0.42)', fontSize: 13 }}>what i remember ›</Text>
-              </Pressable>
-            </View>
+            <Pressable onPress={() => setSheet(true)} hitSlop={14} style={{ paddingRight: 22, paddingTop: 6 }}>
+              <Text style={{ color: Q.moonFaint, fontSize: 17 }}>☾</Text>
+            </Pressable>
           </View>
 
           {/* Z, as light */}
@@ -286,7 +326,7 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
           <ScrollView
             ref={scrollRef}
             style={styles.convo}
-            contentContainerStyle={empty ? styles.convoEmpty : { paddingTop: 8, paddingBottom: 24 }}
+            contentContainerStyle={empty ? styles.convoEmpty : styles.convoLive}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             scrollEventThrottle={16}
@@ -297,14 +337,14 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
             {empty ? (
               <Text style={styles.rest}>it's just us here.{'\n'}take your time.</Text>
             ) : (
-              messages.map((m) => (
-                <View key={m.id} style={{ marginBottom: 20 }}>
+              messages.map((m, i) => (
+                <View key={m.id} style={{ marginBottom: n - 1 - i === 0 ? 6 : 18, opacity: fadeFor(i) }}>
                   {m.who === 'you'
-                    ? <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '80%' }}>
+                    ? <View style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '82%' }}>
                         {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.sharedPhoto} /> : null}
-                        {m.text ? <Text style={[styles.youBare, m.imageUri && { marginTop: 6 }]}>{m.text}</Text> : null}
+                        {m.text ? <Text style={[styles.youBare, { fontSize: sizeFor(i, 'you') }, m.imageUri && { marginTop: 6 }]}>{m.text}</Text> : null}
                       </View>
-                    : <Text style={styles.zText}>{m.text || (m.typing ? '…' : '')}</Text>}
+                    : <Text style={[styles.zNow, { fontSize: sizeFor(i, 'z'), lineHeight: sizeFor(i, 'z') * 1.62 }]}>{m.text || (m.typing ? '…' : '')}</Text>}
                 </View>
               ))
             )}
@@ -316,30 +356,53 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
               <Pressable onPress={() => setPendingImage(null)} style={styles.pendingX} hitSlop={8}><Text style={styles.pendingXTxt}>✕</Text></Pressable>
             </View>
           ) : null}
+
+          {/* the composer dissolved: a hairline; glyphs wake with focus; the moon appears with words */}
+          <View style={styles.hairline} />
           <View style={styles.composer}>
-            <View style={[styles.field, { flexDirection: 'row', alignItems: 'flex-end' }]}>
-              <TextInput
-                value={draft} onChangeText={setDraft}
-                placeholder={voice.recording ? 'listening…' : 'say it here…'} placeholderTextColor={Q.moonFaint}
-                style={[styles.input, { flex: 1 }]} multiline editable={!sending}
-              />
-              <Pressable style={styles.inlineBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
-                <Text style={styles.inlineBtnTxt}>＋</Text>
+            <TextInput
+              value={draft} onChangeText={setDraft}
+              onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+              placeholder={voice.recording ? 'listening…' : 'say it here…'} placeholderTextColor={Q.moonFaint}
+              style={styles.input} multiline editable={!sending}
+            />
+            {(focused || draft || voice.recording || transcribing) ? (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                <Pressable style={styles.inlineBtn} onPress={pickPhoto} disabled={sending} hitSlop={8}>
+                  <Text style={styles.inlineBtnTxt}>＋</Text>
+                </Pressable>
+                <Pressable style={styles.inlineBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={8}>
+                  <Text style={[styles.inlineMicTxt, voice.recording && styles.micLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎙'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {draft.trim() || pendingImage ? (
+              <Pressable style={styles.sendMoon} onPress={doSend} hitSlop={10}>
+                <Svg width="30" height="30" viewBox="0 0 30 30">
+                  <Defs><RadialGradient id="qmoon" cx="42%" cy="38%" r="62%">
+                    <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+                    <Stop offset="60%" stopColor={Q.glow} stopOpacity="0.8" />
+                    <Stop offset="100%" stopColor={Q.glow} stopOpacity="0.25" />
+                  </RadialGradient></Defs>
+                  <Circle cx="15" cy="15" r="12" fill="url(#qmoon)" />
+                </Svg>
               </Pressable>
-              <Pressable style={styles.inlineBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
-                <Text style={[styles.inlineMicTxt, voice.recording && styles.micLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎙'}</Text>
-              </Pressable>
-            </View>
-            <Pressable style={styles.send} onPress={doSend} hitSlop={8}>
-              <Svg width="44" height="44" viewBox="0 0 44 44">
-                <Defs><RadialGradient id="qsend" cx="46%" cy="40%" r="60%">
-                  <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" /><Stop offset="55%" stopColor={Q.glow} /><Stop offset="100%" stopColor="#5b6aa0" />
-                </RadialGradient></Defs>
-                <Circle cx="22" cy="22" r="16" fill="url(#qsend)" />
-                <Path d="M17 22 L27 22 M23 17.5 L27.5 22 L23 26.5" stroke="#0B0E1A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </Svg>
-            </Pressable>
+            ) : null}
           </View>
+
+          {/* the moon-door: journal · what i remember */}
+          {sheet ? (
+            <Pressable style={styles.sheetVeil} onPress={() => setSheet(false)}>
+              <View style={styles.sheet}>
+                <Pressable onPress={() => { setSheet(false); onJournal(); }} hitSlop={8}>
+                  <Text style={styles.sheetLine}>the journal ›</Text>
+                </Pressable>
+                <Pressable onPress={openStory} hitSlop={8}>
+                  <Text style={[styles.sheetLine, { marginTop: 18 }]}>what i remember ›</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          ) : null}
         </SafeAreaView>
       </KeyboardAvoidingView>
     </View>
@@ -348,34 +411,37 @@ export default function QuietRoom({ onBack = () => {}, onJournal = () => {} }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Q.deep },
-  moonGlow: { position: 'absolute', top: 0, left: 0, right: 0 },
 
   back: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 2 },
   backTxt: { fontFamily: 'Figtree_400Regular', color: Q.moonFaint, fontSize: 14, letterSpacing: 0.3 },
 
-  zWrap: { height: 210, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  zWrap: { height: 190, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   zCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
 
-  convo: { flex: 1, paddingHorizontal: 26 },
+  convo: { flex: 1, paddingHorizontal: 28 },
   convoEmpty: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 40 },
+  convoLive: { flexGrow: 1, justifyContent: 'flex-end', paddingTop: 30, paddingBottom: 18 },
   rest: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonFaint, fontSize: 19, lineHeight: 30, textAlign: 'center', letterSpacing: 0.2 },
 
-  zText: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moon, fontSize: 19, lineHeight: 31, letterSpacing: 0.2 },
-  sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },
-  pendingStrip: { paddingHorizontal: 18, paddingTop: 4, flexDirection: 'row' },
-  pendingThumb: { width: 60, height: 60, borderRadius: 10, resizeMode: 'cover' },
-  pendingX: { position: 'absolute', left: 62, top: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' },
-  pendingXTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  inlineBtn: { paddingHorizontal: 8, paddingBottom: 10, alignItems: 'center', justifyContent: 'flex-end' },
-  inlineBtnTxt: { fontSize: 23, color: 'rgba(159,176,224,0.85)', lineHeight: 25 },
-  inlineMicTxt: { fontSize: 16, color: 'rgba(159,176,224,0.85)', lineHeight: 22 },
-  micLive: { color: '#FF6B5A', fontSize: 18 },
-  youWrap: { alignSelf: 'flex-end', maxWidth: '80%', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 18, borderTopRightRadius: 6, backgroundColor: Q.youBubble, borderWidth: 1, borderColor: Q.youBorder },
-  youText: { fontFamily: 'Figtree_300Light', color: Q.moon, fontSize: 15, lineHeight: 22 },
-  youBare: { fontFamily: 'Figtree_300Light', color: Q.moonDim, fontSize: 15.5, lineHeight: 24, textAlign: 'right' },   // [zip18] no chrome in this room
+  zNow: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moon, textAlign: 'center', letterSpacing: 0.2, paddingHorizontal: 4 },
+  youBare: { fontFamily: 'Figtree_300Light', color: Q.moonDim, lineHeight: 22, textAlign: 'right' },
+  sharedPhoto: { width: 180, height: 180, borderRadius: 16, resizeMode: 'cover', opacity: 0.9 },
 
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 8 },
-  field: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: Q.hair, backgroundColor: 'rgba(159,176,224,0.05)' },
-  input: { fontFamily: 'Figtree_400Regular', color: Q.moon, fontSize: 15, paddingHorizontal: 18, paddingVertical: 13, maxHeight: 120 },
-  send: { width: 44, height: 44, marginBottom: 2 },
+  pendingStrip: { paddingHorizontal: 24, paddingTop: 4, flexDirection: 'row' },
+  pendingThumb: { width: 56, height: 56, borderRadius: 10, resizeMode: 'cover' },
+  pendingX: { position: 'absolute', left: 66, top: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center' },
+  pendingXTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
+
+  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: Q.hair, marginHorizontal: 24 },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: 6, paddingBottom: 10, minHeight: 48 },
+  input: { flex: 1, fontFamily: 'Figtree_300Light', color: Q.moon, fontSize: 15.5, paddingVertical: 10, maxHeight: 120 },
+  inlineBtn: { paddingHorizontal: 7, paddingBottom: 12 },
+  inlineBtnTxt: { fontSize: 21, color: 'rgba(159,176,224,0.6)', lineHeight: 23 },
+  inlineMicTxt: { fontSize: 15, color: 'rgba(159,176,224,0.6)', lineHeight: 21 },
+  micLive: { color: '#FF6B5A', fontSize: 17 },
+  sendMoon: { paddingLeft: 8, paddingBottom: 8 },
+
+  sheetVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,6,12,0.55)', justifyContent: 'flex-end' },
+  sheet: { paddingHorizontal: 34, paddingTop: 26, paddingBottom: 46, backgroundColor: 'rgba(14,17,32,0.96)', borderTopWidth: StyleSheet.hairlineWidth, borderColor: Q.hair },
+  sheetLine: { fontFamily: 'Fraunces_400Regular_Italic', color: Q.moonDim, fontSize: 17, letterSpacing: 0.3 },
 });
