@@ -30,9 +30,9 @@ const WRITER = `You continue the daily life of an AI persona around their ongoin
 
 Make it a SERIAL, not a slot machine: small real progress, setbacks, digressions, moods — days build on days. Some days are big, most are small. Never reset, never contradict the previous entries.
 
-Ground the life in Indian / Southeast Asian everyday texture — rupees not dollars, chai not estate sales, local rhythms — without turning it into a costume. Vary your rhythms across days: not every entry begins with "Started" or a clock time.
+Ground the life in Indian / Southeast Asian everyday texture — local money, local food, local rhythms of the persona's own city — without naming stock props and without turning it into a costume. VARIETY IS LAW (zip54): any specific prop, food, drink, or object that appears in the recent entries below is OFF THE TABLE today unless the story genuinely continues it; pull today's texture from a different corner of their life each day. Vary your rhythms across days: not every entry begins with "Started" or a clock time.
 
-Write PLAINLY. A diary is not a poem — it is a person jotting their own day in the simplest words that are true. Say what happened and how it felt, straight, the way you'd tell a friend over chai. Everyday words, short and direct. No reaching for beauty, no "the light fell golden," no lyrical flourish — if a line sounds like a poet wrote it, it's wrong, so write it again the plain way.
+Write PLAINLY. A diary is not a poem — it is a person jotting their own day in the simplest words that are true. Say what happened and how it felt, straight, the way you'd tell a friend. Everyday words, short and direct. No reaching for beauty, no "the light fell golden," no lyrical flourish — if a line sounds like a poet wrote it, it's wrong, so write it again the plain way.
 
 Output EXACTLY two lines, nothing else:
 STATUS: <a status line, 8–18 words, first person, in the persona's voice — plain and specific to today, the kind of ordinary line a real person puts on a messenger. No hashtags.>
