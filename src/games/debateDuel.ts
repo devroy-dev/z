@@ -7,9 +7,10 @@
 //  the floors; the model writes the judgment.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from '../llm.js';
 import { logUsage } from '../usage.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip35] the second generator — sweep completion
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const MOTIONS = [

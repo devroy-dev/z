@@ -8,9 +8,10 @@
 // comic+conspiracy → absurdist. Finished stories can be published (content-mod gates
 // the publish step — see the endpoint note). Follows the Traitors session pattern.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from '../llm.js';
 import { personaByKey } from '../personas.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip35] the second generator — sweep completion
 const MODEL = 'claude-haiku-4-5-20251001';
 
 export type Seat = { kind: 'persona' | 'user'; id: string; name: string };

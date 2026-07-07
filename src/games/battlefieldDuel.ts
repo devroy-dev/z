@@ -14,10 +14,11 @@
 //  This keeps all async confined to this adapter; ai() stays a no-op.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from '../llm.js';
 import { logUsage } from '../usage.js';
 import { finalVerdict, runningNote, type DebateDomain, type Verdict } from '../battlefieldAdjudicator.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip35] the second generator — sweep completion
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // ── fact-based motions, each tagged with the adjudicator's domain corpus ──

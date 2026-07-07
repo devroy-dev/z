@@ -17,9 +17,10 @@
 // inside the engine, role-aware. Pure state helpers (assign/tally/reveal/win)
 // are separated out so the state machine is unit-testable without the model.
 import Anthropic from '@anthropic-ai/sdk';
+import { llm } from '../llm.js';
 import { personaByKey } from '../personas.js';
 
-const anthropic = new Anthropic({ fetch: globalThis.fetch as any });
+const anthropic = llm();   // [zip35] the second generator — sweep completion
 const MODEL = 'claude-haiku-4-5-20251001';
 
 export type Seat = { kind: 'persona' | 'user'; id: string; name: string };
