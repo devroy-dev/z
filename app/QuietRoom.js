@@ -99,7 +99,9 @@ function PopIn({ children }) {
   const o = useSharedValue(0);
   useEffect(() => { o.value = withTiming(1, { duration: 140, easing: Easing.out(Easing.ease) }); }, []);
   const st = useAnimatedStyle(() => ({ opacity: o.value }));
-  return <Animated.View style={st} pointerEvents="box-none">{children}</Animated.View>;
+  // [zip32] the wrapper must FILL — the card's absolute positioning anchors here;
+  // a zero-size wrapper threw the menu off-screen left (the zip30 post-mortem).
+  return <Animated.View style={[StyleSheet.absoluteFill, st]} pointerEvents="box-none">{children}</Animated.View>;
 }
 
 // ── a story paragraph that arrives like a breath — staggered, slow ──
