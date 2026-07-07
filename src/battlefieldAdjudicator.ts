@@ -11,7 +11,7 @@
 //
 // The codex owns HOW he judges; deterministic game code owns turns/phases/floors.
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { readContentFile } from './content.js';
 import { logUsage } from './usage.js';
 import { extractIndex, indexAsText, sliceSection } from './codexRetrieval.js';
@@ -202,7 +202,7 @@ export async function runningNote(args: {
       messages: [{ role: 'user', content: `MOTION: ${args.motion}\nMOMENTUM: PRO ${args.momentumA} / CON ${100 - args.momentumA}\n\nTHE EXCHANGE:\n${transcript}` }],
     });
     logUsage({ userId: 'battlefield', surface: 'other', fn: 'bf_running_note', model: MODEL, usage: (msg as any).usage });
-    const text = ((msg.content?.[0] as any)?.text ?? '');
+    const text = firstText(msg);
     const swing = Math.max(-15, Math.min(15, parseInt(/SWING:\s*(-?\d+)/.exec(text)?.[1] ?? '0', 10) || 0));
     const note = (/NOTE:\s*(.+)/.exec(text)?.[1] ?? '').trim().slice(0, 200);
     return { swing, note };

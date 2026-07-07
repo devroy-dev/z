@@ -7,7 +7,7 @@
 // of a lesson is his voice). Client-side retrieval tools can't ride the streaming path,
 // so we retrieve first (fast, non-streamed), inject, then stream normally.
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { readContentFile } from './content.js';
 import { logUsage } from './usage.js';
 import { extractIndex, indexAsText, sliceSection } from './codexRetrieval.js';
@@ -82,7 +82,7 @@ export async function retrievePrep(userMessage: string, userId: string): Promise
       messages: [{ role: 'user', content: q.slice(0, 2000) }],
     });
     logUsage({ userId, surface: 'other', fn: 'gm_turn', model: MODEL, usage: msg.usage });
-    const text = (msg.content?.[0]?.text ?? '').replace(/```json|```/g, '').trim();
+    const text = firstText(msg).replace(/```json|```/g, '').trim();
     const arr = JSON.parse(text);
     if (Array.isArray(arr)) picks = arr.slice(0, 4).filter((p: any) => p && p.domain && p.section);
   } catch { picks = []; }

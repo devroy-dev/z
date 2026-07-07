@@ -18,7 +18,7 @@
 // Semantic dedupe / contradiction resolution across OLD rows = memoryGardener.ts.
 import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { logUsage } from './usage.js';
 
 // shared client on native fetch — per the /banter premature-close lesson (see index.ts)
@@ -77,7 +77,7 @@ export async function harvestMemory(
       messages: [{ role: 'user', content: `USER SAID (extract facts ONLY from here):\n${userMsg}\n\nCONTEXT (the friend's reply — DO NOT extract from this; it only helps you resolve what the user meant):\n${zReply}` }],
     });
     try { logUsage({ userId, threadId, personaKey: null, surface: 'other', fn: 'memory_harvest', model: MODEL, usage: (resp as any).usage }); } catch {}
-    const raw = resp.content?.[0]?.type === 'text' ? (resp.content[0] as any).text : '[]';
+    const raw = (firstText(resp) || '[]');
     const clean = String(raw).replace(/```json|```/g, '').trim();
     let facts: Candidate[] = [];
     try { facts = JSON.parse(clean); } catch { return; }
@@ -105,7 +105,7 @@ export async function harvestMemory(
         messages: [{ role: 'user', content: `USER'S MESSAGE:\n${userMsg}\n\nCANDIDATES:\n${survivors.map((f, i) => `${i}. ${f.key ? f.key + ': ' : ''}${f.value}`).join('\n')}` }],
       });
       try { logUsage({ userId, threadId, personaKey: null, surface: 'other', fn: 'memory_verify', model: MODEL, usage: (audit as any).usage }); } catch {}
-      const araw = audit.content?.[0]?.type === 'text' ? (audit.content[0] as any).text : '[]';
+      const araw = (firstText(audit) || '[]');
       const verdicts: { i: number; ok: boolean }[] = JSON.parse(String(araw).replace(/```json|```/g, '').trim());
       if (Array.isArray(verdicts)) {
         const okSet = new Set(verdicts.filter((v) => v && v.ok === true).map((v) => v.i));

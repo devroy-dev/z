@@ -7,7 +7,7 @@
 //  the floors; the model writes the judgment.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from '../llm.js';
+import { llm, firstText } from '../llm.js';
 import { logUsage } from '../usage.js';
 
 const anthropic = llm();   // [zip35] the second generator — sweep completion
@@ -72,7 +72,7 @@ async function judgeExchange(state: DuelState): Promise<{ swing: number; remark:
       messages: [{ role: 'user', content: `MOTION: ${state.motion}\nMOMENTUM SO FAR: A ${state.momentum} / B ${100 - state.momentum}\n\nTHE EXCHANGE:\n${transcript}` }],
     });
     logUsage({ userId: 'duel', surface: 'other', fn: 'arena_debate_duel', model: MODEL, usage: (msg as any).usage });
-    const text = ((msg.content?.[0] as any)?.text ?? '');
+    const text = firstText(msg);
     const swing = Math.max(-15, Math.min(15, parseInt(/SWING:\s*(-?\d+)/.exec(text)?.[1] ?? '0', 10) || 0));
     const remark = (/REMARK:\s*(.+)/.exec(text)?.[1] ?? '').trim().slice(0, 160);
     const ready = /VERDICT_READY:\s*yes/i.test(text);
@@ -88,7 +88,7 @@ async function finalVerdict(state: DuelState): Promise<{ winner: number | 'draw'
       messages: [{ role: 'user', content: `MOTION: ${state.motion}\nFINAL MOMENTUM: A ${state.momentum} / B ${100 - state.momentum}\n\nFULL TRANSCRIPT:\n${transcript}` }],
     });
     logUsage({ userId: 'duel', surface: 'other', fn: 'arena_debate_duel', model: MODEL, usage: (msg as any).usage });
-    const text = ((msg.content?.[0] as any)?.text ?? '');
+    const text = firstText(msg);
     const w = (/WINNER:\s*(A|B|DRAW)/i.exec(text)?.[1] ?? '').toUpperCase();
     const verdict = (/VERDICT:\s*([\s\S]+)/.exec(text)?.[1] ?? 'A hard-fought exchange.').trim().slice(0, 700);
     return { winner: w === 'A' ? 0 : w === 'B' ? 1 : 'draw', verdict };

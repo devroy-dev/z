@@ -8,7 +8,7 @@
 //  ships without passing through here.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { logUsage } from './usage.js';
 
 // shared client on native fetch — the premature-close lesson (see index.ts)
@@ -41,7 +41,7 @@ export async function seatbeltCheck(
       messages: [{ role: 'user', content: `The persona${ctx?.personaKey ? ` "${ctx.personaKey}"` : ''} wants to send, unprompted:\n\n"${String(ping).slice(0, 800)}"` }],
     });
     if (ctx?.userId) logUsage({ userId: ctx.userId, personaKey: ctx.personaKey, surface: 'seatbelt', fn: 'seatbelt', model: SEATBELT_MODEL, usage: (msg as any).usage });
-    const text = (msg.content?.[0] as any)?.text?.trim() ?? '';
+    const text = firstText(msg).trim();
     if (/^APPROVE\b/i.test(text)) return { ok: true };
     const reason = text.replace(/^REJECT:?\s*/i, '').slice(0, 120) || 'rejected';
     return { ok: false, reason };

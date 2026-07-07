@@ -107,6 +107,15 @@ function translate(params: any): any {
   return out;
 }
 
+// [zip36] firstText — extraction BY TYPE, never by position. Some providers return a
+// leading non-text block (thinking, etc.); content[0] is a bet, find() is a law.
+export function firstText(msg: any): string {
+  const c = msg?.content;
+  if (!Array.isArray(c)) return '';
+  const b = c.find((x: any) => x && x.type === 'text');
+  return typeof b?.text === 'string' ? b.text : '';
+}
+
 // The facade — a drop-in for the per-file `const anthropic = new Anthropic(...)`.
 // Same call shapes (.messages.create / .messages.stream), provider-routed.
 export function llm() {

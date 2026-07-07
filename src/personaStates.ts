@@ -6,7 +6,7 @@
 //  per day, shared by every user. The soap-opera engine.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { supabase } from './db.js';
 import { readFileSync } from 'fs';
 
@@ -55,7 +55,7 @@ async function writeState(personaKey: string, pursuit: string): Promise<boolean>
     model: MODEL, max_tokens: 160, system: WRITER,
     messages: [{ role: 'user', content: `Persona: ${p?.defaultName || personaKey}\n${lifeSection(personaKey) ? 'WHO THEY ARE:\n' + lifeSection(personaKey) + '\n\n' : ''}Their pursuit: ${pursuit}\n\nRecent diary:\n${priorText}\n\nWrite today (${today}).` }],
   });
-  const text = ((msg.content?.[0] as any)?.text ?? '').trim();
+  const text = firstText(msg).trim();
   const sm = /STATUS:\s*(.+)/i.exec(text);
   const lm = /LOG:\s*([\s\S]+)/i.exec(text);
   if (!sm || !lm) { console.log('[states] unparseable for', personaKey, JSON.stringify(text.slice(0, 120))); return false; }

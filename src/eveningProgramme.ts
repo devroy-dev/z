@@ -9,7 +9,7 @@
 //  renderer (desk zip 3) must exist first, or users would see raw tags.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { supabase } from './db.js';
 import { personaByKey } from './personas.js';
 import { logUsage } from './usage.js';
@@ -78,7 +78,7 @@ async function programmeFor(userId: string): Promise<string | null> {
     messages: [{ role: 'user', content: `Tonight's cards, in order:\n${material}` }],
   });
   logUsage({ userId, surface: 'other', fn: 'evening_programme', model: MODEL, usage: (msg as any).usage });
-  let text = ((msg.content?.[0] as any)?.text ?? '').trim();
+  let text = firstText(msg).trim();
   // deterministic floor: every chosen tag present verbatim, or we rebuild the note ourselves
   if (!cards.every((c) => text.includes(tag(c)))) {
     text = `tonight's programme —\n${material}`;

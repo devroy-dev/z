@@ -6,7 +6,7 @@
 //  it appears in "left at the desk" and in the front desk's thread.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { supabase } from './db.js';
 import { personaByKey } from './personas.js';
 import { logUsage } from './usage.js';
@@ -61,7 +61,7 @@ async function briefFor(userId: string): Promise<string | null> {
     messages: [{ role: 'user', content: material.slice(0, 1800) }],
   });
   logUsage({ userId, surface: 'other', fn: 'morning_brief', model: MODEL, usage: (msg as any).usage });
-  const text = ((msg.content?.[0] as any)?.text ?? '').trim().replace(/^["']|["']$/g, '').slice(0, 420);
+  const text = firstText(msg).trim().replace(/^["']|["']$/g, '').slice(0, 420);
   return text || null;
 }
 

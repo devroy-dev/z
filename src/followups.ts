@@ -11,7 +11,7 @@
 //  corpus per the roadmap amendment; enforcement comes after real data).
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { supabase } from './db.js';
 import { personaByKey } from './personas.js';
 import { seatbeltCheck } from './seatbelt.js';
@@ -49,7 +49,7 @@ async function writePing(userId: string, personaKey: string, about: string): Pro
     messages: [{ role: 'user', content: `Persona: ${p?.defaultName || personaKey}. Following up on: ${about}` }],
   });
   logUsage({ userId, surface: 'other', fn: 'followup', model: MODEL, usage: (msg as any).usage });
-  const text = ((msg.content?.[0] as any)?.text ?? '').trim().replace(/^["']|["']$/g, '').slice(0, 240);
+  const text = firstText(msg).trim().replace(/^["']|["']$/g, '').slice(0, 240);
   return text || null;
 }
 
@@ -86,7 +86,7 @@ async function draftFor(userId: string): Promise<{ personaKey: string; ping: str
     messages: [{ role: 'user', content: ctx.slice(0, 4000) }],
   });
   logUsage({ userId, surface: 'other', fn: 'followup', model: MODEL, usage: (msg as any).usage });
-  const text = ((msg.content?.[0] as any)?.text ?? '').trim();
+  const text = firstText(msg).trim();
   console.log('[followups] selector for', userId, '→', JSON.stringify(text.slice(0, 220)));
   if (/^NONE\b/i.test(text)) return null;
   const pm = /PERSONA:\s*(\S+)/i.exec(text);

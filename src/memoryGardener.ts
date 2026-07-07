@@ -15,7 +15,7 @@
 //     endpoint POST /memory/garden (the one-time cleanup lever).
 import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { logUsage } from './usage.js';
 
 const anthropic = llm();   // [zip34] the second generator — provider-routable
@@ -52,7 +52,7 @@ export async function gardenUserMemory(userId: string): Promise<GardenSummary> {
   });
   try { logUsage({ userId, threadId: null, personaKey: null, surface: 'other', fn: 'memory_garden', model: MODEL, usage: (resp as any).usage }); } catch {}
 
-  const raw = resp.content?.[0]?.type === 'text' ? (resp.content[0] as any).text : '{}';
+  const raw = (firstText(resp) || '{}');
   let plan: { delete?: number[]; rewrite?: { i: number; value: string }[] } = {};
   try { plan = JSON.parse(String(raw).replace(/```json|```/g, '').trim()); } catch { return { userId, rows: rows.length, deleted: 0, rewritten: 0, skipped: 'unparseable plan' }; }
 

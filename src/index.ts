@@ -8,7 +8,7 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { createClient } from '@supabase/supabase-js';
 import { resolveUser, isRestricted } from './zAccess.js';
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
@@ -1336,7 +1336,7 @@ app.get('/memory/story', async (req, res) => {
       messages: [{ role: 'user', content: `THE NOTES:\n${facts.join('\n')}${bits.length ? '\n\nTHE BITS:\n' + bits.join('\n') : ''}` }],
     });
     try { logUsage({ userId: user.id, threadId: null, personaKey: 'z_serious', surface: 'other', fn: 'memory_story', model: 'claude-haiku-4-5-20251001', usage: (resp as any).usage }); } catch {}
-    const story = resp.content?.[0]?.type === 'text' ? (resp.content[0] as any).text.trim() : '';
+    const story = firstText(resp).trim();
     if (!story) return res.status(500).json({ error: 'the words did not come — try again' });
     res.json({ story });
   } catch (e: any) {
