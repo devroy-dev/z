@@ -4,7 +4,7 @@
 //   DYNAMIC (uncached): today's date + the shared memory block. Changes per turn.
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
-import { llm, pinnedProvider, scrubProviderMarkup } from './llm.js';   // [zip54g]
+import { llm, pinnedProvider, scrubProviderMarkup, makeStreamGate } from './llm.js';   // [zip54g] [zip54m]
 import { supabase } from './db.js';
 import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPersonas.js';
 import { buildCustomPrefix } from './content.js';
@@ -326,7 +326,8 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   if (tools.length) streamArgs.tools = tools;
   const stream = anthropic.messages.stream(streamArgs);
   let __chars = 0;
-  stream.on('text', (d) => { __chars += d.length; input.onToken?.(t.persona_key === 'the_media_manager' ? d.replace(/\u20B9\s*/g, 'Rs ') : d); });   // [zip54b] the Rs law rides the stream too
+  const __gate = makeStreamGate();   // [zip54m] provider markup never reaches the screen
+  stream.on('text', (d) => { __chars += d.length; const g = __gate(d); if (g === null) return; input.onToken?.(t.persona_key === 'the_media_manager' ? g.replace(/\u20B9\s*/g, 'Rs ') : g); });   // [zip54b] the Rs law rides the stream too
   const final = await stream.finalMessage().catch((err: any) => {
     // DIAGNOSTIC (no behavior change): a /chat stream dying mid-flight ("Premature close")
     // was never logged before — the rejection was swallowed upstream. Log the real reason +

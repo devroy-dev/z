@@ -153,6 +153,33 @@ function translateFor(p: ProviderKey, params: any): any {
 // [zip54g] THE DSML SCRUB — DeepSeek leaked raw '<\uFF5C\uFF5CDSML\uFF5C\uFF5C...' tool markup into a
 // user-visible reply (Taiwan probe). The fullwidth bar never appears in honest prose;
 // everything from its first occurrence is machine junk — truncate there.
+// [zip54m] THE STREAM GATE — zip54g's scrub cleans the persisted reply, but the
+// live stream had already put raw provider markup on screen. This factory wraps
+// an emit path: the moment a marker enters the flowing text (fullwidth bar or
+// ASCII '<|'), emission stops for good; the clean prefix of the very chunk that
+// carries the marker still goes out.
+export function makeStreamGate(): (d: string) => string | null {
+  let tail = '';
+  let closed = false;
+  return (d: string) => {
+    if (closed) return null;
+    const probe = tail + d;
+    const iBar = probe.indexOf('\uFF5C');
+    const iAscii = probe.indexOf('<|');
+    const hit = [iBar, iAscii].filter((i) => i > -1).sort((a, b) => a - b)[0];
+    if (hit !== undefined) {
+      closed = true;
+      const cut = probe.lastIndexOf('<', hit);
+      const clean = probe.slice(0, cut > -1 && hit - cut < 4 ? cut : hit);
+      const emit = clean.slice(tail.length).trimEnd();
+      tail = '';
+      return emit.length ? emit : null;
+    }
+    tail = probe.slice(-3);   // keep a sliver so a marker split across chunks is still caught
+    return d;
+  };
+}
+
 export function scrubProviderMarkup(s: string): string {
   const i = s.indexOf('\uFF5C');
   if (i === -1) return s;
@@ -172,6 +199,7 @@ export function firstText(msg: any): string {
 const PROVIDER_PINS: Record<string, ProviderKey> = {
   the_anchor: 'anthropic',
   the_grandmaster: 'anthropic',
+  the_oracle: 'anthropic',   // [zip54m] his readings ride Haiku's web, always (Dev ruling)
 };
 export function pinnedProvider(personaKey?: string | null): ProviderKey | null {
   return (personaKey && PROVIDER_PINS[personaKey]) || null;

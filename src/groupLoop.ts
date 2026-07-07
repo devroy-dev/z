@@ -11,7 +11,7 @@ import { withGapMarker, sinceLine } from './timegap.js';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
-import { pinnedProvider, scrubProviderMarkup } from './llm.js';   // [zip54g]
+import { pinnedProvider, scrubProviderMarkup, makeStreamGate } from './llm.js';   // [zip54g] [zip54m]
 import { readMemoryBlock } from './memory.js';
 import { readRoomMemoryBlock } from './roomMemory.js';
 import { personaByKey, type CodexKey } from './personas.js';
@@ -377,7 +377,8 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     }
     const stream = anthropic.messages.stream(streamArgs);
     let __chars = 0;
-    stream.on('text', (d) => { __chars += d.length; input.onToken?.(key, key === 'the_media_manager' ? d.replace(/\u20B9\s*/g, 'Rs ') : d); });   // [zip54b] the Rs law rides the room stream
+    const __gate = makeStreamGate();   // [zip54m]
+    stream.on('text', (d) => { __chars += d.length; const g = __gate(d); if (g === null) return; input.onToken?.(key, key === 'the_media_manager' ? g.replace(/\u20B9\s*/g, 'Rs ') : g); });   // [zip54b] the Rs law rides the room stream
     const final = await stream.finalMessage().catch((err: any) => {
       // DIAGNOSTIC: pinpoint the second premature-close. Which persona died, was
       // web_search on, and how far did it get (0 = died at prefill; >0 = mid-stream)?
