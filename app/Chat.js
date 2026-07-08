@@ -9,7 +9,7 @@
 //  video call, near-bottom-only auto-scroll.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, Image, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, Image, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, Linking } from 'react-native';   // [zip63]
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
@@ -634,13 +634,19 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                       {m.notSent ? <Pressable onPress={() => { setMessages((cur) => cur.filter((x) => x.id !== m.id)); if (m.imageUri && m.imageUri.startsWith('data:')) retryImgRef.current = { data: m.imageUri.split(',')[1], uri: m.imageUri }; setTimeout(() => doSend(m.text || ''), 60); }} hitSlop={8}><Text style={{ color: '#E8A08A', fontSize: 11.5, marginTop: 5, letterSpacing: 0.2 }}>not sent — tap to retry</Text></Pressable> : null}
                     </View>
                   ) : m.text ? (
-                    (() => { const parsed = parseCards(m.text); return (
+                    (() => { const parsed = parseCards(m.text); const shops = []; const shopText = parsed.text.replace(/\[\[SHOP:\s*([^|\]]+)\|([^|\]]+)\|\s*(https?:\/\/[^\]\s]+)\s*\]\]/gi, (_, n, pr, u) => { shops.push({ name: n.trim(), price: pr.trim(), url: u.trim() }); return ''; }).trim(); return (   /* [zip63] shop cards */
                       <>
-                        {splitBursts(parsed.text).map((burst, bi) => (
+                        {splitBursts(shopText).map((burst, bi) => (
                           <View key={bi} style={[styles.themWrap, !WARM && styles.themWrapMoon, bi > 0 && { marginTop: 4 }]}><RichText text={flat(burst)} style={(KEY === 'z' || KEY === 'z_serious') ? styles.themText : WARM ? styles.themTextWarm : styles.themTextMoon} /></View>
                         ))}
                         {parsed.cards.map((c, ci) => (
                           <ProgrammeCard key={ci} card={c} onPress={() => routeTo(c.goto)} />
+                        ))}
+                        {shops.map((sh, si) => (
+                          <Pressable key={'sh' + si} onPress={() => Linking.openURL(sh.url).catch(() => {})} style={{ marginTop: 8, borderWidth: 1, borderColor: 'rgba(232,169,176,0.35)', borderLeftWidth: 3, borderLeftColor: '#E8A9B0', borderRadius: 12, padding: 12, backgroundColor: 'rgba(232,169,176,0.05)', maxWidth: '88%' }}>
+                            <Text style={{ fontFamily: 'Figtree_600SemiBold', color: '#F4EBEC', fontSize: 13.5 }}>{sh.name}</Text>
+                            <Text style={{ fontFamily: 'Figtree_400Regular', color: '#E8A9B0', fontSize: 12.5, marginTop: 3 }}>{sh.price}  ·  open ↗</Text>
+                          </Pressable>
                         ))}
                         {m.routes && m.routes.length > 0 && (
                           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, gap: 8 }}>

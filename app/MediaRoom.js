@@ -191,7 +191,7 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
         )}
 
         <Pressable onPress={onChat} style={st.ghost}>
-          <Text style={st.ghostTxt}>take it to his desk →</Text>
+          <Text style={st.ghostTxt}>talk to your social Media Manager →</Text>{/* [zip63] */}
         </Pressable>
       </ScrollView>
     </SafeAreaView>

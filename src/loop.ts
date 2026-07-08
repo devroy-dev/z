@@ -161,7 +161,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       const { data: pieces } = await supabase.from('wardrobe_pieces').select('kind, colors, tags, her_read').eq('user_id', t.user_id).order('created_at', { ascending: false }).limit(30);
       if (pieces && pieces.length) {
         const lines = pieces.map((p: any) => `  • ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}${p.her_read ? ` — ${p.her_read}` : ''}`).join('\n');
-        wardrobeBlock = `\n\n[THE WARDROBE — the pieces this client owns, filed under your own eye, newest first. When they ask what to wear — for an occasion, a mood, a day — you style them FROM these pieces first, by name, and only then suggest what\'s missing. Never ask them to list what they own; it is written here.\n${lines}]`;
+        wardrobeBlock = `\n\n[THE WARDROBE — the pieces this client owns, filed under your own eye, newest first. When they ask what to wear — for an occasion, a mood, a day — you style them FROM these pieces first, by name, and only then suggest what\'s missing. Never ask them to list what they own; it is written here.\n${lines}]\n\n[SHOP CARDS — whenever you hunt products online for them, END your reply with one line per option, exactly this machine format, using the REAL product page URLs from your search results (never invented ones): [[SHOP: product name | price | url]] — up to 4 options. Your spoken verdict comes first in your own voice; the card lines come last, nothing after them. If a result has no direct product URL, skip that card rather than fake a link.]`;   // [zip63]
       }
     } catch (e: any) { console.error('[wardrobe] block failed:', e?.message || e); }
   }
