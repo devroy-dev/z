@@ -83,7 +83,7 @@ function ZOrb({ size = 44 }) {
 const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=6`;   // [zip54r]
 
 // the house diaries, as a feed: today's line per resident; tap → their recent week
-function UpdatesFeed({ onOpen }) {
+function UpdatesFeed({ onOpen, embedded = false }) {   // [zip61] embedded on the Desk
   const [states, setStates] = useState({});
   const [open, setOpen] = useState(null);        // persona key unfolded
   const [diary, setDiary] = useState({});        // key -> entries
@@ -96,7 +96,7 @@ function UpdatesFeed({ onOpen }) {
   };
   if (!keys.length) return <View style={st.soonWrap}><Text style={st.soonLine}>the house is quiet — diaries arrive with the morning.</Text></View>;
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90, paddingTop: 4 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={embedded ? undefined : { flex: 1 }} scrollEnabled={!embedded} contentContainerStyle={{ paddingBottom: embedded ? 8 : 90, paddingTop: 4 }} showsVerticalScrollIndicator={false}>
       {keys.map((k) => (
         <View key={k}>
           <Pressable style={st.updRow} onPress={() => unfold(k)}>
@@ -235,7 +235,7 @@ function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
 }
 
 export default function ChatHome({ onOpen = () => {} }) {
-  const [tab, setTab] = useState('chats');
+  const [tab, setTab] = useState('thedesk');   // [zip61] the house opens onto the Desk
   // ── [zip17] THE QUIET PULL: swipe right anywhere on the list → the world dims
   // and slides → Z. Rightward-only (+16dx to activate, so the OS left-edge back
   // gesture and the leftward row-swipes keep their lanes; failOffsetY yields to
@@ -479,36 +479,6 @@ export default function ChatHome({ onOpen = () => {} }) {
               </Pressable>
             ))}
           </View>
-          <Pressable style={st.row} onPress={() => onOpen({ kind: 'desk' })}>
-            <View style={[st.ring, { borderColor: 'rgba(231,176,122,0.45)' }]}>
-              {deskFace ? <Image source={{ uri: dpFor('the_front_desk') }} style={st.face} onError={() => setDeskFace(false)} /> : <DeskEmber />}
-            </View>
-            <View style={{ flex: 1, marginLeft: 13 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>the Host</Text><Text style={st.time}>📌</Text>{/* [zip54p] */}
-              </View>
-              <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
-            </View>
-          </Pressable>
-          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row face={`https://callmez.app/rooms/coaching-hub.jpg?v=1`} tone={MOON.hairStrong} name="the Coaching hub" line="name an exam or subject — plans, lessons, quizzes, mocks." pinned onPress={() => onOpen({ kind: 'coach' })} />{/* [zip54s] */}
-          <Pressable style={st.row} onPress={() => onOpen({ kind: 'consult' })}>
-            <View style={[st.ring, { borderColor: 'rgba(232,162,74,0.35)', backgroundColor: '#101427' }]}>
-              <ConsultLogo />
-            </View>
-            <View style={{ flex: 1, marginLeft: 13 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>The Consultant</Text><Text style={st.time}>📌</Text>
-              </View>
-              <Text style={st.line} numberOfLines={1}>sit with Victor — the expert. by thedreamai</Text>
-            </View>
-          </Pressable>
-          {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
-          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=5`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] [zip54o] */ })} />
-          <Row face={`https://callmez.app/rooms/panel-room.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] [zip54o] the room, not the man */ })} />
-          <Row face={`https://callmez.app/rooms/media-hub.jpg?v=1`} tone={'rgba(169,221,242,0.30)'} name="the Media Manager" line="file the brief once. i run your career like a business." pinned onPress={() => onOpen({ kind: 'mmroom' /* [zip54d] [zip54n] the room wears its own face */ })} />
-          <Row face={`https://callmez.app/rooms/stylist-wardrobe.jpg?v=1`} tone={'rgba(232,169,176,0.32)'} name="the stylist" line="your wardrobe, under my eye. show me a piece — i'll tell you the truth." pinned onPress={() => onOpen({ kind: 'stylist' /* [zip54j] [zip54n] the room wears its own face */ })} />
-          <View style={st.divider} />
           {filt === 'friends' ? (
             friendList.length === 0 ? (
               <Text style={st.empty}>no friends yet — add people by handle in the You tab, then they show up here to chat.</Text>
@@ -565,7 +535,41 @@ export default function ChatHome({ onOpen = () => {} }) {
           )}
         </ScrollView>
       )}
-      {tab === 'updates' && <UpdatesFeed onOpen={onOpen} />}
+      {tab === 'thedesk' && (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90 }} showsVerticalScrollIndicator={false}>{/* [zip61] the Desk — the first interface */}
+          <Pressable style={st.row} onPress={() => onOpen({ kind: 'desk' })}>
+            <View style={[st.ring, { borderColor: 'rgba(231,176,122,0.45)' }]}>
+              {deskFace ? <Image source={{ uri: dpFor('the_front_desk') }} style={st.face} onError={() => setDeskFace(false)} /> : <DeskEmber />}
+            </View>
+            <View style={{ flex: 1, marginLeft: 13 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={st.name}>the Host</Text><Text style={st.time}>📌</Text>{/* [zip54p] */}
+              </View>
+              <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
+            </View>
+          </Pressable>
+          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
+          <Row face={`https://callmez.app/rooms/coaching-hub.jpg?v=1`} tone={MOON.hairStrong} name="the Coaching hub" line="name an exam or subject — plans, lessons, quizzes, mocks." pinned onPress={() => onOpen({ kind: 'coach' })} />{/* [zip54s] */}
+          <Pressable style={st.row} onPress={() => onOpen({ kind: 'consult' })}>
+            <View style={[st.ring, { borderColor: 'rgba(232,162,74,0.35)', backgroundColor: '#101427' }]}>
+              <ConsultLogo />
+            </View>
+            <View style={{ flex: 1, marginLeft: 13 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={st.name}>The Consultant</Text><Text style={st.time}>📌</Text>
+              </View>
+              <Text style={st.line} numberOfLines={1}>sit with Victor — the expert. by thedreamai</Text>
+            </View>
+          </Pressable>
+          {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
+          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=5`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] [zip54o] */ })} />
+          <Row face={`https://callmez.app/rooms/panel-room.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] [zip54o] the room, not the man */ })} />
+          <Row face={`https://callmez.app/rooms/media-hub.jpg?v=1`} tone={'rgba(169,221,242,0.30)'} name="the Media Manager" line="file the brief once. i run your career like a business." pinned onPress={() => onOpen({ kind: 'mmroom' /* [zip54d] [zip54n] the room wears its own face */ })} />
+          <Row face={`https://callmez.app/rooms/stylist-wardrobe.jpg?v=1`} tone={'rgba(232,169,176,0.32)'} name="the stylist" line="your wardrobe, under my eye. show me a piece — i'll tell you the truth." pinned onPress={() => onOpen({ kind: 'stylist' /* [zip54j] [zip54n] the room wears its own face */ })} />
+          <View style={st.divider} />
+          <UpdatesFeed onOpen={onOpen} embedded />
+        </ScrollView>
+      )}
       {tab === 'groups' && <Rooms onOpen={(r) => onOpen({ kind: 'room', room: r })} />}
       {tab === 'rooms' && <PublicRooms onOpen={onOpen} />}
 
@@ -578,14 +582,14 @@ export default function ChatHome({ onOpen = () => {} }) {
 
       {/* the inner tabs */}
       <View style={st.tabs}>
-        {[['chats', 'chats'], ['updates', 'updates'], ['groups', 'groups'], ['rooms', 'rooms']].map(([id, label]) => {
+        {[['thedesk', 'the Desk'], ['chats', 'chats'], ['groups', 'groups'], ['rooms', 'rooms']].map(([id, label]) => {   /* [zip61] */
           const on = tab === id;
           const stroke = on ? MOON.moon : MOON.faint;
           return (
             <Pressable key={id} style={st.tabBtn} onPress={() => setTab(id)}>
               <Svg width="22" height="22" viewBox="0 0 24 24">
                 {id === 'chats' && <><Circle cx="12" cy="11" r="7.5" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M7 20 L9 15.5" stroke={stroke} strokeWidth="1.6" fill="none" strokeLinecap="round" /></>}
-                {id === 'updates' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" strokeDasharray="4 3" /><Circle cx="12" cy="12" r="3" fill={stroke} /></>}
+                {id === 'thedesk' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" strokeDasharray="4 3" /><Circle cx="12" cy="12" r="3" fill={stroke} /></>}
                 {id === 'groups' && <><Circle cx="9" cy="9.5" r="3.4" stroke={stroke} strokeWidth="1.6" fill="none" /><Circle cx="16.5" cy="10.5" r="2.6" stroke={stroke} strokeWidth="1.4" fill="none" /><SvgPath d="M3.5 19 Q9 13.5 14.5 19" stroke={stroke} strokeWidth="1.6" fill="none" strokeLinecap="round" /><SvgPath d="M15 18 Q17.5 15.5 21 18" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" /></>}
                 {id === 'rooms' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M4.5 12 H19.5 M12 4.5 C9 8, 9 16, 12 19.5 M12 4.5 C15 8, 15 16, 12 19.5" stroke={stroke} strokeWidth="1.2" fill="none" /></>}
               </Svg>

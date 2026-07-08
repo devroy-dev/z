@@ -15,7 +15,7 @@ export const P = {
   the_mentor:['the motivator','230,190,110'], the_colleague:['the colleague','190,160,110'], the_philosopher:['the philosopher','180,160,210'],
   the_historian:['the historian','200,160,110'], the_cosmologist:['the cosmologist','120,140,230'], the_moderator:['the moderator','120,180,150'],
   the_cynic:['the cynic','150,150,150'], the_media_manager:['the media manager','230,140,170'], the_teacher:['the professor','120,190,170'],
-  the_economist:['the economist','110,170,140'], the_leader_opp:['the leader of opposition','200,120,110'], the_wannabe:['the wannabe hustler','235,180,90'],
+  the_economist:['the money man','110,170,140'], the_leader_opp:['the smug brainiac','200,120,110'], the_wannabe:['the wannabe hustler','235,180,90'],
   the_screen_junkie:['the screen junkie','120,150,230'], the_orator:['the orator','210,150,90'], the_hippie:['the hippie','120,170,120'],
   the_diva:['the diva','210,90,150'], the_cousin:['the awkward cousin','150,160,190'],
 };
