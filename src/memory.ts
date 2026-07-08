@@ -141,3 +141,45 @@ export async function harvestMemory(
     // memory harvest is best-effort; never break a conversation over it
   }
 }
+
+
+// [zip74] THE TRIP HARVEST — the engine records the Wanderer's trip file directly,
+// so persistence never depends on the model emitting a [[TRIP:]] tag. Observes the
+// USER's own message, extracts a trip if one is present, upserts per destination.
+// Fire-and-forget, cheap, out-of-band. Same shape as harvestMemory.
+export async function harvestTrip(userId: string, threadId: string, userMsg: string): Promise<void> {
+  try {
+    const resp = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 300,
+      system:
+        'You extract TRAVEL PLANS from the user\'s message for their travel file. '
+        + 'Look ONLY at what the user said. If they mention or refine a trip — a place they are going or considering, how long, who is going, or what they want from it — capture it. '
+        + 'A trip needs at minimum a DESTINATION. Everything else is optional; leave blank if not said. '
+        + 'Do NOT invent. Do NOT extract a place they are merely discussing abstractly (e.g. "is Paris expensive" with no intent to go) unless intent to travel is clear. '
+        + 'Return ONLY a JSON array (usually 0 or 1 items) of '
+        + '{"destination":"place","dates":"duration or dates or empty","travelers":"who/how many or empty","notes":"what they want / constraints / taste, short, or empty"}. '
+        + 'Empty array [] if no trip is present. No prose, no markdown.',
+      messages: [{ role: 'user', content: `USER SAID:\n${userMsg}` }],
+    });
+    try { logUsage({ userId, threadId, personaKey: 'the_wanderer', surface: 'other', fn: 'trip_harvest', model: MODEL, usage: (resp as any).usage }); } catch {}
+    const raw = firstText(resp) || '[]';
+    const clean = String(raw).replace(/```json|```/g, '').trim();
+    let trips: any[] = [];
+    try { trips = JSON.parse(clean); } catch { return; }
+    if (!Array.isArray(trips) || !trips.length) return;
+    for (const tr of trips) {
+      const destination = String(tr?.destination || '').trim().slice(0, 120);
+      if (!destination) continue;
+      const dates = String(tr?.dates || '').trim().slice(0, 120) || null;
+      const travelers = String(tr?.travelers || '').trim().slice(0, 120) || null;
+      const notes = String(tr?.notes || '').trim().slice(0, 400) || null;
+      const { error } = await supabase.from('trip_files').upsert(
+        { user_id: userId, destination, dates, travelers, notes, updated_at: new Date().toISOString() } as any,
+        { onConflict: 'user_id,destination' }
+      );
+      if (error) console.error('[trip-harvest] save failed:', error.message, '| dest:', destination);
+      else console.log('[trip-harvest] filed:', destination, '(' + (dates || '?') + ')');
+    }
+  } catch (e: any) { console.error('[trip-harvest] failed:', e?.message || e); }
+}

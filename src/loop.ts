@@ -10,7 +10,7 @@ import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPerson
 import { buildCustomPrefix } from './content.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { retrievePrep, analogyBank as gmAnalogyBank } from './grandMaster.js';
-import { readMemoryBlock, harvestMemory } from './memory.js';
+import { readMemoryBlock, harvestMemory, harvestTrip } from './memory.js';   // [zip74]
 import { personaByKey, type CodexKey } from './personas.js';
 import { stateBlockFor, currentStates } from './personaStates.js';
 import { manifestBlock } from './manifest.js';
@@ -468,6 +468,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   // intake details must never become biography. They read no memory (zip04)
   // and now write none.
   if (!institutional) void harvestMemory(userId, threadId, message, reply);
+  if (t.persona_key === 'the_wanderer') void harvestTrip(userId, threadId, message);   // [zip74] the engine records the trip, tag or no tag
 
   return { reply, usage, sources, routes };
 }
