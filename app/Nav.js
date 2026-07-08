@@ -230,7 +230,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
       : chatOpen.kind === 'roster' ? screens.gathering({ navigate, target: null })
       : chatOpen.kind === 'room' ? (
-          ((chatOpen.room?.personas && chatOpen.room.personas.length) || chatOpen.room?.persona)
+          (chatOpen.room?.publicRoomId || (chatOpen.room?.personas && chatOpen.room.personas.length) || chatOpen.room?.persona)
             ? <CuratedRoomScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
             : <DMScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
         )
