@@ -447,7 +447,7 @@ export default function ChatHome({ onOpen = () => {} }) {
   }
   const deskTicker = (wireItems && wireItems.length) ? wireItems[wireTick % wireItems.length] : null;
   const DeskRow = ({ item }) => (
-    <Pressable onPress={() => onOpen(item.open)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, marginHorizontal: 8, marginVertical: 1, borderRadius: 16, backgroundColor: item.tint ? `rgba(${item.tint},0.055)` : 'transparent' }}>{/* [zip70] the row wears its room's color, at a whisper */}
+    <Pressable onPress={() => onOpen(item.open)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, marginHorizontal: 8, marginVertical: 1, borderRadius: 16, backgroundColor: item.tint ? `rgba(${item.tint},0.045)` : 'transparent' }}>{/* [zip70][zip72] the row wears its room's color, at a whisper */}
       <View style={{ width: 54, height: 54, borderRadius: 27, overflow: 'hidden', borderWidth: 1, borderColor: item.tint ? `rgba(${item.tint},0.4)` : (item.consult ? 'rgba(232,162,74,0.35)' : 'rgba(159,194,232,0.25)'), backgroundColor: item.consult ? '#101427' : MOON.rise, alignItems: 'center', justifyContent: 'center' }}>
         {item.consult ? <ConsultLogo /> : item.face ? <Image source={{ uri: item.face }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /> : <Text style={{ color: MOON.faint, fontSize: 20 }}>#</Text>}
       </View>
@@ -456,7 +456,7 @@ export default function ChatHome({ onOpen = () => {} }) {
           <Text style={{ fontFamily: 'Figtree_600SemiBold', color: MOON.cream, fontSize: 16.5 }}>{item.name}</Text>
           {item.tag && item.tag !== 'desk' ? <Text style={{ fontFamily: FONTS.body, color: MOON.faint, fontSize: 10.5, marginLeft: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{item.tag}</Text> : null}
         </View>
-        <Text numberOfLines={1} style={{ fontFamily: FONTS.body, color: MOON.muted, fontSize: 13, marginTop: 2 }}>{item.line}</Text>
+        <Text numberOfLines={1} style={{ fontFamily: FONTS.body, color: 'rgba(233,232,240,0.72)', fontSize: 13, marginTop: 2 }}>{item.line}</Text>{/* [zip72] reads on the tint */}
       </View>
     </Pressable>
   );
