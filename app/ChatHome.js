@@ -124,6 +124,7 @@ function UpdatesFeed({ onOpen, embedded = false }) {   // [zip61] embedded on th
   );
 }
 const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
+const commTint = (hex, a) => { const h = String(hex).replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 
 // the communities directory — curated public rooms anyone can join. Opens the
 // existing group-chat surface (RoomChat) pointed at the room's shared thread.
@@ -186,22 +187,33 @@ function PublicRooms({ onOpen }) {
         </Pressable>
       )}
 
-      {(rooms || []).map((room) => (
-        <Pressable key={room.id} style={st.commCard} onPress={() => enter(room)}>
+      {(rooms || []).map((room) => {
+        const door = (room.personas || [])[0];
+        const tone = (door && personaMeta(door)?.tone) || MOON.moon;
+        const here = room.memberCount || 0;
+        return (
+        <Pressable key={room.id} style={[st.commCard, { backgroundColor: commTint(tone, 0.05), borderColor: commTint(tone, 0.16) }]} onPress={() => enter(room)}>
+          <View style={[st.commSpine, { backgroundColor: tone }]} />
           <View style={st.commFaces}>
             {(room.personas || []).slice(0, 2).map((k, i) => (
-              <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, i > 0 && { marginLeft: -12 }]} />
+              <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, { borderColor: tone }, i > 0 && { marginLeft: -12 }]} />
             ))}
-            {(!room.personas || !room.personas.length) && <View style={[st.commFace, { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(159,194,232,0.1)' }]}><Text style={{ color: MOON.moon, fontSize: 18 }}>◇</Text></View>}
+            {(!room.personas || !room.personas.length) && <View style={[st.commFace, { borderColor: tone, alignItems: 'center', justifyContent: 'center', backgroundColor: commTint(tone, 0.12) }]}><Text style={{ color: tone, fontSize: 18 }}>◇</Text></View>}
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  ·  yours' : ''}</Text>
             <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>
-            <Text style={st.commMeta}>{room.memberCount || 0} in the room{room.isHouse ? ' · a house room' : ''}</Text>
+            <View style={st.commMetaRow}>
+              <View style={[st.commDot, { backgroundColor: tone }]} />
+              <Text style={st.commMeta} numberOfLines={1}>{door ? nameOf(door) + ' hosting' : 'open room'}{here > 1 ? '  ·  ' + here + ' here' : ''}{room.isHouse ? '  ·  house' : ''}</Text>
+            </View>
           </View>
-          <Text style={st.commGo}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>
+          <View style={[st.commGoWrap, { borderColor: commTint(tone, 0.5) }]}>
+            <Text style={[st.commGo, { color: tone }]}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>
+          </View>
         </Pressable>
-      ))}
+        );
+      })}
       {(!rooms || !rooms.length) && <Text style={[st.commSub, { textAlign: 'center', marginTop: 30 }]}>no rooms yet — be the first to create one.</Text>}
     </ScrollView>
   );
@@ -705,13 +717,17 @@ const st = StyleSheet.create({
   soonLine: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 14, textAlign: 'center', lineHeight: 21 },
   commHead: { fontFamily: FONTS.display, color: MOON.porcelain, fontSize: 24, marginHorizontal: 20, marginTop: 10 },
   commSub: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 13, marginHorizontal: 20, marginTop: 3, marginBottom: 14 },
-  commCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.05)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.12)' },
+  commCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.05)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.12)', overflow: 'hidden' },  // [zip82 aura]
   commFaces: { flexDirection: 'row', width: 56, alignItems: 'center' },
   commFace: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: MOON.ground },
   commName: { fontFamily: FONTS.medium, color: MOON.porcelain, fontSize: 16 },
   commTheme: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12.5, marginTop: 2, lineHeight: 17 },
-  commMeta: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 11, marginTop: 5 },
-  commGo: { fontFamily: FONTS.semibold, color: MOON.moon, fontSize: 13, marginLeft: 10 },
+  commMeta: { fontFamily: FONTS.light, color: MOON.mist, fontSize: 11, flex: 1 },  // [zip82 meta]
+  commGo: { fontFamily: FONTS.semibold, fontSize: 12.5 },
+  commGoWrap: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },
+  commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
+  commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },
+  commDot: { width: 6, height: 6, borderRadius: 3 },
   createRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(159,194,232,0.25)', borderStyle: 'dashed' },
   createPlus: { color: MOON.moon, fontSize: 20, marginRight: 10 },
   createRowTxt: { fontFamily: FONTS.medium, color: MOON.moon, fontSize: 13.5, flex: 1 },

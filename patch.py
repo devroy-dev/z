@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 # ════════════════════════════════════════════════════════════════════════
-#  yourZ — zip80 · THE ROOMS TAB BECOMES THE LOBBY (Tier-1 semi-loud)
-#  Public rooms own the Rooms tab. "your rooms" is one tap away (reversible).
-#  Pure client. OTA-safe (no migration, no server). Placeholder loader.
-#  Run from the repo root:  python3 patch.py
-#  Idempotent + anchor-asserted + atomic writes.
+#  yourZ — zip82 · THE COMMUNITIES DIRECTORY, SEMI-LOUD (Tier-1)
+#  Design-only restyle of the LIVE PublicRooms directory in ChatHome.js.
+#  Every room wears its DOORMAN's aura (same tint language as the desk rows):
+#  left spine + face ring + presence dot + open/join pill, all in the tone.
+#  Honest presence — the doorman is the ever-present host (never-empty law);
+#  no fabricated "live" crowds while rooms are near-empty pre-launch.
+#  Function untouched: enter/join/open/create + all data fields preserved.
+#  ONLY the communities section is touched (Dev's ownership ruling).
+#  Run from repo root:  python3 patch.py   · idempotent · anchor-asserted
 # ════════════════════════════════════════════════════════════════════════
 import os, sys, tempfile
 
-SELF = os.path.dirname(os.path.abspath(__file__))
 REPO = os.getcwd()
 
 def die(m): print("  ✗ " + m); sys.exit(1)
@@ -29,113 +32,104 @@ def patch_file(rel, edits):
     src = read(p); changed = False
     for name, anchor, repl, marker in edits:
         if marker in src:
-            print("  · " + rel + " :: " + name + " already applied — skip"); continue
+            print("  · " + name + " already applied — skip"); continue
         c = src.count(anchor)
-        if c == 0: die(rel + " :: " + name + " — anchor NOT FOUND (tree drifted?)")
-        if c > 1: die(rel + " :: " + name + " — anchor matched " + str(c) + "× (ambiguous)")
+        if c == 0: die(name + " — anchor NOT FOUND (tree drifted?)")
+        if c > 1: die(name + " — anchor matched " + str(c) + "× (ambiguous)")
         src = src.replace(anchor, repl, 1); changed = True
-        print("  ✓ " + rel + " :: " + name)
+        print("  ✓ " + name)
     if changed: atomic_write(p, src)
 
-def write_lobby():
-    s = os.path.join(SELF, "app", "Lobby.js")
-    if not os.path.exists(s): die("bundled app/Lobby.js missing from the zip")
-    d = os.path.join(REPO, "app", "Lobby.js"); body = read(s)
-    if os.path.exists(d) and read(d) == body:
-        print("  · app/Lobby.js identical — skip"); return
-    atomic_write(d, body); print("  ✓ app/Lobby.js written")
+CH = "app/ChatHome.js"
 
-APP_EDITS = [
+EDITS = [
+    # ── A. the tint helper (module scope, after nameOf) ──
     (
-        "import Lobby",
-        "import PublicRoom from './PublicRoom';",
-        "import PublicRoom from './PublicRoom';\nimport Lobby from './Lobby';",
-        "import Lobby from './Lobby'",
+        "commTint helper",
+        "const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));",
+        "const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));\n"
+        "const commTint = (hex, a) => { const h = String(hex).replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };",
+        "const commTint",
     ),
+    # ── B. the room card render — aura per room ──
     (
-        "RoomsWorld → lobby-default view toggle",
-        "function RoomsWorld() {\n"
-        "  const [openRoom, setOpenRoom] = React.useState(null);\n"
-        "  useBackLayer(!!openRoom, React.useCallback(() => { setOpenRoom(null); return true; }, []));\n"
-        "  if (openRoom && !openRoom.create) {\n"
-        "    if (openRoom.kind === 'public') {\n"
-        "      return <PublicRoom room={openRoom} onExit={() => setOpenRoom(null)} />;\n"
-        "    }\n"
-        "    return ((openRoom?.personas && openRoom.personas.length) || openRoom?.persona)\n"
-        "      ? <CuratedRoomScreen room={openRoom} onBack={() => setOpenRoom(null)} />\n"
-        "      : <DMScreen room={openRoom} onBack={() => setOpenRoom(null)} />;\n"
-        "  }\n"
-        "  return <Rooms onOpen={(r) => setOpenRoom(r)} />;\n"
-        "}",
-        "function RoomsWorld() {\n"
-        "  const [view, setView] = React.useState('lobby');   // 'lobby' | 'myrooms'\n"
-        "  const [openRoom, setOpenRoom] = React.useState(null);\n"
-        "  useBackLayer(view === 'myrooms', React.useCallback(() => { setView('lobby'); return true; }, []));\n"
-        "  useBackLayer(!!openRoom, React.useCallback(() => { setOpenRoom(null); return true; }, []));\n"
-        "  if (openRoom && !openRoom.create) {\n"
-        "    if (openRoom.kind === 'public') {\n"
-        "      return <PublicRoom room={openRoom} onExit={() => setOpenRoom(null)} />;\n"
-        "    }\n"
-        "    return ((openRoom?.personas && openRoom.personas.length) || openRoom?.persona)\n"
-        "      ? <CuratedRoomScreen room={openRoom} onBack={() => setOpenRoom(null)} />\n"
-        "      : <DMScreen room={openRoom} onBack={() => setOpenRoom(null)} />;\n"
-        "  }\n"
-        "  if (view === 'myrooms') return <Rooms onOpen={(r) => setOpenRoom(r)} onBack={() => setView('lobby')} />;\n"
-        "  return <Lobby onOpen={(r) => setOpenRoom({ ...r, kind: 'public' })} onMyRooms={() => setView('myrooms')} />;\n"
-        "}",
-        "const [view, setView]",
-    ),
-]
+        "room card aura render",
+        "      {(rooms || []).map((room) => (\n"
+        "        <Pressable key={room.id} style={st.commCard} onPress={() => enter(room)}>\n"
+        "          <View style={st.commFaces}>\n"
+        "            {(room.personas || []).slice(0, 2).map((k, i) => (\n"
+        "              <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, i > 0 && { marginLeft: -12 }]} />\n"
+        "            ))}\n"
+        "            {(!room.personas || !room.personas.length) && <View style={[st.commFace, { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(159,194,232,0.1)' }]}><Text style={{ color: MOON.moon, fontSize: 18 }}>◇</Text></View>}\n"
+        "          </View>\n"
+        "          <View style={{ flex: 1, marginLeft: 12 }}>\n"
+        "            <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  ·  yours' : ''}</Text>\n"
+        "            <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>\n"
+        "            <Text style={st.commMeta}>{room.memberCount || 0} in the room{room.isHouse ? ' · a house room' : ''}</Text>\n"
+        "          </View>\n"
+        "          <Text style={st.commGo}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>\n"
+        "        </Pressable>\n"
+        "      ))}",
 
-ROOMS_EDITS = [
-    (
-        "onBack prop",
-        "export default function Rooms({ onOpen = () => {} }) {",
-        "export default function Rooms({ onOpen = () => {}, onBack = null }) {",
-        "onBack = null",
+        "      {(rooms || []).map((room) => {\n"
+        "        const door = (room.personas || [])[0];\n"
+        "        const tone = (door && personaMeta(door)?.tone) || MOON.moon;\n"
+        "        const here = room.memberCount || 0;\n"
+        "        return (\n"
+        "        <Pressable key={room.id} style={[st.commCard, { backgroundColor: commTint(tone, 0.05), borderColor: commTint(tone, 0.16) }]} onPress={() => enter(room)}>\n"
+        "          <View style={[st.commSpine, { backgroundColor: tone }]} />\n"
+        "          <View style={st.commFaces}>\n"
+        "            {(room.personas || []).slice(0, 2).map((k, i) => (\n"
+        "              <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, { borderColor: tone }, i > 0 && { marginLeft: -12 }]} />\n"
+        "            ))}\n"
+        "            {(!room.personas || !room.personas.length) && <View style={[st.commFace, { borderColor: tone, alignItems: 'center', justifyContent: 'center', backgroundColor: commTint(tone, 0.12) }]}><Text style={{ color: tone, fontSize: 18 }}>◇</Text></View>}\n"
+        "          </View>\n"
+        "          <View style={{ flex: 1, marginLeft: 12 }}>\n"
+        "            <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  ·  yours' : ''}</Text>\n"
+        "            <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>\n"
+        "            <View style={st.commMetaRow}>\n"
+        "              <View style={[st.commDot, { backgroundColor: tone }]} />\n"
+        "              <Text style={st.commMeta} numberOfLines={1}>{door ? nameOf(door) + ' hosting' : 'open room'}{here > 1 ? '  ·  ' + here + ' here' : ''}{room.isHouse ? '  ·  house' : ''}</Text>\n"
+        "            </View>\n"
+        "          </View>\n"
+        "          <View style={[st.commGoWrap, { borderColor: commTint(tone, 0.5) }]}>\n"
+        "            <Text style={[st.commGo, { color: tone }]}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>\n"
+        "          </View>\n"
+        "        </Pressable>\n"
+        "        );\n"
+        "      })}",
+        "personaMeta(door)",
     ),
+    # ── C. commCard overflow (so the absolute spine clips to the radius) ──
     (
-        "header back + your-rooms title",
-        "        <View style={styles.header}>\n"
-        "          <Text style={styles.kicker}>together</Text>\n"
-        "          <Text style={styles.title}>rooms</Text>\n"
-        "        </View>",
-        "        <View style={styles.header}>\n"
-        "          {onBack ? (\n"
-        "            <Pressable hitSlop={12} onPress={onBack} style={styles.backRow}>\n"
-        "              <Text style={styles.backChev}>‹</Text>\n"
-        "              <Text style={styles.backTxt}>public rooms</Text>\n"
-        "            </Pressable>\n"
-        "          ) : null}\n"
-        "          <Text style={styles.kicker}>together</Text>\n"
-        "          <Text style={styles.title}>your rooms</Text>\n"
-        "        </View>",
-        "styles.backRow",
+        "commCard overflow",
+        "  commCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.05)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.12)' },",
+        "  commCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.05)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.12)', overflow: 'hidden' },  // [zip82 aura]",
+        "[zip82 aura]",
     ),
+    # ── D. commMeta brighter + flex ──
     (
-        "retire the public stub (the lobby is the tab now)",
-        "          {/* PUBLIC — last, not yet open */}\n"
-        "          <Text style={[styles.sectionLabel, { marginTop: 28, paddingHorizontal: 24 }]}>public rooms</Text>\n"
-        "          <Text style={styles.empty}>open rooms are coming — a place to step into with strangers.</Text>",
-        "          {/* public rooms now own the Rooms tab (the lobby) — [zip80] */}",
-        "public rooms now own the Rooms tab",
+        "commMeta brighten",
+        "  commMeta: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 11, marginTop: 5 },",
+        "  commMeta: { fontFamily: FONTS.light, color: MOON.mist, fontSize: 11, flex: 1 },  // [zip82 meta]",
+        "[zip82 meta]",
     ),
+    # ── E. commGo pill + the new aura styles ──
     (
-        "back-row styles",
-        "  header: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 10 },",
-        "  header: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 10 },\n"
-        "  backRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 6 },\n"
-        "  backChev: { fontFamily: 'Figtree_400Regular', color: N.silver, fontSize: 22, marginTop: -2 },\n"
-        "  backTxt: { fontFamily: 'Figtree_500Medium', color: N.silver, fontSize: 13.5 },",
-        "backChev:",
+        "commGo pill + aura styles",
+        "  commGo: { fontFamily: FONTS.semibold, color: MOON.moon, fontSize: 13, marginLeft: 10 },",
+        "  commGo: { fontFamily: FONTS.semibold, fontSize: 12.5 },\n"
+        "  commGoWrap: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },\n"
+        "  commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },\n"
+        "  commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },\n"
+        "  commDot: { width: 6, height: 6, borderRadius: 3 },",
+        "commSpine:",
     ),
 ]
 
 def main():
-    print("── zip80 · the rooms tab becomes the lobby ──")
-    write_lobby()
-    patch_file("app/App.js", APP_EDITS)
-    patch_file("app/Rooms.js", ROOMS_EDITS)
+    print("── zip82 · communities semi-loud (aura per room) ──")
+    patch_file(CH, EDITS)
     print("── done. gate, then: git push  +  eas update ──")
 
 if __name__ == "__main__":
