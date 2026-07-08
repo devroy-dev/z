@@ -246,6 +246,8 @@ export default function ChatHome({ onOpen = () => {} }) {
   const [wireItems, setWireItems] = useState([]);     // [zip67] the desk's ribbon
   const [wireIdx, setWireIdx] = useState(0);
   const [deskNote, setDeskNote] = useState(null);     // [zip66]
+  const [deskQ, setDeskQ] = useState('');   // [zip68]
+  const [wireTick, setWireTick] = useState(0);   // [zip68]
   useEffect(() => {
     AsyncStorage.getItem('z_quiet_hint_done').then((v) => { if (!v) setQuietHint(true); }).catch(() => {});
 
@@ -260,6 +262,8 @@ export default function ChatHome({ onOpen = () => {} }) {
     if (tab !== 'thedesk') return;
     getWireFeed().then((r) => { if (r?.items?.length) { setWireItems(r.items); setWireIdx(0); } }).catch(() => {});
     getMmDeskNotes().then((r) => { const n0 = r?.notes && r.notes[0]; if (n0?.note) setDeskNote(String(n0.note)); }).catch(() => {});
+    const __wt = setInterval(() => setWireTick((n) => n + 1), 5000);   // [zip68]
+    return () => clearInterval(__wt);
   }, [tab]);
   useEffect(() => {
     if (tab !== 'thedesk' || wireItems.length < 2) return;
@@ -413,6 +417,49 @@ export default function ChatHome({ onOpen = () => {} }) {
    .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
    .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : filt === 'unread' ? (r.unread > 0) : filt === 'fav' ? r.favourite : true);
   const recents = filt === 'archived' ? allRows.filter((r) => r.archived) : allRows.filter((r) => !r.archived);
+
+  // [zip68] THE DESK, ALL CHAT — data hoisted so the pane stays a plain expression.
+  const DESK_ROOMS = [
+    { face: dpFor('the_front_desk'), name: 'the Host', line: "set it down — i've got it", open: { kind: 'desk' } },
+    { face: 'https://callmez.app/faces/the_newsroom.jpg?v=4', name: 'the Newsroom', line: 'the bulletin · fact-checks · ask the anchor', open: { kind: 'bulletin' } },
+    { face: 'https://callmez.app/rooms/coaching-hub.jpg?v=1', name: 'the Coaching hub', line: 'name an exam or subject — plans, lessons, quizzes, mocks.', open: { kind: 'coach' } },
+    { face: 'https://callmez.app/faces/the_grandmaster.jpg?v=6', name: 'the Grand Master', line: 'come empty-handed. leave understanding what the world runs on.', open: { kind: 'forge' } },
+    { face: 'https://callmez.app/rooms/panel-room.jpg?v=1', name: 'the interviewer', line: "name the company and the chair. i'll run the room the way they will.", open: { kind: 'panel' } },
+    { face: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the Media Manager', line: 'file the brief once. i run your career like a business.', open: { kind: 'mmroom' } },
+    { face: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1', name: 'the stylist', line: "your wardrobe, under my eye. show me a piece — i'll tell you the truth.", open: { kind: 'stylist' } },
+    { face: null, name: 'The Consultant', line: 'sit with Victor — the expert. by thedreamai', open: { kind: 'consult' }, consult: true },
+  ];
+  const deskDq = deskQ.trim().toLowerCase();
+  let deskResults = null;
+  if (deskDq) {
+    const hits = [];
+    for (const r of DESK_ROOMS) if (r.name.toLowerCase().includes(deskDq)) hits.push({ ...r, tag: 'desk' });
+    for (const t of threads) {
+      if (!t.persona_key && !t.is_group) continue;
+      const nm = t.companion_name || t.name || '';
+      if (nm && nm.toLowerCase().includes(deskDq)) hits.push({ face: dpFor(t.persona_key || 'z'), name: nm, line: t.is_group ? 'group' : 'chat', open: t.is_group ? { kind: 'group', group: t } : { kind: 'persona', key: t.persona_key, threadId: t.id, name: nm }, tag: t.is_group ? 'group' : 'chat' });
+    }
+    for (const rm of (rooms || [])) {
+      const nm = rm.name || '';
+      if (nm && nm.toLowerCase().includes(deskDq)) hits.push({ face: null, name: nm, line: 'public room', open: { kind: 'room', room: { id: rm.threadId || rm.id, name: nm, personas: rm.personas || [] } }, tag: 'room' });
+    }
+    deskResults = hits;
+  }
+  const deskTicker = (wireItems && wireItems.length) ? wireItems[wireTick % wireItems.length] : null;
+  const DeskRow = ({ item }) => (
+    <Pressable onPress={() => onOpen(item.open)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 16 }}>
+      <View style={{ width: 54, height: 54, borderRadius: 27, overflow: 'hidden', borderWidth: 1, borderColor: item.consult ? 'rgba(232,162,74,0.35)' : 'rgba(159,194,232,0.25)', backgroundColor: item.consult ? '#101427' : MOON.rise, alignItems: 'center', justifyContent: 'center' }}>
+        {item.consult ? <ConsultLogo /> : item.face ? <Image source={{ uri: item.face }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /> : <Text style={{ color: MOON.faint, fontSize: 20 }}>#</Text>}
+      </View>
+      <View style={{ flex: 1, marginLeft: 13 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ fontFamily: 'Figtree_600SemiBold', color: MOON.cream, fontSize: 16.5 }}>{item.name}</Text>
+          {item.tag && item.tag !== 'desk' ? <Text style={{ fontFamily: FONTS.body, color: MOON.faint, fontSize: 10.5, marginLeft: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{item.tag}</Text> : null}
+        </View>
+        <Text numberOfLines={1} style={{ fontFamily: FONTS.body, color: MOON.muted, fontSize: 13, marginTop: 2 }}>{item.line}</Text>
+      </View>
+    </Pressable>
+  );
   const archivedRows = allRows.filter((r) => r.archived);
 
   const setPref = async (row, prefs) => {
@@ -551,51 +598,23 @@ export default function ChatHome({ onOpen = () => {} }) {
         </ScrollView>
       )}
       {tab === 'thedesk' && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90, paddingHorizontal: 14 }} showsVerticalScrollIndicator={false}>{/* [zip66] the Desk v2 */}
-          {/* THE MASTHEAD — the Host's floor */}
-          <Pressable onPress={() => onOpen({ kind: 'desk' })} style={{ borderRadius: 18, overflow: 'hidden', marginTop: 6 }}>
-            <Image source={{ uri: dpFor('the_front_desk') }} style={{ width: '100%', height: 168 }} resizeMode="cover" />
-            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, backgroundColor: 'rgba(8,10,16,0.28)' }} />
-            <View style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}>
-              <Text style={{ fontFamily: FONTS.display || 'Fraunces_600SemiBold', color: '#F3EFE6', fontSize: 26, letterSpacing: 0.3, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 }}>the Desk</Text>
-              <Text style={{ fontFamily: FONTS.body, color: 'rgba(243,239,230,0.85)', fontSize: 12.5, marginTop: 2, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 }}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).toLowerCase()}  ·  set it down — i've got it</Text>
-            </View>
-          </Pressable>
-
-          {/* THE WIRE — a rotating headline from the world outside; tap opens the story */}
-          {wireItems.length ? (() => { const w = wireItems[wireIdx % wireItems.length]; return (
-            <Pressable key={w.link} onPress={() => Linking.openURL(w.link).catch(() => {})} style={{ marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,168,106,0.28)', borderLeftWidth: 3, borderLeftColor: '#C9A86A', backgroundColor: 'rgba(201,168,106,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
-              <Text style={{ fontFamily: FONTS.body, color: '#C9A86A', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>{w.topic}{w.source ? '  ·  ' + w.source : ''}</Text>
-              <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{w.title}</Text>
-            </Pressable>
-          ); })() : null}
-          {deskNote ? (
-            <Pressable onPress={() => onOpen({ kind: 'mmroom' })} style={{ marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(169,221,242,0.24)', borderLeftWidth: 3, borderLeftColor: '#A9DDF2', backgroundColor: 'rgba(169,221,242,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
-              <Text style={{ fontFamily: FONTS.body, color: '#A9DDF2', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>the desk note</Text>
-              <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{deskNote}</Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{/* [zip68] the Desk, all chat */}
+          <View style={st.searchWrap}>
+            <Text style={st.searchIcon}>⌕</Text>
+            <TextInput value={deskQ} onChangeText={setDeskQ} placeholder="search the house — rooms, chats, groups…" placeholderTextColor={MOON.faint} style={st.searchInput} />
+          </View>
+          {!deskDq && deskTicker ? (
+            <Pressable onPress={() => deskTicker.link && Linking.openURL(deskTicker.link).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 6, paddingVertical: 9, paddingHorizontal: 13, borderRadius: 12, backgroundColor: 'rgba(201,168,106,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,106,0.16)' }}>
+              <Text style={{ fontFamily: 'Figtree_600SemiBold', color: '#C9A86A', fontSize: 9.5, letterSpacing: 1, marginRight: 9 }}>{(deskTicker.topic || 'wire').toUpperCase()}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, fontFamily: FONTS.body, color: MOON.cream, fontSize: 12.5 }}>{deskTicker.title}</Text>
             </Pressable>
           ) : null}
-
-          {/* THE DIRECTORY BOARD — the rooms, set in type (ruling: B) */}
-          <View style={{ marginTop: 18 }}>
-            {[
-              { name: 'the Newsroom', kind: 'bulletin', img: 'https://callmez.app/faces/the_newsroom.jpg?v=4' },
-              { name: 'the Coaching hub', kind: 'coach', img: 'https://callmez.app/rooms/coaching-hub.jpg?v=1' },
-              { name: 'the Grand Master', kind: 'forge', img: 'https://callmez.app/faces/the_grandmaster.jpg?v=6' },
-              { name: 'the interviewer', kind: 'panel', img: 'https://callmez.app/rooms/panel-room.jpg?v=1' },
-              { name: 'the Media Manager', kind: 'mmroom', img: 'https://callmez.app/rooms/media-hub.jpg?v=1' },
-              { name: 'the stylist', kind: 'stylist', img: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1' },
-            ].map((d) => (
-              <Pressable key={d.kind} onPress={() => onOpen({ kind: d.kind })} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(233,232,240,0.12)' }}>
-                <Text style={{ fontFamily: FONTS.display, color: '#E9E8F0', fontSize: 23, letterSpacing: 0.2 }}>{d.name}</Text>
-                <Image source={{ uri: d.img }} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(233,232,240,0.18)' }} />
-              </Pressable>
-            ))}
-            <Pressable onPress={() => onOpen({ kind: 'consult' })} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15 }}>
-              <Text style={{ fontFamily: FONTS.display, color: '#E9E8F0', fontSize: 23, letterSpacing: 0.2 }}>The Consultant</Text>
-              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#101427', borderWidth: 1, borderColor: 'rgba(232,162,74,0.35)', alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#E8A24A' }} /></View>
-            </Pressable>
-          </View>
+          {deskResults ? (
+            deskResults.length ? deskResults.map((r, ri) => <DeskRow key={'res' + ri} item={r} />)
+              : <Text style={{ fontFamily: FONTS.body, color: MOON.faint, fontSize: 13, textAlign: 'center', marginTop: 30 }}>nothing by that name — yet.</Text>
+          ) : (
+            DESK_ROOMS.map((r, ri) => <DeskRow key={'room' + ri} item={r} />)
+          )}
         </ScrollView>
       )}
       {tab === 'groups' && <Rooms onOpen={(r) => onOpen({ kind: 'room', room: r })} />}
