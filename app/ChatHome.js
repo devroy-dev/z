@@ -420,14 +420,14 @@ export default function ChatHome({ onOpen = () => {} }) {
 
   // [zip68] THE DESK, ALL CHAT — data hoisted so the pane stays a plain expression.
   const DESK_ROOMS = [
-    { face: dpFor('the_front_desk'), name: 'the Host', line: "set it down — i've got it", open: { kind: 'desk' } },
-    { face: 'https://callmez.app/faces/the_newsroom.jpg?v=4', name: 'the Newsroom', line: 'the bulletin · fact-checks · ask the anchor', open: { kind: 'bulletin' } },
-    { face: 'https://callmez.app/rooms/coaching-hub.jpg?v=1', name: 'the Coaching hub', line: 'name an exam or subject — plans, lessons, quizzes, mocks.', open: { kind: 'coach' } },
-    { face: 'https://callmez.app/faces/the_grandmaster.jpg?v=6', name: 'the Grand Master', line: 'come empty-handed. leave understanding what the world runs on.', open: { kind: 'forge' } },
-    { face: 'https://callmez.app/rooms/panel-room.jpg?v=1', name: 'the interviewer', line: "name the company and the chair. i'll run the room the way they will.", open: { kind: 'panel' } },
-    { face: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the Media Manager', line: 'file the brief once. i run your career like a business.', open: { kind: 'mmroom' } },
-    { face: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1', name: 'the stylist', line: "your wardrobe, under my eye. show me a piece — i'll tell you the truth.", open: { kind: 'stylist' } },
-    { face: null, name: 'The Consultant', line: 'sit with Victor — the expert. by thedreamai', open: { kind: 'consult' }, consult: true },
+    { face: dpFor('the_front_desk'), name: 'the Host', line: "set it down — i've got it", open: { kind: 'desk' }, tint: '231,176,122' },
+    { face: 'https://callmez.app/faces/the_newsroom.jpg?v=4', name: 'the Newsroom', line: 'the bulletin · fact-checks · ask the anchor', open: { kind: 'bulletin' }, tint: '127,214,236' },
+    { face: 'https://callmez.app/rooms/coaching-hub.jpg?v=1', name: 'the Coaching hub', line: 'name an exam or subject — plans, lessons, quizzes, mocks.', open: { kind: 'coach' }, tint: '150,190,160' },
+    { face: 'https://callmez.app/faces/the_grandmaster.jpg?v=6', name: 'the Grand Master', line: 'come empty-handed. leave understanding what the world runs on.', open: { kind: 'forge' }, tint: '232,120,142' },
+    { face: 'https://callmez.app/rooms/panel-room.jpg?v=1', name: 'the interviewer', line: "name the company and the chair. i'll run the room the way they will.", open: { kind: 'panel' }, tint: '138,160,196' },
+    { face: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the Media Manager', line: 'file the brief once. i run your career like a business.', open: { kind: 'mmroom' }, tint: '169,221,242' },
+    { face: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1', name: 'the stylist', line: "your wardrobe, under my eye. show me a piece — i'll tell you the truth.", open: { kind: 'stylist' }, tint: '232,169,176' },
+    { face: null, name: 'The Consultant', line: 'sit with Victor — the expert. by thedreamai', open: { kind: 'consult' }, consult: true, tint: '232,162,74' },
   ];
   const deskDq = deskQ.trim().toLowerCase();
   let deskResults = null;
@@ -447,8 +447,8 @@ export default function ChatHome({ onOpen = () => {} }) {
   }
   const deskTicker = (wireItems && wireItems.length) ? wireItems[wireTick % wireItems.length] : null;
   const DeskRow = ({ item }) => (
-    <Pressable onPress={() => onOpen(item.open)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 16 }}>
-      <View style={{ width: 54, height: 54, borderRadius: 27, overflow: 'hidden', borderWidth: 1, borderColor: item.consult ? 'rgba(232,162,74,0.35)' : 'rgba(159,194,232,0.25)', backgroundColor: item.consult ? '#101427' : MOON.rise, alignItems: 'center', justifyContent: 'center' }}>
+    <Pressable onPress={() => onOpen(item.open)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, marginHorizontal: 8, marginVertical: 1, borderRadius: 16, backgroundColor: item.tint ? `rgba(${item.tint},0.055)` : 'transparent' }}>{/* [zip70] the row wears its room's color, at a whisper */}
+      <View style={{ width: 54, height: 54, borderRadius: 27, overflow: 'hidden', borderWidth: 1, borderColor: item.tint ? `rgba(${item.tint},0.4)` : (item.consult ? 'rgba(232,162,74,0.35)' : 'rgba(159,194,232,0.25)'), backgroundColor: item.consult ? '#101427' : MOON.rise, alignItems: 'center', justifyContent: 'center' }}>
         {item.consult ? <ConsultLogo /> : item.face ? <Image source={{ uri: item.face }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /> : <Text style={{ color: MOON.faint, fontSize: 20 }}>#</Text>}
       </View>
       <View style={{ flex: 1, marginLeft: 13 }}>
