@@ -422,7 +422,10 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
         supabase.from('trip_files').upsert(
           { user_id: userId, destination, dates, travelers, notes, updated_at: new Date().toISOString() } as any,
           { onConflict: 'user_id,destination' }
-        ).then(({ error }: any) => { if (error) console.error('[trip] save failed:', error.message); });
+        ).then(({ error }: any) => {
+          if (error) console.error('[trip] save failed:', error.message, '| dest:', destination);
+          else console.log('[trip] filed:', destination, '(' + (dates || '?') + ')');   // [zip73] loud on success too
+        });
       }
       reply = reply.replace(/\[\[TRIP:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
