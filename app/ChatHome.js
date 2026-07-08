@@ -137,7 +137,10 @@ function PublicRooms({ onOpen }) {
   const [saving, setSaving] = useState(false);
   const reload = () => getPublicRooms().then((r) => setRooms(Array.isArray(r) ? r : []));
   useEffect(() => { reload(); }, []);
-  const enter = async (room) => {
+  const [consentFor, setConsentFor] = useState(null);
+  const consented = React.useRef(false);
+  useEffect(() => { AsyncStorage.getItem('z_public_consent').then((v) => { consented.current = (v === '1'); }).catch(() => {}); }, []);
+  const proceedEnter = async (room) => {
     if (busy) return;
     setBusy(room.id);
     try {
@@ -150,6 +153,8 @@ function PublicRooms({ onOpen }) {
     } catch (e) {}
     setBusy(null);
   };
+  const enter = (room) => { if (!consented.current) { setConsentFor(room); return; } proceedEnter(room); };
+  const acceptConsent = async () => { consented.current = true; try { await AsyncStorage.setItem('z_public_consent', '1'); } catch (e) {} const r = consentFor; setConsentFor(null); if (r) proceedEnter(r); };
   const doCreate = async () => {
     const name = newName.trim();
     if (name.length < 3 || saving) return;
@@ -167,6 +172,7 @@ function PublicRooms({ onOpen }) {
     <View style={st.soonWrap}><Text style={st.soonLine}>opening the doors…</Text></View>
   );
   return (
+    <View style={{ flex: 1 }}>{/* [zip83 consent wrap] */}
     <ScrollView contentContainerStyle={{ paddingBottom: 90, paddingTop: 6 }} showsVerticalScrollIndicator={false}>
       <Text style={st.commHead}>communities</Text>
       <Text style={st.commSub}>open rooms — jump in, meet the regulars, keep it civil.</Text>
@@ -216,6 +222,19 @@ function PublicRooms({ onOpen }) {
       })}
       {(!rooms || !rooms.length) && <Text style={[st.commSub, { textAlign: 'center', marginTop: 30 }]}>no rooms yet — be the first to create one.</Text>}
     </ScrollView>
+    {consentFor && (
+      <Pressable style={st.consentScrim} onPress={() => setConsentFor(null)}>
+        <Pressable style={st.consentSheet} onPress={(e) => e.stopPropagation?.()}>
+          <Text style={st.consentTitle}>before you step in</Text>
+          <Text style={st.consentBody}>Open rooms are public and 18+ — you'll be talking with strangers. Keep it civil: the doorman removes slurs, harassment, and doxxing. Don't share anything you wouldn't hand a stranger.</Text>
+          <View style={st.consentRow}>
+            <Pressable hitSlop={8} onPress={() => setConsentFor(null)}><Text style={st.consentCancel}>not now</Text></Pressable>
+            <Pressable style={st.consentBtn} onPress={acceptConsent}><Text style={st.consentBtnTxt}>I understand — enter</Text></Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    )}
+    </View>
   );
 }
 
@@ -728,6 +747,14 @@ const st = StyleSheet.create({
   commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
   commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },
   commDot: { width: 6, height: 6, borderRadius: 3 },
+  consentScrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, zIndex: 50 },
+  consentSheet: { width: '100%', borderRadius: 20, backgroundColor: MOON.raise, borderWidth: 1, borderColor: 'rgba(159,194,232,0.16)', padding: 22 },
+  consentTitle: { fontFamily: FONTS.display, color: MOON.porcelain, fontSize: 22 },
+  consentBody: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 14, lineHeight: 21, marginTop: 10 },
+  consentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 16, marginTop: 20 },
+  consentCancel: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 14, paddingVertical: 8 },
+  consentBtn: { backgroundColor: MOON.moon, borderRadius: 100, paddingHorizontal: 18, paddingVertical: 11 },
+  consentBtnTxt: { fontFamily: FONTS.semibold, color: MOON.ground, fontSize: 13.5 },
   createRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(159,194,232,0.25)', borderStyle: 'dashed' },
   createPlus: { color: MOON.moon, fontSize: 20, marginRight: 10 },
   createRowTxt: { fontFamily: FONTS.medium, color: MOON.moon, fontSize: 13.5, flex: 1 },

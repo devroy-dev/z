@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 # ════════════════════════════════════════════════════════════════════════
-#  yourZ — zip82 · THE COMMUNITIES DIRECTORY, SEMI-LOUD (Tier-1)
-#  Design-only restyle of the LIVE PublicRooms directory in ChatHome.js.
-#  Every room wears its DOORMAN's aura (same tint language as the desk rows):
-#  left spine + face ring + presence dot + open/join pill, all in the tone.
-#  Honest presence — the doorman is the ever-present host (never-empty law);
-#  no fabricated "live" crowds while rooms are near-empty pre-launch.
-#  Function untouched: enter/join/open/create + all data fields preserved.
-#  ONLY the communities section is touched (Dev's ownership ruling).
+#  yourZ — zip83 · THE DOORWAY: one-time consent gate (Dev ruling)
+#  Before the FIRST public-room entry ever, a conduct/18+ gate; accept once,
+#  never shown again (AsyncStorage flag). Client-only, OTA-safe. In-lane:
+#  only the communities enter-flow in ChatHome is touched.
 #  Run from repo root:  python3 patch.py   · idempotent · anchor-asserted
 # ════════════════════════════════════════════════════════════════════════
 import os, sys, tempfile
@@ -43,92 +39,96 @@ def patch_file(rel, edits):
 CH = "app/ChatHome.js"
 
 EDITS = [
-    # ── A. the tint helper (module scope, after nameOf) ──
+    # ── A. consent state + gate the enter flow ──
     (
-        "commTint helper",
-        "const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));",
-        "const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));\n"
-        "const commTint = (hex, a) => { const h = String(hex).replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };",
-        "const commTint",
-    ),
-    # ── B. the room card render — aura per room ──
-    (
-        "room card aura render",
-        "      {(rooms || []).map((room) => (\n"
-        "        <Pressable key={room.id} style={st.commCard} onPress={() => enter(room)}>\n"
-        "          <View style={st.commFaces}>\n"
-        "            {(room.personas || []).slice(0, 2).map((k, i) => (\n"
-        "              <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, i > 0 && { marginLeft: -12 }]} />\n"
-        "            ))}\n"
-        "            {(!room.personas || !room.personas.length) && <View style={[st.commFace, { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(159,194,232,0.1)' }]}><Text style={{ color: MOON.moon, fontSize: 18 }}>◇</Text></View>}\n"
-        "          </View>\n"
-        "          <View style={{ flex: 1, marginLeft: 12 }}>\n"
-        "            <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  ·  yours' : ''}</Text>\n"
-        "            <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>\n"
-        "            <Text style={st.commMeta}>{room.memberCount || 0} in the room{room.isHouse ? ' · a house room' : ''}</Text>\n"
-        "          </View>\n"
-        "          <Text style={st.commGo}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>\n"
-        "        </Pressable>\n"
-        "      ))}",
+        "consent gate on enter()",
+        "  const enter = async (room) => {\n"
+        "    if (busy) return;\n"
+        "    setBusy(room.id);\n"
+        "    try {\n"
+        "      let threadId = room.threadId;\n"
+        "      if (!room.joined) {\n"
+        "        const j = await joinPublicRoom(room.id);\n"
+        "        if (j && j.threadId) threadId = j.threadId;\n"
+        "      }\n"
+        "      if (threadId) onOpen({ kind: 'room', room: { id: threadId, name: room.name, personas: room.personas || [], publicRoomId: room.id, youCreated: !!room.youCreated } });\n"
+        "    } catch (e) {}\n"
+        "    setBusy(null);\n"
+        "  };",
 
-        "      {(rooms || []).map((room) => {\n"
-        "        const door = (room.personas || [])[0];\n"
-        "        const tone = (door && personaMeta(door)?.tone) || MOON.moon;\n"
-        "        const here = room.memberCount || 0;\n"
-        "        return (\n"
-        "        <Pressable key={room.id} style={[st.commCard, { backgroundColor: commTint(tone, 0.05), borderColor: commTint(tone, 0.16) }]} onPress={() => enter(room)}>\n"
-        "          <View style={[st.commSpine, { backgroundColor: tone }]} />\n"
-        "          <View style={st.commFaces}>\n"
-        "            {(room.personas || []).slice(0, 2).map((k, i) => (\n"
-        "              <Image key={k} source={{ uri: dpFor(k) }} style={[st.commFace, { borderColor: tone }, i > 0 && { marginLeft: -12 }]} />\n"
-        "            ))}\n"
-        "            {(!room.personas || !room.personas.length) && <View style={[st.commFace, { borderColor: tone, alignItems: 'center', justifyContent: 'center', backgroundColor: commTint(tone, 0.12) }]}><Text style={{ color: tone, fontSize: 18 }}>◇</Text></View>}\n"
-        "          </View>\n"
-        "          <View style={{ flex: 1, marginLeft: 12 }}>\n"
-        "            <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  ·  yours' : ''}</Text>\n"
-        "            <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>\n"
-        "            <View style={st.commMetaRow}>\n"
-        "              <View style={[st.commDot, { backgroundColor: tone }]} />\n"
-        "              <Text style={st.commMeta} numberOfLines={1}>{door ? nameOf(door) + ' hosting' : 'open room'}{here > 1 ? '  ·  ' + here + ' here' : ''}{room.isHouse ? '  ·  house' : ''}</Text>\n"
-        "            </View>\n"
-        "          </View>\n"
-        "          <View style={[st.commGoWrap, { borderColor: commTint(tone, 0.5) }]}>\n"
-        "            <Text style={[st.commGo, { color: tone }]}>{busy === room.id ? '…' : room.joined ? 'open' : 'join'}</Text>\n"
+        "  const [consentFor, setConsentFor] = useState(null);\n"
+        "  const consented = React.useRef(false);\n"
+        "  useEffect(() => { AsyncStorage.getItem('z_public_consent').then((v) => { consented.current = (v === '1'); }).catch(() => {}); }, []);\n"
+        "  const proceedEnter = async (room) => {\n"
+        "    if (busy) return;\n"
+        "    setBusy(room.id);\n"
+        "    try {\n"
+        "      let threadId = room.threadId;\n"
+        "      if (!room.joined) {\n"
+        "        const j = await joinPublicRoom(room.id);\n"
+        "        if (j && j.threadId) threadId = j.threadId;\n"
+        "      }\n"
+        "      if (threadId) onOpen({ kind: 'room', room: { id: threadId, name: room.name, personas: room.personas || [], publicRoomId: room.id, youCreated: !!room.youCreated } });\n"
+        "    } catch (e) {}\n"
+        "    setBusy(null);\n"
+        "  };\n"
+        "  const enter = (room) => { if (!consented.current) { setConsentFor(room); return; } proceedEnter(room); };\n"
+        "  const acceptConsent = async () => { consented.current = true; try { await AsyncStorage.setItem('z_public_consent', '1'); } catch (e) {} const r = consentFor; setConsentFor(null); if (r) proceedEnter(r); };",
+        "z_public_consent",
+    ),
+    # ── B. wrap the return so the gate can overlay ──
+    (
+        "wrap return in a View",
+        "  return (\n"
+        "    <ScrollView contentContainerStyle={{ paddingBottom: 90, paddingTop: 6 }} showsVerticalScrollIndicator={false}>",
+        "  return (\n"
+        "    <View style={{ flex: 1 }}>{/* [zip83 consent wrap] */}\n"
+        "    <ScrollView contentContainerStyle={{ paddingBottom: 90, paddingTop: 6 }} showsVerticalScrollIndicator={false}>",
+        "[zip83 consent wrap]",
+    ),
+    # ── C. the gate overlay + close the wrap ──
+    (
+        "consent overlay",
+        "      {(!rooms || !rooms.length) && <Text style={[st.commSub, { textAlign: 'center', marginTop: 30 }]}>no rooms yet — be the first to create one.</Text>}\n"
+        "    </ScrollView>\n"
+        "  );",
+        "      {(!rooms || !rooms.length) && <Text style={[st.commSub, { textAlign: 'center', marginTop: 30 }]}>no rooms yet — be the first to create one.</Text>}\n"
+        "    </ScrollView>\n"
+        "    {consentFor && (\n"
+        "      <Pressable style={st.consentScrim} onPress={() => setConsentFor(null)}>\n"
+        "        <Pressable style={st.consentSheet} onPress={(e) => e.stopPropagation?.()}>\n"
+        "          <Text style={st.consentTitle}>before you step in</Text>\n"
+        "          <Text style={st.consentBody}>Open rooms are public and 18+ — you'll be talking with strangers. Keep it civil: the doorman removes slurs, harassment, and doxxing. Don't share anything you wouldn't hand a stranger.</Text>\n"
+        "          <View style={st.consentRow}>\n"
+        "            <Pressable hitSlop={8} onPress={() => setConsentFor(null)}><Text style={st.consentCancel}>not now</Text></Pressable>\n"
+        "            <Pressable style={st.consentBtn} onPress={acceptConsent}><Text style={st.consentBtnTxt}>I understand — enter</Text></Pressable>\n"
         "          </View>\n"
         "        </Pressable>\n"
-        "        );\n"
-        "      })}",
-        "personaMeta(door)",
+        "      </Pressable>\n"
+        "    )}\n"
+        "    </View>\n"
+        "  );",
+        "st.consentScrim",
     ),
-    # ── C. commCard overflow (so the absolute spine clips to the radius) ──
+    # ── D. the gate styles ──
     (
-        "commCard overflow",
-        "  commCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.05)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.12)' },",
-        "  commCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 16, backgroundColor: 'rgba(159,194,232,0.05)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.12)', overflow: 'hidden' },  // [zip82 aura]",
-        "[zip82 aura]",
-    ),
-    # ── D. commMeta brighter + flex ──
-    (
-        "commMeta brighten",
-        "  commMeta: { fontFamily: FONTS.light, color: 'rgba(232,236,244,0.4)', fontSize: 11, marginTop: 5 },",
-        "  commMeta: { fontFamily: FONTS.light, color: MOON.mist, fontSize: 11, flex: 1 },  // [zip82 meta]",
-        "[zip82 meta]",
-    ),
-    # ── E. commGo pill + the new aura styles ──
-    (
-        "commGo pill + aura styles",
-        "  commGo: { fontFamily: FONTS.semibold, color: MOON.moon, fontSize: 13, marginLeft: 10 },",
-        "  commGo: { fontFamily: FONTS.semibold, fontSize: 12.5 },\n"
-        "  commGoWrap: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },\n"
-        "  commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },\n"
-        "  commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },\n"
+        "consent styles",
         "  commDot: { width: 6, height: 6, borderRadius: 3 },",
-        "commSpine:",
+        "  commDot: { width: 6, height: 6, borderRadius: 3 },\n"
+        "  consentScrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, zIndex: 50 },\n"
+        "  consentSheet: { width: '100%', borderRadius: 20, backgroundColor: MOON.raise, borderWidth: 1, borderColor: 'rgba(159,194,232,0.16)', padding: 22 },\n"
+        "  consentTitle: { fontFamily: FONTS.display, color: MOON.porcelain, fontSize: 22 },\n"
+        "  consentBody: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 14, lineHeight: 21, marginTop: 10 },\n"
+        "  consentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 16, marginTop: 20 },\n"
+        "  consentCancel: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 14, paddingVertical: 8 },\n"
+        "  consentBtn: { backgroundColor: MOON.moon, borderRadius: 100, paddingHorizontal: 18, paddingVertical: 11 },\n"
+        "  consentBtnTxt: { fontFamily: FONTS.semibold, color: MOON.ground, fontSize: 13.5 },",
+        "consentScrim:",
     ),
 ]
 
 def main():
-    print("── zip82 · communities semi-loud (aura per room) ──")
+    print("── zip83 · the doorway (one-time consent gate) ──")
     patch_file(CH, EDITS)
     print("── done. gate, then: git push  +  eas update ──")
 
