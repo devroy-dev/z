@@ -41,7 +41,7 @@ export function RoomLine({ line, hideSpeaker, mentionables }) {
       <View style={[styles.lineRow, { justifyContent: 'flex-start' }]}>
         <View style={{ maxWidth: '84%' }}>
           {!hideSpeaker ? <Text style={[styles.speaker, { color: N.human }]}>{line.name}</Text> : null}
-          <View style={[styles.bubble, styles.bubbleHuman]}><Text style={styles.bubbleText}>{line.text}</Text></View>
+          <View style={[styles.bubble, styles.bubbleHuman]}><Text style={styles.bubbleText}>{line.text}</Text>{line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}</View>{/* [zip54p/57b] humans get stamps too */}
         </View>
       </View>
     );

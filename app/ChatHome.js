@@ -80,7 +80,7 @@ function ZOrb({ size = 44 }) {
   );
 }
 
-const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=4`;
+const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=5`;   // [zip54p] unstuck — the Host's desk arrives
 
 // the house diaries, as a feed: today's line per resident; tap → their recent week
 function UpdatesFeed({ onOpen }) {
@@ -319,7 +319,7 @@ export default function ChatHome({ onOpen = () => {} }) {
           setThreads((cur) => {
             let hit = false;
             const next = (cur || []).map((t) => t.id === b.thread_id
-              ? (hit = true, { ...t, last_active: stamp, last_message: (b.preview || t.last_message), unread: mine ? t.unread : ((t.unread || 0) + 1) })
+              ? (hit = true, { ...t, last_active: stamp, last_message: (b.preview || t.last_message), unread: t.unread })   // [zip54p/57c] the server's count is truth
               : t);
             if (hit) AsyncStorage.getItem('z_home_cache').then((c) => {
               try { const s = c ? JSON.parse(c) : { t: [], r: [] }; s.t = next; AsyncStorage.setItem('z_home_cache', JSON.stringify(s)); } catch (e) {}
@@ -485,7 +485,7 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
             <View style={{ flex: 1, marginLeft: 13 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>the front desk</Text><Text style={st.time}>📌</Text>
+                <Text style={st.name}>the Host</Text><Text style={st.time}>📌</Text>{/* [zip54p] */}
               </View>
               <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
             </View>

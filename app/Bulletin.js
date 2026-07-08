@@ -19,6 +19,7 @@ const KICK_TONE = { INDIA: '#F0A765', WORLD: '#8FB8E0', BUSINESS: '#8FD98F', TEC
 export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) {
   const [feed, setFeed] = useState(null);
   const [cityDraft, setCityDraft] = useState('');
+  const [wire, setWire] = useState('');   // [zip54p] the refresh speaks
   const [ask, setAsk] = useState('');
   const [savingCity, setSavingCity] = useState(false);
 
@@ -56,10 +57,16 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
             <Text style={st.masthead}>THE BULLETIN</Text>
             <Text style={st.edition}>{edition} · with the anchor</Text>
           </View>
-          <Pressable hitSlop={10} onPress={async () => { try { setFeed(null); await refreshBulletinFeed(); } catch (e) {} await load(); }}><Text style={{ color: '#C9A86A', fontSize: 20 }}>↻</Text></Pressable>{/* [zip54n] ask the wire */}
+          <Pressable hitSlop={10} onPress={async () => {
+            setWire('checking the wire…');
+            let r = null; try { r = await refreshBulletinFeed(); } catch (e) {}
+            await load();
+            setWire(!r ? 'the wire didn\u2019t answer — try again' : !r.refreshed ? 'checked minutes ago — give it a moment' : r.added ? `${r.added} new — the wire moved` : 'nothing genuinely new broke in the last hours');
+          }}><Text style={{ color: '#C9A86A', fontSize: 20 }}>↻</Text></Pressable>{/* [zip54n] [zip54p] ask the wire, hear the answer */}
           <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=5` }} style={st.face} />
         </View>
 
+        {wire ? <Text style={{ color: '#C9A86A', fontSize: 11.5, textAlign: 'center', paddingBottom: 6, fontStyle: 'italic' }}>{wire}</Text> : null}
         {!feed ? (
           <View style={st.center}><ActivityIndicator color={GOLD} /><Text style={st.loading}>the anchor is at the desk…</Text></View>
         ) : (

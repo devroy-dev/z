@@ -123,7 +123,7 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
     if (m.role === 'user' && m.sender_user_id && meIdRef.current && m.sender_user_id === meIdRef.current) return;
 
     if (m.role === 'user') {
-      setLines((cur) => [...cur, { id: key, who: 'human', name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '' }]);
+      setLines((cur) => [...cur, { id: key, who: 'human', name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '', at: m.created_at }]);   // [zip54p/57b] the stamp's fuel
       setFloor(m.sender_user_id || null);
     } else {
       if (pendingRef.current) {

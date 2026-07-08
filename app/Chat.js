@@ -290,7 +290,13 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         // [zip05] reconcile: fresh history wins; live entries sent after the cache
         // paint (non-'h' ids) survive; cached rows not in fresh history are stale → drop.
         const hids = new Set(hist.map((m) => m.id));
-        setMessages((cur) => hist.concat(cur.filter((m) => !hids.has(m.id) && !String(m.id).startsWith('h'))));
+        // [zip54p/57a] content-dedupe: a streamed copy of a row history now carries must die,
+        // whatever its id. typing/notSent always survive. Then ONE order: the clock's.
+        const hkeys = new Set(hist.map((m) => m.who + '|' + m.text));
+        const merged = hist.concat(cur.filter((m) => !hids.has(m.id) && !String(m.id).startsWith('h') && (m.typing || m.notSent || !hkeys.has(m.who + '|' + m.text))));
+        const __ts = (m) => { if (m.typing || m.notSent) return Infinity; const v = m.at ? new Date(m.at).getTime() : NaN; return isNaN(v) ? Infinity : v; };
+        merged.sort((a, b) => __ts(a) - __ts(b));
+        setMessages(merged);
         if (hist.length) {
           // the thread opens where the conversation IS — at the end, like any chat app
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
@@ -511,7 +517,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={{ alignItems: 'center', paddingTop: 6 }}>
             <Pressable onPress={pickAvatar}>
-              <Image source={{ uri: avatar || dp }} style={{ width: 108, height: 108, borderRadius: 54, borderWidth: 2, borderColor: `rgba(${rgb},0.55)` }} />
+              <Image source={{ uri: KEY.startsWith('custom_') ? (avatar || dp) : dp }} style={{ width: 108, height: 108, borderRadius: 54, borderWidth: 2, borderColor: `rgba(${rgb},0.55)` }} />{/* [zip54p] the live face, not the frozen one */}
               <Text style={pcStyles.profHint}>tap to change photo</Text>
             </Pressable>
             {editingName ? (
@@ -565,10 +571,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
           <View style={styles.topbar}>
             <Pressable hitSlop={10} onPress={onBack}><Text style={styles.chev}>‹</Text></Pressable>
             <View style={styles.topWho}>
-              <Pressable onPress={openProfile} hitSlop={6}><MiniDP uri={avatar || dp} rgb={rgb} isDesk={KEY === 'the_front_desk'} /></Pressable>
+              <Pressable onPress={openProfile} hitSlop={6}><MiniDP uri={KEY.startsWith('custom_') ? (avatar || dp) : dp} rgb={rgb} isDesk={KEY === 'the_front_desk'} /></Pressable>
               <View style={{ marginLeft: 11, flex: 1 }}>
                 <Pressable hitSlop={6} onPress={openProfile}>
-                  <Text style={styles.topName} numberOfLines={1}>{cname}</Text>
+                  <Text style={styles.topName} numberOfLines={1}>{KEY === 'the_front_desk' ? 'the Host' : cname}</Text>{/* [zip54p] */}
                   <Text style={styles.topStatus}>tap for profile</Text>
                 </Pressable>
               </View>
