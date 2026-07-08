@@ -10,9 +10,9 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path as SvgPath } fro
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSpring, Easing, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';   // [zip17] the quiet pull
 import { Dimensions } from 'react-native';
-import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert, Linking } from 'react-native';   // [zip67]
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe, getBulletinFeed, getMmDeskNotes } from './api';   // [zip12] [zip66]
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67]
 import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
@@ -243,19 +243,29 @@ export default function ChatHome({ onOpen = () => {} }) {
   const SCREEN_W = Dimensions.get('window').width;
   const pullX = useSharedValue(0);
   const [quietHint, setQuietHint] = useState(false);
-  const [deskStory, setDeskStory] = useState(null);   // [zip66]
+  const [wireItems, setWireItems] = useState([]);     // [zip67] the desk's ribbon
+  const [wireIdx, setWireIdx] = useState(0);
   const [deskNote, setDeskNote] = useState(null);     // [zip66]
   useEffect(() => {
     AsyncStorage.getItem('z_quiet_hint_done').then((v) => { if (!v) setQuietHint(true); }).catch(() => {});
-    // [zip66] on the desk today — the bulletin's lead and the MM's latest memo (best-effort, silent when absent)
-    getBulletinFeed().then((f) => { const st0 = (f?.national && f.national[0]) || (f?.local && f.local[0]) || null; if (st0) setDeskStory(st0); }).catch(() => {});
-    getMmDeskNotes().then((r) => { const n0 = r?.notes && r.notes[0]; if (n0?.note) setDeskNote(String(n0.note)); }).catch(() => {});
+
   }, []);
   const openQuiet = () => {
     pullX.value = 0;
     if (quietHint) { setQuietHint(false); AsyncStorage.setItem('z_quiet_hint_done', '1').catch(() => {}); }
     onOpen({ kind: 'z' });
   };
+  // [zip67] the desk refetches every time it gains focus; the ribbon turns on a 6s beat
+  useEffect(() => {
+    if (tab !== 'thedesk') return;
+    getWireFeed().then((r) => { if (r?.items?.length) { setWireItems(r.items); setWireIdx(0); } }).catch(() => {});
+    getMmDeskNotes().then((r) => { const n0 = r?.notes && r.notes[0]; if (n0?.note) setDeskNote(String(n0.note)); }).catch(() => {});
+  }, [tab]);
+  useEffect(() => {
+    if (tab !== 'thedesk' || wireItems.length < 2) return;
+    const iv = setInterval(() => setWireIdx((x) => x + 1), 6000);
+    return () => clearInterval(iv);
+  }, [tab, wireItems]);
   const quietPan = Gesture.Pan()
     .enabled(tab === 'thedesk')   // [zip19] [zip64] the quiet room sits left of the Desk — the leftmost pull, the spatial line restored
     .activeOffsetX(16)
@@ -552,42 +562,38 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
           </Pressable>
 
-          {/* ON THE DESK TODAY — the rooms speaking */}
-          {(deskStory || deskNote) ? (
-            <View style={{ marginTop: 12, gap: 8 }}>
-              {deskStory ? (
-                <Pressable onPress={() => onOpen({ kind: 'bulletin' })} style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,168,106,0.28)', borderLeftWidth: 3, borderLeftColor: '#C9A86A', backgroundColor: 'rgba(201,168,106,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
-                  <Text style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#C9A86A', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>{(deskStory.kicker || 'the bulletin')}</Text>
-                  <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{deskStory.headline}</Text>
-                </Pressable>
-              ) : null}
-              {deskNote ? (
-                <Pressable onPress={() => onOpen({ kind: 'mmroom' })} style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(169,221,242,0.24)', borderLeftWidth: 3, borderLeftColor: '#A9DDF2', backgroundColor: 'rgba(169,221,242,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
-                  <Text style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#A9DDF2', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>the desk note</Text>
-                  <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{deskNote}</Text>
-                </Pressable>
-              ) : null}
-            </View>
+          {/* THE WIRE — a rotating headline from the world outside; tap opens the story */}
+          {wireItems.length ? (() => { const w = wireItems[wireIdx % wireItems.length]; return (
+            <Pressable key={w.link} onPress={() => Linking.openURL(w.link).catch(() => {})} style={{ marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,168,106,0.28)', borderLeftWidth: 3, borderLeftColor: '#C9A86A', backgroundColor: 'rgba(201,168,106,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
+              <Text style={{ fontFamily: FONTS.body, color: '#C9A86A', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>{w.topic}{w.source ? '  ·  ' + w.source : ''}</Text>
+              <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{w.title}</Text>
+            </Pressable>
+          ); })() : null}
+          {deskNote ? (
+            <Pressable onPress={() => onOpen({ kind: 'mmroom' })} style={{ marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(169,221,242,0.24)', borderLeftWidth: 3, borderLeftColor: '#A9DDF2', backgroundColor: 'rgba(169,221,242,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
+              <Text style={{ fontFamily: FONTS.body, color: '#A9DDF2', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>the desk note</Text>
+              <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{deskNote}</Text>
+            </Pressable>
           ) : null}
 
-          {/* THE ROOMS — the door grid (scales clean when the travel desk arrives) */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 14 }}>
+          {/* THE DIRECTORY BOARD — the rooms, set in type (ruling: B) */}
+          <View style={{ marginTop: 18 }}>
             {[
-              { img: 'https://callmez.app/faces/the_newsroom.jpg?v=4', name: 'the Newsroom', kind: 'bulletin' },
-              { img: 'https://callmez.app/rooms/coaching-hub.jpg?v=1', name: 'the Coaching hub', kind: 'coach' },
-              { img: 'https://callmez.app/faces/the_grandmaster.jpg?v=6', name: 'the Grand Master', kind: 'forge' },
-              { img: 'https://callmez.app/rooms/panel-room.jpg?v=1', name: 'the interviewer', kind: 'panel' },
-              { img: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the Media Manager', kind: 'mmroom' },
-              { img: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1', name: 'the stylist', kind: 'stylist' },
+              { name: 'the Newsroom', kind: 'bulletin', img: 'https://callmez.app/faces/the_newsroom.jpg?v=4' },
+              { name: 'the Coaching hub', kind: 'coach', img: 'https://callmez.app/rooms/coaching-hub.jpg?v=1' },
+              { name: 'the Grand Master', kind: 'forge', img: 'https://callmez.app/faces/the_grandmaster.jpg?v=6' },
+              { name: 'the interviewer', kind: 'panel', img: 'https://callmez.app/rooms/panel-room.jpg?v=1' },
+              { name: 'the Media Manager', kind: 'mmroom', img: 'https://callmez.app/rooms/media-hub.jpg?v=1' },
+              { name: 'the stylist', kind: 'stylist', img: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1' },
             ].map((d) => (
-              <Pressable key={d.kind} onPress={() => onOpen({ kind: d.kind })} style={{ width: '48.6%', marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(233,232,240,0.08)', backgroundColor: 'rgba(233,232,240,0.03)' }}>
-                <Image source={{ uri: d.img }} style={{ width: '100%', height: 92 }} resizeMode="cover" />
-                <Text numberOfLines={1} style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#E9E8F0', fontSize: 13, paddingHorizontal: 10, paddingVertical: 9 }}>{d.name}</Text>
+              <Pressable key={d.kind} onPress={() => onOpen({ kind: d.kind })} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(233,232,240,0.12)' }}>
+                <Text style={{ fontFamily: FONTS.display, color: '#E9E8F0', fontSize: 23, letterSpacing: 0.2 }}>{d.name}</Text>
+                <Image source={{ uri: d.img }} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(233,232,240,0.18)' }} />
               </Pressable>
             ))}
-            <Pressable onPress={() => onOpen({ kind: 'consult' })} style={{ width: '48.6%', marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(232,162,74,0.22)', backgroundColor: '#101427' }}>
-              <View style={{ height: 92, alignItems: 'center', justifyContent: 'center' }}><ConsultLogo /></View>
-              <Text numberOfLines={1} style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#E9E8F0', fontSize: 13, paddingHorizontal: 10, paddingVertical: 9 }}>The Consultant</Text>
+            <Pressable onPress={() => onOpen({ kind: 'consult' })} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15 }}>
+              <Text style={{ fontFamily: FONTS.display, color: '#E9E8F0', fontSize: 23, letterSpacing: 0.2 }}>The Consultant</Text>
+              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#101427', borderWidth: 1, borderColor: 'rgba(232,162,74,0.35)', alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#E8A24A' }} /></View>
             </Pressable>
           </View>
         </ScrollView>

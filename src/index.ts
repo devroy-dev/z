@@ -32,6 +32,7 @@ import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
 import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
+import { getWire, getWireMix } from './wire.js';   // [zip67]
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler } from './mmDesk.js';   // [zip54k]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
@@ -1251,6 +1252,18 @@ app.post('/mm/brief', async (req: any, res: any) => {
 
 // [zip64] the starter backfill — founder-gated, idempotent: every existing account
 // receives whichever of the essential ten it is missing, first lines included.
+// [zip67] THE WIRE — raw rolling headlines by topic; keyless, cached, always moving.
+app.get('/wire', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const topic = String(req.query.topic || '').trim();
+    const force = String(req.query.force || '') === '1';
+    const items = topic ? await getWire(topic, force) : await getWireMix(2);
+    res.json({ items });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.post('/dev/seed-starters', async (req, res) => {
   try {
     if ((req.headers['x-dev-key'] as string) !== process.env.DEV_KEY) return res.status(401).json({ error: 'unauthorized' });

@@ -5,12 +5,12 @@
 //  to ask what it actually means.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, ActivityIndicator, Linking } from 'react-native';   // [zip67]
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Grain from './Grain';
 import { C, FONTS } from './theme';
-import { getBulletinFeed, setBulletinCity, refreshBulletinFeed } from './api';   // [zip54n]
+import { getBulletinFeed, setBulletinCity, refreshBulletinFeed, getWireFeed } from './api';   // [zip54n] [zip67]
 import { API_BASE } from './api';
 
 const GOLD = '#7FD6EC';   // signal-cyan: the monitor glow
@@ -20,10 +20,14 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
   const [feed, setFeed] = useState(null);
   const [cityDraft, setCityDraft] = useState('');
   const [wire, setWire] = useState('');   // [zip54p] the refresh speaks
+  const [wireItems, setWireItems] = useState([]);   // [zip67] the shelf
   const [ask, setAsk] = useState('');
   const [savingCity, setSavingCity] = useState(false);
 
-  const load = async () => { const f = await getBulletinFeed(); setFeed(f || { local: [], national: [], city: null }); };
+  const load = async () => {
+    const f = await getBulletinFeed(); setFeed(f || { local: [], national: [], city: null });
+    try { const w = await getWireFeed(null, true); if (w?.items?.length) setWireItems(w.items); } catch (e) {}   // [zip67] refresh ALWAYS moves the wire
+  };
   useEffect(() => { load(); }, []);
 
   const saveCity = async () => {
@@ -72,6 +76,16 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
         ) : (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
             <Image source={{ uri: `${API_BASE}/faces/the_newsroom.jpg?v=4` }} style={{ width: '100%', height: 140, borderRadius: 14, marginBottom: 12 }} resizeMode="cover" />{/* [zip54n] the studio crowns the desk */}
+            {wireItems.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 10 }}>{/* [zip67] the wire shelf */}
+                {wireItems.slice(0, 14).map((w, wi) => (
+                  <Pressable key={wi} onPress={() => Linking.openURL(w.link).catch(() => {})} style={{ width: 230, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(201,168,106,0.22)', backgroundColor: 'rgba(201,168,106,0.04)', padding: 11 }}>
+                    <Text style={{ color: '#C9A86A', fontSize: 9.5, letterSpacing: 1.1, textTransform: 'uppercase', fontFamily: FONTS.body }}>{w.topic}{w.source ? ' · ' + w.source : ''}</Text>
+                    <Text numberOfLines={3} style={{ color: C.cream, fontSize: 12.5, lineHeight: 17, marginTop: 4, fontFamily: FONTS.body }}>{w.title}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
             {/* ask the desk — any story in the world, researched live */}
             <View style={st.askBar}>
               <TextInput

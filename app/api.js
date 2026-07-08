@@ -529,6 +529,8 @@ export async function storyPublish(id) { return authedJSON('POST', `/games/story
 
 // [zip54n] the reader asks the wire
 export async function refreshBulletinFeed() { return authedJSON('POST', '/bulletin/refresh'); }
+// [zip67] the wire — raw headlines, by topic or mixed
+export async function getWireFeed(topic, force) { return authedJSON('GET', '/wire' + (topic ? `?topic=${topic}${force ? '&force=1' : ''}` : (force ? '?force=1' : ''))); }
 export async function getBulletinFeed() {
   try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }
 }
