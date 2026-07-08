@@ -50,5 +50,5 @@ const S = StyleSheet.create({
   code:   { fontFamily: 'monospace', color: '#F3A85F', fontSize: 14 },
   li:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4, paddingRight: 6 },
   marker: { fontFamily: 'Figtree_600SemiBold', color: '#F3A85F', fontSize: 15, lineHeight: 22, width: 20 },
-  liText: { flex: 1 },
+  liText: { flexShrink: 1 },   // [zip54q] flex:1 has zero intrinsic width in an auto-width bubble — THE shatter
 });
