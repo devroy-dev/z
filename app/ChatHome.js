@@ -252,7 +252,7 @@ export default function ChatHome({ onOpen = () => {} }) {
     onOpen({ kind: 'z' });
   };
   const quietPan = Gesture.Pan()
-    .enabled(tab === 'chats')   // [zip19] Z is reached from the chat list only
+    .enabled(tab === 'thedesk')   // [zip19] [zip64] the quiet room sits left of the Desk — the leftmost pull, the spatial line restored
     .activeOffsetX(16)
     .failOffsetX(-12)
     .failOffsetY([-14, 14])
@@ -543,31 +543,30 @@ export default function ChatHome({ onOpen = () => {} }) {
             </View>
             <View style={{ flex: 1, marginLeft: 13 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>the Host</Text><Text style={st.time}>📌</Text>{/* [zip54p] */}
+                <Text style={st.name}>the Host</Text>
               </View>
               <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
             </View>
           </Pressable>
-          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" pinned onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row face={`https://callmez.app/rooms/coaching-hub.jpg?v=1`} tone={MOON.hairStrong} name="the Coaching hub" line="name an exam or subject — plans, lessons, quizzes, mocks." pinned onPress={() => onOpen({ kind: 'coach' })} />{/* [zip54s] */}
+          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" onPress={() => onOpen({ kind: 'bulletin' })} />
+          <Row face={`https://callmez.app/rooms/coaching-hub.jpg?v=1`} tone={MOON.hairStrong} name="the Coaching hub" line="name an exam or subject — plans, lessons, quizzes, mocks." onPress={() => onOpen({ kind: 'coach' })} />{/* [zip54s] */}
           <Pressable style={st.row} onPress={() => onOpen({ kind: 'consult' })}>
             <View style={[st.ring, { borderColor: 'rgba(232,162,74,0.35)', backgroundColor: '#101427' }]}>
               <ConsultLogo />
             </View>
             <View style={{ flex: 1, marginLeft: 13 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>The Consultant</Text><Text style={st.time}>📌</Text>
+                <Text style={st.name}>The Consultant</Text>
               </View>
               <Text style={st.line} numberOfLines={1}>sit with Victor — the expert. by thedreamai</Text>
             </View>
           </Pressable>
           {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
-          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=5`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." pinned onPress={() => onOpen({ kind: 'forge' /* [zip23] [zip54o] */ })} />
-          <Row face={`https://callmez.app/rooms/panel-room.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." pinned onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] [zip54o] the room, not the man */ })} />
-          <Row face={`https://callmez.app/rooms/media-hub.jpg?v=1`} tone={'rgba(169,221,242,0.30)'} name="the Media Manager" line="file the brief once. i run your career like a business." pinned onPress={() => onOpen({ kind: 'mmroom' /* [zip54d] [zip54n] the room wears its own face */ })} />
-          <Row face={`https://callmez.app/rooms/stylist-wardrobe.jpg?v=1`} tone={'rgba(232,169,176,0.32)'} name="the stylist" line="your wardrobe, under my eye. show me a piece — i'll tell you the truth." pinned onPress={() => onOpen({ kind: 'stylist' /* [zip54j] [zip54n] the room wears its own face */ })} />
+          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=5`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." onPress={() => onOpen({ kind: 'forge' /* [zip23] [zip54o] */ })} />
+          <Row face={`https://callmez.app/rooms/panel-room.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] [zip54o] the room, not the man */ })} />
+          <Row face={`https://callmez.app/rooms/media-hub.jpg?v=1`} tone={'rgba(169,221,242,0.30)'} name="the Media Manager" line="file the brief once. i run your career like a business." onPress={() => onOpen({ kind: 'mmroom' /* [zip54d] [zip54n] the room wears its own face */ })} />
+          <Row face={`https://callmez.app/rooms/stylist-wardrobe.jpg?v=1`} tone={'rgba(232,169,176,0.32)'} name="the stylist" line="your wardrobe, under my eye. show me a piece — i'll tell you the truth." onPress={() => onOpen({ kind: 'stylist' /* [zip54j] [zip54n] the room wears its own face */ })} />
           <View style={st.divider} />
-          <UpdatesFeed onOpen={onOpen} embedded />
         </ScrollView>
       )}
       {tab === 'groups' && <Rooms onOpen={(r) => onOpen({ kind: 'room', room: r })} />}

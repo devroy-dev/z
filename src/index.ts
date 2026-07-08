@@ -10,7 +10,7 @@ import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import { llm, firstText, setLlmOverride, setLlmWeb, llmStatus, pinnedProvider } from './llm.js';   // [zip40] [zip54g]
 import { createClient } from '@supabase/supabase-js';
-import { resolveUser, isRestricted } from './zAccess.js';
+import { resolveUser, isRestricted, seedStarterThreads } from './zAccess.js';   // [zip64]
 import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal.js';
 import { AccessToken } from 'livekit-server-sdk';
 import { runZTurn } from './loop.js';
@@ -1246,6 +1246,20 @@ app.post('/mm/brief', async (req: any, res: any) => {
     const { error } = await supabase.from('mm_brief').upsert(row, { onConflict: 'user_id' });
     if (error) return res.status(500).json({ error: error.message });
     res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [zip64] the starter backfill — founder-gated, idempotent: every existing account
+// receives whichever of the essential ten it is missing, first lines included.
+app.post('/dev/seed-starters', async (req, res) => {
+  try {
+    if ((req.headers['x-dev-key'] as string) !== process.env.DEV_KEY) return res.status(401).json({ error: 'unauthorized' });
+    const { data: users } = await supabase.from('users').select('id').is('deleted_at', null).limit(2000);
+    let touched = 0, planted = 0;
+    for (const u of users ?? []) {
+      try { const n = await seedStarterThreads(u.id); if (n) { touched++; planted += n; } } catch { /* next */ }
+    }
+    res.json({ users: (users ?? []).length, touched, planted });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 

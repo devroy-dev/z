@@ -82,14 +82,21 @@ const STARTERS: Array<[string, string, string, string]> = [
   ['the_healer', 'healer', 'the healer', 'no agenda here. how are you, actually?'],
   ['the_philosopher', 'philosopher', 'the philosopher', 'strange thing, a first message. every conversation starts mid-life.'],
 ];
-async function seedStarterThreads(userId: string): Promise<void> {
+export async function seedStarterThreads(userId: string): Promise<number> {   // [zip64] idempotent + countable
+  let planted = 0;
   for (const [key, codex, name, line] of STARTERS) {
     try {
+      const { data: has } = await supabase.from('threads').select('id')
+        .eq('user_id', userId).eq('persona_key', key).eq('is_group', false).is('deleted_at', null)
+        .limit(1).maybeSingle();
+      if (has) continue;   // [zip64] never duplicate a thread they already have
       const { data: t, error } = await supabase.from('threads').insert({
         user_id: userId, persona_key: key, codex_key: codex, companion_name: name,
       }).select('id').single();
       if (error || !t) continue;
       await supabase.from('messages').insert({ thread_id: t.id, user_id: userId, role: 'assistant', content: line });
+      planted++;
     } catch { /* one persona failing never blocks the rest */ }
   }
+  return planted;
 }
