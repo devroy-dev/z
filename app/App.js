@@ -59,6 +59,7 @@ import Door from './Door';
 import { isLoggedIn, refreshSession, logout, savePush } from './api';
 import { registerForPush, pushPermission } from './push';
 import PublicRoom from './PublicRoom';
+import Lobby from './Lobby';
 import { C } from './theme';
 
 // the built worlds, by tab id. (desk/rooms/arena/you are stubs for now.)
@@ -212,7 +213,9 @@ function GatheringWorld({ navigate, target }) {
 }
 
 function RoomsWorld() {
+  const [view, setView] = React.useState('lobby');   // 'lobby' | 'myrooms'
   const [openRoom, setOpenRoom] = React.useState(null);
+  useBackLayer(view === 'myrooms', React.useCallback(() => { setView('lobby'); return true; }, []));
   useBackLayer(!!openRoom, React.useCallback(() => { setOpenRoom(null); return true; }, []));
   if (openRoom && !openRoom.create) {
     if (openRoom.kind === 'public') {
@@ -222,7 +225,8 @@ function RoomsWorld() {
       ? <CuratedRoomScreen room={openRoom} onBack={() => setOpenRoom(null)} />
       : <DMScreen room={openRoom} onBack={() => setOpenRoom(null)} />;
   }
-  return <Rooms onOpen={(r) => setOpenRoom(r)} />;
+  if (view === 'myrooms') return <Rooms onOpen={(r) => setOpenRoom(r)} onBack={() => setView('lobby')} />;
+  return <Lobby onOpen={(r) => setOpenRoom({ ...r, kind: 'public' })} onMyRooms={() => setView('myrooms')} />;
 }
 
 export default function App() {

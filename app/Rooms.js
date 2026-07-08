@@ -109,7 +109,7 @@ function YourRoomRow({ room, onOpen, onDelete }) {
   );
 }
 
-export default function Rooms({ onOpen = () => {} }) {
+export default function Rooms({ onOpen = () => {}, onBack = null }) {
   const [suggestions, setSuggestions] = useState([]);
   const [suggShown, setSuggShown] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -178,8 +178,14 @@ export default function Rooms({ onOpen = () => {} }) {
         <Grain />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
+          {onBack ? (
+            <Pressable hitSlop={12} onPress={onBack} style={styles.backRow}>
+              <Text style={styles.backChev}>‹</Text>
+              <Text style={styles.backTxt}>public rooms</Text>
+            </Pressable>
+          ) : null}
           <Text style={styles.kicker}>together</Text>
-          <Text style={styles.title}>rooms</Text>
+          <Text style={styles.title}>your rooms</Text>
         </View>
 
         {/* full-width GATHER A ROOM bar */}
@@ -217,9 +223,7 @@ export default function Rooms({ onOpen = () => {} }) {
             rooms.map((r) => <YourRoomRow key={r.id} room={r} onOpen={onOpen} onDelete={removeRoom} />)
           )}
 
-          {/* PUBLIC — last, not yet open */}
-          <Text style={[styles.sectionLabel, { marginTop: 28, paddingHorizontal: 24 }]}>public rooms</Text>
-          <Text style={styles.empty}>open rooms are coming — a place to step into with strangers.</Text>
+          {/* public rooms now own the Rooms tab (the lobby) — [zip80] */}
         </ScrollView>
 
         {/* GATHER picker overlay */}
@@ -258,6 +262,9 @@ export default function Rooms({ onOpen = () => {} }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: N.night },
   header: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 10 },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 6 },
+  backChev: { fontFamily: 'Figtree_400Regular', color: N.silver, fontSize: 22, marginTop: -2 },
+  backTxt: { fontFamily: 'Figtree_500Medium', color: N.silver, fontSize: 13.5 },
   kicker: { fontFamily: 'Figtree_600SemiBold', color: 'rgba(159,194,232,0.7)', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
   title: { fontFamily: 'Fraunces_400Regular', color: '#E8ECF4', fontSize: 34, marginTop: 2 },
 
