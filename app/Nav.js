@@ -163,6 +163,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
 
   // ── CHAT world: the Moonlight surface. deep-links open the right thing ──
   const openFromChat = (dest) => {
+    if (dest && dest.returnTab) setReturnTab(dest.returnTab);   // [zip81] remember where we came from
     if (dest.kind === 'bulletin') return setOverlay({ tab: 'bulletin' });
     if (dest.kind === 'coach') return setOverlay({ tab: 'coach' });
     if (dest.kind === 'forge') return setOverlay({ tab: 'forge' });   // [zip23]
@@ -179,6 +180,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'roster') return setChatOpen(dest);
   };
   const [chatOpen, setChatOpen] = useState(null);
+  const [returnTab, setReturnTab] = useState('thedesk');   // [zip81] which Desk-tab to restore on back
   const [diag, setDiag] = useState(false);           // founder cost-diagnostic (long-press callmeZ)
   const [sessCost, setSessCost] = useState(0);
   useBackLayer(!!chatOpen, React.useCallback(() => { if (chatOpen && chatOpen.from) { setChatOpen(null); setOverlay({ tab: chatOpen.from }); } else { setChatOpen(null); } return true; }, [chatOpen]));
@@ -233,7 +235,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
             : <DMScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
         )
       : <Chat key={chatOpen.key} personaKey={chatOpen.key} initialDraft={chatOpen.draft || ''} autoSend={!!chatOpen.autoSend} onBack={() => { if (chatOpen.from) { setChatOpen(null); setOverlay({ tab: chatOpen.from }); } else { setChatOpen(null); } }} onRoute={navigate} diag={diag} onCost={(inr) => setSessCost((c) => c + (inr || 0))} />)
-    : <ChatHome onOpen={openFromChat} />;
+    : <ChatHome onOpen={openFromChat} initialTab={returnTab} />;   // [zip81]
 
   const playFactory = screens[active === 'play' ? 'play' : 'play'];
   const content = world === 'chat' ? chatContent : playFactory({ navigate, target });

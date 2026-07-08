@@ -234,8 +234,9 @@ function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
   );
 }
 
-export default function ChatHome({ onOpen = () => {} }) {
-  const [tab, setTab] = useState('thedesk');   // [zip61] the house opens onto the Desk
+export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 'thedesk' }) {   // [zip81]
+  const [tab, setTab] = useState(initialTab);   // [zip61][zip81] restore the tab we came back to
+  const onOpen = (dest) => rawOnOpen(dest && typeof dest === 'object' ? { ...dest, returnTab: tab } : dest);   // [zip81] back remembers this tab
   // ── [zip17] THE QUIET PULL: swipe right anywhere on the list → the world dims
   // and slides → Z. Rightward-only (+16dx to activate, so the OS left-edge back
   // gesture and the leftward row-swipes keep their lanes; failOffsetY yields to
@@ -247,7 +248,6 @@ export default function ChatHome({ onOpen = () => {} }) {
   const [wireIdx, setWireIdx] = useState(0);
   const [deskNote, setDeskNote] = useState(null);     // [zip66]
   const [deskQ, setDeskQ] = useState('');   // [zip68]
-  const [wireTick, setWireTick] = useState(0);   // [zip68]
   useEffect(() => {
     AsyncStorage.getItem('z_quiet_hint_done').then((v) => { if (!v) setQuietHint(true); }).catch(() => {});
 
@@ -262,8 +262,7 @@ export default function ChatHome({ onOpen = () => {} }) {
     if (tab !== 'thedesk') return;
     getWireFeed().then((r) => { if (r?.items?.length) { setWireItems(r.items); setWireIdx(0); } }).catch(() => {});
     getMmDeskNotes().then((r) => { const n0 = r?.notes && r.notes[0]; if (n0?.note) setDeskNote(String(n0.note)); }).catch(() => {});
-    const __wt = setInterval(() => setWireTick((n) => n + 1), 5000);   // [zip68]
-    return () => clearInterval(__wt);
+    // [zip81] ticker retired
   }, [tab]);
   useEffect(() => {
     if (tab !== 'thedesk' || wireItems.length < 2) return;
@@ -446,7 +445,6 @@ export default function ChatHome({ onOpen = () => {} }) {
     }
     deskResults = hits;
   }
-  const deskTicker = (wireItems && wireItems.length) ? wireItems[wireTick % wireItems.length] : null;
   const DeskRow = ({ item }) => (
     <Pressable onPress={() => onOpen(item.open)} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, marginHorizontal: 8, marginVertical: 1, borderRadius: 16, backgroundColor: item.tint ? `rgba(${item.tint},0.045)` : 'transparent' }}>{/* [zip70][zip72] the row wears its room's color, at a whisper */}
       <View style={{ width: 54, height: 54, borderRadius: 27, overflow: 'hidden', borderWidth: 1, borderColor: item.tint ? `rgba(${item.tint},0.4)` : (item.consult ? 'rgba(232,162,74,0.35)' : 'rgba(159,194,232,0.25)'), backgroundColor: item.consult ? '#101427' : MOON.rise, alignItems: 'center', justifyContent: 'center' }}>
@@ -604,12 +602,8 @@ export default function ChatHome({ onOpen = () => {} }) {
             <Text style={st.searchIcon}>⌕</Text>
             <TextInput value={deskQ} onChangeText={setDeskQ} placeholder="search the house — rooms, chats, groups…" placeholderTextColor={MOON.faint} style={st.searchInput} />
           </View>
-          {!deskDq && deskTicker ? (
-            <Pressable onPress={() => deskTicker.link && Linking.openURL(deskTicker.link).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 6, paddingVertical: 9, paddingHorizontal: 13, borderRadius: 12, backgroundColor: 'rgba(201,168,106,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,106,0.16)' }}>
-              <Text style={{ fontFamily: 'Figtree_600SemiBold', color: '#C9A86A', fontSize: 9.5, letterSpacing: 1, marginRight: 9 }}>{(deskTicker.topic || 'wire').toUpperCase()}</Text>
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: FONTS.body, color: '#FFFFFF', fontSize: 12.5 }}>{deskTicker.title}</Text>{/* [zip75] */}
-            </Pressable>
-          ) : null}
+          {/* [zip81] ticker retired — rooms + search carry the top */}
+
           {deskResults ? (
             deskResults.length ? deskResults.map((r, ri) => <DeskRow key={'res' + ri} item={r} />)
               : <Text style={{ fontFamily: FONTS.body, color: MOON.faint, fontSize: 13, textAlign: 'center', marginTop: 30 }}>nothing by that name — yet.</Text>
