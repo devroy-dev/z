@@ -31,7 +31,7 @@ const P = {
 // the study — a warm 3-stop ground, like every other world has its own temperature
 const GRAD = ['#0C1710', '#09110C', '#070A08'];
 const FACE = `${API_BASE}/faces/the_coach.jpg?v=4`;
-const HUB_FACE = `${API_BASE}/faces/the_coaching_hub.jpg?v=5`;
+const HUB_FACE = `${API_BASE}/rooms/coaching-hub.jpg?v=1`;   // [zip54s]
 const OPT = ['A', 'B', 'C', 'D'];
 const KEY = 'coach_active_course';
 
