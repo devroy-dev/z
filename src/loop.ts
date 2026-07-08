@@ -165,6 +165,19 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       }
     } catch (e: any) { console.error('[wardrobe] block failed:', e?.message || e); }
   }
+
+  // [zip71] THE TRIP FILE — the Wanderer counsels from the trip already taking shape;
+  // she never re-asks the destination, dates, or who's going once they're filed.
+  let tripBlock = '';
+  if (String(t.persona_key || '') === 'the_wanderer') {
+    try {
+      const { data: trips } = await supabase.from('trip_files').select('destination, dates, travelers, notes').eq('user_id', t.user_id).order('updated_at', { ascending: false }).limit(6);
+      const filed = (trips && trips.length)
+        ? '[THE TRIP FILE — what this traveller has told you, newest first. Do NOT re-ask what is written here; build on it. When they mention a NEW place, or add dates/who/what-they-want, capture it.\n' + trips.map((r: any) => `• ${r.destination}${r.dates ? ' — ' + r.dates : ''}${r.travelers ? ' — ' + r.travelers : ''}${r.notes ? ' (' + r.notes + ')' : ''}`).join('\n') + ']\n\n'
+        : '';
+      tripBlock = `\n\n${filed}[FILING THE TRIP — whenever you learn or update a destination, its dates/duration, who is going, or what they are chasing, END your reply (after your spoken guidance) with ONE line per destination, exactly this machine format, which the traveller never sees: [[TRIP: destination | dates or duration | travelers | short notes on their taste/constraints]]. Leave a field blank if unknown (keep the bars). Only emit it when something is new or changed.]\n\n[YOUR FINDS BECOME CARDS — when you surface a real, bookable thing (a specific stay, tour, or table worth it), END with one line per option, exactly: [[SHOP: name | price | url]] — up to 4, REAL page URLs from your search results only, never invented; skip rather than fake. Spoken guidance first, cards last, nothing after. THE MARKET: this traveller is based in ${(t as any).region || 'IN'} — prefer what serves their region and quote local currency where it makes sense.]`;
+    } catch (e: any) { console.error('[trip] block failed:', e?.message || e); }
+  }
   // [zip54d] THE CLIENT BRIEF — the advisor never asks for what he has already been
   // told; his own working notes on this client ride every turn.
   let mmBlock = '';
@@ -261,7 +274,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   let lifeBlock = '';
   try { if (!institutional) lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }   // [zip04] an institution has no diary to leak
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${wardrobeBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${wardrobeBlock}${tripBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
@@ -397,6 +410,22 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
     // never persist silence: a tags-only reply becomes a short human line
     if (!reply && routes.length) reply = 'right this way —';
   }
+    // [zip71] [[TRIP: dest | dates | travelers | notes]] — the trip file fills itself
+    if (t.persona_key === 'the_wanderer') {
+      const trips = [...reply.matchAll(/\[\[TRIP:\s*([^|\]]+)\|([^|\]]*)\|([^|\]]*)\|([^\]]*)\]\]/gi)];
+      for (const m of trips) {
+        const destination = m[1].trim().slice(0, 120);
+        if (!destination) continue;
+        const dates = m[2].trim().slice(0, 120) || null;
+        const travelers = m[3].trim().slice(0, 120) || null;
+        const notes = m[4].trim().slice(0, 400) || null;
+        supabase.from('trip_files').upsert(
+          { user_id: userId, destination, dates, travelers, notes, updated_at: new Date().toISOString() } as any,
+          { onConflict: 'user_id,destination' }
+        ).then(({ error }: any) => { if (error) console.error('[trip] save failed:', error.message); });
+      }
+      reply = reply.replace(/\[\[TRIP:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+    }
 
   // pull web-search sources (if the persona reached the web) so the UI can show
   // optional source pills — Z still speaks in her own voice; the pills just let a
