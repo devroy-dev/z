@@ -7,6 +7,26 @@ import { N, nameOf, rgbOf, fmtTime } from './roomTheme';
 
 const flat = (t) => String(t || '').replace(/\*\*?/g, '');
 
+// [zip84] Tier-2 flat feed: handle in aura colour, keeper marked, no bubble.
+const FLAT_HUES = ['#F0997B', '#85B7EB', '#EF9F27', '#ED93B1', '#97C459', '#5DCAA5', '#AFA9EC'];
+const hashHue = (s) => FLAT_HUES[Math.abs([...String(s || 'x')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % FLAT_HUES.length];
+function FlatLine({ line }) {
+  let handle, color;
+  if (line.who === 'you') { handle = 'you'; color = '#E7B07A'; }
+  else if (line.who === 'human') { handle = line.name || 'someone'; color = hashHue(line.name); }
+  else { handle = nameOf(line.key); color = `rgb(${rgbOf(line.key)})`; }
+  const keeper = line.key === 'the_moderator';
+  const body = line.typing && !line.text ? '•••' : flat(line.text);
+  return (
+    <View style={styles.flatWrap}>
+      <Text style={styles.flatText}>
+        <Text style={[styles.flatHandle, { color }]}>{handle}</Text>{keeper ? <Text style={[styles.flatDiamond, { color }]}> ◆</Text> : null}<Text style={styles.flatBody}>{'  '}{body}</Text>
+      </Text>
+      {line.imageUri ? <Image source={{ uri: line.imageUri }} style={styles.flatPhoto} /> : null}
+    </View>
+  );
+}
+
 // [zip50] sent bubbles paint @mentions: the mentioned persona's color when the
 // name matches a mentionable, member-blue otherwise. Plain Text spans — no hacks.
 function MentionedText({ text, mentionables = [], style }) {
@@ -25,7 +45,8 @@ function MentionedText({ text, mentionables = [], style }) {
   );
 }
 
-export function RoomLine({ line, hideSpeaker, mentionables }) {
+export function RoomLine({ line, hideSpeaker, mentionables, flatMode }) {
+  if (flatMode) return <FlatLine line={line} />;
   if (line.who === 'you') {
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-end' }]}>
@@ -58,7 +79,7 @@ export function RoomLine({ line, hideSpeaker, mentionables }) {
   );
 }
 
-export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.', mentionables = [] }) {
+export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.', mentionables = [], flatFeed = false }) {
   const ref = useRef(null);
   return (
     <ScrollView
@@ -68,7 +89,7 @@ export default function MessageList({ lines, booted, hideSpeaker = false, emptyC
     >
       {lines.length === 0
         ? (booted ? <Text style={styles.empty}>{emptyCopy}</Text> : null)
-        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} mentionables={mentionables} />)}
+        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} mentionables={mentionables} flatMode={flatFeed} />)}
     </ScrollView>
   );
 }
@@ -85,4 +106,10 @@ const styles = StyleSheet.create({
   bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 19 },
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.28)', fontSize: 9.5, marginTop: 2, alignSelf: 'flex-end' },
   sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },
+  flatWrap: { marginBottom: 9 },
+  flatText: { fontSize: 14.5, lineHeight: 20 },
+  flatHandle: { fontFamily: 'Figtree_600SemiBold' },
+  flatDiamond: { fontSize: 10 },
+  flatBody: { fontFamily: 'Figtree_400Regular', color: '#D6D4DE' },
+  flatPhoto: { width: 180, height: 180, borderRadius: 14, resizeMode: 'cover', marginTop: 6 },
 });

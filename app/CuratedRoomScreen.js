@@ -159,7 +159,8 @@ export default function CuratedRoomScreen({ room, onBack = () => {} }) {
           </Pressable>
         </View>
 
-        {/* the presences — lit one rises */}
+        {/* the presences — lit one rises (curated only; public rooms are a flat feed) */}
+        {!room?.publicRoomId && (
         <View style={styles.stage}>
           {personas.map((k) => (
             <Pressable key={k} onPress={() => setAddressed((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k])}>
@@ -168,8 +169,9 @@ export default function CuratedRoomScreen({ room, onBack = () => {} }) {
           ))}
           {humans.map((h) => <HumanPresence key={h.id} name={h.name} active={feed.floor === h.id} />)}
         </View>
+        )}
 
-        <MessageList lines={feed.lines} booted={feed.booted} mentionables={mentionables} />
+        <MessageList lines={feed.lines} booted={feed.booted} mentionables={mentionables} flatFeed={!!room?.publicRoomId} />
         <Composer onSend={onSend} sending={feed.sending} mentionables={mentionables} addressed={addressed} onAddressed={setAddressed} />
       </SafeAreaView>
       </KeyboardAvoidingView>
