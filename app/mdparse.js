@@ -59,9 +59,9 @@ export function parseBlocks(text) {
         if (tt === '') break;
         const b2 = bulletRe.exec(tt);
         const n2 = numRe.exec(tt);
-        if (b2) items.push(b2[1]);
-        else if (n2) items.push(n2[2]);
-        else if (items.length) items[items.length - 1] += ' ' + tt; // wrapped continuation
+        if (b2) items.push({ num: null, text: b2[1] });   // [zip65] items carry their source number
+        else if (n2) items.push({ num: n2[1], text: n2[2] });
+        else if (items.length) items[items.length - 1].text += ' ' + tt; // wrapped continuation
         else break;
         i++;
       }

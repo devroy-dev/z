@@ -30,8 +30,8 @@ export default function RichText({ text, style }) {
           <View key={bi} style={!last && S.gap}>
             {blk.items.map((it, ii) => (
               <View key={ii} style={S.li}>
-                <Text style={S.marker}>{blk.type === 'ol' ? `${ii + 1}.` : '•'}</Text>
-                <Text style={[S.p, style, S.liText]}>{runs(it)}</Text>
+                <Text style={S.marker}>{blk.type === 'ol' ? `${(it && it.num) || ii + 1}.` : '•'}</Text>{/* [zip65] the source number survives */}
+                <Text style={[S.p, style, S.liText]}>{runs(typeof it === 'string' ? it : it.text)}</Text>
               </View>
             ))}
           </View>

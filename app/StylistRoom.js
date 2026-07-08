@@ -60,10 +60,14 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false, quality: 0.5, base64: true,
+        allowsMultipleSelection: true, selectionLimit: 6,   // [zip65] the wardrobe fills faster
       });
-      if (res.canceled || !res.assets || !res.assets[0]?.base64) return;
+      if (res.canceled || !res.assets || !res.assets.length) return;
       setFiling(true);
-      await addWardrobePiece({ media_type: 'image/jpeg', data: res.assets[0].base64 });
+      for (const a of res.assets) {   // [zip65] each files under her eye in turn
+        if (!a?.base64) continue;
+        try { await addWardrobePiece({ media_type: 'image/jpeg', data: a.base64 }); } catch (e) {}
+      }
       load();
     } catch (e) {} finally { setFiling(false); }
   };
