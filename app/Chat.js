@@ -56,6 +56,7 @@ const PERSONAS = {
   the_healer:{name:'the healer',desc:"love once and you know what love is. love twice and you know what life is.",rgb:'124,92,220'},
   the_brainiac:{name:"the devil's advocate",desc:"i'll take the other side just to watch you get sharper.",rgb:'90,200,230'},
   the_conspiracy_theorist:{name:'the conspiracy theorist',desc:"it's all connected. i can prove it. well — 'prove'.",rgb:'150,140,200'},
+  the_wanderer:{name:'the Wanderer',desc:"tell me where you're going — or that you don't know yet. that's my favourite kind.",rgb:'210,150,90'},   // [zip77]
   the_screen_junkie:{name:'the screen junkie',desc:"endless suggestions, countless screen time.",rgb:'120,150,230'},
   the_hottie:{name:'the hottie',desc:"i bet i'll sweep you off your feet.",rgb:'255,120,140'},
   the_crush:{name:'the crush',desc:"summon the courage and try your luck.",rgb:'255,140,170'},
