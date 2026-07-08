@@ -393,6 +393,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         { text: 'clear', style: 'destructive', onPress: async () => {
           pacingRef.current = false;
           if (threadId) await clearThread(threadId);
+          AsyncStorage.removeItem('z_msgs_' + KEY).catch(() => {});   // [zip54u] the cache snapshot dies with the chat — the line the cache commit forgot
           setMessages([]); setDraft('');
           sendingRef.current = false; setSending(false);
         } },
