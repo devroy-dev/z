@@ -63,7 +63,7 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
             await load();
             setWire(!r ? 'the wire didn\u2019t answer — try again' : !r.refreshed ? 'checked minutes ago — give it a moment' : r.added ? `${r.added} new — the wire moved` : 'nothing genuinely new broke in the last hours');
           }}><Text style={{ color: '#C9A86A', fontSize: 20 }}>↻</Text></Pressable>{/* [zip54n] [zip54p] ask the wire, hear the answer */}
-          <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=5` }} style={st.face} />
+          <Image source={{ uri: `${API_BASE}/faces/the_anchor.jpg?v=6` }} style={st.face} />
         </View>
 
         {wire ? <Text style={{ color: '#C9A86A', fontSize: 11.5, textAlign: 'center', paddingBottom: 6, fontStyle: 'italic' }}>{wire}</Text> : null}

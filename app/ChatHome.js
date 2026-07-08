@@ -80,7 +80,7 @@ function ZOrb({ size = 44 }) {
   );
 }
 
-const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=5`;   // [zip54p] unstuck — the Host's desk arrives
+const dpFor = (k) => `${API_BASE}/faces/${k}.jpg?v=6`;   // [zip54r]
 
 // the house diaries, as a feed: today's line per resident; tap → their recent week
 function UpdatesFeed({ onOpen }) {

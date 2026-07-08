@@ -614,7 +614,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   {KEY === 'the_front_desk' && !avatar ? (
                     <DeskOrb size={120} />
                   ) : (
-                    <Image source={{ uri: avatar || dp }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
+                    <Image source={{ uri: KEY.startsWith('custom_') ? (avatar || dp) : dp }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
                   )}
                 </Pressable>
                 <Text style={styles.epName}>{cname}</Text>

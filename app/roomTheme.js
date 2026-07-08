@@ -8,7 +8,7 @@ export const N = {
   candle: '#E7B07A', candleHot: '#F3CFA3',
   human: '#9FB0CE',
 };
-export const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=5`;   // [zip54o] new portraits: GM, anchor, front desk
+export const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=6`;   // [zip54r] v=5 poisoned on-device during the stale window; v=6 grep-verified virgin
 export const P = {
   the_guru:['the guru','230,190,90'], the_oracle:['the oracle','110,200,200'], the_brainiac:['the smug brainiac','90,200,230'],
   the_brother:['the brother','200,120,80'], the_healer:['the healer','124,92,220'], the_comic:['the comic','240,180,70'],

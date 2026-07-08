@@ -71,7 +71,7 @@ const PERSONAS = {
   the_economist:{name:'the money man',desc:"markets, money, and what to do with yours. let's make it make sense."},
   the_anchor:{name:'the anchor',desc:"the 9 o'clock bulletin, waiting for your questions."},
 };
-const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=5`;   // [zip54p] the compose sheet sees the new portraits
+const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=6`;   // [zip54r]
 const toneFor = (k) => (GROUPS.find(g => g.keys.includes(k))?.tone) || C.ember;
 
 // ── one breathing presence: a face inside a glowing, living ring ──
