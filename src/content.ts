@@ -80,6 +80,7 @@ const CODEX_FILES: Record<CodexKey, string> = {
   conspiracy:     'codex-conspiracy.md',
   coach:          'codex-coach.md',
   interviewer:    'codex-interviewer.md',   // [zip26]
+  wanderer:       'codex-wanderer.md',   // [zip69]
 };
 
 const CODEXES: Partial<Record<CodexKey, string>> = {};

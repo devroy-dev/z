@@ -11,7 +11,8 @@ export type CodexKey =
   | 'philosopher' | 'cynic' | 'moderator' | 'historian' | 'cosmologist' | 'media_manager'
   | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator'
   | 'hippie' | 'diva' | 'cousin' | 'front-desk'
-  | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague' | 'anchor' | 'grandmaster' | 'conspiracy' | 'coach' | 'interviewer';   // [zip26]
+  | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague' | 'anchor' | 'grandmaster' | 'conspiracy' | 'coach' | 'interviewer'   // [zip26]
+  | 'wanderer';   // [zip69]
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -49,6 +50,7 @@ export const PERSONAS: Record<string, Persona> = {
   the_mentor:       { key: 'the_mentor',       defaultName: 'the mentor',       codex: 'forward',   webEnabled: true  },
   the_brainiac:     { key: 'the_brainiac',     defaultName: 'the smug brainiac', codex: 'brainiac', webEnabled: true  },
   the_conspiracy_theorist: { key: 'the_conspiracy_theorist', defaultName: 'the conspiracy theorist', codex: 'conspiracy', webEnabled: true },
+  the_wanderer:     { key: 'the_wanderer',     defaultName: 'the Wanderer',     codex: 'wanderer',   webEnabled: true  },   // [zip69] rides the tier ladder for text; the global vision route handles sighted turns
   the_addict:       { key: 'the_addict',       defaultName: 'the rehab',       codex: 'shadow',    webEnabled: false },
   the_hippie:       { key: 'the_hippie',       defaultName: 'the hippie',       codex: 'hippie',    webEnabled: false },
   the_diva:         { key: 'the_diva',         defaultName: 'the diva',         codex: 'diva',      webEnabled: true  },
