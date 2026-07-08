@@ -453,10 +453,10 @@ export default function ChatHome({ onOpen = () => {} }) {
       </View>
       <View style={{ flex: 1, marginLeft: 13 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ fontFamily: 'Figtree_600SemiBold', color: MOON.cream, fontSize: 16.5 }}>{item.name}</Text>
+          <Text style={{ fontFamily: 'Figtree_600SemiBold', color: '#FFFFFF', fontSize: 16.5 }}>{item.name}</Text>{/* [zip75] reads white on the tint */}
           {item.tag && item.tag !== 'desk' ? <Text style={{ fontFamily: FONTS.body, color: MOON.faint, fontSize: 10.5, marginLeft: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{item.tag}</Text> : null}
         </View>
-        <Text numberOfLines={1} style={{ fontFamily: FONTS.body, color: 'rgba(233,232,240,0.72)', fontSize: 13, marginTop: 2 }}>{item.line}</Text>{/* [zip72] reads on the tint */}
+        <Text numberOfLines={1} style={{ fontFamily: FONTS.body, color: 'rgba(255,255,255,0.82)', fontSize: 13, marginTop: 2 }}>{item.line}</Text>{/* [zip72][zip75] reads on the tint */}
       </View>
     </Pressable>
   );
@@ -606,7 +606,7 @@ export default function ChatHome({ onOpen = () => {} }) {
           {!deskDq && deskTicker ? (
             <Pressable onPress={() => deskTicker.link && Linking.openURL(deskTicker.link).catch(() => {})} style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 6, paddingVertical: 9, paddingHorizontal: 13, borderRadius: 12, backgroundColor: 'rgba(201,168,106,0.06)', borderWidth: 1, borderColor: 'rgba(201,168,106,0.16)' }}>
               <Text style={{ fontFamily: 'Figtree_600SemiBold', color: '#C9A86A', fontSize: 9.5, letterSpacing: 1, marginRight: 9 }}>{(deskTicker.topic || 'wire').toUpperCase()}</Text>
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: FONTS.body, color: MOON.cream, fontSize: 12.5 }}>{deskTicker.title}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, fontFamily: FONTS.body, color: '#FFFFFF', fontSize: 12.5 }}>{deskTicker.title}</Text>{/* [zip75] */}
             </Pressable>
           ) : null}
           {deskResults ? (
