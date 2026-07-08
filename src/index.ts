@@ -1195,6 +1195,29 @@ app.delete('/stylist/wardrobe/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
+// [zip78] ── THE TRIPS ROOM ── the Wanderer's trip files, surfaced as the room's UI.
+app.get('/wanderer/trips', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { data } = await supabase.from('trip_files')
+      .select('id, destination, dates, travelers, notes, updated_at')
+      .eq('user_id', user.id).order('updated_at', { ascending: false }).limit(60);
+    res.json({ trips: data ?? [] });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.delete('/wanderer/trips/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { error } = await supabase.from('trip_files').delete().eq('id', req.params.id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 // [zip54k] ── THE DESK THAT WATCHES ── analytics under his eye; his weekly memos.
 app.post('/mm/analytics', async (req, res) => {
   try {
