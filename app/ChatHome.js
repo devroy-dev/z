@@ -12,7 +12,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';   // [z
 import { Dimensions } from 'react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert } from 'react-native';
 import { FONTS } from './theme';
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe } from './api';   // [zip12]
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe, getBulletinFeed, getMmDeskNotes } from './api';   // [zip12] [zip66]
 import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
@@ -243,8 +243,13 @@ export default function ChatHome({ onOpen = () => {} }) {
   const SCREEN_W = Dimensions.get('window').width;
   const pullX = useSharedValue(0);
   const [quietHint, setQuietHint] = useState(false);
+  const [deskStory, setDeskStory] = useState(null);   // [zip66]
+  const [deskNote, setDeskNote] = useState(null);     // [zip66]
   useEffect(() => {
     AsyncStorage.getItem('z_quiet_hint_done').then((v) => { if (!v) setQuietHint(true); }).catch(() => {});
+    // [zip66] on the desk today — the bulletin's lead and the MM's latest memo (best-effort, silent when absent)
+    getBulletinFeed().then((f) => { const st0 = (f?.national && f.national[0]) || (f?.local && f.local[0]) || null; if (st0) setDeskStory(st0); }).catch(() => {});
+    getMmDeskNotes().then((r) => { const n0 = r?.notes && r.notes[0]; if (n0?.note) setDeskNote(String(n0.note)); }).catch(() => {});
   }, []);
   const openQuiet = () => {
     pullX.value = 0;
@@ -536,37 +541,55 @@ export default function ChatHome({ onOpen = () => {} }) {
         </ScrollView>
       )}
       {tab === 'thedesk' && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90 }} showsVerticalScrollIndicator={false}>{/* [zip61] the Desk — the first interface */}
-          <Pressable style={st.row} onPress={() => onOpen({ kind: 'desk' })}>
-            <View style={[st.ring, { borderColor: 'rgba(231,176,122,0.45)' }]}>
-              {deskFace ? <Image source={{ uri: dpFor('the_front_desk') }} style={st.face} onError={() => setDeskFace(false)} /> : <DeskEmber />}
-            </View>
-            <View style={{ flex: 1, marginLeft: 13 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>the Host</Text>
-              </View>
-              <Text style={st.line} numberOfLines={1}>set it down — i've got it</Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90, paddingHorizontal: 14 }} showsVerticalScrollIndicator={false}>{/* [zip66] the Desk v2 */}
+          {/* THE MASTHEAD — the Host's floor */}
+          <Pressable onPress={() => onOpen({ kind: 'desk' })} style={{ borderRadius: 18, overflow: 'hidden', marginTop: 6 }}>
+            <Image source={{ uri: dpFor('the_front_desk') }} style={{ width: '100%', height: 168 }} resizeMode="cover" />
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, backgroundColor: 'rgba(8,10,16,0.28)' }} />
+            <View style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}>
+              <Text style={{ fontFamily: FONTS.display || 'Fraunces_600SemiBold', color: '#F3EFE6', fontSize: 26, letterSpacing: 0.3, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 8 }}>the Desk</Text>
+              <Text style={{ fontFamily: FONTS.body, color: 'rgba(243,239,230,0.85)', fontSize: 12.5, marginTop: 2, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 }}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }).toLowerCase()}  ·  set it down — i've got it</Text>
             </View>
           </Pressable>
-          <Row face={`https://callmez.app/faces/the_newsroom.jpg?v=4`} tone={MOON.hairStrong} name="the Newsroom" line="the bulletin · fact-checks · ask the anchor" onPress={() => onOpen({ kind: 'bulletin' })} />
-          <Row face={`https://callmez.app/rooms/coaching-hub.jpg?v=1`} tone={MOON.hairStrong} name="the Coaching hub" line="name an exam or subject — plans, lessons, quizzes, mocks." onPress={() => onOpen({ kind: 'coach' })} />{/* [zip54s] */}
-          <Pressable style={st.row} onPress={() => onOpen({ kind: 'consult' })}>
-            <View style={[st.ring, { borderColor: 'rgba(232,162,74,0.35)', backgroundColor: '#101427' }]}>
-              <ConsultLogo />
+
+          {/* ON THE DESK TODAY — the rooms speaking */}
+          {(deskStory || deskNote) ? (
+            <View style={{ marginTop: 12, gap: 8 }}>
+              {deskStory ? (
+                <Pressable onPress={() => onOpen({ kind: 'bulletin' })} style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(201,168,106,0.28)', borderLeftWidth: 3, borderLeftColor: '#C9A86A', backgroundColor: 'rgba(201,168,106,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
+                  <Text style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#C9A86A', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>{(deskStory.kicker || 'the bulletin')}</Text>
+                  <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{deskStory.headline}</Text>
+                </Pressable>
+              ) : null}
+              {deskNote ? (
+                <Pressable onPress={() => onOpen({ kind: 'mmroom' })} style={{ borderRadius: 14, borderWidth: 1, borderColor: 'rgba(169,221,242,0.24)', borderLeftWidth: 3, borderLeftColor: '#A9DDF2', backgroundColor: 'rgba(169,221,242,0.05)', paddingVertical: 10, paddingHorizontal: 13 }}>
+                  <Text style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#A9DDF2', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase' }}>the desk note</Text>
+                  <Text numberOfLines={2} style={{ fontFamily: FONTS.body, color: '#E9E8F0', fontSize: 13.5, lineHeight: 19, marginTop: 3 }}>{deskNote}</Text>
+                </Pressable>
+              ) : null}
             </View>
-            <View style={{ flex: 1, marginLeft: 13 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={st.name}>The Consultant</Text>
-              </View>
-              <Text style={st.line} numberOfLines={1}>sit with Victor — the expert. by thedreamai</Text>
-            </View>
-          </Pressable>
-          {/* [zip17] Z left the rows — she is the house, reached by the quiet pull (or the moon sliver). */}
-          <Row face={`https://callmez.app/faces/the_grandmaster.jpg?v=5`} tone={MOON.hairStrong} name="the Grand Master" line="come empty-handed. leave understanding what the world runs on." onPress={() => onOpen({ kind: 'forge' /* [zip23] [zip54o] */ })} />
-          <Row face={`https://callmez.app/rooms/panel-room.jpg?v=1`} tone={'rgba(138,160,196,0.35)'} name="the interviewer" line="name the company and the chair. i'll run the room the way they will." onPress={() => onOpen({ kind: 'panel' /* [zip28][zip31] [zip54o] the room, not the man */ })} />
-          <Row face={`https://callmez.app/rooms/media-hub.jpg?v=1`} tone={'rgba(169,221,242,0.30)'} name="the Media Manager" line="file the brief once. i run your career like a business." onPress={() => onOpen({ kind: 'mmroom' /* [zip54d] [zip54n] the room wears its own face */ })} />
-          <Row face={`https://callmez.app/rooms/stylist-wardrobe.jpg?v=1`} tone={'rgba(232,169,176,0.32)'} name="the stylist" line="your wardrobe, under my eye. show me a piece — i'll tell you the truth." onPress={() => onOpen({ kind: 'stylist' /* [zip54j] [zip54n] the room wears its own face */ })} />
-          <View style={st.divider} />
+          ) : null}
+
+          {/* THE ROOMS — the door grid (scales clean when the travel desk arrives) */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 14 }}>
+            {[
+              { img: 'https://callmez.app/faces/the_newsroom.jpg?v=4', name: 'the Newsroom', kind: 'bulletin' },
+              { img: 'https://callmez.app/rooms/coaching-hub.jpg?v=1', name: 'the Coaching hub', kind: 'coach' },
+              { img: 'https://callmez.app/faces/the_grandmaster.jpg?v=6', name: 'the Grand Master', kind: 'forge' },
+              { img: 'https://callmez.app/rooms/panel-room.jpg?v=1', name: 'the interviewer', kind: 'panel' },
+              { img: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the Media Manager', kind: 'mmroom' },
+              { img: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1', name: 'the stylist', kind: 'stylist' },
+            ].map((d) => (
+              <Pressable key={d.kind} onPress={() => onOpen({ kind: d.kind })} style={{ width: '48.6%', marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(233,232,240,0.08)', backgroundColor: 'rgba(233,232,240,0.03)' }}>
+                <Image source={{ uri: d.img }} style={{ width: '100%', height: 92 }} resizeMode="cover" />
+                <Text numberOfLines={1} style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#E9E8F0', fontSize: 13, paddingHorizontal: 10, paddingVertical: 9 }}>{d.name}</Text>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => onOpen({ kind: 'consult' })} style={{ width: '48.6%', marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(232,162,74,0.22)', backgroundColor: '#101427' }}>
+              <View style={{ height: 92, alignItems: 'center', justifyContent: 'center' }}><ConsultLogo /></View>
+              <Text numberOfLines={1} style={{ fontFamily: FONTS.semi || 'Figtree_600SemiBold', color: '#E9E8F0', fontSize: 13, paddingHorizontal: 10, paddingVertical: 9 }}>The Consultant</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       )}
       {tab === 'groups' && <Rooms onOpen={(r) => onOpen({ kind: 'room', room: r })} />}
