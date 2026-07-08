@@ -17,6 +17,7 @@ import GMForge from './GMForge';   // [zip23] the Grand Master's front door
 import Panel from './Panel';   // [zip31] the interviewer's front door
 import MediaRoom from './MediaRoom';   // [zip54d] the Media Manager's front door
 import StylistRoom from './StylistRoom';   // [zip54j] the stylist's front door
+import TravelDesk from './TravelDesk';   // [zip79] the Wanderer's front door
 import Consult from './Consult';
 import QuietRoom from './QuietRoom';
 import Journal from './Journal';
@@ -167,6 +168,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'forge') return setOverlay({ tab: 'forge' });   // [zip23]
     if (dest.kind === 'mmroom') return setOverlay({ tab: 'mmroom' });   // [zip54d]
     if (dest.kind === 'stylist') return setOverlay({ tab: 'stylist' });   // [zip54j]
+    if (dest.kind === 'wanderer') return setOverlay({ tab: 'wanderer' });   // [zip79]
     if (dest.kind === 'panel') return setOverlay({ tab: 'panel' });   // [zip31]
     if (dest.kind === 'consult') return setOverlay({ tab: 'consult' });
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
@@ -197,6 +199,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (overlay.tab === 'panel') return <Panel onBack={() => setOverlay(null)} onStart={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', draft, autoSend: true, from: 'panel' }); }} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_interviewer', from: 'panel' }); }} />;   // [zip31]
     if (overlay.tab === 'mmroom') return <MediaRoom onBack={() => setOverlay(null)} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_media_manager', from: 'mmroom' }); }} />;   // [zip54d]
     if (overlay.tab === 'stylist') return <StylistRoom onBack={() => setOverlay(null)} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_diva', from: 'stylist' }); }} onAsk={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_diva', draft, autoSend: true, from: 'stylist' }); }} />;   // [zip54j]
+    if (overlay.tab === 'wanderer') return <TravelDesk onBack={() => setOverlay(null)} onChat={() => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_wanderer', from: 'wanderer' }); }} onAsk={(draft) => { setOverlay(null); navigate({ tab: 'gathering', persona: 'the_wanderer', draft, autoSend: true, from: 'wanderer' }); }} />;   // [zip79]
     if (overlay.tab === 'bulletin') return (
       <Bulletin
         onBack={() => setOverlay(null)}

@@ -432,6 +432,8 @@ export async function uploadMmAnalytics(image) { return authedJSON('POST', '/mm/
 export async function getMmDeskNotes() { return authedJSON('GET', '/mm/desknotes'); }
 // [zip54j] the wardrobe — the stylist's index of what you own
 export async function getWardrobe() { return authedJSON('GET', '/stylist/wardrobe'); }
+export async function getTrips() { return authedJSON('GET', '/wanderer/trips'); }   // [zip79]
+export async function deleteTrip(id) { return authedJSON('DELETE', `/wanderer/trips/${id}`); }   // [zip79]
 export async function addWardrobePiece(image) { return authedJSON('POST', '/stylist/wardrobe', { image }); }
 export async function deleteWardrobePiece(id) { return authedJSON('DELETE', `/stylist/wardrobe/${id}`); }
 // read-only spectator view of a duel (no seat required) → { motion, phase, turns, verdict, ... }

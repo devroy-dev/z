@@ -427,7 +427,7 @@ export default function ChatHome({ onOpen = () => {} }) {
     { face: 'https://callmez.app/rooms/panel-room.jpg?v=1', name: 'the interviewer', line: "name the company and the chair. i'll run the room the way they will.", open: { kind: 'panel' }, tint: '138,160,196' },
     { face: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the Media Manager', line: 'file the brief once. i run your career like a business.', open: { kind: 'mmroom' }, tint: '169,221,242' },
     { face: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1', name: 'the stylist', line: "your wardrobe, under my eye. show me a piece — i'll tell you the truth.", open: { kind: 'stylist' }, tint: '232,169,176' },
-    { face: 'https://callmez.app/rooms/travel-desk.jpg?v=1', name: 'the travel desk', line: 'where to, and what are you chasing? the Wanderer knows the way.', open: { kind: 'persona', key: 'the_wanderer' }, tint: '210,150,90' },   // [zip77] room = the place, persona = the Wanderer
+    { face: 'https://callmez.app/rooms/travel-desk.jpg?v=1', name: 'the travel desk', line: 'where to, and what are you chasing? the Wanderer knows the way.', open: { kind: 'wanderer' }, tint: '210,150,90' },   // [zip77][zip79] opens the Trips room, not the raw chat
     { face: null, name: 'The Consultant', line: 'sit with Victor — the expert. by thedreamai', open: { kind: 'consult' }, consult: true, tint: '232,162,74' },
   ];
   const deskDq = deskQ.trim().toLowerCase();
