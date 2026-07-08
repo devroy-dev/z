@@ -89,7 +89,7 @@ const PERSONAS = {
 };
 const DEFAULT_KEY = 'the_brother';
 const CHIP_LABEL = (k) => k === 'the_stage' ? 'the stage' : k === 'the_arena' ? 'the arena' : k === 'z_serious' ? 'the quiet room' : (PERSONAS[k]?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
-const faceFor = (key) => `https://callmez.app/faces/${key}.jpg?v=4`;
+const faceFor = (key) => `https://callmez.app/faces/${key}.jpg?v=6`;
 
 // ── small circular DP (cover-fit, aura edge, orb fallback) ──
 function MiniDP({ uri, size = 38, rgb, isDesk = false }) {
