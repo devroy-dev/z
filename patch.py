@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # ════════════════════════════════════════════════════════════════════════
-#  yourZ — zip84 · THE ROOM INTERIOR, TIER-2 FLAT FEED (public rooms only)
-#  Bubbles are retired inside PUBLIC rooms: a flat line feed — handle in its
-#  aura colour, the keeper (the_moderator) marked ◆, human strangers get a
-#  stable hashed hue. The big presence rail is hidden (it's a crowd, not a
-#  persona chat). ALL branched on room.publicRoomId → curated persona rooms
-#  and DMs render EXACTLY as before. Client-only, OTA-safe.
-#  Run from repo root:  python3 patch.py   · idempotent · anchor-asserted
+#  yourZ — zip85 (SERVER) · DELETE /public-rooms/:id  (creator-only)
+#  Drops a user-created room from the directory (active=false, which GET
+#  /public-rooms already filters on) + soft-deletes the thread for history.
+#  House rooms and non-creators are refused (403). No migration; no FK
+#  cascade (room_sanctions.room_id stays valid on an inactive row).
+#  Run from repo root:  python3 patch.py
+#  ⚠ TOUCHES src/index.ts — do NOT push in the same sitting as the desk
+#    session's server work. Rebase if their src/index.ts is uncommitted.
+#  Gate: npm run build (real tsc) before push.
 # ════════════════════════════════════════════════════════════════════════
 import os, sys, tempfile
 
@@ -30,118 +32,44 @@ def patch_file(rel, edits):
     src = read(p); changed = False
     for name, anchor, repl, marker in edits:
         if marker in src:
-            print("  · " + rel + " :: " + name + " already applied — skip"); continue
+            print("  · " + name + " already applied — skip"); continue
         c = src.count(anchor)
-        if c == 0: die(rel + " :: " + name + " — anchor NOT FOUND (tree drifted?)")
-        if c > 1: die(rel + " :: " + name + " — anchor matched " + str(c) + "× (ambiguous)")
+        if c == 0: die(name + " — anchor NOT FOUND (tree drifted?)")
+        if c > 1: die(name + " — anchor matched " + str(c) + "× (ambiguous)")
         src = src.replace(anchor, repl, 1); changed = True
-        print("  ✓ " + rel + " :: " + name)
+        print("  ✓ " + name)
     if changed: atomic_write(p, src)
 
-ML_EDITS = [
-    # ── FlatLine component + hashed human hues ──
+EDITS = [
     (
-        "FlatLine + hashHue",
-        "const flat = (t) => String(t || '').replace(/\\*\\*?/g, '');",
-        "const flat = (t) => String(t || '').replace(/\\*\\*?/g, '');\n"
+        "DELETE /public-rooms/:id (creator-only)",
+        "app.get('/healthz', (_req, res) => res.json({ ok: true }));",
+        "// creator-only: delete a public room — drops it from the directory (active=false,\n"
+        "// which GET /public-rooms filters on) + soft-deletes the thread for history.\n"
+        "app.delete('/public-rooms/:id', async (req, res) => {\n"
+        "  try {\n"
+        "    const authId = await authUser(req);\n"
+        "    if (!authId) return res.status(401).json({ error: 'unauthorized' });\n"
+        "    const me = await resolveUser(authId);\n"
+        "    const { data: room } = await supabase.from('public_rooms')\n"
+        "      .select('id, thread_id, created_by, is_house').eq('id', req.params.id).maybeSingle();\n"
+        "    if (!room) return res.status(404).json({ error: 'no such room' });\n"
+        "    if (room.is_house || room.created_by !== me.id) return res.status(403).json({ error: 'only the room\\u2019s creator can delete it.' });\n"
+        "    await supabase.from('public_rooms').update({ active: false }).eq('id', room.id);\n"
+        "    await supabase.from('threads').update({ deleted_at: new Date().toISOString() }).eq('id', room.thread_id);\n"
+        "    res.json({ ok: true });\n"
+        "  } catch (e: any) { res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) }); }\n"
+        "});\n"
         "\n"
-        "// [zip84] Tier-2 flat feed: handle in aura colour, keeper marked, no bubble.\n"
-        "const FLAT_HUES = ['#F0997B', '#85B7EB', '#EF9F27', '#ED93B1', '#97C459', '#5DCAA5', '#AFA9EC'];\n"
-        "const hashHue = (s) => FLAT_HUES[Math.abs([...String(s || 'x')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % FLAT_HUES.length];\n"
-        "function FlatLine({ line }) {\n"
-        "  let handle, color;\n"
-        "  if (line.who === 'you') { handle = 'you'; color = '#E7B07A'; }\n"
-        "  else if (line.who === 'human') { handle = line.name || 'someone'; color = hashHue(line.name); }\n"
-        "  else { handle = nameOf(line.key); color = `rgb(${rgbOf(line.key)})`; }\n"
-        "  const keeper = line.key === 'the_moderator';\n"
-        "  const body = line.typing && !line.text ? '•••' : flat(line.text);\n"
-        "  return (\n"
-        "    <View style={styles.flatWrap}>\n"
-        "      <Text style={styles.flatText}>\n"
-        "        <Text style={[styles.flatHandle, { color }]}>{handle}</Text>{keeper ? <Text style={[styles.flatDiamond, { color }]}> ◆</Text> : null}<Text style={styles.flatBody}>{'  '}{body}</Text>\n"
-        "      </Text>\n"
-        "      {line.imageUri ? <Image source={{ uri: line.imageUri }} style={styles.flatPhoto} /> : null}\n"
-        "    </View>\n"
-        "  );\n"
-        "}",
-        "function FlatLine",
-    ),
-    # ── RoomLine: flat branch at the top ──
-    (
-        "RoomLine flat branch",
-        "export function RoomLine({ line, hideSpeaker, mentionables }) {",
-        "export function RoomLine({ line, hideSpeaker, mentionables, flatMode }) {\n"
-        "  if (flatMode) return <FlatLine line={line} />;",
-        "flatMode",
-    ),
-    # ── MessageList: accept flatFeed + pass down ──
-    (
-        "MessageList flatFeed prop",
-        "export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.', mentionables = [] }) {",
-        "export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.', mentionables = [], flatFeed = false }) {",
-        "flatFeed = false",
-    ),
-    (
-        "pass flatMode to RoomLine",
-        "        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} mentionables={mentionables} />)}",
-        "        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} mentionables={mentionables} flatMode={flatFeed} />)}",
-        "flatMode={flatFeed}",
-    ),
-    # ── flat styles ──
-    (
-        "flat styles",
-        "  sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },",
-        "  sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },\n"
-        "  flatWrap: { marginBottom: 9 },\n"
-        "  flatText: { fontSize: 14.5, lineHeight: 20 },\n"
-        "  flatHandle: { fontFamily: 'Figtree_600SemiBold' },\n"
-        "  flatDiamond: { fontSize: 10 },\n"
-        "  flatBody: { fontFamily: 'Figtree_400Regular', color: '#D6D4DE' },\n"
-        "  flatPhoto: { width: 180, height: 180, borderRadius: 14, resizeMode: 'cover', marginTop: 6 },",
-        "flatWrap:",
-    ),
-]
-
-CR_EDITS = [
-    # ── hide the presence rail for public rooms ──
-    (
-        "hide stage for public",
-        "        {/* the presences — lit one rises */}\n"
-        "        <View style={styles.stage}>\n"
-        "          {personas.map((k) => (\n"
-        "            <Pressable key={k} onPress={() => setAddressed((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k])}>\n"
-        "              <RoomPresence pkey={k} active={feed.floor === k} targeted={addressed.includes(k)} />\n"
-        "            </Pressable>\n"
-        "          ))}\n"
-        "          {humans.map((h) => <HumanPresence key={h.id} name={h.name} active={feed.floor === h.id} />)}\n"
-        "        </View>",
-        "        {/* the presences — lit one rises (curated only; public rooms are a flat feed) */}\n"
-        "        {!room?.publicRoomId && (\n"
-        "        <View style={styles.stage}>\n"
-        "          {personas.map((k) => (\n"
-        "            <Pressable key={k} onPress={() => setAddressed((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k])}>\n"
-        "              <RoomPresence pkey={k} active={feed.floor === k} targeted={addressed.includes(k)} />\n"
-        "            </Pressable>\n"
-        "          ))}\n"
-        "          {humans.map((h) => <HumanPresence key={h.id} name={h.name} active={feed.floor === h.id} />)}\n"
-        "        </View>\n"
-        "        )}",
-        "public rooms are a flat feed",
-    ),
-    # ── flat feed inside public rooms ──
-    (
-        "flatFeed on MessageList",
-        "        <MessageList lines={feed.lines} booted={feed.booted} mentionables={mentionables} />",
-        "        <MessageList lines={feed.lines} booted={feed.booted} mentionables={mentionables} flatFeed={!!room?.publicRoomId} />",
-        "flatFeed={!!room?.publicRoomId}",
+        "app.get('/healthz', (_req, res) => res.json({ ok: true }));",
+        "app.delete('/public-rooms/:id'",
     ),
 ]
 
 def main():
-    print("── zip84 · Tier-2 flat feed (public rooms only) ──")
-    patch_file("app/MessageList.js", ML_EDITS)
-    patch_file("app/CuratedRoomScreen.js", CR_EDITS)
-    print("── done. gate, then: git push  +  eas update ──")
+    print("── zip85 (server) · DELETE /public-rooms/:id ──")
+    patch_file("src/index.ts", EDITS)
+    print("── done. npm run build (real tsc), curl-prove, then push ──")
 
 if __name__ == "__main__":
     main()

@@ -427,6 +427,23 @@ app.post('/public-rooms/:id/join', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
 });
 
+// creator-only: delete a public room — drops it from the directory (active=false,
+// which GET /public-rooms filters on) + soft-deletes the thread for history.
+app.delete('/public-rooms/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: room } = await supabase.from('public_rooms')
+      .select('id, thread_id, created_by, is_house').eq('id', req.params.id).maybeSingle();
+    if (!room) return res.status(404).json({ error: 'no such room' });
+    if (room.is_house || room.created_by !== me.id) return res.status(403).json({ error: 'only the room\u2019s creator can delete it.' });
+    await supabase.from('public_rooms').update({ active: false }).eq('id', room.id);
+    await supabase.from('threads').update({ deleted_at: new Date().toISOString() }).eq('id', room.thread_id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'delete failed: ' + (e?.message || String(e)) }); }
+});
+
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 // create a companion
