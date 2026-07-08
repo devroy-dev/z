@@ -871,6 +871,27 @@ export async function kickFromRoom(roomId, userId) {
   try { return await authedJSON('POST', `/public-rooms/${roomId}/kick`, { userId }); }
   catch (e) { return { error: String(e?.message || e) }; }
 }
+// [zip86] member-sheet actions
+export async function reportInRoom(roomId, target) {
+  try { return await authedJSON('POST', `/rooms/${roomId}/report`, target); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function blockUser(userId) {
+  try { return await authedJSON('POST', `/users/${userId}/block`, {}); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function unblockUser(userId) {
+  try { return await authedJSON('DELETE', `/users/${userId}/block`); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function getMyBlocks() {
+  try { return await authedJSON('GET', '/me/blocks'); }
+  catch (e) { return { blocked: [] }; }
+}
+export async function deletePublicRoom(publicRoomId) {
+  try { return await authedJSON('DELETE', `/public-rooms/${publicRoomId}`); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
 
 // TEMP DIAGNOSTIC — dumps the exact auth-storage state so we can see why PIN
 // is / isn't offered. knownDevice() needs BOTH z_real_uid AND z_refresh.

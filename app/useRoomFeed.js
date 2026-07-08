@@ -82,7 +82,7 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
         renderedRef.current.add(k);
         if (m.role === 'user') {
           const mine = m.mine || (m.sender_user_id && m.sender_user_id === meIdRef.current);
-          seed.push({ id: k, who: mine ? 'you' : 'human', name: m.sender_name || (mem.members || {})[m.sender_user_id] || 'someone', text: m.content || '', at: m.created_at });
+          seed.push({ id: k, who: mine ? 'you' : 'human', uid: m.sender_user_id || null, name: m.sender_name || (mem.members || {})[m.sender_user_id] || 'someone', text: m.content || '', at: m.created_at });
         } else {
           seed.push({ id: k, who: 'them', key: m.persona_key, text: m.content || '', at: m.created_at });
         }
@@ -123,7 +123,7 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
     if (m.role === 'user' && m.sender_user_id && meIdRef.current && m.sender_user_id === meIdRef.current) return;
 
     if (m.role === 'user') {
-      setLines((cur) => [...cur, { id: key, who: 'human', name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '', at: m.created_at }]);   // [zip54p/57b] the stamp's fuel
+      setLines((cur) => [...cur, { id: key, who: 'human', uid: m.sender_user_id || null, name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '', at: m.created_at }]);   // [zip54p/57b] the stamp's fuel
       setFloor(m.sender_user_id || null);
     } else {
       if (pendingRef.current) {
