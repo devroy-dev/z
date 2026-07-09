@@ -241,6 +241,7 @@ export async function updateProfile({ displayName, avatarUrl }) {
     return { ok: true };
   } catch (e) { return { ok: false, error: 'no connection. try again.' }; }
 }
+export async function setMorningBrief(on, hour) { return authedJSON('PATCH', '/me/morning-brief', hour === undefined ? { on } : { on, hour }); }   // [PHASE 6]
 export async function setMe(displayName) {
   try {
     const call = () => fetch(`${API_BASE}/me`, {

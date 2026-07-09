@@ -102,14 +102,28 @@ function NumberRow({ r, onEdit, onDelete }) {
     </View>
   );
 }
-// [0056] this week's instruction — the note stopped being advice-only; it's a task now.
+// [0056] the filed instruction — the note stopped being advice-only; it's a task now.
+// [fixes-2 BUG-2] the kicker tells the truth of week_of: this week / last week / the date —
+// last week's ungraded work never masquerades as fresh.
+function taskKicker(weekOf) {
+  const w = String(weekOf || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(w)) return 'on the file';
+  const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const monday = (d) => { const x = new Date(d); const day = (x.getUTCDay() + 6) % 7; x.setUTCDate(x.getUTCDate() - day); return x.toISOString().slice(0, 10); };
+  const thisMon = monday(istNow);
+  const lastMon = monday(new Date(istNow.getTime() - 7 * 86400 * 1000));
+  if (w >= thisMon) return 'this week';
+  if (w >= lastMon) return 'last week';
+  const d = new Date(w + 'T00:00:00Z');
+  return isNaN(d.getTime()) ? 'on the file' : d.toDateString().toLowerCase().replace(/^\w+ /, '');
+}
 function TaskRow({ task, onToggle }) {
   const done = task.status === 'done';
   return (
     <Pressable onPress={() => onToggle(task)} style={st.taskRow} hitSlop={6}>
       <View style={[st.check, done && st.checkOn]}>{done ? <Text style={st.checkMark}>✓</Text> : null}</View>
       <View style={{ flex: 1 }}>
-        <Text style={st.taskKicker}>this week</Text>
+        <Text style={st.taskKicker}>{taskKicker(task.week_of)}</Text>
         <Text style={[st.taskTxt, done && st.taskTxtDone]}>{task.instruction}</Text>
       </View>
     </Pressable>

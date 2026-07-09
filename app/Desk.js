@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
 import { parseCards, ProgrammeCard } from './Chat';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe, getDeskBrief } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe, getDeskBrief, setMorningBrief } from './api';   // [PHASE 6]
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
@@ -162,7 +162,18 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const [messages, setMessages] = useState([{ id: 'greet', who: 'them', text: greetingFor() }]);
   const [draft, setDraft] = useState('');
   const [meName, setMeName] = useState('');
-  useEffect(() => { getMe().then((m) => { if (m && m.displayName) setMeName(m.displayName); }).catch(() => {}); }, []);
+  // [PHASE 6] the morning line — her one opt-in knock, and the hour it lands
+  const [mlOn, setMlOn] = useState(false);
+  const [mlHour, setMlHour] = useState(8);
+  useEffect(() => { getMe().then((m) => { if (m && m.displayName) setMeName(m.displayName); if (m) { setMlOn(!!m.morningBrief); setMlHour(m.morningBriefHour || 8); } }).catch(() => {}); }, []);
+  const toggleMorningLine = () => {
+    const next = !mlOn; setMlOn(next);
+    setMorningBrief(next, mlHour).catch(() => setMlOn(!next));   // optimistic, honest on failure
+  };
+  const pickMorningHour = (h) => {
+    const prev = mlHour; setMlHour(h);
+    setMorningBrief(true, h).then(() => { if (!mlOn) setMlOn(true); }).catch(() => setMlHour(prev));
+  };
   const [threadId, setThreadId] = useState(null);
   const [sending, setSending] = useState(false);
   const [tasks, setTasks] = useState([]);
@@ -404,6 +415,25 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
                 ))}
               </ScrollView>
             )}
+            {/* [PHASE 6 §2.2E] the morning line — one knock, only when the house has something to say */}
+            <View style={styles.mlRow}>
+              <Pressable onPress={toggleMorningLine} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <View style={[styles.check, mlOn && styles.checkOn]}>{mlOn ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mlTitle}>the morning line</Text>
+                  <Text style={styles.mlSub}>{mlOn ? 'one line from me, mornings the house has news' : 'i can leave you one line each morning — only when there\u2019s something real'}</Text>
+                </View>
+              </Pressable>
+            </View>
+            {mlOn ? (
+              <View style={styles.mlHours}>
+                {[6, 7, 8, 9, 10, 11].map((h) => (
+                  <Pressable key={h} onPress={() => pickMorningHour(h)} style={[styles.mlHour, mlHour === h && styles.mlHourOn]}>
+                    <Text style={[styles.mlHourTxt, mlHour === h && styles.mlHourTxtOn]}>{h}am</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
           </View>
         )}
         {panel === 'remember' && (
@@ -653,6 +683,14 @@ const styles = StyleSheet.create({
   taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.4, borderColor: N.moonFaint, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   checkOn: { borderColor: N.candle, backgroundColor: 'rgba(231,176,122,0.18)' },
+  mlRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: N.hairSoft },
+  mlTitle: { fontFamily: FONTS.semi, color: N.moon, fontSize: 13.5 },
+  mlSub: { fontFamily: FONTS.displayItalic, color: N.moonDim, fontSize: 12, marginTop: 2, lineHeight: 17 },
+  mlHours: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  mlHour: { borderWidth: 1, borderColor: N.hair, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  mlHourOn: { borderColor: N.candle, backgroundColor: 'rgba(231,176,122,0.14)' },
+  mlHourTxt: { fontFamily: FONTS.light, color: N.moonDim, fontSize: 12.5 },
+  mlHourTxtOn: { color: N.candleHot, fontFamily: FONTS.semi },
   checkMark: { color: N.candle, fontSize: 12, fontWeight: '700' },
   taskTxt: { fontFamily: FONTS.body, color: N.moon, fontSize: 15, flex: 1 },
   taskDone: { color: N.moonFaint, textDecorationLine: 'line-through' },

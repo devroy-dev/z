@@ -39,6 +39,15 @@ export async function runGapReport(userId: string, region = 'IN'): Promise<any[]
     .select('kind, colors, tags, her_read').eq('user_id', userId).order('created_at', { ascending: false }).limit(300);
   const wardrobe = (pieces ?? []).map((p: any) => `- ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}`).join('\n')
     || '(the closet is nearly empty)';
+  // [fixes-2 BUG-3] the audit reads its own history: gaps already bought or dismissed
+  // are closed ground — never re-listed, nor as near-equivalents ("white button-up"
+  // twice was the device evidence).
+  const { data: closed } = await supabase.from('wardrobe_gaps').select('what, status')
+    .eq('user_id', userId).in('status', ['bought', 'dismissed'])
+    .order('created_at', { ascending: false }).limit(40);
+  const closedTxt = (closed ?? []).length
+    ? `\n\nALREADY CLOSED — these gaps were bought or dismissed by the client. NEVER re-list any of them, nor a near-equivalent (same garment in a slightly different wording or colour):\n${(closed ?? []).map((g: any) => `- ${g.what} [${g.status}]`).join('\n')}`
+    : '';
   const sys = `You are THE DIVA — a sharp, warm fashion stylist auditing a client's FULL wardrobe for what's MISSING. Read the closet below, think about the life a person in ${region} actually dresses for (work, festive/wedding occasions, casual, weather), and name the real gaps — versatile pieces that would unlock the most outfits, not luxuries. If the closet is nearly empty or very small, DON'T stall — name the FOUNDATIONAL pieces to build a versatile wardrobe from scratch (the anchors everything else hangs off). You have web search: use it to find REAL, currently-buyable products for each gap (never invent a product or URL). For ${region}, prefer stores that ship there (Myntra, Ajio, Amazon.in, Flipkart, Tata CLiQ, brand .in sites) and quote local currency.
 
 Reply with ONLY strict JSON, no fences:
@@ -47,7 +56,7 @@ Give 3 to 6 gaps, highest priority first. Skip a shop_card rather than fake a UR
   const msg: any = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001', max_tokens: 2000, __pin: 'anthropic',
     system: sys,
-    messages: [{ role: 'user', content: `THE CLOSET (${(pieces ?? []).length} pieces):\n${wardrobe}\n\nAudit it.` }],
+    messages: [{ role: 'user', content: `THE CLOSET (${(pieces ?? []).length} pieces):\n${wardrobe}${closedTxt}\n\nAudit it.` }],
     tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 } as any],
   });
   logUsage({ userId, surface: 'other', fn: 'stylist_gaps', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });

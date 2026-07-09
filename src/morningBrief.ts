@@ -74,9 +74,14 @@ export async function runMorningBriefs(opts?: { onlyUserId?: string }): Promise<
     userIds = Array.from(new Set<string>((th ?? []).map((t: any) => String(t.user_id))));
   }
   const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
+  // [PHASE 6 · one-knock law] users who opted into the Host's morning line get THAT
+  // knock and only that knock — the old brief stands down for them entirely.
+  const { data: opted } = await supabase.from('users').select('id').eq('morning_brief', true).limit(2000);
+  const optedSet = new Set<string>((opted ?? []).map((u: any) => String(u.id)));
   let sent = 0;
   for (const uid of userIds) {
     try {
+      if (optedSet.has(uid)) continue;   // the morning line owns their morning
       const { data: already } = await supabase.from('ping_log')
         .select('id').eq('user_id', uid).eq('kind', 'brief')
         .gte('created_at', dayStart.toISOString()).limit(1).maybeSingle();

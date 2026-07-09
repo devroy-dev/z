@@ -4,7 +4,7 @@
 //   DYNAMIC (uncached): today's date + the shared memory block. Changes per turn.
 // No Donna, no two-agent rig. The Codex IS the preparation; Z names it to no one.
 import Anthropic from '@anthropic-ai/sdk';
-import { llm, pinnedProvider, scrubProviderMarkup, makeStreamGate } from './llm.js';   // [zip54g] [zip54m]
+import { llm, pinnedProvider, scrubProviderMarkup, makeStreamGate, makeTagGate } from './llm.js';   // [zip54g] [zip54m] [fixes-2 BUG-1]
 import { supabase } from './db.js';
 import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPersonas.js';
 import { buildCustomPrefix } from './content.js';
@@ -378,7 +378,8 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   const stream = anthropic.messages.stream(streamArgs);
   let __chars = 0;
   const __gate = makeStreamGate();   // [zip54m] provider markup never reaches the screen
-  stream.on('text', (d) => { __chars += d.length; const g = __gate(d); if (g === null) return; input.onToken?.(t.persona_key === 'the_media_manager' ? g.replace(/\u20B9\s*/g, 'Rs ') : g); });   // [zip54b] the Rs law rides the stream too
+  const __tags = makeTagGate();      // [fixes-2 BUG-1] machine tags never paint mid-stream — the persist strip was always clean; the LIVE stream was the leak
+  stream.on('text', (d) => { __chars += d.length; const g = __gate(d); if (g === null) return; const v = __tags.feed(g); if (!v) return; input.onToken?.(t.persona_key === 'the_media_manager' ? v.replace(/\u20B9\s*/g, 'Rs ') : v); });   // [zip54b] the Rs law rides the stream too
   const final = await stream.finalMessage().catch((err: any) => {
     // DIAGNOSTIC (no behavior change): a /chat stream dying mid-flight ("Premature close")
     // was never logged before — the rejection was swallowed upstream. Log the real reason +
@@ -390,6 +391,8 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
     if (err?.stack) console.error(err.stack);
     throw err;
   });
+
+  { const rest = __tags.flush(); if (rest) input.onToken?.(t.persona_key === 'the_media_manager' ? rest.replace(/\u20B9\s*/g, 'Rs ') : rest); }   // [fixes-2 BUG-1] held prose (never a tag) still lands
 
   let reply = scrubProviderMarkup(final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join(''));   // [zip54g]
   // [zip54b] THE Rs LAW — media manager only, enforced in code (the soul asks; the pipe guarantees).

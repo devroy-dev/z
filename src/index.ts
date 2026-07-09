@@ -29,6 +29,7 @@ import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
 import { runStateWriter, currentStates, startStateScheduler } from './personaStates.js';
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
+import { runMorningLines, startMorningLineScheduler } from './deskMorningLine.js';   // [PHASE 6]
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
 import { tripsFor, startTripBuild, buildPacklist } from './wanderer.js';   // [0055]
@@ -74,6 +75,7 @@ const anthropicShared = llm();   // [zip34] the second generator — provider-ro
 startFollowupScheduler();
 startStateScheduler();
 startBriefScheduler();
+startMorningLineScheduler();   // [PHASE 6] the Host's opt-in morning line (old brief skips opted users — one knock)
 startProgrammeScheduler();
 startPingScheduler();
 startDeskNoteScheduler();   // [zip54k] the weekly memo joins the house's jobs
@@ -628,6 +630,16 @@ app.post('/dev/morning-brief', async (req, res) => {
     if (!key) return res.status(404).json({ error: 'not found' });
     if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
     res.json(await runMorningBriefs(req.body?.userId ? { onlyUserId: req.body.userId } : undefined));
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// dev trigger: the morning line, forced (hour gate skipped; same-day idempotency still holds)
+app.post('/dev/morning-line', async (req, res) => {
+  try {
+    const key = process.env.DEV_KEY;
+    if (!key) return res.status(404).json({ error: 'not found' });
+    if (req.headers['x-dev-key'] !== key) return res.status(401).json({ error: 'bad dev key' });
+    res.json(await runMorningLines(req.body?.userId ? { onlyUserId: req.body.userId, force: true } : { force: true }));
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
@@ -1261,8 +1273,9 @@ app.delete('/stylist/outfits/:id', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const { error } = await supabase.from('outfits').delete().eq('id', req.params.id).eq('user_id', user.id);
+    const { error, count } = await supabase.from('outfits').delete({ count: 'exact' }).eq('id', req.params.id).eq('user_id', user.id);
     if (error) return res.status(500).json({ error: error.message });
+    if (!count) return res.status(404).json({ error: 'not found' });   // [fixes-2 BUG-5] zero rows matched — say so, never { ok } on nothing
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
@@ -1450,8 +1463,9 @@ app.delete('/mm/analytics/:id', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const { error } = await supabase.from('mm_analytics').delete().eq('id', req.params.id).eq('user_id', user.id);
+    const { error, count } = await supabase.from('mm_analytics').delete({ count: 'exact' }).eq('id', req.params.id).eq('user_id', user.id);
     if (error) return res.status(500).json({ error: error.message });
+    if (!count) return res.status(404).json({ error: 'not found' });   // [fixes-2 BUG-5]
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
@@ -1690,7 +1704,7 @@ app.get('/me', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     const { data } = await supabase.from('users')
-      .select('display_name, handle, region, dob, sex, serious_mode, avatar_url')
+      .select('display_name, handle, region, dob, sex, serious_mode, avatar_url, morning_brief, morning_brief_hour')
       .eq('id', user.id).maybeSingle();
     res.json({
       displayName: data?.display_name ?? null,
@@ -1700,6 +1714,8 @@ app.get('/me', async (req, res) => {
       sex: (data as any)?.sex ?? null,
       avatarUrl: (data as any)?.avatar_url ?? null,
       seriousMode: !!(data as any)?.serious_mode,
+      morningBrief: !!(data as any)?.morning_brief,                     // [PHASE 6]
+      morningBriefHour: (data as any)?.morning_brief_hour ?? 8,        // [PHASE 6]
     });
   } catch (e: any) {
     res.status(500).json({ error: 'me fetch failed: ' + (e?.message || String(e)) });
@@ -1736,6 +1752,26 @@ app.post('/me', async (req, res) => {
 
 // ── DATA EXPORT (right to portability). Gathers everything we hold about the
 // user into one JSON blob the client can save/share. Read-only. ──
+// [PHASE 6 §2.2E] the morning line opt-in — a quiet toggle + hour (6–11 IST)
+app.patch('/me/morning-brief', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const patch: Record<string, unknown> = {};
+    if (typeof req.body?.on === 'boolean') patch.morning_brief = req.body.on;
+    if (req.body?.hour !== undefined) {
+      const h = Number(req.body.hour);
+      if (!Number.isInteger(h) || h < 6 || h > 11) return res.status(400).json({ error: 'hour must be 6–11' });
+      patch.morning_brief_hour = h;
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ error: 'need { on } and/or { hour }' });
+    const { error } = await supabase.from('users').update(patch).eq('id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, morningBrief: patch.morning_brief, morningBriefHour: patch.morning_brief_hour });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.post('/me/export', async (req, res) => {
   try {
     const authId = await authUser(req);

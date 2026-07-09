@@ -11,7 +11,7 @@ import { withGapMarker, sinceLine } from './timegap.js';
 import { logUsage } from './usage.js';
 import { supabase } from './db.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
-import { pinnedProvider, scrubProviderMarkup, makeStreamGate } from './llm.js';   // [zip54g] [zip54m]
+import { pinnedProvider, scrubProviderMarkup, makeStreamGate, makeTagGate } from './llm.js';   // [zip54g] [zip54m] [fixes-2 BUG-1]
 import { readMemoryBlock } from './memory.js';
 import { readRoomMemoryBlock } from './roomMemory.js';
 import { personaByKey, type CodexKey } from './personas.js';
@@ -378,7 +378,8 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const stream = anthropic.messages.stream(streamArgs);
     let __chars = 0;
     const __gate = makeStreamGate();   // [zip54m]
-    stream.on('text', (d) => { __chars += d.length; const g = __gate(d); if (g === null) return; input.onToken?.(key, key === 'the_media_manager' ? g.replace(/\u20B9\s*/g, 'Rs ') : g); });   // [zip54b] the Rs law rides the room stream
+    const __tags = makeTagGate();      // [fixes-2 BUG-1] the tag gate rides every room stream too
+    stream.on('text', (d) => { __chars += d.length; const g = __gate(d); if (g === null) return; const v = __tags.feed(g); if (!v) return; input.onToken?.(key, key === 'the_media_manager' ? v.replace(/\u20B9\s*/g, 'Rs ') : v); });   // [zip54b] the Rs law rides the room stream
     const final = await stream.finalMessage().catch((err: any) => {
       // DIAGNOSTIC: pinpoint the second premature-close. Which persona died, was
       // web_search on, and how far did it get (0 = died at prefill; >0 = mid-stream)?
@@ -387,6 +388,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       if (err?.cause) console.error('[groupLoop] cause=', err.cause);
       throw err;
     });
+    { const rest = __tags.flush(); if (rest) input.onToken?.(key, key === 'the_media_manager' ? rest.replace(/\u20B9\s*/g, 'Rs ') : rest); }   // [fixes-2 BUG-1]
     let reply = scrubProviderMarkup(final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim());   // [zip54g]
     if (key === 'the_media_manager') reply = reply.replace(/\u20B9\s*/g, 'Rs ');   // [zip54b] the Rs law in rooms
     logUsage({ userId, threadId, personaKey: key, surface: 'group', fn: 'group_turn', model: MODEL, usage: (final as any).usage });

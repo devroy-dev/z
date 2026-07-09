@@ -180,6 +180,150 @@ export function makeStreamGate(): (d: string) => string | null {
   };
 }
 
+// [fixes-2 BUG-1] THE TAG GATE — machine tags ([[TASK: …]], [[IDEA: …]], [[TRIP: …]],
+// [[OUTFIT: …]] and every future [[NAME: …]]) are stripped BEFORE PERSIST but were
+// forwarded RAW by the live stream: three [[TASK]] lines painted as a chat bubble on
+// device. This gate rides the stream seam (loop.ts / groupLoop.ts onToken), so every
+// client is covered at once. It:
+//   • swallows [[NAME: …]] spans wherever they occur — mid-line prose around a tag
+//     survives (the regression contract), multi-line tag bodies are held to their ]],
+//   • swallows bare separator lines (---) adjacent to swallowed tags,
+//   • collapses the blank runs a swallow leaves behind (never more than one blank line),
+//   • FAILS OPEN: an unclosed [[ that outgrows the cap flushes as text — worse to eat
+//     prose than to hide it; the persisted reply is the clean truth either way.
+// Prose containing a lone "[" mid-sentence streams untouched.
+const TAG_HOLD_CAP = 800;
+export function makeTagGate(): { feed: (d: string) => string; flush: () => string } {
+  let carry = '';           // incomplete tail: a partial line / partial tag candidate
+  let tagBuf = '';          // held text of a confirmed, still-open [[NAME: … tag
+  let inTag = false;
+  let sepPending = '';      // a complete separator line, waiting to learn its neighbour
+  let sepPreNl = 0;         // newlines that preceded the held separator
+  let pendingNl = 0;        // newlines owed before the next visible chars (capped at 2)
+  let justSwallowed = false;// a tag was swallowed and no visible line has followed yet
+  let startedLine = false;  // visible chars have been emitted on the current line
+
+  const isSep = (line: string) => /^\s*-{3,}\s*$/.test(line);
+  const isBlank = (line: string) => /^\s*$/.test(line);
+  // still a plausible tag opening? '[', '[[', '[[TAS', '[[TASK' (no ':' yet)
+  const isTagPrefix = (s: string) => /^\[{1,2}$/.test(s) || /^\[\[[A-Z_]*$/.test(s);
+
+  const out: string[] = [];
+  let everVisible = false;  // nothing painted yet — leading newline debt is dropped
+  const emitVisible = (s: string) => {
+    if (!s) return;
+    if (sepPending) {   // a new visible line arrived — the held separator was real
+      out.push((everVisible ? '\n'.repeat(Math.min(2, sepPreNl)) : '') + sepPending);
+      sepPending = ''; everVisible = true; pendingNl = Math.max(pendingNl, 1);
+    }
+    if (everVisible) out.push('\n'.repeat(Math.min(2, pendingNl)));
+    pendingNl = 0; justSwallowed = false; startedLine = true; everVisible = true;
+    out.push(s);
+  };
+  const endLine = () => { pendingNl = Math.min(2, pendingNl + 1); startedLine = false; };
+
+  // consume one COMPLETE line's content (no newline). Returns nothing; emits/holds.
+  const takeLine = (line: string) => {
+    if (isBlank(line) && !startedLine) { if (justSwallowed) return; endLine(); return; }   // blank: a newline owed — unless a swallow just ate the line it belonged to
+    if (isSep(line) && !startedLine) {
+      if (justSwallowed) { justSwallowed = true; return; }      // post-tag separator: gone (its newline too)
+      sepPending = line; sepPreNl = pendingNl; pendingNl = 0; endLine(); return;
+    }
+    // visible content line — scan it for tag spans
+    const wasVisible = startedLine;
+    scanInline(line);
+    // a line the scan fully swallowed (or is still holding) owes no newline — it never existed
+    if (!startedLine && !wasVisible && (justSwallowed || inTag)) return;
+    endLine();
+  };
+
+  // scan a run of visible chars (within one line, or the incomplete tail) for [[NAME: …]]
+  const scanInline = (s: string) => {
+    let rest = s;
+    while (rest.length) {
+      const i = rest.indexOf('[[');
+      if (i === -1) { emitVisible(rest); return; }
+      const before = rest.slice(0, i);
+      const after = rest.slice(i);
+      const m = /^\[\[([A-Z_]+):/.exec(after);
+      if (!m) {
+        // '[[' not opening a machine tag ('[[link', '[[ x') — it's prose
+        emitVisible(before + '[[');
+        rest = after.slice(2);
+        continue;
+      }
+      // confirmed tag opening — swallow to ]] if it closes in this run
+      const close = after.indexOf(']]');
+      if (before) emitVisible(before);
+      if (close !== -1) {
+        if (sepPending) { sepPending = ''; pendingNl = Math.min(2, Math.max(pendingNl, sepPreNl)); }  // pre-tag separator: gone
+        justSwallowed = true;
+        rest = after.slice(close + 2);
+        continue;
+      }
+      // tag stays open past this run — hold it
+      if (sepPending) { sepPending = ''; pendingNl = Math.min(2, Math.max(pendingNl, sepPreNl)); }
+      inTag = true; tagBuf = after;
+      return;
+    }
+  };
+
+  const feed = (d: string): string => {
+    out.length = 0;
+    let text = d;
+    if (inTag) {
+      tagBuf += text;
+      const close = tagBuf.indexOf(']]');
+      if (close === -1) {
+        if (tagBuf.length > TAG_HOLD_CAP) { const spill = tagBuf; inTag = false; tagBuf = ''; text = spill; }  // fail open
+        else return '';
+      } else {
+        inTag = false; justSwallowed = true;
+        text = tagBuf.slice(close + 2); tagBuf = '';
+      }
+    } else {
+      text = carry + text; carry = '';
+    }
+    // complete lines process through the line machinery; the tail is held or scanned
+    let nl: number;
+    while ((nl = text.indexOf('\n')) !== -1) {
+      takeLine(text.slice(0, nl));
+      text = text.slice(nl + 1);
+      if (inTag) { tagBuf += text; text = ''; const c = tagBuf.indexOf(']]');   // a mid-line hold re-opened
+        if (c !== -1) { inTag = false; justSwallowed = true; text = tagBuf.slice(c + 2); tagBuf = ''; } else break; }
+    }
+    if (!inTag && text) {
+      // a tail that could still become a separator line ('-', '--', ' ---') is held
+      // until its newline decides it — never leak a would-be separator char by char.
+      if (!startedLine && /^\s*-*\s*$/.test(text) && text.length <= 40) { carry = text; return out.join(''); }
+      // the incomplete tail: hold only what could still become a tag
+      const b = text.lastIndexOf('[[');
+      const headable = b === -1 ? -1 : b;
+      if (headable !== -1 && (isTagPrefix(text.slice(headable)) || /^\[\[[A-Z_]+:(?![\s\S]*\]\])/.test(text.slice(headable)))) {
+        scanInline(text.slice(0, headable));
+        carry = text.slice(headable);
+      } else if (/\[{1,2}$/.test(text) && isTagPrefix(text.slice(text.lastIndexOf('[')))) {
+        const j = text.lastIndexOf('[');
+        scanInline(text.slice(0, j)); carry = text.slice(j);
+      } else {
+        scanInline(text);
+      }
+    }
+    return out.join('');
+  };
+
+  const flush = (): string => {
+    out.length = 0;
+    if (inTag) { inTag = false; tagBuf = ''; }                 // stream died mid-tag: never paint half a tag
+    else if (carry && !isTagPrefix(carry) && !/^\[\[[A-Z_]+:/.test(carry)) scanInline(carry);
+    carry = '';
+    if (sepPending && !justSwallowed) { out.push('\n'.repeat(Math.min(2, sepPreNl)) + sepPending); sepPending = ''; }
+    return out.join('');
+  };
+
+  return { feed, flush };
+}
+
 export function scrubProviderMarkup(s: string): string {
   const i = s.indexOf('\uFF5C');
   if (i === -1) return s;
