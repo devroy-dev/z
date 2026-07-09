@@ -81,7 +81,7 @@ export async function assembleDeskRooms(userId: string): Promise<DeskRooms> {
   // ── the stylist: open gaps + the week's wear ──────────────────────────────
   try {
     const { count: gaps } = await supabase.from('wardrobe_gaps')
-      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'open');
+      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'open').is('trip_id', null);   // one truth with the brief: trip-pinned gaps live on their trips
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
     const { count: worn } = await supabase.from('wardrobe_pieces')
       .select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('last_worn', weekAgo);
