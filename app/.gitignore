@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# zip delivery scaffolding — never commit
+patch.py
+APPLY_*.md
+zip*_*.patch
+zip*.zip
