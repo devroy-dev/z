@@ -9,10 +9,13 @@
 //  plans and points; bookable finds land as cards in her thread.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getTrips, deleteTrip, buildTrip, buildPacklist } from './api';
 import { FONTS } from './theme';
+
+// [fixes-A X2] a failed fetch is not an empty desk — the sentinel lets her say so.
+const ERR = '__err';
 
 const AMBER = '#D29650';
 const SAND = '#E7C9A3';
@@ -24,6 +27,15 @@ const S = {
   mist: 'rgba(244,238,230,0.55)',
   faint: 'rgba(244,238,230,0.30)',
 };
+
+// [fixes-A X2] failure, said quietly and in her voice — tap or pull to try again.
+function QuietError({ line, onRetry }) {
+  return (
+    <Pressable onPress={onRetry} style={st.quietErr} hitSlop={6}>
+      <Text style={st.quietErrTxt}>{line}</Text>
+    </Pressable>
+  );
+}
 
 // module scope — the keyboard lesson holds (zip54f)
 function StatusChip({ status }) {
@@ -74,15 +86,26 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
 
       {expanded ? (
         <View style={st.detail}>
+          {/* [fixes-A X3·T2] the collapsed card clips dates·travelers to one line; here they read in full */}
+          {(trip.dates || trip.travelers) ? (
+            <View style={st.fullMeta}>
+              {trip.dates ? <Text style={st.fullMetaLine}>{trip.dates}</Text> : null}
+              {trip.travelers ? <Text style={st.fullMetaLine}>{trip.travelers}</Text> : null}
+            </View>
+          ) : null}
           {planning ? (
             <View style={st.buildingRow}>
               <ActivityIndicator color={AMBER} />
               <Text style={st.buildingTxt}>she's building your plan — about 20 seconds. leave this open.</Text>
             </View>
           ) : !planned ? (
-            <Pressable onPress={() => onBuild(trip)} style={st.buildBtn}>
-              <Text style={st.buildTxt}>build the plan →</Text>
-            </Pressable>
+            <View>
+              {/* [fixes-A X3·T1] the dreaming card clips her notes to 2 lines; expanded shows them whole */}
+              {trip.notes ? <Text style={st.fullNotes}>{trip.notes}</Text> : null}
+              <Pressable onPress={() => onBuild(trip)} style={st.buildBtn}>
+                <Text style={st.buildTxt}>build the plan →</Text>
+              </Pressable>
+            </View>
           ) : (
             <View>
               {live && todayTitle ? (
@@ -155,11 +178,11 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
   const [buildingId, setBuildingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [packingId, setPackingId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);   // [fixes-A X1] pull-to-refresh
 
-  const load = useCallback(() => {
-    getTrips().then((r) => setTrips(r?.trips || [])).catch(() => setTrips([]));
-  }, []);
+  const load = useCallback(() => getTrips().then((r) => setTrips(r?.trips || [])).catch(() => setTrips(ERR)), []);
   useEffect(() => { load(); }, [load]);
+  const onRefresh = useCallback(() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }, [load]);
 
   const removeTrip = async (id) => {
     setTrips((cur) => (cur || []).filter((t) => t.id !== id));
@@ -227,12 +250,15 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={AMBER} />}>
         <Image source={{ uri: 'https://callmez.app/rooms/travel-desk.jpg?v=1' }} style={{ width: '100%', height: 150, borderRadius: 14, marginBottom: 6 }} resizeMode="cover" />{/* [zip77] the desk */}
 
         {/* THE TRIPS */}
         {trips === null ? (
           <ActivityIndicator color={AMBER} style={{ marginVertical: 30 }} />
+        ) : trips === ERR ? (
+          <QuietError line={'the desk didn\u2019t answer \u2014 pull to refresh'} onRetry={onRefresh} />
         ) : trips.length === 0 ? (
           <Text style={st.empty}>no trips yet. tell her where you're headed — or that you don't know yet. she'll take it from there.</Text>
         ) : (
@@ -295,6 +321,11 @@ const st = StyleSheet.create({
   chip_live: { color: '#08120A', backgroundColor: '#7BD88F' },
   chip_done: { color: S.faint, backgroundColor: 'rgba(244,238,230,0.06)' },
   detail: { borderTopWidth: 1, borderTopColor: S.hair, paddingHorizontal: 15, paddingVertical: 12, gap: 10 },
+  fullMeta: { gap: 2 },
+  fullMetaLine: { color: SAND, fontFamily: FONTS.light, fontSize: 12.5, lineHeight: 18 },
+  fullNotes: { color: S.mist, fontFamily: FONTS.light, fontSize: 13, lineHeight: 19, marginBottom: 4 },
+  quietErr: { marginVertical: 20 },
+  quietErrTxt: { color: S.mist, fontSize: 13, fontFamily: FONTS.light, lineHeight: 19 },
   buildBtn: { borderWidth: 1.5, borderColor: AMBER, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   buildTxt: { color: AMBER, fontFamily: FONTS.semi, fontSize: 13.5 },
   buildingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },

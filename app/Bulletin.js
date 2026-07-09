@@ -5,8 +5,9 @@
 //  to ask what it actually means.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, ActivityIndicator, Linking } from 'react-native';   // [zip67]
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, ActivityIndicator, Linking, RefreshControl } from 'react-native';   // [zip67]
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';   // [fixes-A X4] the verdict is extractable
 import { LinearGradient } from 'expo-linear-gradient';
 import Grain from './Grain';
 import { C, FONTS } from './theme';
@@ -33,9 +34,17 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
   const [factChecking, setFactChecking] = useState(false);
   const [factHistory, setFactHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  // [fixes-A] pull-to-refresh · failed-load & failed-check visible · verdict expand/copy
+  const [refreshing, setRefreshing] = useState(false);
+  const [feedErr, setFeedErr] = useState(false);
+  const [factErr, setFactErr] = useState('');
+  const [expandedVerdicts, setExpandedVerdicts] = useState(() => new Set());
+  const [copiedId, setCopiedId] = useState(null);
 
   const load = async () => {
-    const f = await getBulletinFeed(); setFeed(f || { local: [], national: [], city: null });
+    // [fixes-A X2] a failed feed fetch must not read as an eternal "the anchor is at the desk…"
+    try { const f = await getBulletinFeed(); setFeed(f || { local: [], national: [], city: null }); setFeedErr(false); }
+    catch (e) { setFeedErr(true); }
     try { const w = await getWireFeed(null, true); if (w?.items?.length) setWireItems(w.items); } catch (e) {}   // [zip67] refresh ALWAYS moves the wire
     loadDesk();
   };
@@ -43,6 +52,19 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
     try { const [fl, dk, fc] = await Promise.all([getNewsFollows(), getYourDesk(), getFactChecks()]); setFollows(fl); setDeskItems(dk); setFactHistory(fc); } catch (e) {}
   };
   useEffect(() => { load(); }, []);
+  // [fixes-A X1] pull-to-refresh — load() never nulls feed, so the screen won't blank
+  const onRefresh = async () => { setRefreshing(true); try { await load(); } finally { setRefreshing(false); } };
+  // [fixes-A N1] a compact history verdict expands in place to the full card
+  const toggleVerdict = (id) => setExpandedVerdicts((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  // [fixes-A X4] copy the verdict — claim + call + one source: the WhatsApp reply-back
+  const copyVerdict = async (c) => {
+    try {
+      const src = (Array.isArray(c.sources) && c.sources[0]) ? (c.sources[0].url || c.sources[0].title || '') : '';
+      const txt = `${String(c.verdict || 'unverifiable').toUpperCase()}: ${c.claim}${src ? '\n' + src : ''}`;
+      await Clipboard.setStringAsync(txt);
+      const vid = c.id || c.claim; setCopiedId(vid); setTimeout(() => setCopiedId(null), 1600);
+    } catch (e) {}
+  };
 
   const addFollowH = async () => {
     const t = followDraft.trim();
@@ -60,8 +82,10 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
   const runFactCheck = async () => {
     const c = factClaim.trim();
     if (c.length < 6 || factChecking) return;
-    setFactChecking(true); setFactResult(null);
-    try { const r = await factCheckClaim(c); setFactResult(r); setFactClaim(''); loadDesk(); } catch (e) {} finally { setFactChecking(false); }
+    setFactChecking(true); setFactResult(null); setFactErr('');
+    try { const r = await factCheckClaim(c); setFactResult(r); setFactClaim(''); loadDesk(); }
+    catch (e) { setFactErr('the check didn\u2019t go through \u2014 try again'); }
+    finally { setFactChecking(false); }
   };
 
   const saveCity = async () => {
@@ -93,17 +117,25 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
   };
   const VerdictCard = ({ c, compact }) => {
     const tone = VERDICT_TONE[c.verdict] || '#9FB4C0';
+    const vid = c.id || c.claim;
+    const full = !compact || expandedVerdicts.has(vid);   // [fixes-A N1] compact expands on tap
+    const copied = copiedId === vid;
     return (
       <View style={[st.verdict, { borderColor: tone + '55' }, compact && { marginTop: 8, padding: 11 }]}>
         <Text style={[st.verdictBadge, { color: tone }]}>{String(c.verdict || 'unverifiable').toUpperCase()}</Text>
-        <Text style={st.verdictClaim} numberOfLines={compact ? 2 : undefined}>{c.claim}</Text>
-        {!compact ? <Text style={st.verdictReason}>{c.reasoning}</Text> : null}
-        {!compact && Array.isArray(c.sources) && c.sources.length ? (
+        <Text style={st.verdictClaim} numberOfLines={full ? undefined : 2}>{c.claim}</Text>
+        {full ? <Text style={st.verdictReason}>{c.reasoning}</Text> : null}
+        {full && Array.isArray(c.sources) && c.sources.length ? (
           <View style={{ marginTop: 7, gap: 3 }}>
             {c.sources.slice(0, 4).map((s, i) => (
               <Pressable key={i} onPress={() => Linking.openURL(s.url).catch(() => {})}><Text style={st.verdictSrc} numberOfLines={1}>› {s.title || s.url}</Text></Pressable>
             ))}
           </View>
+        ) : null}
+        {full ? (
+          <Pressable onPress={() => copyVerdict(c)} hitSlop={6} style={st.verdictCopy}>
+            <Text style={st.verdictCopyTxt}>{copied ? 'copied \u2713' : 'copy the verdict'}</Text>
+          </Pressable>
         ) : null}
       </View>
     );
@@ -131,9 +163,17 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
 
         {wire ? <Text style={{ color: '#C9A86A', fontSize: 11.5, textAlign: 'center', paddingBottom: 6, fontStyle: 'italic' }}>{wire}</Text> : null}
         {!feed ? (
-          <View style={st.center}><ActivityIndicator color={GOLD} /><Text style={st.loading}>the anchor is at the desk…</Text></View>
+          feedErr ? (
+            <View style={st.center}>
+              <Pressable onPress={load} hitSlop={8}><Text style={st.loading}>{'the wire didn\u2019t come through \u2014 tap to try again'}</Text></Pressable>
+            </View>
+          ) : (
+            <View style={st.center}><ActivityIndicator color={GOLD} /><Text style={st.loading}>the anchor is at the desk…</Text></View>
+          )
         ) : (
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 30 }} showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GOLD} />}>
             <Image source={{ uri: `${API_BASE}/faces/the_newsroom.jpg?v=4` }} style={{ width: '100%', height: 140, borderRadius: 14, marginBottom: 12 }} resizeMode="cover" />{/* [zip54n] the studio crowns the desk */}
             {wireItems.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 10 }}>{/* [zip67] the wire shelf */}
@@ -220,11 +260,14 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
                   {factChecking ? <ActivityIndicator color={GOLD} size="small" /> : <Text style={st.factBtnTxt}>check ›</Text>}
                 </Pressable>
               </View>
+              {factErr ? <Text style={st.factErr}>{factErr}</Text> : null}
               {factResult ? <VerdictCard c={factResult} /> : null}
               {factHistory.length ? (
                 <View>
                   <Pressable onPress={() => setShowHistory((v) => !v)}><Text style={st.histToggle}>{showHistory ? 'hide' : 'past checks'} ({factHistory.length})</Text></Pressable>
-                  {showHistory ? factHistory.map((c) => <VerdictCard key={c.id} c={c} compact />) : null}
+                  {showHistory ? factHistory.map((c) => (
+                    <Pressable key={c.id} onPress={() => toggleVerdict(c.id || c.claim)}><VerdictCard c={c} compact /></Pressable>
+                  )) : null}
                 </View>
               ) : null}
             </View>
@@ -312,6 +355,9 @@ const st = StyleSheet.create({
   verdictClaim: { fontFamily: FONTS.body, color: C.cream, fontSize: 13, lineHeight: 18, marginTop: 6, fontStyle: 'italic' },
   verdictReason: { fontFamily: FONTS.body, color: 'rgba(231,215,199,0.8)', fontSize: 13, lineHeight: 19, marginTop: 8 },
   verdictSrc: { fontFamily: FONTS.body, color: GOLD, fontSize: 11.5, opacity: 0.85 },
+  verdictCopy: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(127,214,236,0.35)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  verdictCopyTxt: { fontFamily: FONTS.body, color: GOLD, fontSize: 11.5 },
+  factErr: { fontFamily: FONTS.displayItalic, color: C.muted, fontSize: 12.5, marginTop: 10 },
   histToggle: { fontFamily: FONTS.medium, color: GOLD, fontSize: 12, marginTop: 12, opacity: 0.85 },
   storyFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 9 },
   trackBtn: { fontFamily: FONTS.medium, color: '#C9A86A', fontSize: 11.5, opacity: 0.8 },

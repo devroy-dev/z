@@ -10,11 +10,14 @@
 //  Verdicts on a fit stay in her thread, where photos already flow.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, Linking, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { getWardrobe, addWardrobePiece, deleteWardrobePiece, getStylistOutfits, getStylistGaps, runStylistGaps, setStylistGapStatus, markPieceWorn } from './api';
 import { FONTS } from './theme';
+
+// [fixes-A X2] a failed load is not an empty closet — say so, once, in her voice.
+const ERR = '__err';
 
 const BLUSH = '#E8A9B0';
 const CHAMPAGNE = '#E7C9A3';
@@ -60,28 +63,49 @@ function OutfitCard({ outfit, onOpen }) {
     </Pressable>
   );
 }
+// [fixes-A X3·S2/S3] her reasoning was clipped to 2 lines and the shop options
+// silently sliced to 3 — both had nowhere to go. Now the row expands on tap:
+// the full why, and every card she found.
 function GapRow({ gap, onBought, onOpenCard }) {
   const bought = gap.status === 'bought';
+  const [expanded, setExpanded] = useState(false);
+  const cards = Array.isArray(gap.shop_cards) ? gap.shop_cards : [];
+  const shown = expanded ? cards : cards.slice(0, 3);
+  const moreCount = cards.length - shown.length;
   return (
     <View style={[st.gapRow, bought && { opacity: 0.55 }]}>
-      <View style={{ flex: 1 }}>
+      <Pressable style={{ flex: 1 }} onPress={() => setExpanded((v) => !v)}>
         <Text style={[st.gapWhat, bought && { textDecorationLine: 'line-through' }]}>{gap.what}</Text>
-        {gap.why ? <Text style={st.gapWhy} numberOfLines={2}>{gap.why}</Text> : null}
-        {Array.isArray(gap.shop_cards) && gap.shop_cards.length ? (
+        {gap.why ? <Text style={st.gapWhy} numberOfLines={expanded ? undefined : 2}>{gap.why}</Text> : null}
+        {cards.length ? (
           <View style={st.gapCards}>
-            {gap.shop_cards.slice(0, 3).map((c, i) => (
+            {shown.map((c, i) => (
               <Pressable key={i} onPress={() => onOpenCard(c.url)} style={st.gapCard}>
                 <Text style={st.gapCardName} numberOfLines={1}>{c.name}</Text>
                 {c.price ? <Text style={st.gapCardPrice}>{c.price}</Text> : null}
               </Pressable>
             ))}
+            {!expanded && moreCount > 0 ? (
+              <Pressable onPress={() => setExpanded(true)} style={st.gapCard}>
+                <Text style={st.gapCardMore}>+{moreCount} more</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
-      </View>
+      </Pressable>
       <Pressable onPress={() => onBought(gap)} hitSlop={8} style={st.gapTick}>
         <Text style={[st.gapTickTxt, bought && { color: CHAMPAGNE }]}>{bought ? '✓' : 'got it'}</Text>
       </Pressable>
     </View>
+  );
+}
+
+// [fixes-A X2] failure, said quietly and in her voice — tap or pull to try again.
+function QuietError({ line, onRetry }) {
+  return (
+    <Pressable onPress={onRetry} style={st.quietErr} hitSlop={6}>
+      <Text style={st.quietErrTxt}>{line}</Text>
+    </Pressable>
   );
 }
 
@@ -92,13 +116,16 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
   const [outfits, setOutfits] = useState([]);
   const [gaps, setGaps] = useState(null);       // null=not run | []
   const [runningGaps, setRunningGaps] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);      // [fixes-A X1] pull-to-refresh
+  const [sheetOutfit, setSheetOutfit] = useState(null);     // [fixes-A X3·S1] the look, in full
 
-  const load = useCallback(() => {
-    getWardrobe().then((r) => setPieces(r?.pieces || [])).catch(() => setPieces([]));
-    getStylistOutfits().then(setOutfits).catch(() => {});
-    getStylistGaps().then((g) => setGaps(g && g.length ? g : null)).catch(() => {});
-  }, []);
+  const load = useCallback(() => Promise.all([
+    getWardrobe().then((r) => setPieces(r?.pieces || [])).catch(() => setPieces(ERR)),
+    getStylistOutfits().then((r) => setOutfits(Array.isArray(r) ? r : [])).catch(() => {}),
+    getStylistGaps().then((g) => setGaps(g && g.length ? g : null)).catch(() => {}),
+  ]), []);
   useEffect(() => { load(); }, [load]);
+  const onRefresh = useCallback(() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }, [load]);
 
   // [0054] wear tracking — one tap, optimistic
   const wore = async (piece) => {
@@ -166,11 +193,14 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUSH} />}>
         <Image source={{ uri: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1' }} style={{ width: '100%', height: 150, borderRadius: 14, marginBottom: 6 }} resizeMode="cover" />{/* [zip54l] her atelier */}
         {/* THE WARDROBE */}
         {pieces === null ? (
           <ActivityIndicator color={BLUSH} style={{ marginVertical: 30 }} />
+        ) : pieces === ERR ? (
+          <QuietError line={'the fitting room\u2019s quiet \u2014 pull to refresh'} onRetry={onRefresh} />
         ) : pieces.length === 0 ? (
           <Text style={st.empty}>nothing filed yet. add the first piece — a photo is enough, she does the rest.</Text>
         ) : (
@@ -188,7 +218,7 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
           <View>
             <Text style={st.section}>your looks</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-              {outfits.map((o) => <OutfitCard key={o.id} outfit={o} onOpen={onChat} />)}
+              {outfits.map((o) => <OutfitCard key={o.id} outfit={o} onOpen={() => setSheetOutfit(o)} />)}
             </ScrollView>
           </View>
         ) : null}
@@ -241,6 +271,33 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
           <Text style={st.gapSub}>open her thread, send the photo — she'll tell you the truth</Text>
         </Pressable>
       </ScrollView>
+
+      {/* [fixes-A X3·S1] the look, in full: every piece, her whole read — the card
+          tap used to jump straight to chat and clip her_read to 2 lines. */}
+      <Modal visible={!!sheetOutfit} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setSheetOutfit(null)}>
+        <Pressable style={st.sheetVeil} onPress={() => setSheetOutfit(null)}>
+          <Pressable style={st.sheet} onPress={() => {}}>
+            {sheetOutfit ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={st.sheetName}>{sheetOutfit.name}</Text>
+                {sheetOutfit.occasion ? <Text style={st.sheetOcc}>{sheetOutfit.occasion}</Text> : null}
+                {(sheetOutfit.pieces || []).length ? (
+                  <View style={st.sheetThumbs}>
+                    {(sheetOutfit.pieces || []).map((p, i) => (
+                      p.url ? <Image key={i} source={{ uri: p.url }} style={st.sheetThumb} resizeMode="cover" />
+                            : <View key={i} style={[st.sheetThumb, st.tileGhost]} />
+                    ))}
+                  </View>
+                ) : null}
+                {sheetOutfit.her_read ? <Text style={st.sheetRead}>{sheetOutfit.her_read}</Text> : null}
+                <Pressable onPress={() => { setSheetOutfit(null); onChat(); }} style={st.sheetTalk}>
+                  <Text style={st.sheetTalkTxt}>talk about this look →</Text>
+                </Pressable>
+              </ScrollView>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -292,6 +349,18 @@ const st = StyleSheet.create({
   gapCard: { borderWidth: 1, borderColor: S.hair, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: S.ground },
   gapCardName: { color: CHAMPAGNE, fontFamily: FONTS.semi, fontSize: 11, maxWidth: 120 },
   gapCardPrice: { color: S.mist, fontFamily: FONTS.light, fontSize: 10, marginTop: 1 },
+  gapCardMore: { color: S.mist, fontFamily: FONTS.semi, fontSize: 11 },
+  quietErr: { marginVertical: 24 },
+  quietErrTxt: { color: S.mist, fontSize: 13, fontFamily: FONTS.light, lineHeight: 19 },
+  sheetVeil: { flex: 1, backgroundColor: 'rgba(6,3,4,0.72)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#160E10', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderColor: S.hair, padding: 20, maxHeight: '82%' },
+  sheetName: { color: S.ink, fontFamily: FONTS.semi, fontSize: 18, letterSpacing: 0.2 },
+  sheetOcc: { color: CHAMPAGNE, fontFamily: FONTS.light, fontSize: 13, marginTop: 3 },
+  sheetThumbs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  sheetThumb: { width: 64, height: 84, borderRadius: 8, backgroundColor: S.hair },
+  sheetRead: { color: S.mist, fontFamily: FONTS.light, fontSize: 14, lineHeight: 21, marginTop: 16 },
+  sheetTalk: { marginTop: 20, borderWidth: 1.5, borderColor: BLUSH, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  sheetTalkTxt: { color: BLUSH, fontFamily: FONTS.semi, fontSize: 13.5 },
   gapTick: { paddingHorizontal: 6, paddingVertical: 4 },
   gapTickTxt: { color: BLUSH, fontFamily: FONTS.semi, fontSize: 12 },
   tripGapCard: { borderWidth: 1, borderColor: 'rgba(210,150,80,0.30)', borderRadius: 12, padding: 10, backgroundColor: 'rgba(210,150,80,0.05)' },

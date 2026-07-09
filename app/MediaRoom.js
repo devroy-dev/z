@@ -10,12 +10,17 @@
 //  present, no longer the point) · his desk, one door away.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';   // [fixes-A X4] the deliverable is extractable
 import { getMmBrief, saveMmBrief, getMmAnalytics, uploadMmAnalytics, getMmDeskNotes,
   getMmTasks, toggleMmTask, getMmIdeas, draftMmIdea, markMmIdeaPosted, addMmAnalyticsManual, getMmRateCard } from './api';
 import { FONTS } from './theme';
+
+// [fixes-A X2] a fetch that FAILED is not a fetch that's EMPTY — this sentinel
+// lets the render tell the two apart and speak one quiet line in his voice.
+const ERR = '__err';
 
 const FLUORO = '#A9DDF2';   // [zip54n] the fluoro is retired — the accent is the ice of his own neon sign
 const M = {
@@ -37,6 +42,16 @@ const GOALS = [
   { id: 'growth', label: 'growth' },
   { id: 'authority', label: 'authority' },
 ];
+
+// [fixes-A X2] failure becomes a visible, muted, in-voice line — never a red
+// banner, never an alert. Tapping it (or pulling to refresh) tries again.
+function QuietError({ line, onRetry }) {
+  return (
+    <Pressable onPress={onRetry} style={st.quietErr} hitSlop={6}>
+      <Text style={st.quietErrTxt}>{line}</Text>
+    </Pressable>
+  );
+}
 
 // module scope — the keyboard law (zip54f) holds
 function Field({ label, value, onChange, placeholder, multiline }) {
@@ -96,6 +111,11 @@ function TaskRow({ task, onToggle }) {
 }
 // [0056] a filed idea moving down the pipeline: idea → drafted → posted.
 function IdeaCard({ idea, onDraft, onPosted, busy }) {
+  const [copied, setCopied] = useState(false);
+  // [fixes-A X4] copy the caption he wrote — the whole point is to paste it where you post
+  const copy = async () => {
+    try { await Clipboard.setStringAsync(String(idea.draft || '')); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch (e) {}
+  };
   return (
     <View style={st.ideaCard}>
       <View style={st.ideaHead}>
@@ -111,6 +131,11 @@ function IdeaCard({ idea, onDraft, onPosted, busy }) {
       {idea.status === 'drafted' ? (
         <View>
           {idea.draft ? <Text style={st.ideaDraft}>{idea.draft}</Text> : null}
+          {idea.draft ? (
+            <Pressable onPress={copy} style={st.ideaCopyBtn} hitSlop={6}>
+              <Text style={st.ideaCopyTxt}>{copied ? 'copied \u2713' : 'copy \u2702'}</Text>
+            </Pressable>
+          ) : null}
           <Pressable onPress={() => onPosted(idea)} style={st.ideaGhostBtn} hitSlop={6}>
             <Text style={st.ideaGhostTxt}>mark posted ✓</Text>
           </Pressable>
@@ -133,21 +158,25 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
   const [tasks, setTasks] = useState(null);
   const [ideas, setIdeas] = useState(null);
   const [draftingId, setDraftingId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);   // [fixes-A X1] pull-to-refresh
   // [§5.4] manual numbers + the deal desk
   const [rate, setRate] = useState({ cards: [], pitch: '' });
   const [manualOpen, setManualOpen] = useState(false);
   const [mForm, setMForm] = useState({ platform: '', followers: '', reach: '', period: '' });
   const [savingManual, setSavingManual] = useState(false);
 
-  const load = useCallback(() => {
-    getMmDeskNotes().then((r) => setNotes(r?.notes || [])).catch(() => setNotes([]));
-    getMmAnalytics().then((r) => setTimeline(r?.timeline || [])).catch(() => setTimeline([]));
-    getMmBrief().then((r) => { if (r?.brief) setBrief(r.brief); }).catch(() => {});
-    getMmTasks().then((r) => setTasks(r?.tasks || [])).catch(() => setTasks([]));
-    getMmIdeas().then((r) => setIdeas(r?.ideas || [])).catch(() => setIdeas([]));
-    getMmRateCard().then(setRate).catch(() => {});
-  }, []);
+  // [fixes-A X1/X2] load returns a promise so pull-to-refresh can await it;
+  // the sections that carry his written work fall to ERR (not []) on failure.
+  const load = useCallback(() => Promise.all([
+    getMmDeskNotes().then((r) => setNotes(r?.notes || [])).catch(() => setNotes(ERR)),
+    getMmAnalytics().then((r) => setTimeline(r?.timeline || [])).catch(() => setTimeline(ERR)),
+    getMmBrief().then((r) => { if (r?.brief) setBrief(r.brief); }).catch(() => {}),
+    getMmTasks().then((r) => setTasks(r?.tasks || [])).catch(() => setTasks([])),
+    getMmIdeas().then((r) => setIdeas(r?.ideas || [])).catch(() => setIdeas(ERR)),
+    getMmRateCard().then(setRate).catch(() => {}),
+  ]), []);
   useEffect(() => { load(); }, [load]);
+  const onRefresh = useCallback(() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }, [load]);
 
   const saveManual = async () => {
     if (savingManual) return;
@@ -202,7 +231,7 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
     } finally { setFiling(false); }
   };
 
-  const latest = notes && notes[0];
+  const latest = Array.isArray(notes) && notes[0];
 
   return (
     <SafeAreaView style={st.safe} edges={['top']}>
@@ -215,13 +244,16 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingBottom: 40 }} keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={FLUORO} />}>
         <Image source={{ uri: 'https://callmez.app/rooms/media-hub.jpg?v=1' }} style={st.hero} resizeMode="cover" />
 
         {/* THE DESK NOTE */}
         <Text style={st.section}>the desk note</Text>
         {notes === null ? (
           <ActivityIndicator color={FLUORO} style={{ marginVertical: 16 }} />
+        ) : notes === ERR ? (
+          <QuietError line={'couldn\u2019t reach the desk \u2014 pull to refresh'} onRetry={onRefresh} />
         ) : latest ? (
           <View style={st.noteCard}>
             <Text style={st.noteDate}>{new Date(latest.created_at).toDateString().toLowerCase()}</Text>
@@ -234,7 +266,9 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
 
         {/* THE NUMBERS */}
         <Text style={st.section}>the numbers</Text>
-        {timeline === null ? null : timeline.length === 0 ? (
+        {timeline === null ? null : timeline === ERR ? (
+          <QuietError line={'couldn\u2019t reach the desk \u2014 pull to refresh'} onRetry={onRefresh} />
+        ) : timeline.length === 0 ? (
           <Text style={st.empty}>nothing filed yet. one screenshot of your insights and he carries your trajectory for good.</Text>
         ) : (
           timeline.slice(0, 6).map((r) => <NumberRow key={r.id} r={r} />)
@@ -282,7 +316,9 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
 
         {/* THE PIPELINE — ideas he shapes in talk, filed and moved */}
         <Text style={st.section}>the pipeline</Text>
-        {ideas === null ? null : ideas.length === 0 ? (
+        {ideas === null ? null : ideas === ERR ? (
+          <QuietError line={'couldn\u2019t reach the desk \u2014 pull to refresh'} onRetry={onRefresh} />
+        ) : ideas.length === 0 ? (
           <Text style={st.empty}>nothing in the pipeline yet. talk an idea through with him and it files itself here — then tap draft and he writes it from your brief and your numbers.</Text>
         ) : (
           ideas.map((i) => (
@@ -350,6 +386,10 @@ const st = StyleSheet.create({
   ideaDraft: { color: M.ink, fontSize: 13, fontFamily: FONTS.light, lineHeight: 19, marginTop: 10, backgroundColor: M.ground, borderRadius: 8, padding: 10 },
   ideaGhostBtn: { marginTop: 8, alignItems: 'center', paddingVertical: 6 },
   ideaGhostTxt: { color: M.mist, fontFamily: FONTS.semi, fontSize: 12 },
+  ideaCopyBtn: { marginTop: 8, alignItems: 'center', paddingVertical: 6, borderWidth: 1, borderColor: M.hair, borderRadius: 8 },
+  ideaCopyTxt: { color: FLUORO, fontFamily: FONTS.semi, fontSize: 12 },
+  quietErr: { marginVertical: 12 },
+  quietErrTxt: { color: M.mist, fontSize: 12.5, fontFamily: FONTS.light, lineHeight: 18 },
   ideaPosted: { color: M.faint, fontFamily: FONTS.semi, fontSize: 11.5, marginTop: 8 },
   numRow: { backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 10, padding: 11, marginBottom: 7 },
   numPlatform: { color: FLUORO, fontSize: 11.5, fontFamily: FONTS.semi, textTransform: 'lowercase' },
