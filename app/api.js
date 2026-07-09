@@ -440,6 +440,7 @@ export async function markMmIdeaPosted(id) { return authedJSON('POST', `/mm/idea
 export async function getWardrobe() { return authedJSON('GET', '/stylist/wardrobe'); }
 export async function getTrips() { return authedJSON('GET', '/wanderer/trips'); }   // [zip79]
 export async function deleteTrip(id) { return authedJSON('DELETE', `/wanderer/trips/${id}`); }   // [zip79]
+export async function buildTrip(id) { return authedJSON('POST', `/wanderer/trips/${id}/build`); }   // [0055]
 export async function addWardrobePiece(image) { return authedJSON('POST', '/stylist/wardrobe', { image }); }
 export async function deleteWardrobePiece(id) { return authedJSON('DELETE', `/stylist/wardrobe/${id}`); }
 // read-only spectator view of a duel (no seat required) → { motion, phase, turns, verdict, ... }

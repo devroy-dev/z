@@ -171,9 +171,16 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   let tripBlock = '';
   if (String(t.persona_key || '') === 'the_wanderer') {
     try {
-      const { data: trips } = await supabase.from('trip_files').select('destination, dates, travelers, notes').eq('user_id', t.user_id).order('updated_at', { ascending: false }).limit(6);
+      const { data: trips } = await supabase.from('trip_files').select('destination, dates, travelers, notes, status, start_date, end_date, itinerary, checklist').eq('user_id', t.user_id).order('updated_at', { ascending: false }).limit(6);
+      const planLine = (r: any) => {
+        if (!r.status || r.status === 'dreaming') return '';
+        const days = Array.isArray(r.itinerary) ? r.itinerary.length : 0;
+        const open = Array.isArray(r.checklist) ? r.checklist.filter((c: any) => c && !c.done).length : 0;
+        const bits = [r.status, days ? `${days}-day plan` : '', r.start_date ? `from ${r.start_date}` : '', open ? `${open} open on the checklist` : ''].filter(Boolean).join(', ');
+        return bits ? ` [${bits}]` : '';
+      };
       const filed = (trips && trips.length)
-        ? '[THE TRIP FILE — what this traveller has told you, newest first. Do NOT re-ask what is written here; build on it. When they mention a NEW place, or add dates/who/what-they-want, capture it.\n' + trips.map((r: any) => `• ${r.destination}${r.dates ? ' — ' + r.dates : ''}${r.travelers ? ' — ' + r.travelers : ''}${r.notes ? ' (' + r.notes + ')' : ''}`).join('\n') + ']\n\n'
+        ? '[THE TRIP FILE — what this traveller has told you, newest first. Do NOT re-ask what is written here; build on it. A trip may already be PLANNED (an itinerary and checklist exist) — pick up from that plan, never start it over. When they mention a NEW place, or add dates/who/what-they-want, capture it.\n' + trips.map((r: any) => `• ${r.destination}${r.dates ? ' — ' + r.dates : ''}${r.travelers ? ' — ' + r.travelers : ''}${r.notes ? ' (' + r.notes + ')' : ''}${planLine(r)}`).join('\n') + ']\n\n'
         : '';
       tripBlock = `\n\n${filed}[FILING THE TRIP — whenever you learn or update a destination, its dates/duration, who is going, or what they are chasing, END your reply (after your spoken guidance) with ONE line per destination, exactly this machine format, which the traveller never sees: [[TRIP: destination | dates or duration | travelers | short notes on their taste/constraints]]. Leave a field blank if unknown (keep the bars). Only emit it when something is new or changed.]\n\n[YOUR FINDS BECOME CARDS — when you surface a real, bookable thing (a specific stay, tour, or table worth it), END with one line per option, exactly: [[SHOP: name | price | url]] — up to 4, REAL page URLs from your search results only, never invented; skip rather than fake. Spoken guidance first, cards last, nothing after. THE MARKET: this traveller is based in ${(t as any).region || 'IN'} — prefer what serves their region and quote local currency where it makes sense.]`;
     } catch (e: any) { console.error('[trip] block failed:', e?.message || e); }

@@ -31,6 +31,7 @@ import { runStateWriter, currentStates, startStateScheduler } from './personaSta
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
+import { buildTrip, tripsFor } from './wanderer.js';   // [0055]
 import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
 import { getWire, getWireMix } from './wire.js';   // [zip67]
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
@@ -1219,10 +1220,19 @@ app.get('/wanderer/trips', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    const { data } = await supabase.from('trip_files')
-      .select('id, destination, dates, travelers, notes, updated_at')
-      .eq('user_id', user.id).order('updated_at', { ascending: false }).limit(60);
-    res.json({ trips: data ?? [] });
+    res.json({ trips: await tripsFor(user.id) });   // [0055] full body + live-flip on read
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+// [0055] BUILD — the coach pattern for travel: itinerary + checklist + parsed
+// dates + status='planned', her spoken summary into her thread, the clock set.
+app.post('/wanderer/trips/:id/build', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const trip = await buildTrip(user.id, String(req.params.id));
+    if (!trip) return res.status(404).json({ error: 'not found' });
+    res.json({ trip });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 app.delete('/wanderer/trips/:id', async (req, res) => {
