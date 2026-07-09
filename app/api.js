@@ -540,6 +540,14 @@ export async function storyPublish(id) { return authedJSON('POST', `/games/story
 export async function refreshBulletinFeed() { return authedJSON('POST', '/bulletin/refresh'); }
 // [zip67] the wire — raw headlines, by topic or mixed
 export async function getWireFeed(topic, force) { return authedJSON('GET', '/wire' + (topic ? `?topic=${topic}${force ? '&force=1' : ''}` : (force ? '?force=1' : ''))); }
+
+// [0057] §6.1 follows + your desk · §6.3 fact-check
+export async function getNewsFollows() { try { const j = await authedJSON('GET', '/news/follows'); return j.follows || []; } catch (e) { return []; } }
+export async function addNewsFollow(kind, term, wire_topic) { const j = await authedJSON('POST', '/news/follows', { kind, term, wire_topic }); return j.follow; }
+export async function removeNewsFollow(id) { return authedJSON('DELETE', `/news/follows/${id}`); }
+export async function getYourDesk() { try { const j = await authedJSON('GET', '/news/desk'); return j.items || []; } catch (e) { return []; } }
+export async function factCheckClaim(claim) { const j = await authedJSON('POST', '/bulletin/factcheck', { claim }); return j.check; }
+export async function getFactChecks() { try { const j = await authedJSON('GET', '/bulletin/factchecks'); return j.checks || []; } catch (e) { return []; } }
 export async function getBulletinFeed() {
   try { return await authedJSON('GET', '/bulletin'); } catch (e) { return null; }
 }

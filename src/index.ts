@@ -36,6 +36,7 @@ import { assembleDeskBrief } from './deskBrief.js';   // [0058]
 import { runGapReport, listGaps, setGapStatus, listOutfits, markWorn } from './stylist.js';   // [0054]
 import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
 import { getWire, getWireMix } from './wire.js';   // [zip67]
+import { listFollows, addFollow, removeFollow, yourDesk, factCheck, listFactChecks } from './newsdesk.js';   // [0057]
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
   mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted } from './mmDesk.js';   // [zip54k] [0056]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
@@ -3446,6 +3447,56 @@ app.post('/bulletin/city', async (req, res) => {
     if (!city) return res.status(400).json({ error: 'name the city' });
     await supabase.from('users').update({ city }).eq('id', user.id);
     res.json({ ok: true, city });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [0057] §6.1 YOUR DESK — follows + the free personalized wire strip.
+app.get('/news/follows', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ follows: await listFollows(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/news/follows', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const follow = await addFollow(user.id, String(req.body?.kind || 'topic'), String(req.body?.term || ''), req.body?.wire_topic);
+    if (!follow) return res.status(400).json({ error: 'name what to follow' });
+    res.json({ follow });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.delete('/news/follows/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json(await removeFollow(user.id, String(req.params.id)));
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/news/desk', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ items: await yourDesk(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [0057] §6.3 FACT-CHECK — the WhatsApp-forward desk.
+app.post('/bulletin/factcheck', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const check = await factCheck(user.id, String(req.body?.claim || ''));
+    if (!check) return res.status(400).json({ error: 'paste the claim to check' });
+    res.json({ check });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/bulletin/factchecks', async (req, res) => {
+  try {
+    const authId = await authUser(req); if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ checks: await listFactChecks(user.id) });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 
