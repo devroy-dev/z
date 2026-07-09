@@ -38,7 +38,7 @@ import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin
 import { getWire, getWireMix } from './wire.js';   // [zip67]
 import { listFollows, addFollow, removeFollow, yourDesk, factCheck, listFactChecks } from './newsdesk.js';   // [0057]
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
-  mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted, manualAnalytics, rateCard } from './mmDesk.js';   // [zip54k] [0056] [§5.4 no-migration]
+  mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted, manualAnalytics, rateCard, refreshDeskNote } from './mmDesk.js';   // [zip54k] [0056] [§5.4 no-migration] [fixes-B]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
 import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.js';
@@ -1254,6 +1254,17 @@ app.get('/stylist/outfits', async (req, res) => {
     res.json({ outfits: await listOutfits(user.id) });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
+// [fixes-B S4] delete a filed look (user-scoped)
+app.delete('/stylist/outfits/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { error } = await supabase.from('outfits').delete().eq('id', req.params.id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
 app.post('/stylist/wardrobe/:id/worn', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -1318,6 +1329,36 @@ app.delete('/wanderer/trips/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
+// [fixes-B T4/T5] tick a checklist item — toggles `done` in the trip's checklist
+// jsonb (the SAME field the [[CHECK]] chat tag writes; no divergence). Match by
+// exact item text (+ optional pack flag to disambiguate), or by index. Whole-array write.
+app.patch('/wanderer/trips/:id/check', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const b = req.body || {};
+    const item = typeof b.item === 'string' ? b.item.trim() : '';
+    const idx = Number.isInteger(b.index) ? b.index as number : null;
+    if (!item && idx === null) return res.status(400).json({ error: 'need { item } or { index }' });
+    const wantPack = typeof b.pack === 'boolean' ? b.pack : null;
+    const { data: trip } = await supabase.from('trip_files').select('id, checklist')
+      .eq('id', req.params.id).eq('user_id', user.id).maybeSingle();
+    if (!trip || !Array.isArray(trip.checklist)) return res.status(404).json({ error: 'not found' });
+    let hit = false;
+    const checklist = trip.checklist.map((c: any, i: number) => {
+      if (hit) return c;
+      const match = idx !== null ? i === idx
+        : (c?.item && String(c.item) === item && (wantPack === null || !!c.pack === wantPack));
+      if (match) { hit = true; const done = typeof b.done === 'boolean' ? b.done : !c?.done; return { ...c, done }; }
+      return c;
+    });
+    if (!hit) return res.status(404).json({ error: 'checklist item not found' });
+    const { error } = await supabase.from('trip_files').update({ checklist }).eq('id', trip.id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ checklist });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
 
 // [zip54k] ── THE DESK THAT WATCHES ── analytics under his eye; his weekly memos.
 app.post('/mm/analytics', async (req, res) => {
@@ -1367,6 +1408,54 @@ app.get('/mm/desknotes', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
+    res.json({ notes: await deskNotes(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [fixes-B MM-A] correct a filed number — an UPDATE (not delete+reinsert) so the
+// ledger keeps its created_at ordering (the rate card + desk note read direction
+// across filings by created_at; a correction must not jump the row to "now").
+app.patch('/mm/analytics/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const b = req.body || {};
+    const patch: any = {};
+    for (const k of ['platform', 'followers', 'reach', 'growth', 'top_content', 'period']) {
+      if (typeof b[k] === 'string') patch[k] = b[k].trim().slice(0, 200) || null;
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ error: 'nothing to correct' });
+    const { data, error } = await supabase.from('mm_analytics').update(patch)
+      .eq('id', req.params.id).eq('user_id', user.id).select().maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: 'not found' });
+    res.json({ row: data });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+// [fixes-B MM-A] delete a filed number (user-scoped)
+app.delete('/mm/analytics/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const { error } = await supabase.from('mm_analytics').delete().eq('id', req.params.id).eq('user_id', user.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+// [fixes-B MM-B] the desk note ↻ — same generator behind a once-per-IST-day gate,
+// user-authed (the dev route stays dev-only). logUsage rides inside writeDeskNote.
+app.post('/mm/desknote/refresh', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const r = await refreshDeskNote(user.id);
+    if (!r.ok && r.reason === 'already_today') {
+      return res.status(429).json({ error: 'already_today', line: "he wrote today\u2019s \u2014 the next reads better with a day\u2019s numbers behind it" });
+    }
+    if (!r.ok) return res.status(400).json({ error: 'need a brief on file first' });
     res.json({ notes: await deskNotes(user.id) });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });

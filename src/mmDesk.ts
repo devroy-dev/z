@@ -149,12 +149,14 @@ export async function deskNotes(userId: string) {
 // instruction rides out as a [[TASK]] tag and files into mm_tasks, where the
 // room can tick it and next week's note can grade it.
 export async function writeDeskNote(userId: string): Promise<boolean> {
-  const [{ data: brief }, timeline, prior, { data: lastTask }] = await Promise.all([
+  const [{ data: brief }, timeline, prior, { data: weekTasks }] = await Promise.all([
     supabase.from('mm_brief').select('*').eq('user_id', userId).maybeSingle(),
     analyticsTimeline(userId),
     deskNotes(userId),
+    // [fixes-B R1] grade the WEEK's commitments (chat-filed [[TASK]]s included), not just the note's own last instruction
     supabase.from('mm_tasks').select('instruction, status, week_of').eq('user_id', userId)
-      .order('week_of', { ascending: false }).limit(1).maybeSingle(),
+      .gte('week_of', new Date(Date.now() + 5.5 * 3600 * 1000 - 8 * 86400 * 1000).toISOString().slice(0, 10))
+      .order('week_of', { ascending: false }).limit(12),
   ]);
   if (!brief) return false;
   const f = (l: string, v: any) => (v ? `\n${l}: ${String(v).slice(0, 300)}` : '');
@@ -164,11 +166,12 @@ export async function writeDeskNote(userId: string): Promise<boolean> {
         `- ${[r.platform, r.followers && `${r.followers} followers`, r.reach && `reach ${r.reach}`, r.growth, r.period && `(${r.period})`].filter(Boolean).join(', ')}`).join('\n')
     : 'THE NUMBERS: none filed yet — the client has not uploaded analytics.';
   const lastNote = prior[0]?.note ? `YOUR LAST NOTE (do not repeat it; move the thinking forward):\n${String(prior[0].note).slice(0, 600)}` : '';
-  const lastTaskTxt = lastTask?.instruction
-    ? `LAST WEEK'S INSTRUCTION you left on the desk: "${String(lastTask.instruction).slice(0, 240)}" — the client marked it: ${lastTask.status === 'done' ? 'DONE' : lastTask.status === 'skipped' ? 'SKIPPED' : 'still OPEN (not ticked off)'}.`
+  const wk = Array.isArray(weekTasks) ? weekTasks : [];
+  const lastTaskTxt = wk.length
+    ? `THE WEEK'S COMMITMENTS (theirs to grade — some you filed, some they locked in chat):\n${wk.map((t: any) => `- "${String(t.instruction).slice(0, 200)}" [${t.status === 'done' ? 'DONE' : t.status === 'skipped' ? 'SKIPPED' : 'still OPEN'}]`).join('\n')}`
     : '';
-  const gradeLaw = lastTask?.instruction
-    ? '\n[GRADE FIRST — open the note by settling last week in one honest line: whether they did it, and if the numbers show it moved anything, say so. Do not flatter a skipped task; do not nag a done one. THEN write this week.]'
+  const gradeLaw = wk.length
+    ? '\n[GRADE FIRST — open the note by settling the week\'s commitments in one or two honest lines: what they did, what slipped, and if the numbers show any of it moved anything. Do not flatter a skipped task; do not nag a done one. THEN write this week.]'
     : '';
   const msg: any = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001', max_tokens: 500, __pin: 'anthropic',   // [0056] the desk stays on Haiku so its eyes actually open
@@ -191,6 +194,19 @@ export async function writeDeskNote(userId: string): Promise<boolean> {
     catch (e: any) { console.error('[mmDesk] task file failed:', e?.message || e); }
   }
   return true;
+}
+
+// [fixes-B MM-B] the room's manual refresh (↻). Same generator, gated to once per
+// IST day per user so it can't be spun for repeated model spend.
+export async function refreshDeskNote(userId: string): Promise<{ ok: boolean; reason?: string }> {
+  const { data: last } = await supabase.from('mm_desk_notes').select('created_at')
+    .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (last?.created_at) {
+    const istOf = (t: any) => new Date(new Date(t).getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    if (istOf(last.created_at) === istDate()) return { ok: false, reason: 'already_today' };
+  }
+  const wrote = await writeDeskNote(userId);
+  return wrote ? { ok: true } : { ok: false, reason: 'no_brief' };
 }
 
 // ── 4. the loop's reads/writes: the checked instruction + the content pipeline ──

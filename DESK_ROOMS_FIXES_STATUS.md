@@ -1,61 +1,59 @@
 # DESK ROOMS — FIXES SPEC · STATUS
-### Live state of the bug/UX contract. Sitting A shipped; Sitting B is next.
+### Sitting A shipped. Sitting B split at the curl gate: SERVER shipped, NATIVE pending an owner call.
 
 Spec: `DESK_ROOMS_FIXES_SPEC.md`. Protocol: `BUILD_PROTOCOL.md`.
-Audited against commit `20f80c8` (post-zip97). Re-verified against live code
-before editing; drift from the spec's line numbers is noted below.
+Audited at `20f80c8`; Sitting A committed (origin now `25b6499`). Re-verified
+against live code before each edit.
 
-## SHIPPED — SITTING A (zip: desk_rooms_fixes_A)
-X1 pull-to-refresh · X2 visible-failure · X3 full-view · X4 extractable ·
-X5 keyboard — across MediaRoom · TravelDesk · StylistRoom · Bulletin.
-Native only; no server, no migration, no TS. See `APPLY_desk_rooms_fixes_A.md`
-for the per-item breakdown and the build-ordering note.
+## SHIPPED — SITTING A (zip: desk_rooms_fixes_A) — on the EAS build
+X1 refresh · X2 visible-failure · X3 full-view · X4 extractable (expo-clipboard) ·
+X5 keyboard, across the four rooms. Native only. Device-verification in progress
+on your build. See `APPLY_desk_rooms_fixes_A.md`.
 
-**Proven:** babel/JSX parse clean on all four; patcher byte-identical +
-idempotent + drift-refusing. **Not proven (owner's gates):** `expo export`,
-device.
+## SHIPPED — SITTING B · SERVER (zip: desk_rooms_fixes_B_server)
+R1 `[[TASK]]` verb + hands law + week-grading (loop.ts + mmDesk.ts) · MM-A
+analytics correct/delete · MM-B desk-note refresh (once/IST-day) · T4/T5 checklist
+tick · S4 delete outfit. Server only; **no migration**; ladder stays `0058`.
+**Proven here:** `npm run build` clean on current HEAD; 5 routes in compiled
+output; patcher byte-identical + idempotent + drift-refusing. **Yours:** the
+curls in `APPLY_desk_rooms_fixes_B_server.md`, then the native pass.
 
-## OWNER RULINGS THIS SITTING
-- **X4 uses `expo-clipboard` (true clipboard), not Share.** Owner accepted the
-  EAS build. It's a native dep → ships on the build, not a bare OTA (ordering
-  in the APPLY). Verb reads **copy ✂ / copy the verdict**.
+### Design decisions this sitting (mine to make, per spec — noted for the record)
+- **MM-A correction = UPDATE route**, not delete+reinsert. The ledger's
+  `created_at` ordering is meaningful (rate card + desk note read direction
+  across filings); a correction must not jump a row to "now". `PATCH
+  /mm/analytics/:id` updates the fields in place.
+- **T4/T5 match** = exact item text (+ optional `pack` flag) or `index`, writing
+  the same `checklist` jsonb `[[CHECK]]` writes — zero divergence between the
+  chat tag and the button.
+- **MM-B gate** lives in `refreshDeskNote()` in mmDesk.ts (with `istDate`, its
+  home), not in the route — the cost guard belongs with the generator.
 
-## DRIFT FROM SPEC (code was truth; followed the code)
-- **No migration anywhere in the fixes spec.** Every Sitting-B route rides an
-  existing table (`mm_tasks`, `mm_analytics`, `trip_files.checklist` jsonb,
-  `outfits`). **Ladder stays at `0058`** — do not reserve `0059` for these.
-- Line numbers had drifted a little (audit vs live): MediaRoom null-render was
-  L223/L237/L285 (not L226/238); the fixes landed on the live lines regardless.
-- Spec X4 assumed clipboard-in-deps or RN-core `Clipboard`. Neither exists
-  (grep clean; RN core dropped Clipboard by SDK 57). Resolved by owner ruling
-  above (expo-clipboard + build).
-- X1: rooms mount as **conditional overlays** (`Nav.js`) that unmount on close
-  and remount fresh on open, re-running mount-`load()`. So X1 needed **only**
-  RefreshControl — no AppState listeners (spec's "verify before adding" → not
-  needed).
-- X5: applied `keyboardShouldPersistTaps="handled"` (the mandated half). KAV
-  was left to owner's device check per the spec's "only if actually covered."
+## BLOCKING THE NATIVE PASS — ONE OWNER CALL (S4)
+Spec S4: "x on OutfitCard (the PieceTile pattern) — **or** inside the S1 detail
+sheet, **owner's call**; one of the two must exist." The S1 detail sheet already
+shipped in Sitting A. So:
+- **(a) x on the OutfitCard** — delete from the horizontal looks strip, matches
+  the wardrobe-tile / trip-card delete pattern (confirm-tap).
+- **(b) x inside the S1 sheet** — a "remove this look" at the bottom of the
+  detail sheet, next to "talk about this look ->".
+My lean: **(a)** — deletion belongs where the collection is scanned, and it
+matches the app's existing tile-delete muscle memory; the sheet stays about
+*seeing* the look, not managing it. One word and I build it.
 
-## NEXT — SITTING B (zip 2, after A is device-proven)
-Server → curl → native, per BUILD_PROTOCOL §5. Verified live facts for the build:
-- **R1** `[[TASK]]` for the Media Manager — loop.ts MM block sits beside
-  `[[IDEA]]` (src/loop.ts ~L226 emit; post-stream parse ~L527). Insert
-  `z.mm_tasks` (`week_of=istDate()`, `status='open'`), same shape the desk note
-  writes. Add the **hands law** to the MM block. gradeLaw: `writeDeskNote`
-  (src/mmDesk.ts L156) reads `mm_tasks` `.limit(1)` today — change to this-week/open set.
-- **M3** MediaRoom L233 renders `tasks[0]` → render all open + this-week done
-  (struck), with the empty state; folds in R1's visibility.
-- **MM-A** `DELETE /mm/analytics/:id` (+ edit = delete+reinsert or update).
-  Table is `z.mm_analytics` (cols: id, user_id, platform, followers, reach,
-  growth, top_content, period, created_at). Existing routes: POST `/mm/analytics`,
-  POST `/mm/analytics/manual`, GET `/mm/analytics`, GET `/mm/ratecard`.
-- **MM-B** `POST /mm/desknote/refresh` (user-authed) → `writeDeskNote(caller)`,
-  once-per-IST-day gate (check latest `mm_desk_notes.created_at`), `logUsage`'d.
-- **T4/T5** `PATCH /wanderer/trips/:id/check` — toggle `done` in `trip_files`
-  .checklist jsonb (item text or index; whole-array write is fine). Optimistic
-  UI; same field `[[CHECK]]` writes.
-- **S4** `DELETE /stylist/outfits/:id` (user-scoped). ✕ on the OutfitCard or in
-  the S1 sheet.
+## NEXT — SITTING B · NATIVE (after server curls green + S4 ruled)
+- **M3** MediaRoom L233: render ALL open tasks + this-week's done (struck), with
+  the empty state; folds in R1's visibility and fixes the nothing-tappable-
+  before-first-note state.
+- **MM-A UI** x (confirm-tap) + tap-to-edit prefilling the manual form as a
+  correction -> `PATCH /mm/analytics/:id`.
+- **MM-B UI** refresh by "the desk note" (Bulletin header pattern) -> `POST
+  /mm/desknote/refresh`; render the 429 line honestly.
+- **T4/T5 UI** the "before you go" + packing generics become Pressables,
+  optimistic, reconcile on failure -> `PATCH /wanderer/trips/:id/check`.
+- **S4 UI** per the ruling above -> `DELETE /stylist/outfits/:id`.
+- Ships BOTH `eas update` + `git push` (OTA != committed). No native dep here —
+  pure OTA once your Sitting-A build is the installed binary.
 
 ## STILL KNOWN-OPEN (unchanged)
 Phase 6 — the Host's morning line (`§2.2E`/`§6.4`) stays unbuilt, last by design.

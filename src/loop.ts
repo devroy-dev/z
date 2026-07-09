@@ -224,6 +224,10 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       }
       // [0056] THE CONTENT DESK — an idea he shapes in talk becomes filed work product, not lost chat.
       mmBlock += `\n\n[FILING AN IDEA — when a content idea actually crystallizes in the conversation (a specific post, reel, video, thread, or series worth making — not vague talk), END your reply (after your spoken take) with ONE line per idea, exactly this machine format the client never sees: [[IDEA: title | format | hook]]. Format is the medium (reel, carousel, short, thread, video…); hook is the opening line or angle. Leave format or hook blank if not yet clear, but keep the bars. Only emit it when a real idea lands — never for small talk, never twice for the same idea.]`;
+      // [fixes-B R1] FILING A COMMITMENT — a locked plan/promise/deadline files into mm_tasks (same shape the desk note writes).
+      mmBlock += `\n\n[FILING A COMMITMENT — when you and the client LOCK something they will actually do — a plan item, a posting promise, a deadline — END your reply (after your spoken take) with ONE line per commitment, exactly this machine format the client never sees: [[TASK: the instruction, imperative, under 140 chars]]. A week's plan is several tasks — one line each. Emit only on a real, agreed commitment: never vague talk, never twice for the same one.]`;
+      // [fixes-B R1] THE HANDS LAW — no claimed action without a tool (the Harvey-souls contradiction fix).
+      mmBlock += `\n\n[YOUR HANDS — you have exactly two: [[TASK]] files a commitment, [[IDEA]] files a content idea. You never claim to have locked, saved, scheduled, posted, booked, or filed anything else — you have no hands for it. If the client asks for something your hands cannot do, say plainly where it CAN live, and file what your hands allow.]`;
     } catch (e: any) { console.error('[mm] brief failed:', e?.message || e); }
   }
   let frontDeskBlock = '';
@@ -538,6 +542,23 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
           });
       }
       reply = reply.replace(/\[\[IDEA:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // [fixes-B R1] [[TASK: the commitment]] — a locked plan item files into mm_tasks,
+    // same shape the desk note writes (week_of = today IST, status open). No divergence.
+    if (t.persona_key === 'the_media_manager') {
+      const weekOf = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+      const tasks = [...reply.matchAll(/\[\[TASK:\s*([^\]]+?)\]\]/gi)];
+      for (const m of tasks) {
+        const instruction = m[1].trim().replace(/\s+/g, ' ').slice(0, 140);
+        if (!instruction) continue;
+        supabase.from('mm_tasks').insert({ user_id: userId, instruction, week_of: weekOf, status: 'open' })
+          .then(({ error }: any) => {
+            if (error) console.error('[mm-task] save failed:', error.message, '| instruction:', instruction);
+            else console.log('[mm-task] filed:', instruction);
+          });
+      }
+      reply = reply.replace(/\[\[TASK:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
     // [0054] [[OUTFIT: name | piece_ids | occasion | date?]] — her looks become filed objects
