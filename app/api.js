@@ -570,6 +570,9 @@ export async function runStylistGaps() { const j = await authedJSON('POST', '/st
 export async function setStylistGapStatus(id, status) { return authedJSON('POST', `/stylist/gaps/${id}`, { status }); }
 export async function markPieceWorn(id) { return authedJSON('POST', `/stylist/wardrobe/${id}/worn`); }
 
+// [0055] §4.4 packing list from their wardrobe
+export async function buildPacklist(id) { return authedJSON('POST', `/wanderer/trips/${id}/packlist`); }
+
 export async function getMemory() {
   try { const j = await authedJSON('GET', '/memory'); return j.items || []; } catch (e) { return []; }
 }

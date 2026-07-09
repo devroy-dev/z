@@ -11,7 +11,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getTrips, deleteTrip, buildTrip } from './api';
+import { getTrips, deleteTrip, buildTrip, buildPacklist } from './api';
 import { FONTS } from './theme';
 
 const AMBER = '#D29650';
@@ -30,15 +30,26 @@ function StatusChip({ status }) {
   const s = status || 'dreaming';
   return <Text style={[st.chip, st['chip_' + s] || st.chip_dreaming]}>{s}</Text>;
 }
-function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle }) {
+function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle, onPacklist, packing }) {
   const line = [trip.dates, trip.travelers].filter(Boolean).join(' · ');
   const planning = trip.status === 'planning' || building;
   const planned = trip.status && trip.status !== 'dreaming' && trip.status !== 'planning';
   const itin = Array.isArray(trip.itinerary) ? trip.itinerary : [];
-  const check = Array.isArray(trip.checklist) ? trip.checklist : [];
-  const openCount = check.filter((c) => c && !c.done).length;
+  const allCheck = Array.isArray(trip.checklist) ? trip.checklist : [];
+  const pack = allCheck.filter((c) => c && c.pack);
+  const todo = allCheck.filter((c) => c && !c.pack);
+  const openCount = todo.filter((c) => !c.done).length;
+  // [0055] §4.5 in-trip mode — the card flips to "day N — today's title"
+  const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const live = trip.status === 'live';
+  let dayN = 0, todayTitle = '';
+  if (live && trip.start_date) {
+    dayN = Math.floor((Date.parse(today + 'T00:00:00Z') - Date.parse(String(trip.start_date) + 'T00:00:00Z')) / 86400000) + 1;
+    const d = itin.find((x) => Number(x.day) === dayN);
+    todayTitle = (d && d.title) || '';
+  }
   return (
-    <View style={st.card}>
+    <View style={[st.card, live && st.cardLive]}>
       <Pressable style={st.cardTop} onPress={() => onToggle(trip.id)}>
         <View style={{ flex: 1 }}>
           <View style={st.cardHead}>
@@ -46,11 +57,13 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
             <StatusChip status={planning ? 'planning' : trip.status} />
           </View>
           {line ? <Text style={st.cardLine} numberOfLines={1}>{line}</Text> : null}
-          {planning ? (
+          {live ? (
+            <Text style={st.liveMeta} numberOfLines={1}>day {dayN > 0 ? dayN : 1}{todayTitle ? ` — ${todayTitle}` : ' — enjoy it'}</Text>
+          ) : planning ? (
             <Text style={st.cardMeta} numberOfLines={1}>building your plan…</Text>
           ) : planned ? (
             <Text style={st.cardMeta} numberOfLines={1}>
-              {itin.length ? `${itin.length}-day plan` : 'planned'}{openCount ? ` · ${openCount} to sort` : ''}{trip.budget ? ` · ${trip.budget}` : ''}
+              {itin.length ? `${itin.length}-day plan` : 'planned'}{openCount ? ` · ${openCount} to sort` : ''}{pack.length ? ` · ${pack.length} to pack` : ''}
             </Text>
           ) : (trip.notes ? <Text style={st.cardNotes} numberOfLines={2}>{trip.notes}</Text> : null)}
         </View>
@@ -72,8 +85,15 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
             </Pressable>
           ) : (
             <View>
+              {live && todayTitle ? (
+                <View style={st.todayBox}>
+                  <Text style={st.todayHead}>today · day {dayN}</Text>
+                  <Text style={st.todayTitle}>{todayTitle}</Text>
+                  {((itin.find((x) => Number(x.day) === dayN) || {}).items || []).map((it, i) => <Text key={i} style={st.dayItem}>· {it}</Text>)}
+                </View>
+              ) : null}
               {itin.map((d) => (
-                <View key={d.day} style={st.dayRow}>
+                <View key={d.day} style={[st.dayRow, live && Number(d.day) === dayN && st.dayRowNow]}>
                   <Text style={st.dayNum}>day {d.day}</Text>
                   <View style={{ flex: 1 }}>
                     {d.title ? <Text style={st.dayTitle}>{d.title}</Text> : null}
@@ -81,10 +101,22 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
                   </View>
                 </View>
               ))}
-              {check.length ? (
+              {/* §4.4 the packing list — from what they own */}
+              <View style={st.checkBox}>
+                <View style={st.packHead}>
+                  <Text style={st.checkHead}>packing</Text>
+                  <Pressable onPress={() => onPacklist(trip)} disabled={packing} style={[st.packBtn, packing && { opacity: 0.6 }]}>
+                    <Text style={st.packBtnTxt}>{packing ? 'building…' : pack.length ? 'rebuild' : 'build from my wardrobe'}</Text>
+                  </Pressable>
+                </View>
+                {pack.length ? pack.map((c, i) => (
+                  <Text key={i} style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
+                )) : <Text style={st.packEmpty}>she'll pack you from your own closet, and flag what's missing.</Text>}
+              </View>
+              {todo.length ? (
                 <View style={st.checkBox}>
                   <Text style={st.checkHead}>before you go</Text>
-                  {check.map((c, i) => (
+                  {todo.map((c, i) => (
                     <Text key={i} style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
                   ))}
                 </View>
@@ -105,6 +137,7 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
   const [dest, setDest] = useState('');
   const [buildingId, setBuildingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [packingId, setPackingId] = useState(null);
 
   const load = useCallback(() => {
     getTrips().then((r) => setTrips(r?.trips || [])).catch(() => setTrips([]));
@@ -142,6 +175,18 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
   };
   const toggleExpand = (id) => setExpandedId((cur) => (cur === id ? null : id));
 
+  // [0055] §4.4 build the packing list from their wardrobe (synchronous ~12s)
+  const doPacklist = async (trip) => {
+    if (packingId) return;
+    setPackingId(trip.id);
+    try {
+      await buildPacklist(trip.id);
+      const r = await getTrips().catch(() => null);
+      const fresh = r?.trips?.find((t) => t.id === trip.id);
+      if (fresh) setTrips((cur) => (cur || []).map((t) => (t.id === trip.id ? { ...t, ...fresh } : t)));
+    } catch (e) {} finally { setPackingId(null); }
+  };
+
   const planNew = () => {
     const where = dest.trim();
     if (!where) return;
@@ -178,7 +223,8 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
             {trips.map((t) => (
               <TripCard key={t.id} trip={t} onOpen={openTrip} onDelete={removeTrip}
                 onBuild={doBuild} building={buildingId === t.id}
-                expanded={expandedId === t.id} onToggle={toggleExpand} />
+                expanded={expandedId === t.id} onToggle={toggleExpand}
+                onPacklist={doPacklist} packing={packingId === t.id} />
             ))}
           </View>
         )}
@@ -244,6 +290,16 @@ const st = StyleSheet.create({
   checkHead: { color: S.faint, fontFamily: FONTS.semi, fontSize: 10, letterSpacing: 0.4, textTransform: 'lowercase', marginBottom: 6 },
   checkItem: { color: S.ink, fontFamily: FONTS.light, fontSize: 12.5, lineHeight: 20 },
   checkDone: { color: S.faint, textDecorationLine: 'line-through' },
+  cardLive: { borderColor: AMBER, borderWidth: 1.5 },
+  liveMeta: { color: AMBER, fontFamily: FONTS.semi, fontSize: 12.5, marginTop: 3 },
+  todayBox: { backgroundColor: 'rgba(210,150,80,0.10)', borderWidth: 1, borderColor: 'rgba(210,150,80,0.30)', borderRadius: 10, padding: 12, marginBottom: 10 },
+  todayHead: { color: AMBER, fontFamily: FONTS.semi, fontSize: 10, letterSpacing: 0.5, textTransform: 'lowercase', marginBottom: 3 },
+  todayTitle: { color: S.ink, fontFamily: FONTS.semi, fontSize: 14 },
+  dayRowNow: { backgroundColor: 'rgba(210,150,80,0.06)', borderRadius: 8, paddingVertical: 2 },
+  packHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  packBtn: { borderWidth: 1, borderColor: AMBER, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  packBtnTxt: { color: AMBER, fontFamily: FONTS.semi, fontSize: 11 },
+  packEmpty: { color: S.faint, fontFamily: FONTS.light, fontSize: 12, lineHeight: 17 },
   openThread: { marginTop: 4, alignItems: 'center', paddingVertical: 8, borderWidth: 1, borderColor: S.hair, borderRadius: 10 },
   openThreadTxt: { color: S.ink, fontFamily: FONTS.semi, fontSize: 12.5 },
   section: { color: S.ink, fontSize: 12, fontFamily: FONTS.semi, letterSpacing: 0.4, marginTop: 22, marginBottom: 8, textTransform: 'lowercase' },

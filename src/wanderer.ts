@@ -8,7 +8,7 @@
 //   3) tripsFor — the read, with the auto-flip to 'live'/'done' as the window
 //      arrives (the "date check in the trips GET").
 import { supabase } from './db.js';
-import { llm } from './llm.js';
+import { llm, firstText } from './llm.js';
 import { logUsage } from './usage.js';
 import { personaByKey } from './personas.js';
 
@@ -171,6 +171,73 @@ export async function startTripBuild(userId: string, tripId: string): Promise<an
       .eq('id', tripId).eq('user_id', userId).eq('status', 'planning');
   });
   return { ...trip, status: 'planning', building: true };
+}
+
+// ── 4. THE PACKING LIST (§4.4 — Wanderer × Stylist) ─────────────────────────
+// Composes a list from what they OWN (their closet) for this trip, flags what's
+// missing, feeds the misses into wardrobe_gaps. Stored on the trip's checklist.
+export async function buildPacklist(userId: string, tripId: string): Promise<any | null> {
+  const { data: trip } = await supabase.from('trip_files').select('*').eq('id', tripId).eq('user_id', userId).maybeSingle();
+  if (!trip) return null;
+  const { data: pieces } = await supabase.from('wardrobe_pieces').select('kind, colors, tags')
+    .eq('user_id', userId).order('created_at', { ascending: false }).limit(200);
+  const closet = (pieces ?? []).map((p: any) => `- ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}`).join('\n') || '(their closet is empty — pack from scratch)';
+  const itin = Array.isArray(trip.itinerary) ? trip.itinerary.map((d: any) => d?.title).filter(Boolean).join('; ') : '';
+  const sys = `You are THE WANDERER building a packing list for a real trip. Draw on what the traveller ALREADY OWNS where it fits (their closet is below), and flag what they're MISSING for this destination, season and itinerary. Plain Indian English, Rs never the symbol.
+Reply with ONLY strict JSON, no fences:
+{ "pack": ["10-16 concrete things to pack, one line each; prefer things that match their closet"], "missing": [ { "what": "a piece they'd need but don't seem to own", "why": "one line" } ] }`;
+  const fileTxt = `TRIP: ${trip.destination}${trip.dates ? ` (${trip.dates})` : ''}\nITINERARY: ${itin || '—'}\n\nTHEIR CLOSET:\n${closet}`;
+  const msg: any = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001', max_tokens: 1200, __pin: 'anthropic',
+    system: sys, messages: [{ role: 'user', content: fileTxt + '\n\nBuild the packing list.' }],
+  });
+  logUsage({ userId, surface: 'other', fn: 'trip_packlist', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });
+  const raw = firstText(msg).replace(/```json|```/g, '');
+  let x: any = {};
+  try { const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); x = a >= 0 && b > a ? JSON.parse(raw.slice(a, b + 1)) : {}; } catch { /* below */ }
+  const pack = Array.isArray(x.pack) ? x.pack.slice(0, 20).map((s: any) => String(s).replace(/\u20B9\s*/g, 'Rs ').slice(0, 120)).filter(Boolean) : [];
+  const missing = Array.isArray(x.missing) ? x.missing.slice(0, 6) : [];
+  if (!pack.length) return { pack: [], missing: [] };
+  // store on the checklist: replace prior pack entries, keep the rest
+  const prior = Array.isArray(trip.checklist) ? trip.checklist.filter((c: any) => c && !c.pack) : [];
+  const checklist = [...prior, ...pack.map((item: string) => ({ item, done: false, pack: true }))];
+  await supabase.from('trip_files').update({ checklist, updated_at: new Date().toISOString() }).eq('id', tripId).eq('user_id', userId);
+  // feed the misses into the stylist's gap report (0054); silent if that table isn't there yet
+  if (missing.length) {
+    const rows = missing.map((m: any) => ({
+      user_id: userId, what: String(m?.what || '').slice(0, 160),
+      why: `for your ${trip.destination} trip${m?.why ? ` — ${String(m.why).slice(0, 160)}` : ''}`,
+      priority: 2, status: 'open',
+    })).filter((r: any) => r.what);
+    if (rows.length) await supabase.from('wardrobe_gaps').insert(rows).then(() => {}, () => {});
+  }
+  return { pack, missing };
+}
+
+// ── 5. §4.6 conversation keeps the file current ─────────────────────────────
+export async function updateItineraryDay(userId: string, dest: string, day: number, title: string, items: string[]): Promise<void> {
+  const { data: trip } = await supabase.from('trip_files').select('id, itinerary')
+    .eq('user_id', userId).ilike('destination', dest).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  if (!trip) return;
+  const itin: any[] = Array.isArray(trip.itinerary) ? [...trip.itinerary] : [];
+  const entry = { day, title: title.slice(0, 120), items: items.slice(0, 8).map((s) => s.slice(0, 200)) };
+  const idx = itin.findIndex((d: any) => Number(d?.day) === day);
+  if (idx >= 0) itin[idx] = entry; else itin.push(entry);
+  itin.sort((a: any, b: any) => (a.day || 0) - (b.day || 0));
+  await supabase.from('trip_files').update({ itinerary: itin, updated_at: new Date().toISOString() }).eq('id', trip.id);
+}
+
+export async function tickChecklistItem(userId: string, dest: string, itemText: string, done: boolean): Promise<void> {
+  const { data: trip } = await supabase.from('trip_files').select('id, checklist')
+    .eq('user_id', userId).ilike('destination', dest).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+  if (!trip || !Array.isArray(trip.checklist)) return;
+  const needle = itemText.toLowerCase().slice(0, 40);
+  let hit = false;
+  const checklist = trip.checklist.map((c: any) => {
+    if (!hit && c?.item && String(c.item).toLowerCase().includes(needle)) { hit = true; return { ...c, done }; }
+    return c;
+  });
+  if (hit) await supabase.from('trip_files').update({ checklist }).eq('id', trip.id);
 }
 
 // ── 3. THE READ (with the clock's flip) ────────────────────────────────────

@@ -31,7 +31,7 @@ import { runStateWriter, currentStates, startStateScheduler } from './personaSta
 import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
-import { tripsFor, startTripBuild } from './wanderer.js';   // [0055]
+import { tripsFor, startTripBuild, buildPacklist } from './wanderer.js';   // [0055]
 import { assembleDeskBrief } from './deskBrief.js';   // [0058]
 import { runGapReport, listGaps, setGapStatus, listOutfits, markWorn } from './stylist.js';   // [0054]
 import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
@@ -1283,6 +1283,18 @@ app.post('/wanderer/trips/:id/build', async (req, res) => {
     const trip = await startTripBuild(user.id, String(req.params.id));
     if (!trip) return res.status(404).json({ error: 'not found' });
     res.json({ trip });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [0055] §4.4 PACKING LIST — Wanderer × Stylist: from what they own + the trip.
+app.post('/wanderer/trips/:id/packlist', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const out = await buildPacklist(user.id, String(req.params.id));
+    if (!out) return res.status(404).json({ error: 'not found' });
+    res.json(out);
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 

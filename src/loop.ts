@@ -16,6 +16,7 @@ import { stateBlockFor, currentStates } from './personaStates.js';
 import { manifestBlock } from './manifest.js';
 import { executeConciergeTags, parseWhen } from './concierge.js';
 import { deskBriefText } from './deskBrief.js';   // [0058]
+import { updateItineraryDay, tickChecklistItem } from './wanderer.js';   // [0055] §4.6
 
 // Use Node's native fetch (undici) instead of the SDK's default node-fetch@2, which
 // premature-closes streaming responses on Node 22 (this engine pins Node 22 for supabase
@@ -201,7 +202,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
       const filed = (trips && trips.length)
         ? '[THE TRIP FILE — what this traveller has told you, newest first. Do NOT re-ask what is written here; build on it. A trip may already be PLANNED (an itinerary and checklist exist) — pick up from that plan, never start it over. When they mention a NEW place, or add dates/who/what-they-want, capture it.\n' + trips.map((r: any) => `• ${r.destination}${r.dates ? ' — ' + r.dates : ''}${r.travelers ? ' — ' + r.travelers : ''}${r.notes ? ' (' + r.notes + ')' : ''}${planLine(r)}`).join('\n') + ']\n\n'
         : '';
-      tripBlock = `\n\n${filed}[FILING THE TRIP — whenever you learn or update a destination, its dates/duration, who is going, or what they are chasing, END your reply (after your spoken guidance) with ONE line per destination, exactly this machine format, which the traveller never sees: [[TRIP: destination | dates or duration | travelers | short notes on their taste/constraints]]. Leave a field blank if unknown (keep the bars). Only emit it when something is new or changed.]\n\n[YOUR FINDS BECOME CARDS — when you surface a real, bookable thing (a specific stay, tour, or table worth it), END with one line per option, exactly: [[SHOP: name | price | url]] — up to 4, REAL page URLs from your search results only, never invented; skip rather than fake. Spoken guidance first, cards last, nothing after. THE MARKET: this traveller is based in ${(t as any).region || 'IN'} — prefer what serves their region and quote local currency where it makes sense.]`;
+      tripBlock = `\n\n${filed}[FILING THE TRIP — whenever you learn or update a destination, its dates/duration, who is going, or what they are chasing, END your reply (after your spoken guidance) with ONE line per destination, exactly this machine format, which the traveller never sees: [[TRIP: destination | dates or duration | travelers | short notes on their taste/constraints]]. Leave a field blank if unknown (keep the bars). Only emit it when something is new or changed.]\n\n[KEEPING THE PLAN CURRENT — when you shape or revise ONE day of a planned trip, END with: [[ITINERARY: destination | day number | that day's title | item ; item ; item]]. When they tell you a checklist thing is handled (visa done, flights booked), END with: [[CHECK: destination | the checklist item text | done]]. These silently update the file; use the exact destination as filed above.]\n\n[YOUR FINDS BECOME CARDS — when you surface a real, bookable thing (a specific stay, tour, or table worth it), END with one line per option, exactly: [[SHOP: name | price | url]] — up to 4, REAL page URLs from your search results only, never invented; skip rather than fake. Spoken guidance first, cards last, nothing after. THE MARKET: this traveller is based in ${(t as any).region || 'IN'} — prefer what serves their region and quote local currency where it makes sense.]`;
     } catch (e: any) { console.error('[trip] block failed:', e?.message || e); }
   }
   // [zip54d] THE CLIENT BRIEF — the advisor never asks for what he has already been
@@ -505,6 +506,21 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
         });
       }
       reply = reply.replace(/\[\[TRIP:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+      // [0055] §4.6 — conversation keeps the plan current
+      for (const m of reply.matchAll(/\[\[ITINERARY:\s*([^|\]]+)\|([^|\]]*)\|([^|\]]*)\|([^\]]*)\]\]/gi)) {
+        const dest = m[1].trim().slice(0, 120);
+        const day = parseInt(m[2].trim(), 10);
+        const title = m[3].trim();
+        const items = m[4].split(';').map((s) => s.trim()).filter(Boolean);
+        if (dest && day > 0 && (title || items.length)) void updateItineraryDay(userId, dest, day, title, items);
+      }
+      for (const m of reply.matchAll(/\[\[CHECK:\s*([^|\]]+)\|([^|\]]*)\|([^\]]*)\]\]/gi)) {
+        const dest = m[1].trim().slice(0, 120);
+        const item = m[2].trim();
+        const done = !/\b(no|false|undo|untick|not)\b/i.test(m[3]);
+        if (dest && item) void tickChecklistItem(userId, dest, item, done);
+      }
+      reply = reply.replace(/\[\[ITINERARY:[^\]]*\]\]/gi, '').replace(/\[\[CHECK:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
     // [0056] [[IDEA: title | format | hook]] — the content pipeline fills itself from talk
