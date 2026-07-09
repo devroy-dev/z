@@ -80,3 +80,45 @@ export async function listFactChecks(userId: string) {
     .order('created_at', { ascending: false }).limit(20);
   return data ?? [];
 }
+
+// ── §6.2 STORY TRACKING — the throttled sweep. Pinned stories (kind='story') that
+// haven't been checked in ~6h get one search: did this develop? If yes, the anchor
+// knocks. News flips from pull to push. Per-user, cost-controlled.
+export async function trackStories(): Promise<number> {
+  const cutoff = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const { data: stories } = await supabase.from('news_follows').select('*')
+    .eq('kind', 'story').or(`last_checked.is.null,last_checked.lt.${cutoff}`)
+    .order('last_checked', { ascending: true, nullsFirst: true }).limit(30);
+  if (!stories?.length) return 0;
+  let pinged = 0;
+  for (const s of stories as any[]) {
+    try {
+      const sys = `You are THE ANCHOR checking whether a story a reader is tracking has genuinely DEVELOPED since they last saw it. Search the web for the latest. Reply with ONLY strict JSON, no fences:
+{ "developed": true or false, "line": "if developed, ONE sentence on what's actually new; else empty string" }
+Set developed=true ONLY for a real new development (a ruling, a result, a decision, a death, a reversal) — never for a rehash, an opinion piece, or coverage of the same facts.`;
+      const msg: any = await anthropic.messages.create({
+        model: MODEL, max_tokens: 400, __pin: 'anthropic', system: sys,
+        messages: [{ role: 'user', content: `The story they're tracking: "${s.term}"\nWhat they last knew: "${s.last_seen || s.term}"\n\nHas it developed?` }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 } as any],
+      });
+      logUsage({ userId: s.user_id, surface: 'other', fn: 'story_track', model: MODEL, usage: (msg as any).usage });
+      const raw = firstText(msg).replace(/```json|```/g, '');
+      let x: any = {}; try { const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); x = a >= 0 && b > a ? JSON.parse(raw.slice(a, b + 1)) : {}; } catch { /* below */ }
+      const line = String(x.line || '').trim().slice(0, 240);
+      const developed = x.developed === true && line.length > 0;
+      const patch: any = { last_checked: new Date().toISOString() };
+      if (developed) {
+        patch.last_seen = line;
+        await supabase.from('scheduled_pings').insert({
+          user_id: s.user_id, persona_key: 'the_anchor', kind: 'reminder', thread_id: null,
+          body: `that story you're tracking moved: ${line} step into the studio if you want it unpacked.`,
+          payload: { kind: 'story_track', follow_id: s.id }, due_at: new Date().toISOString(),
+        }).then(() => {}, () => {});
+        pinged++;
+      }
+      await supabase.from('news_follows').update(patch).eq('id', s.id);
+    } catch (e: any) { console.error('[track] story failed:', e?.message || e); }
+  }
+  if (pinged) console.log('[track] stories moved:', pinged);
+  return pinged;
+}

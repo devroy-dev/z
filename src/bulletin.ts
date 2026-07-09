@@ -8,6 +8,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { llm } from './llm.js';
 import { supabase } from './db.js';
 import { logUsage } from './usage.js';
+import { trackStories } from './newsdesk.js';   // [0057] §6.2
 
 const anthropic = llm();   // [zip34] the second generator — provider-routable
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -87,7 +88,12 @@ export function startBulletinScheduler() {
   setTimeout(tick, 90 * 1000);   // [zip33] boot tick
   setInterval(tick, 55 * 60 * 1000);
   setInterval(topUp, 60 * 60 * 1000);
-  console.log('[bulletin] the anchor clocks in past', RUN_HOUR_IST, 'IST (catch-up + boot tick), tops up hourly');
+  // [0057] §6.2 — sweep tracked stories hourly; each is throttled to ~6h internally,
+  // so this is cheap. Pinned stories that develop → the anchor pings the reader.
+  const trackTick = async () => { try { await trackStories(); } catch (e: any) { console.error('[track] sweep failed:', e?.message || e); } };
+  setTimeout(trackTick, 3 * 60 * 1000);   // boot sweep, staggered after the bulletin tick
+  setInterval(trackTick, 60 * 60 * 1000);
+  console.log('[bulletin] the anchor clocks in past', RUN_HOUR_IST, 'IST (catch-up + boot tick), tops up hourly, tracks pinned stories');
 }
 
 // [zip54n] refreshBulletin — the topUp's working body, callable on demand: add up to

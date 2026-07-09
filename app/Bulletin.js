@@ -54,6 +54,9 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
     setFollows((cur) => cur.filter((f) => f.id !== id));
     try { await removeNewsFollow(id); await loadDesk(); } catch (e) {}
   };
+  const trackStory = async (headline) => {
+    try { await addNewsFollow('story', headline, null); await loadDesk(); } catch (e) {}
+  };
   const runFactCheck = async () => {
     const c = factClaim.trim();
     if (c.length < 6 || factChecking) return;
@@ -72,14 +75,22 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
   const hour = new Date().getHours();
   const edition = hour < 12 ? 'the morning desk' : hour < 18 ? 'the afternoon desk' : "the 9 o'clock";
 
-  const Story = ({ s }) => (
-    <Pressable style={st.story} onPress={() => onAskAnchor(`about "${s.headline}" — `)}>
-      <Text style={[st.kick, { color: KICK_TONE[s.kicker] || GOLD }]}>{s.kicker}</Text>
-      <Text style={st.head}>{s.headline}</Text>
-      <Text style={st.brief}>{s.brief}</Text>
-      <Text style={st.ask}>ask the anchor ›</Text>
-    </Pressable>
-  );
+  const Story = ({ s }) => {
+    const tracked = follows.some((f) => f.kind === 'story' && f.term === s.headline);
+    return (
+      <Pressable style={st.story} onPress={() => onAskAnchor(`about "${s.headline}" — `)}>
+        <Text style={[st.kick, { color: KICK_TONE[s.kicker] || GOLD }]}>{s.kicker}</Text>
+        <Text style={st.head}>{s.headline}</Text>
+        <Text style={st.brief}>{s.brief}</Text>
+        <View style={st.storyFoot}>
+          <Text style={st.ask}>ask the anchor ›</Text>
+          <Pressable hitSlop={8} onPress={() => tracked ? null : trackStory(s.headline)}>
+            <Text style={[st.trackBtn, tracked && { color: '#8FD98F', opacity: 1 }]}>{tracked ? '◉ tracking' : '+ track'}</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    );
+  };
   const VerdictCard = ({ c, compact }) => {
     const tone = VERDICT_TONE[c.verdict] || '#9FB4C0';
     return (
@@ -169,6 +180,17 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
               ) : (
                 <Text style={st.deskEmpty}>follow a few topics or names and your desk fills from the live wire — free, no waiting.</Text>
               )}
+              {follows.filter((f) => f.kind === 'story').length ? (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={st.trackingLabel}>tracking — the anchor knocks when these move</Text>
+                  {follows.filter((f) => f.kind === 'story').map((f) => (
+                    <View key={f.id} style={st.trackRow}>
+                      <Text style={st.trackTerm} numberOfLines={1}>◉ {f.term}</Text>
+                      <Pressable hitSlop={8} onPress={() => removeFollowH(f.id)}><Text style={st.trackStop}>stop</Text></Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
             {/* ask the desk — any story in the world, researched live */}
             <View style={st.askBar}>
@@ -291,4 +313,10 @@ const st = StyleSheet.create({
   verdictReason: { fontFamily: FONTS.body, color: 'rgba(231,215,199,0.8)', fontSize: 13, lineHeight: 19, marginTop: 8 },
   verdictSrc: { fontFamily: FONTS.body, color: GOLD, fontSize: 11.5, opacity: 0.85 },
   histToggle: { fontFamily: FONTS.medium, color: GOLD, fontSize: 12, marginTop: 12, opacity: 0.85 },
+  storyFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 9 },
+  trackBtn: { fontFamily: FONTS.medium, color: '#C9A86A', fontSize: 11.5, opacity: 0.8 },
+  trackingLabel: { fontFamily: FONTS.body, color: C.faint, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
+  trackRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 5 },
+  trackTerm: { flex: 1, fontFamily: FONTS.body, color: 'rgba(231,215,199,0.85)', fontSize: 12.5, marginRight: 10 },
+  trackStop: { fontFamily: FONTS.medium, color: C.muted, fontSize: 11.5 },
 });
