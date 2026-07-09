@@ -74,8 +74,17 @@ Give 3 to 6 gaps, highest priority first. Skip a shop_card rather than fake a UR
 
 export async function listGaps(userId: string) {
   const { data } = await supabase.from('wardrobe_gaps').select('*').eq('user_id', userId)
-    .neq('status', 'dismissed').order('status', { ascending: true }).order('priority', { ascending: true }).limit(20);
-  return data ?? [];
+    .neq('status', 'dismissed').order('status', { ascending: true }).order('priority', { ascending: true }).limit(40);
+  const gaps = data ?? [];
+  // [0054b] resolve the trip name for pinned gaps, so the room can group them
+  const tripIds = Array.from(new Set(gaps.map((g: any) => g.trip_id).filter(Boolean)));
+  if (tripIds.length) {
+    const { data: trips } = await supabase.from('trip_files').select('id, destination').in('id', tripIds as string[]);
+    const name: Record<string, string> = {};
+    for (const t of trips ?? []) name[t.id] = t.destination;
+    for (const g of gaps) if (g.trip_id) (g as any).trip_name = name[g.trip_id] || null;
+  }
+  return gaps;
 }
 
 export async function setGapStatus(userId: string, id: string, status: 'open' | 'bought' | 'dismissed') {

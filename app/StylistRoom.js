@@ -117,6 +117,11 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
     try { await setStylistGapStatus(gap.id, next); } catch (e) { load(); }
   };
   const openCard = (url) => { if (url) Linking.openURL(url).catch(() => {}); };
+  // [0054b] group the trip-pinned gaps into per-trip cards; standing gaps render loose
+  const tripGroups = Object.values((gaps || []).filter((g) => g.trip_id).reduce((acc, g) => {
+    (acc[g.trip_id] = acc[g.trip_id] || { id: g.trip_id, name: g.trip_name, items: [] }).items.push(g);
+    return acc;
+  }, {}));
 
   const addPiece = async () => {
     if (filing) return;
@@ -203,7 +208,15 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
           <Text style={st.empty}>no open gaps — your closet's covered for now.</Text>
         ) : (
           <View style={{ gap: 8 }}>
-            {gaps.map((g) => <GapRow key={g.id} gap={g} onBought={tickBought} onOpenCard={openCard} />)}
+            {gaps.filter((g) => !g.trip_id).map((g) => <GapRow key={g.id} gap={g} onBought={tickBought} onOpenCard={openCard} />)}
+            {tripGroups.map((grp) => (
+              <View key={grp.id} style={st.tripGapCard}>
+                <Text style={st.tripGapHead}>for {grp.name || 'your trip'} · {grp.items.length} piece{grp.items.length === 1 ? '' : 's'}</Text>
+                <View style={{ gap: 8 }}>
+                  {grp.items.map((g) => <GapRow key={g.id} gap={g} onBought={tickBought} onOpenCard={openCard} />)}
+                </View>
+              </View>
+            ))}
           </View>
         )}
 
@@ -281,4 +294,6 @@ const st = StyleSheet.create({
   gapCardPrice: { color: S.mist, fontFamily: FONTS.light, fontSize: 10, marginTop: 1 },
   gapTick: { paddingHorizontal: 6, paddingVertical: 4 },
   gapTickTxt: { color: BLUSH, fontFamily: FONTS.semi, fontSize: 12 },
+  tripGapCard: { borderWidth: 1, borderColor: 'rgba(210,150,80,0.30)', borderRadius: 12, padding: 10, backgroundColor: 'rgba(210,150,80,0.05)' },
+  tripGapHead: { color: '#D29650', fontFamily: FONTS.semi, fontSize: 11, letterSpacing: 0.3, textTransform: 'lowercase', marginBottom: 8 },
 });

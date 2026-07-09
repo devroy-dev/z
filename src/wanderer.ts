@@ -59,8 +59,12 @@ export async function syncTripPings(trip: any): Promise<any[]> {
       ? `${dest} is a month out. still open on your list: ${paper.slice(0, 4).join(', ')}. want to knock these out?`
       : `${dest} is a month out — the window to lock flights and stays before they climb. want to run through what's left?`,
     'T-30');
-  // T-3 — pack (the wardrobe join is a later phase; the nudge stands now)
-  mk(at(3), `three days to ${dest}. time to pack — want me to build you a list?`, 'T-3');
+  // T-3 — pack. [0054b/§4.4] if a packing list is filed, surface it; else offer to build.
+  const packItems = cl.filter((c) => c && c.pack);
+  mk(at(3), packItems.length
+      ? `three days to ${dest}. your packing list's ready — ${packItems.length} to pack. want to run through it, or check anything off?`
+      : `three days to ${dest}. time to pack — want me to build you a list from your wardrobe?`,
+    'T-3');
   // T-1 — eve of departure. Live weather rides her thread on tap; no stale forecast baked here.
   mk(at(1), `tomorrow's the day — ${dest} awaits. want tomorrow's weather and one last look at the plan?`, 'T-1');
   if (rows.length) await supabase.from('scheduled_pings').insert(rows);
@@ -179,39 +183,51 @@ export async function startTripBuild(userId: string, tripId: string): Promise<an
 export async function buildPacklist(userId: string, tripId: string): Promise<any | null> {
   const { data: trip } = await supabase.from('trip_files').select('*').eq('id', tripId).eq('user_id', userId).maybeSingle();
   if (!trip) return null;
-  const { data: pieces } = await supabase.from('wardrobe_pieces').select('kind, colors, tags')
+  const { data: pieces } = await supabase.from('wardrobe_pieces').select('id, kind, colors, tags')
     .eq('user_id', userId).order('created_at', { ascending: false }).limit(200);
-  const closet = (pieces ?? []).map((p: any) => `- ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}`).join('\n') || '(their closet is empty — pack from scratch)';
+  const owned = pieces ?? [];
+  const ownedIds = new Set(owned.map((p: any) => p.id));
+  const closet = owned.map((p: any) => `- {${p.id}} ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}`).join('\n') || '(their closet is empty — pack from scratch)';
   const itin = Array.isArray(trip.itinerary) ? trip.itinerary.map((d: any) => d?.title).filter(Boolean).join('; ') : '';
-  const sys = `You are THE WANDERER building a packing list for a real trip. Draw on what the traveller ALREADY OWNS where it fits (their closet is below), and flag what they're MISSING for this destination, season and itinerary. Plain Indian English, Rs never the symbol.
+  const sys = `You are THE WANDERER building a packing list for a real trip. Draw on what the traveller ALREADY OWNS where it fits (their closet is below, each piece with an id in braces), and flag what they're MISSING for this destination, season and itinerary. Plain Indian English, Rs never the symbol.
 Reply with ONLY strict JSON, no fences:
-{ "pack": ["10-16 concrete things to pack, one line each; prefer things that match their closet"], "missing": [ { "what": "a piece they'd need but don't seem to own", "why": "one line" } ] }`;
+{ "pack": [ { "item": "one line — what to pack", "piece_id": "the id in braces IF this is a piece they own, else null" } ], "missing": [ { "what": "a piece they'd need but don't seem to own", "why": "one line" } ] }
+Give 10-16 pack lines; set piece_id only when the item genuinely IS one of their filed pieces (use the exact id), null for generic essentials (underwear, toiletries, chargers).`;
   const fileTxt = `TRIP: ${trip.destination}${trip.dates ? ` (${trip.dates})` : ''}\nITINERARY: ${itin || '—'}\n\nTHEIR CLOSET:\n${closet}`;
   const msg: any = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001', max_tokens: 1200, __pin: 'anthropic',
+    model: 'claude-haiku-4-5-20251001', max_tokens: 1400, __pin: 'anthropic',
     system: sys, messages: [{ role: 'user', content: fileTxt + '\n\nBuild the packing list.' }],
   });
   logUsage({ userId, surface: 'other', fn: 'trip_packlist', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });
   const raw = firstText(msg).replace(/```json|```/g, '');
   let x: any = {};
   try { const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); x = a >= 0 && b > a ? JSON.parse(raw.slice(a, b + 1)) : {}; } catch { /* below */ }
-  const pack = Array.isArray(x.pack) ? x.pack.slice(0, 20).map((s: any) => String(s).replace(/\u20B9\s*/g, 'Rs ').slice(0, 120)).filter(Boolean) : [];
+  const pack = Array.isArray(x.pack) ? x.pack.slice(0, 20).map((p: any) => {
+    const item = String(p?.item ?? p ?? '').replace(/\u20B9\s*/g, 'Rs ').slice(0, 120);
+    const pid = typeof p?.piece_id === 'string' && ownedIds.has(p.piece_id) ? p.piece_id : null;
+    return item ? { item, done: false, pack: true, piece_id: pid } : null;
+  }).filter(Boolean) : [];
   const missing = Array.isArray(x.missing) ? x.missing.slice(0, 6) : [];
   if (!pack.length) return { pack: [], missing: [] };
   // store on the checklist: replace prior pack entries, keep the rest
   const prior = Array.isArray(trip.checklist) ? trip.checklist.filter((c: any) => c && !c.pack) : [];
-  const checklist = [...prior, ...pack.map((item: string) => ({ item, done: false, pack: true }))];
+  const checklist = [...prior, ...pack];
   await supabase.from('trip_files').update({ checklist, updated_at: new Date().toISOString() }).eq('id', tripId).eq('user_id', userId);
-  // feed the misses into the stylist's gap report (0054); silent if that table isn't there yet
+  // feed the misses into the stylist's gap report (0054), PINNED to this trip (0054b).
+  // Re-run replaces this trip's open gaps; standing wardrobe gaps (trip_id null) are untouched.
+  await supabase.from('wardrobe_gaps').delete().eq('user_id', userId).eq('trip_id', tripId).eq('status', 'open').then(() => {}, () => {});
   if (missing.length) {
     const rows = missing.map((m: any) => ({
-      user_id: userId, what: String(m?.what || '').slice(0, 160),
+      user_id: userId, trip_id: tripId, what: String(m?.what || '').slice(0, 160),
       why: `for your ${trip.destination} trip${m?.why ? ` — ${String(m.why).slice(0, 160)}` : ''}`,
       priority: 2, status: 'open',
     })).filter((r: any) => r.what);
     if (rows.length) await supabase.from('wardrobe_gaps').insert(rows).then(() => {}, () => {});
   }
-  return { pack, missing };
+  // §4.4 — the packing list now exists, so the T-3 ping must surface it (not offer to build).
+  try { await syncTripPings({ ...trip, checklist }); } catch (e: any) { console.error('[packlist] ping resync failed:', e?.message || e); }
+  const packedFromCloset = pack.filter((p: any) => p.piece_id).length;
+  return { pack: pack.map((p: any) => ({ item: p.item, piece_id: p.piece_id })), missing, owned: packedFromCloset };
 }
 
 // ── 5. §4.6 conversation keeps the file current ─────────────────────────────
@@ -269,5 +285,35 @@ export async function tripsFor(userId: string): Promise<any[]> {
     supabase.from('trip_files').update({ status: fl.status }).eq('id', fl.id).eq('user_id', userId)
       .then(({ error }: any) => { if (error) console.error('[trip] live-flip failed:', error.message); });
   }
+  // [0054b] per-trip stylist gap count (for the Wanderer→Stylist handoff card) +
+  // thumbnails for pack items that map to owned pieces (owned-vs-needed packing).
+  try {
+    const ids = trips.map((t) => t.id);
+    if (ids.length) {
+      const { data: gaps } = await supabase.from('wardrobe_gaps')
+        .select('trip_id').eq('user_id', userId).eq('status', 'open').in('trip_id', ids);
+      const gapCount: Record<string, number> = {};
+      for (const g of gaps ?? []) if (g.trip_id) gapCount[g.trip_id] = (gapCount[g.trip_id] || 0) + 1;
+      // collect pack piece ids across all trips, resolve thumbnails in one batch
+      const pieceIds = Array.from(new Set(trips.flatMap((t) =>
+        (Array.isArray(t.checklist) ? t.checklist : []).filter((c: any) => c?.pack && c?.piece_id).map((c: any) => c.piece_id))));
+      const thumb: Record<string, string | null> = {};
+      if (pieceIds.length) {
+        const { data: pcs } = await supabase.from('wardrobe_pieces').select('id, storage_path').in('id', pieceIds);
+        const byPath: Record<string, string> = {};
+        for (const p of pcs ?? []) byPath[p.storage_path] = p.id;
+        const paths = (pcs ?? []).map((p: any) => p.storage_path);
+        if (paths.length) {
+          const signed = await supabase.storage.from('wardrobe').createSignedUrls(paths, 3600);
+          for (const s of signed.data ?? []) if (s.path && byPath[s.path]) thumb[byPath[s.path]] = s.signedUrl ?? null;
+        }
+      }
+      for (const t of trips) {
+        t.gap_count = gapCount[t.id] || 0;
+        if (Array.isArray(t.checklist)) t.checklist = t.checklist.map((c: any) =>
+          c?.pack && c?.piece_id ? { ...c, url: thumb[c.piece_id] ?? null } : c);
+      }
+    }
+  } catch (e: any) { console.error('[trips] enrich failed:', e?.message || e); }
   return trips;
 }

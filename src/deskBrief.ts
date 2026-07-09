@@ -100,7 +100,7 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
   // ── stylist gaps (§3/0054) — the open audit rows ─────────────────────────
   try {
     const { count } = await supabase.from('wardrobe_gaps')
-      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'open');
+      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'open').is('trip_id', null);
     if (count && count > 0) {
       items.push({ key: 'stylist', kicker: 'your stylist noticed', line: `${count} gap${count === 1 ? '' : 's'} in your wardrobe worth closing`, route: 'the_diva', prio: 8 });
     }

@@ -30,7 +30,7 @@ function StatusChip({ status }) {
   const s = status || 'dreaming';
   return <Text style={[st.chip, st['chip_' + s] || st.chip_dreaming]}>{s}</Text>;
 }
-function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle, onPacklist, packing }) {
+function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle, onPacklist, packing, onStylist }) {
   const line = [trip.dates, trip.travelers].filter(Boolean).join(' · ');
   const planning = trip.status === 'planning' || building;
   const planned = trip.status && trip.status !== 'dreaming' && trip.status !== 'planning';
@@ -101,7 +101,7 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
                   </View>
                 </View>
               ))}
-              {/* §4.4 the packing list — from what they own */}
+              {/* §4.4 the packing list — owned pieces (with photos) + generics */}
               <View style={st.checkBox}>
                 <View style={st.packHead}>
                   <Text style={st.checkHead}>packing</Text>
@@ -109,10 +109,27 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
                     <Text style={st.packBtnTxt}>{packing ? 'building…' : pack.length ? 'rebuild' : 'build from my wardrobe'}</Text>
                   </Pressable>
                 </View>
-                {pack.length ? pack.map((c, i) => (
-                  <Text key={i} style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
-                )) : <Text style={st.packEmpty}>she'll pack you from your own closet, and flag what's missing.</Text>}
+                {pack.length ? (
+                  <View>
+                    {pack.filter((c) => c.piece_id).map((c, i) => (
+                      <View key={`o${i}`} style={st.packOwned}>
+                        {c.url ? <Image source={{ uri: c.url }} style={st.packThumb} resizeMode="cover" /> : <View style={[st.packThumb, st.packThumbGhost]} />}
+                        <Text style={[st.packOwnedTxt, c.done && st.checkDone]} numberOfLines={2}>{c.item}</Text>
+                      </View>
+                    ))}
+                    {pack.filter((c) => !c.piece_id).map((c, i) => (
+                      <Text key={`g${i}`} style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
+                    ))}
+                  </View>
+                ) : <Text style={st.packEmpty}>she'll pack you from your own closet, and flag what's missing.</Text>}
               </View>
+              {/* the Wanderer → Stylist handoff: the misses are waiting in her room */}
+              {trip.gap_count > 0 ? (
+                <Pressable onPress={onStylist} style={st.stylistHandoff}>
+                  <Text style={st.stylistHandoffTxt}>the stylist has {trip.gap_count} piece{trip.gap_count === 1 ? '' : 's'} for this trip →</Text>
+                  <Text style={st.stylistHandoffSub}>what you're missing, priced and ready to shop</Text>
+                </Pressable>
+              ) : null}
               {todo.length ? (
                 <View style={st.checkBox}>
                   <Text style={st.checkHead}>before you go</Text>
@@ -132,7 +149,7 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
   );
 }
 
-export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk = () => {} }) {
+export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk = () => {}, onStylist = () => {} }) {
   const [trips, setTrips] = useState(null);   // null=loading | []
   const [dest, setDest] = useState('');
   const [buildingId, setBuildingId] = useState(null);
@@ -224,7 +241,7 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
               <TripCard key={t.id} trip={t} onOpen={openTrip} onDelete={removeTrip}
                 onBuild={doBuild} building={buildingId === t.id}
                 expanded={expandedId === t.id} onToggle={toggleExpand}
-                onPacklist={doPacklist} packing={packingId === t.id} />
+                onPacklist={doPacklist} packing={packingId === t.id} onStylist={onStylist} />
             ))}
           </View>
         )}
@@ -300,6 +317,13 @@ const st = StyleSheet.create({
   packBtn: { borderWidth: 1, borderColor: AMBER, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
   packBtnTxt: { color: AMBER, fontFamily: FONTS.semi, fontSize: 11 },
   packEmpty: { color: S.faint, fontFamily: FONTS.light, fontSize: 12, lineHeight: 17 },
+  packOwned: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  packThumb: { width: 30, height: 40, borderRadius: 6, backgroundColor: S.hair },
+  packThumbGhost: { borderWidth: 1, borderColor: S.hair },
+  packOwnedTxt: { flex: 1, color: S.ink, fontFamily: FONTS.light, fontSize: 12.5, lineHeight: 17 },
+  stylistHandoff: { marginTop: 8, borderWidth: 1, borderColor: 'rgba(232,169,176,0.35)', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: 'rgba(232,169,176,0.06)' },
+  stylistHandoffTxt: { color: '#E8A9B0', fontFamily: FONTS.semi, fontSize: 13 },
+  stylistHandoffSub: { color: S.faint, fontFamily: FONTS.light, fontSize: 11, marginTop: 2 },
   openThread: { marginTop: 4, alignItems: 'center', paddingVertical: 8, borderWidth: 1, borderColor: S.hair, borderRadius: 10 },
   openThreadTxt: { color: S.ink, fontFamily: FONTS.semi, fontSize: 12.5 },
   section: { color: S.ink, fontSize: 12, fontFamily: FONTS.semi, letterSpacing: 0.4, marginTop: 22, marginBottom: 8, textTransform: 'lowercase' },
