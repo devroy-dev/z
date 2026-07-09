@@ -11,6 +11,7 @@
 // static registry — the desk must never break; it just goes quiet.
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FONTS } from './theme';
 import { getDeskRooms, getDeskBrief } from './api';
 
@@ -98,14 +99,40 @@ function QuietRow({ item, onOpen, last }) {
   );
 }
 
+const CACHE = 'z_desk_alive_cache';   // the desk opens already knowing — last state hydrates instantly, the network refreshes silently behind it
+
+// [v3] module memory cache, preloaded at import time (bundle boot) — by the
+// time the pane first paints, the last state is usually already in memory.
+// Within a session, every subsequent open is 0-frame instant.
+let memCache = null;
+AsyncStorage.getItem(CACHE).then((c) => { try { if (c) memCache = JSON.parse(c); } catch (e) {} }).catch(() => {});
+
 export default function DeskPane({ rooms, onOpen, consultLogo, bump = 0 }) {
-  const [state, setState] = useState(null);      // { [kind]: {line,hot} | null }
-  const [briefLine, setBriefLine] = useState('');
+  const [state, setState] = useState(memCache?.rooms || null);   // painted from memory on the FIRST frame
+  const [briefLine, setBriefLine] = useState(memCache?.brief || '');
+  const fresh = React.useRef(false);             // once the network answers, the disk never overwrites it
 
   useEffect(() => {
     let dead = false;
-    getDeskRooms().then((r) => { if (!dead && r) setState(r); }).catch(() => {});
-    getDeskBrief().then((items) => { if (!dead && items?.[0]?.line) setBriefLine(items[0].line); }).catch(() => {});
+    if (!memCache) AsyncStorage.getItem(CACHE).then((c) => {
+      if (dead || fresh.current || !c) return;
+      try { const j = JSON.parse(c); memCache = j; if (j?.rooms) setState(j.rooms); if (j?.brief) setBriefLine(j.brief); } catch (e) {}
+    }).catch(() => {});
+    return () => { dead = true; };
+  }, []);
+
+  useEffect(() => {
+    let dead = false;
+    getDeskRooms().then((r) => {
+      if (dead || !r) return;
+      fresh.current = true; setState(r);
+      getDeskBrief().then((items) => {
+        const b = items?.[0]?.line || '';
+        if (!dead && b) setBriefLine(b);
+        memCache = { rooms: r, brief: b };
+        AsyncStorage.setItem(CACHE, JSON.stringify(memCache)).catch(() => {});
+      }).catch(() => { memCache = { rooms: r, brief: '' }; AsyncStorage.setItem(CACHE, JSON.stringify(memCache)).catch(() => {}); });
+    }).catch(() => {});
     return () => { dead = true; };
   }, [bump]);
 
