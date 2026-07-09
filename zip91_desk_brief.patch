@@ -1,0 +1,348 @@
+diff --git a/app/Desk.js b/app/Desk.js
+index 11822d0..74d3034 100644
+--- a/app/Desk.js
++++ b/app/Desk.js
+@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
+ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
+ import { FONTS } from './theme';
+ import { parseCards, ProgrammeCard } from './Chat';
+-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe } from './api';
++import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe, getDeskBrief } from './api';
+ import { MOTIONS } from './games/debate/motions';
+ import { LIBRARY as STAGE_LIB } from './stage/library';
+ import { TABLE_CAST } from './games/personas';
+@@ -180,6 +180,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
+         getRecentPings().then(setNotes),
+         getArcs().then(setArcState),
+       ]);
++      loadBrief();
+     } catch (e) {}
+     setRefreshing(false);
+   };
+@@ -189,8 +190,9 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
+   const [notes, setNotes] = useState([]);   // proactive pings — notes left at the desk
+   const [arcState, setArcState] = useState({ arcs: [], catalog: [] });
+ 
+-  // ── tonight at the house: living hooks, freshly dealt every visit ──
+-  const [tonight] = useState(() => {
++  // ── the house right now: the REAL brief (a trip counting down, a task due,
++  // this week's move, today's lead) — with a random hook only for a new, empty house.
++  const randomHooks = () => {
+     const pick = (a) => a[Math.floor(Math.random() * a.length)];
+     const motion = pick(MOTIONS);
+     const scene = pick(STAGE_LIB);
+@@ -211,7 +213,16 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
+     ];
+     for (let i = hooks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [hooks[i], hooks[j]] = [hooks[j], hooks[i]]; }
+     return hooks.slice(0, 3);
+-  });
++  };
++  const BRIEF_TONE = { trip: '#F0A765', task: '#E0C088', mm: '#A9DDF2', coach: '#8FD98F', stylist: '#C99BE8', news: '#E0C088' };
++  const [tonight, setTonight] = useState(randomHooks);   // instant fallback; replaced by the brief on load
++  const loadBrief = () => {
++    getDeskBrief().then((items) => {
++      if (items && items.length) {
++        setTonight(items.map((it) => ({ key: it.route, tone: BRIEF_TONE[it.key] || '#D0B48A', kicker: it.kicker, line: it.line })));
++      }
++    }).catch(() => {});
++  };
+ 
+   const scrollRef = useRef(null);
+   const sendingRef = useRef(false);
+@@ -243,6 +254,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
+       .then(() => openThread('the_front_desk', 'the front desk'))
+       .then((id) => id && setThreadId(id));
+     refreshDesk();
++    loadBrief();
+     getLedger().then((l) => setLedgerLine(l?.headline || null)).catch(() => {});
+     getRecentPings().then(setNotes).catch(() => {});
+     getArcs().then(setArcState).catch(() => {});
+diff --git a/app/api.js b/app/api.js
+index 87db285..58e8a5f 100644
+--- a/app/api.js
++++ b/app/api.js
+@@ -558,6 +558,11 @@ export async function getRecentPings() {
+   try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
+ }
+ 
++// [0058] the house brief — real state for the desk marquee + Z's mouth
++export async function getDeskBrief() {
++  try { const j = await authedJSON('GET', '/desk/brief'); return j.items || []; } catch (e) { return []; }
++}
++
+ export async function getMemory() {
+   try { const j = await authedJSON('GET', '/memory'); return j.items || []; } catch (e) { return []; }
+ }
+diff --git a/migrations/0058_desk_dispatch.sql b/migrations/0058_desk_dispatch.sql
+new file mode 100644
+index 0000000..d6ae4f5
+--- /dev/null
++++ b/migrations/0058_desk_dispatch.sql
+@@ -0,0 +1,10 @@
++-- 0058 — THE HOST'S NEW VERBS: task due dates (so the list can knock) and the
++-- per-user morning-line opt-in. Verified against live migrations: z.tasks (0013)
++-- already has due_at + status + suggested_persona; z.users (0001) is the real table.
++-- The due_at add is a harmless no-op kept for fidelity; the index and the two
++-- users flags are the real additions.
++alter table z.tasks add column if not exists due_at timestamptz;
++create index if not exists tasks_due_idx on z.tasks (user_id, due_at) where due_at is not null;
++
++alter table z.users add column if not exists morning_brief boolean not null default false;
++alter table z.users add column if not exists morning_brief_hour int not null default 8;
+diff --git a/src/deskBrief.ts b/src/deskBrief.ts
+new file mode 100644
+index 0000000..0653b4c
+--- /dev/null
++++ b/src/deskBrief.ts
+@@ -0,0 +1,120 @@
++// deskBrief.ts — [0058] THE HOUSE BRIEF. One cheap, model-free assembly of the
++// REAL state the Host should be holding: a trip counting down, a task about to
++// come due, this week's unmoved instruction, the coaching day that's waiting,
++// today's lead. The marquee stops being theatre; the desk reads its own house.
++// Every source is guarded on its own — a table that arrives in a later phase
++// (stylist's wardrobe_gaps, §3/0054) simply contributes nothing until it exists.
++import { supabase } from './db.js';
++
++export type BriefItem = { key: string; kicker: string; line: string; route: string; prio: number };
++
++const istToday = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
++const daysUntil = (dateStr: string): number => {
++  const t = istToday();
++  const a = Date.parse(t + 'T00:00:00Z'), b = Date.parse(dateStr + 'T00:00:00Z');
++  if (isNaN(b)) return 9999;
++  return Math.round((b - a) / 86400000);
++};
++const whenLabel = (iso: string): string => {
++  const d = new Date(iso); if (isNaN(d.getTime())) return '';
++  return d.toLocaleString('en-GB', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
++};
++
++// Assembles the brief, priority-ordered (lower prio = more urgent), capped at 5.
++export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
++  const items: BriefItem[] = [];
++
++  // ── trips counting down (trip_files v2) ──────────────────────────────────
++  try {
++    const { data: trips } = await supabase.from('trip_files')
++      .select('destination, status, start_date, end_date, checklist')
++      .eq('user_id', userId).not('start_date', 'is', null)
++      .order('start_date', { ascending: true }).limit(6);
++    for (const tr of trips ?? []) {
++      const d = daysUntil(tr.start_date);
++      if (d < -1 || d > 14) continue;   // only the near window
++      const live = tr.status === 'live' || (d <= 0 && tr.end_date && daysUntil(tr.end_date) >= 0);
++      const open = Array.isArray(tr.checklist) ? tr.checklist.filter((c: any) => c && !c.done && c.item) : [];
++      const line = live
++        ? `you're in ${tr.destination} — enjoy it`
++        : `${tr.destination} in ${d} day${d === 1 ? '' : 's'}${open.length ? ` — ${String(open[0].item).slice(0, 40)} still open` : ''}`;
++      items.push({ key: 'trip', kicker: live ? 'on your trip' : 'coming up', line, route: 'the_wanderer', prio: Math.max(0, d) });
++      break;   // the nearest trip only
++    }
++  } catch (e: any) { console.error('[brief] trips:', e?.message || e); }
++
++  // ── a task about to come due (next 48h) ──────────────────────────────────
++  try {
++    const soon = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
++    const { data: tasks } = await supabase.from('tasks')
++      .select('title, due_at, suggested_persona')
++      .eq('user_id', userId).eq('status', 'open').not('due_at', 'is', null)
++      .lte('due_at', soon).order('due_at', { ascending: true }).limit(1);
++    const tk = tasks?.[0];
++    if (tk) {
++      const hrs = (Date.parse(tk.due_at) - Date.now()) / 3600000;
++      items.push({
++        key: 'task', kicker: 'on your list', line: `${String(tk.title).slice(0, 60)} — due ${whenLabel(tk.due_at)}`,
++        route: tk.suggested_persona || 'the_front_desk', prio: Math.max(0, hrs / 24),
++      });
++    }
++  } catch (e: any) { console.error('[brief] tasks:', e?.message || e); }
++
++  // ── the Media Manager: this week's unmoved instruction, or a fresh memo ───
++  try {
++    const { data: task } = await supabase.from('mm_tasks').select('instruction, status')
++      .eq('user_id', userId).order('week_of', { ascending: false }).limit(1).maybeSingle();
++    if (task?.instruction && task.status === 'open') {
++      items.push({ key: 'mm', kicker: "this week's move", line: String(task.instruction).slice(0, 90), route: 'the_media_manager', prio: 5 });
++    } else {
++      const { data: note } = await supabase.from('mm_desk_notes').select('created_at')
++        .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
++      if (note && daysUntil(String(note.created_at).slice(0, 10)) >= -3) {
++        items.push({ key: 'mm', kicker: 'from your manager', line: 'a fresh desk note is waiting', route: 'the_media_manager', prio: 6 });
++      }
++    }
++  } catch (e: any) { console.error('[brief] mm:', e?.message || e); }
++
++  // ── the coaching day that's waiting ──────────────────────────────────────
++  try {
++    const { data: course } = await supabase.from('coach_courses')
++      .select('topic, current_day, total_days').eq('user_id', userId).eq('status', 'active')
++      .order('updated_at', { ascending: false }).limit(1).maybeSingle();
++    if (course?.topic) {
++      items.push({
++        key: 'coach', kicker: 'class is in session',
++        line: `${course.topic}: day ${course.current_day} of ${course.total_days} is waiting`,
++        route: 'the_coach', prio: 7,
++      });
++    }
++  } catch (e: any) { console.error('[brief] coach:', e?.message || e); }
++
++  // ── stylist gaps — arrives with §3 (migration 0054); guarded until then ───
++  try {
++    const { count } = await supabase.from('wardrobe_gaps')
++      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('resolved', false);
++    if (count && count > 0) {
++      items.push({ key: 'stylist', kicker: 'your stylist noticed', line: `${count} gap${count === 1 ? '' : 's'} in your wardrobe worth closing`, route: 'the_stylist', prio: 8 });
++    }
++  } catch { /* table not present yet — silent by design */ }
++
++  // ── today's lead (day-cached bulletin; no model billed) ──────────────────
++  try {
++    const { data: bul } = await supabase.from('bulletins').select('stories')
++      .eq('scope', 'in').eq('day', istToday()).maybeSingle();
++    const top = Array.isArray(bul?.stories) ? (bul!.stories as any[])[0] : null;
++    if (top?.headline) {
++      items.push({ key: 'news', kicker: "today's lead", line: String(top.headline).slice(0, 90), route: 'the_anchor', prio: 9 });
++    }
++  } catch (e: any) { console.error('[brief] news:', e?.message || e); }
++
++  return items.sort((a, b) => a.prio - b.prio).slice(0, 5);
++}
++
++// Compact text form for the Front Desk's context block — so Z speaks the house.
++export async function deskBriefText(userId: string): Promise<string> {
++  const items = await assembleDeskBrief(userId);
++  if (!items.length) return '';
++  const lines = items.map((it) => `  • (${it.kicker}) ${it.line}  [→ ${it.route}]`).join('\n');
++  return `\n\n[THE HOUSE RIGHT NOW — the real state you hold for them, freshest and most pressing first. Weave the ONE that fits when it fits, in your own voice, and offer the door in the bracket; never recite the whole list, never nag.\n${lines}]`;
++}
+diff --git a/src/index.ts b/src/index.ts
+index 6bb286c..a6b48f7 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -32,6 +32,7 @@ import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
+ import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
+ import { startPingScheduler, firePings } from './concierge.js';
+ import { tripsFor, startTripBuild } from './wanderer.js';   // [0055]
++import { assembleDeskBrief } from './deskBrief.js';   // [0058]
+ import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
+ import { getWire, getWireMix } from './wire.js';   // [zip67]
+ import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
+@@ -1235,6 +1236,16 @@ app.post('/wanderer/trips/:id/build', async (req, res) => {
+     res.json({ trip });
+   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+ });
++
++// [0058] THE HOUSE BRIEF — real state the Host holds; feeds the marquee + her voice.
++app.get('/desk/brief', async (req, res) => {
++  try {
++    const authId = await authUser(req);
++    if (!authId) return res.status(401).json({ error: 'unauthorized' });
++    const user = await resolveUser(authId);
++    res.json({ items: await assembleDeskBrief(user.id) });
++  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
++});
+ app.delete('/wanderer/trips/:id', async (req, res) => {
+   try {
+     const authId = await authUser(req);
+diff --git a/src/loop.ts b/src/loop.ts
+index 816fe47..d5564f8 100644
+--- a/src/loop.ts
++++ b/src/loop.ts
+@@ -15,6 +15,7 @@ import { personaByKey, type CodexKey } from './personas.js';
+ import { stateBlockFor, currentStates } from './personaStates.js';
+ import { manifestBlock } from './manifest.js';
+ import { executeConciergeTags, parseWhen } from './concierge.js';
++import { deskBriefText } from './deskBrief.js';   // [0058]
+ 
+ // Use Node's native fetch (undici) instead of the SDK's default node-fetch@2, which
+ // premature-closes streaming responses on Node 22 (this engine pins Node 22 for supabase
+@@ -239,6 +240,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
+ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest never sees the raw tag (always at least one human line of text with them). THE CONCIERGE'S WORD: you never SAY a table, room, or reminder is set unless the matching tag is in this very message — [[BOOK]] with a time ("now" is valid) actually creates it; a [[CARD]] is an invitation to a door, never a created thing, so speak of it as one:
+   • [[TASK_ADD: title | due: tomorrow 5pm | room: the_orator]] · [[TASK_DONE: {id}]]
+   • [[GOTO: the_brother]] — a tappable chip (also: the_stage, the_arena, z_serious for the quiet room)
++  • [[HANDOFF: the_wanderer | one warm line teeing up why they're walking in]] — like GOTO but you also hand the room a briefing: the door appears AND that persona greets them already knowing the context. Use it when you're walking them into a specific room mid-conversation (the Wanderer for a trip, the Media Manager for their numbers, the coach for a course).
+   • [[CARD: play | Teen Patti | the desi bluff classic | the_arena:teenpatti]] — one concrete plan set in front of them; for games always the_arena:<game id> — the card seats them at that table where THEY pick their company, so suggest a pairing, never promise one
+   • [[BOOK: poker | the_wannabe | 9pm]] — real: the room exists the moment you tag it, and you ping them at the hour
+   • [[REMIND: call the lawyer | tomorrow 11am]]
+@@ -263,6 +265,10 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
+         .join('\n');
+       if (lines) frontDeskBlock += `\n\n[HOW THE HOUSE IS DOING TODAY — each resident's day, from their own diary:\n${lines}]`;
+     } catch (e: any) { console.error('[desk] house lives failed:', e?.message || e); }
++    // [0058] THE HOUSE BRIEF — real, pressing state (a trip counting down, a task
++    // due, this week's move, the coaching day waiting, today's lead) so she speaks
++    // the house instead of guessing at it.
++    try { frontDeskBlock += await deskBriefText(userId); } catch (e: any) { console.error('[desk] brief failed:', e?.message || e); }
+   }
+ 
+   // THE CHAT REGISTER: personas text like people — short bursts, not essays.
+@@ -382,7 +388,18 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
+         if (dm) { const d = parseWhen(dm[1]) || (isNaN(new Date(dm[1]).getTime()) ? null : new Date(dm[1])); if (d) row.due_at = d.toISOString(); }
+         if (rm) row.suggested_persona = rm[1].replace(/[^a-z_]/gi, '').slice(0, 40);
+       }
+-      try { await supabase.from('tasks').insert(row); } catch { /* non-fatal */ }
++      try {
++        await supabase.from('tasks').insert(row);
++        // [0058] a task with a due time KNOCKS — schedule the desk to deliver it,
++        // so the list stops being a place things go to be forgotten.
++        if (row.due_at) {
++          await supabase.from('scheduled_pings').insert({
++            user_id: userId, persona_key: 'the_front_desk', kind: 'reminder',
++            body: `that thing on your list: ${title.slice(0, 200)}`,
++            payload: { kind: 'task' }, due_at: row.due_at,
++          });
++        }
++      } catch { /* non-fatal */ }
+     }
+     // [[TASK_DONE: id]]
+     const doneRe = /\[\[TASK_DONE:\s*\{?([0-9a-f-]{6,})\}?\s*\]\]/gi;
+@@ -405,6 +422,39 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
+       const key = gm[1].toLowerCase();
+       if (!routes.includes(key)) routes.push(key);
+     }
++    // [0058] [[HANDOFF: persona_key | opener]] — GOTO plus a briefing: the door
++    // appears AND the target room greets them already holding the context. The
++    // opener rides as that persona's own opening line (no fake user turn).
++    const handoffRe = /\[\[HANDOFF:\s*([a-z_]+)\s*\|\s*([^\]]+)\]\]/gi;
++    let hm: RegExpExecArray | null;
++    const handoffSeen = new Set<string>();
++    while ((hm = handoffRe.exec(reply)) !== null) {
++      const key = hm[1].toLowerCase();
++      if (handoffSeen.has(key)) continue;
++      handoffSeen.add(key);
++      const opener = hm[2].trim().slice(0, 400);
++      const p = personaByKey(key);
++      if (!p || key === 'the_front_desk') continue;
++      if (!routes.includes(key)) routes.push(key);
++      if (opener) {
++        (async () => {
++          const { data: ex } = await supabase.from('threads').select('id')
++            .eq('user_id', userId).eq('persona_key', key).eq('is_group', false).is('deleted_at', null)
++            .order('last_active', { ascending: false }).limit(1).maybeSingle();
++          let tid = ex?.id as string | undefined;
++          if (!tid) {
++            const { data: made } = await supabase.from('threads').insert({
++              user_id: userId, persona_key: key, codex_key: p.codex, companion_name: p.defaultName,
++            }).select('id').single();
++            tid = made?.id;
++          }
++          if (tid) {
++            await supabase.from('messages').insert({ thread_id: tid, user_id: userId, role: 'assistant', content: opener, persona_key: key });
++            await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', tid);
++          }
++        })().catch((e: any) => console.error('[handoff] failed:', e?.message || e));
++      }
++    }
+     routes = routes.slice(0, 4);
+     // [[NAME: their name]] — the house learns who it's hosting
+     const nm = reply.match(/\[\[NAME:\s*([^\]]{1,40})\]\]/i);
+@@ -414,8 +464,8 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
+         .then(({ error }) => { if (error) console.error('[name] save failed:', error.message); });
+       reply = reply.replace(/\[\[NAME:[^\]]*\]\]/gi, '');
+     }
+-    // strip the raw GOTO tags from the visible/persisted text — the chips carry them now
+-    reply = reply.replace(/\[\[GOTO:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
++    // strip the raw GOTO/HANDOFF tags from the visible/persisted text — the chips carry them now
++    reply = reply.replace(/\[\[GOTO:[^\]]*\]\]/gi, '').replace(/\[\[HANDOFF:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+     // never persist silence: a tags-only reply becomes a short human line
+     if (!reply && routes.length) reply = 'right this way —';
+   }

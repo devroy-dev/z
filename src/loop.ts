@@ -15,6 +15,7 @@ import { personaByKey, type CodexKey } from './personas.js';
 import { stateBlockFor, currentStates } from './personaStates.js';
 import { manifestBlock } from './manifest.js';
 import { executeConciergeTags, parseWhen } from './concierge.js';
+import { deskBriefText } from './deskBrief.js';   // [0058]
 
 // Use Node's native fetch (undici) instead of the SDK's default node-fetch@2, which
 // premature-closes streaming responses on Node 22 (this engine pins Node 22 for supabase
@@ -239,6 +240,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
 YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest never sees the raw tag (always at least one human line of text with them). THE CONCIERGE'S WORD: you never SAY a table, room, or reminder is set unless the matching tag is in this very message — [[BOOK]] with a time ("now" is valid) actually creates it; a [[CARD]] is an invitation to a door, never a created thing, so speak of it as one:
   • [[TASK_ADD: title | due: tomorrow 5pm | room: the_orator]] · [[TASK_DONE: {id}]]
   • [[GOTO: the_brother]] — a tappable chip (also: the_stage, the_arena, z_serious for the quiet room)
+  • [[HANDOFF: the_wanderer | one warm line teeing up why they're walking in]] — like GOTO but you also hand the room a briefing: the door appears AND that persona greets them already knowing the context. Use it when you're walking them into a specific room mid-conversation (the Wanderer for a trip, the Media Manager for their numbers, the coach for a course).
   • [[CARD: play | Teen Patti | the desi bluff classic | the_arena:teenpatti]] — one concrete plan set in front of them; for games always the_arena:<game id> — the card seats them at that table where THEY pick their company, so suggest a pairing, never promise one
   • [[BOOK: poker | the_wannabe | 9pm]] — real: the room exists the moment you tag it, and you ping them at the hour
   • [[REMIND: call the lawyer | tomorrow 11am]]
@@ -263,6 +265,10 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
         .join('\n');
       if (lines) frontDeskBlock += `\n\n[HOW THE HOUSE IS DOING TODAY — each resident's day, from their own diary:\n${lines}]`;
     } catch (e: any) { console.error('[desk] house lives failed:', e?.message || e); }
+    // [0058] THE HOUSE BRIEF — real, pressing state (a trip counting down, a task
+    // due, this week's move, the coaching day waiting, today's lead) so she speaks
+    // the house instead of guessing at it.
+    try { frontDeskBlock += await deskBriefText(userId); } catch (e: any) { console.error('[desk] brief failed:', e?.message || e); }
   }
 
   // THE CHAT REGISTER: personas text like people — short bursts, not essays.
@@ -382,7 +388,18 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
         if (dm) { const d = parseWhen(dm[1]) || (isNaN(new Date(dm[1]).getTime()) ? null : new Date(dm[1])); if (d) row.due_at = d.toISOString(); }
         if (rm) row.suggested_persona = rm[1].replace(/[^a-z_]/gi, '').slice(0, 40);
       }
-      try { await supabase.from('tasks').insert(row); } catch { /* non-fatal */ }
+      try {
+        await supabase.from('tasks').insert(row);
+        // [0058] a task with a due time KNOCKS — schedule the desk to deliver it,
+        // so the list stops being a place things go to be forgotten.
+        if (row.due_at) {
+          await supabase.from('scheduled_pings').insert({
+            user_id: userId, persona_key: 'the_front_desk', kind: 'reminder',
+            body: `that thing on your list: ${title.slice(0, 200)}`,
+            payload: { kind: 'task' }, due_at: row.due_at,
+          });
+        }
+      } catch { /* non-fatal */ }
     }
     // [[TASK_DONE: id]]
     const doneRe = /\[\[TASK_DONE:\s*\{?([0-9a-f-]{6,})\}?\s*\]\]/gi;
@@ -405,6 +422,39 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
       const key = gm[1].toLowerCase();
       if (!routes.includes(key)) routes.push(key);
     }
+    // [0058] [[HANDOFF: persona_key | opener]] — GOTO plus a briefing: the door
+    // appears AND the target room greets them already holding the context. The
+    // opener rides as that persona's own opening line (no fake user turn).
+    const handoffRe = /\[\[HANDOFF:\s*([a-z_]+)\s*\|\s*([^\]]+)\]\]/gi;
+    let hm: RegExpExecArray | null;
+    const handoffSeen = new Set<string>();
+    while ((hm = handoffRe.exec(reply)) !== null) {
+      const key = hm[1].toLowerCase();
+      if (handoffSeen.has(key)) continue;
+      handoffSeen.add(key);
+      const opener = hm[2].trim().slice(0, 400);
+      const p = personaByKey(key);
+      if (!p || key === 'the_front_desk') continue;
+      if (!routes.includes(key)) routes.push(key);
+      if (opener) {
+        (async () => {
+          const { data: ex } = await supabase.from('threads').select('id')
+            .eq('user_id', userId).eq('persona_key', key).eq('is_group', false).is('deleted_at', null)
+            .order('last_active', { ascending: false }).limit(1).maybeSingle();
+          let tid = ex?.id as string | undefined;
+          if (!tid) {
+            const { data: made } = await supabase.from('threads').insert({
+              user_id: userId, persona_key: key, codex_key: p.codex, companion_name: p.defaultName,
+            }).select('id').single();
+            tid = made?.id;
+          }
+          if (tid) {
+            await supabase.from('messages').insert({ thread_id: tid, user_id: userId, role: 'assistant', content: opener, persona_key: key });
+            await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', tid);
+          }
+        })().catch((e: any) => console.error('[handoff] failed:', e?.message || e));
+      }
+    }
     routes = routes.slice(0, 4);
     // [[NAME: their name]] — the house learns who it's hosting
     const nm = reply.match(/\[\[NAME:\s*([^\]]{1,40})\]\]/i);
@@ -414,8 +464,8 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
         .then(({ error }) => { if (error) console.error('[name] save failed:', error.message); });
       reply = reply.replace(/\[\[NAME:[^\]]*\]\]/gi, '');
     }
-    // strip the raw GOTO tags from the visible/persisted text — the chips carry them now
-    reply = reply.replace(/\[\[GOTO:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+    // strip the raw GOTO/HANDOFF tags from the visible/persisted text — the chips carry them now
+    reply = reply.replace(/\[\[GOTO:[^\]]*\]\]/gi, '').replace(/\[\[HANDOFF:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     // never persist silence: a tags-only reply becomes a short human line
     if (!reply && routes.length) reply = 'right this way —';
   }

@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
 import { parseCards, ProgrammeCard } from './Chat';
-import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe } from './api';
+import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe, getDeskBrief } from './api';
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
 import { TABLE_CAST } from './games/personas';
@@ -180,6 +180,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
         getRecentPings().then(setNotes),
         getArcs().then(setArcState),
       ]);
+      loadBrief();
     } catch (e) {}
     setRefreshing(false);
   };
@@ -189,8 +190,9 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
   const [notes, setNotes] = useState([]);   // proactive pings — notes left at the desk
   const [arcState, setArcState] = useState({ arcs: [], catalog: [] });
 
-  // ── tonight at the house: living hooks, freshly dealt every visit ──
-  const [tonight] = useState(() => {
+  // ── the house right now: the REAL brief (a trip counting down, a task due,
+  // this week's move, today's lead) — with a random hook only for a new, empty house.
+  const randomHooks = () => {
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const motion = pick(MOTIONS);
     const scene = pick(STAGE_LIB);
@@ -211,7 +213,16 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
     ];
     for (let i = hooks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [hooks[i], hooks[j]] = [hooks[j], hooks[i]]; }
     return hooks.slice(0, 3);
-  });
+  };
+  const BRIEF_TONE = { trip: '#F0A765', task: '#E0C088', mm: '#A9DDF2', coach: '#8FD98F', stylist: '#C99BE8', news: '#E0C088' };
+  const [tonight, setTonight] = useState(randomHooks);   // instant fallback; replaced by the brief on load
+  const loadBrief = () => {
+    getDeskBrief().then((items) => {
+      if (items && items.length) {
+        setTonight(items.map((it) => ({ key: it.route, tone: BRIEF_TONE[it.key] || '#D0B48A', kicker: it.kicker, line: it.line })));
+      }
+    }).catch(() => {});
+  };
 
   const scrollRef = useRef(null);
   const sendingRef = useRef(false);
@@ -243,6 +254,7 @@ export default function Desk({ onOpenYou = () => {}, onRoute = () => {}, onOpenL
       .then(() => openThread('the_front_desk', 'the front desk'))
       .then((id) => id && setThreadId(id));
     refreshDesk();
+    loadBrief();
     getLedger().then((l) => setLedgerLine(l?.headline || null)).catch(() => {});
     getRecentPings().then(setNotes).catch(() => {});
     getArcs().then(setArcState).catch(() => {});

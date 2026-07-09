@@ -558,6 +558,11 @@ export async function getRecentPings() {
   try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
 }
 
+// [0058] the house brief — real state for the desk marquee + Z's mouth
+export async function getDeskBrief() {
+  try { const j = await authedJSON('GET', '/desk/brief'); return j.items || []; } catch (e) { return []; }
+}
+
 export async function getMemory() {
   try { const j = await authedJSON('GET', '/memory'); return j.items || []; } catch (e) { return []; }
 }
