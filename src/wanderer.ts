@@ -86,7 +86,7 @@ Reply with ONLY strict JSON — no fences, no prose before or after:
 Resolve relative dates ("next month", "a week in December") to real calendar dates from today. Keep the itinerary to the actual duration; if the duration is unknown, plan 4-5 days.`;
   const fileTxt = `THE TRIP FILE:\ndestination: ${trip.destination}\ndates (their words): ${trip.dates || 'not given'}\ntravellers: ${trip.travelers || 'not given'}\nnotes / taste: ${trip.notes || 'none'}`;
   const msg: any = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001', max_tokens: 1600, __pin: 'anthropic',
+    model: 'claude-haiku-4-5-20251001', max_tokens: 3000, __pin: 'anthropic',
     system: sys,
     messages: [{ role: 'user', content: fileTxt + '\n\nBuild the plan.' }],
     tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 } as any],
@@ -109,6 +109,11 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
   const checklist = Array.isArray(x.checklist)
     ? x.checklist.slice(0, 20).map((c: any) => ({ item: String(c?.item || '').slice(0, 160), done: !!c?.done })).filter((c: any) => c.item)
     : null;
+  // [0055-fix] a build that produced no real itinerary must NOT masquerade as
+  // 'planned'. Bail with the raw model output so a failure is visible, not silent.
+  const _debug = { rawLen: raw.length, stop: (msg as any).stop_reason, parsedKeys: Object.keys(x), head: raw.slice(0, 400), tail: raw.slice(-400) };
+  const built = Array.isArray(itinerary) && itinerary.length > 0;
+  if (!built) return { ...trip, built: false, _debug };
   const patch: any = {
     status: 'planned',
     itinerary,
@@ -129,7 +134,7 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
     }
   }
   const pings = await syncTripPings(updated);
-  return { ...(updated || trip), pings };
+  return { ...(updated || trip), built: true, pings, _debug };
 }
 
 // ── 3. THE READ (with the clock's flip) ────────────────────────────────────
