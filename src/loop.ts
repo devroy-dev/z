@@ -195,6 +195,8 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
         const nl = nums.map((r: any) => `  • ${[r.platform, r.followers && `${r.followers} followers`, r.reach && `reach ${r.reach}`, r.growth, r.period && `(${r.period})`].filter(Boolean).join(', ')}`).join('\n');
         mmBlock += `\n\n[THE NUMBERS — the client's filed analytics, newest first. This is their real trajectory: read direction across filings, cite the figures when they sharpen your counsel, and never ask for numbers already written here.\n${nl}]`;
       }
+      // [0056] THE CONTENT DESK — an idea he shapes in talk becomes filed work product, not lost chat.
+      mmBlock += `\n\n[FILING AN IDEA — when a content idea actually crystallizes in the conversation (a specific post, reel, video, thread, or series worth making — not vague talk), END your reply (after your spoken take) with ONE line per idea, exactly this machine format the client never sees: [[IDEA: title | format | hook]]. Format is the medium (reel, carousel, short, thread, video…); hook is the opening line or angle. Leave format or hook blank if not yet clear, but keep the bars. Only emit it when a real idea lands — never for small talk, never twice for the same idea.]`;
     } catch (e: any) { console.error('[mm] brief failed:', e?.message || e); }
   }
   let frontDeskBlock = '';
@@ -428,6 +430,23 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
         });
       }
       reply = reply.replace(/\[\[TRIP:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // [0056] [[IDEA: title | format | hook]] — the content pipeline fills itself from talk
+    if (t.persona_key === 'the_media_manager') {
+      const ideas = [...reply.matchAll(/\[\[IDEA:\s*([^|\]]+)\|([^|\]]*)\|([^\]]*)\]\]/gi)];
+      for (const m of ideas) {
+        const title = m[1].trim().slice(0, 200);
+        if (!title) continue;
+        const format = m[2].trim().slice(0, 60) || null;
+        const hook = m[3].trim().slice(0, 400) || null;
+        supabase.from('mm_ideas').insert({ user_id: userId, title, format, hook, status: 'idea' })
+          .then(({ error }: any) => {
+            if (error) console.error('[mm-idea] save failed:', error.message, '| title:', title);
+            else console.log('[mm-idea] filed:', title);
+          });
+      }
+      reply = reply.replace(/\[\[IDEA:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
   // pull web-search sources (if the persona reached the web) so the UI can show

@@ -33,7 +33,8 @@ import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramm
 import { startPingScheduler, firePings } from './concierge.js';
 import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
 import { getWire, getWireMix } from './wire.js';   // [zip67]
-import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler } from './mmDesk.js';   // [zip54k]
+import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
+  mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted } from './mmDesk.js';   // [zip54k] [0056]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
 import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.js';
@@ -1264,6 +1265,68 @@ app.get('/mm/desknotes', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     res.json({ notes: await deskNotes(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [0056] THE LOOP THAT CHECKS — the weekly instruction as a tickable task,
+// and the content pipeline (idea → drafted → posted).
+app.get('/mm/tasks', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ tasks: await mmTasks(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/mm/tasks/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const task = await toggleMmTask(user.id, String(req.params.id));
+    if (!task) return res.status(404).json({ error: 'not found' });
+    res.json({ task });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/mm/ideas', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ ideas: await mmIdeas(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/mm/ideas/:id/draft', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const idea = await draftIdea(user.id, String(req.params.id));
+    if (!idea) return res.status(404).json({ error: 'not found' });
+    res.json({ idea });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/mm/ideas/:id/posted', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const idea = await markIdeaPosted(user.id, String(req.params.id));
+    if (!idea) return res.status(404).json({ error: 'not found' });
+    res.json({ idea });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+// [0056] founder-gated verification trigger — force this user's weekly desk note
+// now, bypassing the scheduler's hour gate + 6-day guard, so the grade→instruct
+// loop (§5.1/§5.3) is curl-provable on demand. Not user-facing.
+app.post('/dev/mm/desknote', async (req, res) => {
+  try {
+    if ((req.headers['x-dev-key'] as string) !== process.env.DEV_KEY) return res.status(401).json({ error: 'unauthorized' });
+    const userId = String(req.body?.user_id || '').trim();
+    if (!userId) return res.status(400).json({ error: 'need { user_id }' });
+    const wrote = await writeDeskNote(userId);
+    const [notes, tasks] = await Promise.all([deskNotes(userId), mmTasks(userId)]);
+    res.json({ wrote, note: notes[0] || null, task: tasks[0] || null });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 

@@ -13,7 +13,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { getMmBrief, saveMmBrief, getMmAnalytics, uploadMmAnalytics, getMmDeskNotes } from './api';
+import { getMmBrief, saveMmBrief, getMmAnalytics, uploadMmAnalytics, getMmDeskNotes,
+  getMmTasks, toggleMmTask, getMmIdeas, draftMmIdea, markMmIdeaPosted } from './api';
 import { FONTS } from './theme';
 
 const FLUORO = '#A9DDF2';   // [zip54n] the fluoro is retired — the accent is the ice of his own neon sign
@@ -80,6 +81,45 @@ function NumberRow({ r }) {
     </View>
   );
 }
+// [0056] this week's instruction — the note stopped being advice-only; it's a task now.
+function TaskRow({ task, onToggle }) {
+  const done = task.status === 'done';
+  return (
+    <Pressable onPress={() => onToggle(task)} style={st.taskRow} hitSlop={6}>
+      <View style={[st.check, done && st.checkOn]}>{done ? <Text style={st.checkMark}>✓</Text> : null}</View>
+      <View style={{ flex: 1 }}>
+        <Text style={st.taskKicker}>this week</Text>
+        <Text style={[st.taskTxt, done && st.taskTxtDone]}>{task.instruction}</Text>
+      </View>
+    </Pressable>
+  );
+}
+// [0056] a filed idea moving down the pipeline: idea → drafted → posted.
+function IdeaCard({ idea, onDraft, onPosted, busy }) {
+  return (
+    <View style={st.ideaCard}>
+      <View style={st.ideaHead}>
+        <Text style={st.ideaTitle}>{idea.title}</Text>
+        {idea.format ? <Text style={st.ideaFormat}>{idea.format}</Text> : null}
+      </View>
+      {idea.hook ? <Text style={st.ideaHook}>{idea.hook}</Text> : null}
+      {idea.status === 'idea' ? (
+        <Pressable onPress={() => onDraft(idea)} style={[st.ideaBtn, busy && { opacity: 0.6 }]} disabled={busy}>
+          <Text style={st.ideaBtnTxt}>{busy ? 'he\u2019s writing it…' : 'draft this'}</Text>
+        </Pressable>
+      ) : null}
+      {idea.status === 'drafted' ? (
+        <View>
+          {idea.draft ? <Text style={st.ideaDraft}>{idea.draft}</Text> : null}
+          <Pressable onPress={() => onPosted(idea)} style={st.ideaGhostBtn} hitSlop={6}>
+            <Text style={st.ideaGhostTxt}>mark posted ✓</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {idea.status === 'posted' ? <Text style={st.ideaPosted}>posted ✓</Text> : null}
+    </View>
+  );
+}
 
 export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
   const [brief, setBrief] = useState({});
@@ -90,13 +130,37 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
   const [savedAt, setSavedAt] = useState(0);
   const [filing, setFiling] = useState(false);
   const [fileErr, setFileErr] = useState('');
+  const [tasks, setTasks] = useState(null);
+  const [ideas, setIdeas] = useState(null);
+  const [draftingId, setDraftingId] = useState(null);
 
   const load = useCallback(() => {
     getMmDeskNotes().then((r) => setNotes(r?.notes || [])).catch(() => setNotes([]));
     getMmAnalytics().then((r) => setTimeline(r?.timeline || [])).catch(() => setTimeline([]));
     getMmBrief().then((r) => { if (r?.brief) setBrief(r.brief); }).catch(() => {});
+    getMmTasks().then((r) => setTasks(r?.tasks || [])).catch(() => setTasks([]));
+    getMmIdeas().then((r) => setIdeas(r?.ideas || [])).catch(() => setIdeas([]));
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // [0056] tick the instruction — optimistic, reconcile on failure
+  const toggleTask = async (task) => {
+    setTasks((ts) => (ts || []).map((t) => (t.id === task.id ? { ...t, status: t.status === 'done' ? 'open' : 'done' } : t)));
+    try { await toggleMmTask(task.id); } catch (e) { load(); }
+  };
+  // [0056] draft this — he writes it server-side; the card flips to drafted
+  const draftIdea = async (idea) => {
+    if (draftingId) return;
+    setDraftingId(idea.id);
+    try {
+      const r = await draftMmIdea(idea.id);
+      if (r?.idea) setIdeas((xs) => (xs || []).map((i) => (i.id === idea.id ? r.idea : i)));
+    } catch (e) {} finally { setDraftingId(null); }
+  };
+  const postIdea = async (idea) => {
+    setIdeas((xs) => (xs || []).map((i) => (i.id === idea.id ? { ...i, status: 'posted' } : i)));
+    try { await markMmIdeaPosted(idea.id); } catch (e) { load(); }
+  };
 
   const set = (k) => (v) => setBrief((b) => ({ ...b, [k]: v }));
   const save = async () => {
@@ -153,6 +217,7 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
         ) : (
           <Text style={st.empty}>his first memo writes itself this week — it lands here, on the desk, before your day starts.</Text>
         )}
+        {tasks && tasks[0] ? <TaskRow task={tasks[0]} onToggle={toggleTask} /> : null}
 
         {/* THE NUMBERS */}
         <Text style={st.section}>the numbers</Text>
@@ -166,6 +231,16 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
           <Text style={st.ctaTxt}>{filing ? 'under his eye…' : '+ file this month\u2019s analytics'}</Text>
         </Pressable>
         {fileErr ? <Text style={st.err}>{fileErr}</Text> : null}
+
+        {/* THE PIPELINE — ideas he shapes in talk, filed and moved */}
+        <Text style={st.section}>the pipeline</Text>
+        {ideas === null ? null : ideas.length === 0 ? (
+          <Text style={st.empty}>nothing in the pipeline yet. talk an idea through with him and it files itself here — then tap draft and he writes it from your brief and your numbers.</Text>
+        ) : (
+          ideas.map((i) => (
+            <IdeaCard key={i.id} idea={i} busy={draftingId === i.id} onDraft={draftIdea} onPosted={postIdea} />
+          ))
+        )}
 
         {/* THE BRIEF — folded away */}
         <Pressable onPress={() => setBriefOpen((v) => !v)} style={st.drawerHead}>
@@ -210,6 +285,24 @@ const st = StyleSheet.create({
   noteCard: { backgroundColor: M.raise, borderLeftWidth: 3, borderLeftColor: FLUORO, borderRadius: 10, padding: 12 },
   noteDate: { color: M.faint, fontSize: 10.5, fontFamily: FONTS.light, marginBottom: 5 },
   noteTxt: { color: M.ink, fontSize: 13.5, fontFamily: FONTS.light, lineHeight: 20 },
+  taskRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 10, padding: 12, marginTop: 8 },
+  check: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: FLUORO, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  checkOn: { backgroundColor: FLUORO },
+  checkMark: { color: '#191A06', fontSize: 13, fontFamily: FONTS.semi, lineHeight: 15 },
+  taskKicker: { color: M.faint, fontSize: 10, fontFamily: FONTS.semi, letterSpacing: 0.4, textTransform: 'lowercase', marginBottom: 2 },
+  taskTxt: { color: M.ink, fontSize: 13.5, fontFamily: FONTS.light, lineHeight: 19 },
+  taskTxtDone: { color: M.mist, textDecorationLine: 'line-through' },
+  ideaCard: { backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 10, padding: 12, marginBottom: 8 },
+  ideaHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ideaTitle: { flex: 1, color: M.ink, fontSize: 14, fontFamily: FONTS.semi, lineHeight: 19 },
+  ideaFormat: { color: FLUORO, fontSize: 10.5, fontFamily: FONTS.semi, textTransform: 'lowercase', borderWidth: 1, borderColor: M.hair, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
+  ideaHook: { color: M.mist, fontSize: 12.5, fontFamily: FONTS.light, lineHeight: 18, marginTop: 5 },
+  ideaBtn: { marginTop: 10, borderWidth: 1.5, borderColor: FLUORO, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+  ideaBtnTxt: { color: FLUORO, fontFamily: FONTS.semi, fontSize: 12.5 },
+  ideaDraft: { color: M.ink, fontSize: 13, fontFamily: FONTS.light, lineHeight: 19, marginTop: 10, backgroundColor: M.ground, borderRadius: 8, padding: 10 },
+  ideaGhostBtn: { marginTop: 8, alignItems: 'center', paddingVertical: 6 },
+  ideaGhostTxt: { color: M.mist, fontFamily: FONTS.semi, fontSize: 12 },
+  ideaPosted: { color: M.faint, fontFamily: FONTS.semi, fontSize: 11.5, marginTop: 8 },
   numRow: { backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 10, padding: 11, marginBottom: 7 },
   numPlatform: { color: FLUORO, fontSize: 11.5, fontFamily: FONTS.semi, textTransform: 'lowercase' },
   numBits: { color: M.ink, fontSize: 13.5, fontFamily: FONTS.light, marginTop: 3 },

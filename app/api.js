@@ -430,6 +430,12 @@ export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief'
 export async function getMmAnalytics() { return authedJSON('GET', '/mm/analytics'); }
 export async function uploadMmAnalytics(image) { return authedJSON('POST', '/mm/analytics', { image }); }
 export async function getMmDeskNotes() { return authedJSON('GET', '/mm/desknotes'); }
+// [0056] the loop that checks — the tickable weekly instruction + the content pipeline
+export async function getMmTasks() { return authedJSON('GET', '/mm/tasks'); }
+export async function toggleMmTask(id) { return authedJSON('POST', `/mm/tasks/${id}`); }
+export async function getMmIdeas() { return authedJSON('GET', '/mm/ideas'); }
+export async function draftMmIdea(id) { return authedJSON('POST', `/mm/ideas/${id}/draft`); }
+export async function markMmIdeaPosted(id) { return authedJSON('POST', `/mm/ideas/${id}/posted`); }
 // [zip54j] the wardrobe — the stylist's index of what you own
 export async function getWardrobe() { return authedJSON('GET', '/stylist/wardrobe'); }
 export async function getTrips() { return authedJSON('GET', '/wanderer/trips'); }   // [zip79]

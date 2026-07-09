@@ -10,9 +10,11 @@
 //      voice needs the soul, not the 95k-char codex (cost discipline).
 import { supabase } from './db.js';
 import { llm, firstText } from './llm.js';
+import { logUsage } from './usage.js';
 import { readContentFile } from './content.js';
 
 const anthropic = llm();   // provider-routed; vision auto-rides Anthropic (zip54g)
+const istDate = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);   // [0056] IST YYYY-MM-DD — the week the instruction is for
 
 const ADVISOR_SOUL = (() => {
   try { return readContentFile('media-manager-soul.md'); } catch { return ''; }
@@ -77,12 +79,20 @@ export async function deskNotes(userId: string) {
   return data ?? [];
 }
 
-// ── 3. the weekly desk note ───────────────────────────────────────────────
+// ── 3. the weekly desk note — now a loop that CHECKS ──────────────────────
+// [0056] Two shifts turn a newsletter into a manager: (1) he opens by GRADING
+// last week's instruction — done, skipped, or moved the numbers — before he
+// issues this week's. (2) the note gets EYES: web_search (capped at 2) grounds
+// one line in what actually moved in the client's niche this week. This week's
+// instruction rides out as a [[TASK]] tag and files into mm_tasks, where the
+// room can tick it and next week's note can grade it.
 export async function writeDeskNote(userId: string): Promise<boolean> {
-  const [{ data: brief }, timeline, prior] = await Promise.all([
+  const [{ data: brief }, timeline, prior, { data: lastTask }] = await Promise.all([
     supabase.from('mm_brief').select('*').eq('user_id', userId).maybeSingle(),
     analyticsTimeline(userId),
     deskNotes(userId),
+    supabase.from('mm_tasks').select('instruction, status, week_of').eq('user_id', userId)
+      .order('week_of', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (!brief) return false;
   const f = (l: string, v: any) => (v ? `\n${l}: ${String(v).slice(0, 300)}` : '');
@@ -92,15 +102,94 @@ export async function writeDeskNote(userId: string): Promise<boolean> {
         `- ${[r.platform, r.followers && `${r.followers} followers`, r.reach && `reach ${r.reach}`, r.growth, r.period && `(${r.period})`].filter(Boolean).join(', ')}`).join('\n')
     : 'THE NUMBERS: none filed yet — the client has not uploaded analytics.';
   const lastNote = prior[0]?.note ? `YOUR LAST NOTE (do not repeat it; move the thinking forward):\n${String(prior[0].note).slice(0, 600)}` : '';
+  const lastTaskTxt = lastTask?.instruction
+    ? `LAST WEEK'S INSTRUCTION you left on the desk: "${String(lastTask.instruction).slice(0, 240)}" — the client marked it: ${lastTask.status === 'done' ? 'DONE' : lastTask.status === 'skipped' ? 'SKIPPED' : 'still OPEN (not ticked off)'}.`
+    : '';
+  const gradeLaw = lastTask?.instruction
+    ? '\n[GRADE FIRST — open the note by settling last week in one honest line: whether they did it, and if the numbers show it moved anything, say so. Do not flatter a skipped task; do not nag a done one. THEN write this week.]'
+    : '';
   const msg: any = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001', max_tokens: 400,
-    system: ADVISOR_SOUL + '\n\n[THE DESK NOTE — once a week you write a short memo on this client: where they stand against the brief and the numbers. 60-120 words, plain Indian English, Rs never the symbol. One honest observation, one concrete instruction for the week. No greeting, no sign-off, no headings — just the memo, as you would leave it on the desk. Where the numbers are missing, say what filing them would unlock — once, without nagging.]',
-    messages: [{ role: 'user', content: `${briefTxt}\n\n${numbersTxt}\n\n${lastNote}\n\nWrite this week's desk note.` }],
+    model: 'claude-haiku-4-5-20251001', max_tokens: 500, __pin: 'anthropic',   // [0056] the desk stays on Haiku so its eyes actually open
+    system: ADVISOR_SOUL + '\n\n[THE DESK NOTE — once a week you write a short memo on this client: where they stand against the brief and the numbers. 60-120 words, plain Indian English, Rs never the symbol. One honest observation, one concrete instruction for the week. No greeting, no sign-off, no headings — just the memo, as you would leave it on the desk. Where the numbers are missing, say what filing them would unlock — once, without nagging. You have web search: use it at most to ground ONE line in what actually moved in this client\'s niche or platform this week — a real trend, format, or shift. Never invent a trend; if nothing solid turns up, write from the brief alone.]' + gradeLaw + '\n[THIS WEEK\'S INSTRUCTION — after the memo, on its OWN final line, emit exactly ONE machine tag the client never sees, carrying the single concrete thing they should do this week: [[TASK: the one instruction, imperative, under 140 chars]]. Nothing after it.]',
+    messages: [{ role: 'user', content: `${briefTxt}\n\n${numbersTxt}\n\n${lastTaskTxt}\n\n${lastNote}\n\nWrite this week's desk note.` }],
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 } as any],
   });
-  const note = firstText(msg).replace(/\u20B9\s*/g, 'Rs ').trim().slice(0, 1200);
+  logUsage({ userId, surface: 'other', fn: 'mm_desknote', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });
+  // web_search yields interleaved text blocks — join BY TYPE, never firstText
+  const raw = (Array.isArray(msg.content) ? msg.content : [])
+    .filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('\n');
+  const tm = /\[\[TASK:\s*([\s\S]+?)\]\]/i.exec(raw);
+  const instruction = tm?.[1]?.trim().replace(/\s+/g, ' ').slice(0, 240) || null;
+  const note = raw.replace(/\[\[TASK:[\s\S]*?\]\]/gi, '').replace(/\u20B9\s*/g, 'Rs ')
+    .replace(/\n{3,}/g, '\n\n').trim().slice(0, 1200);
   if (!note) return false;
   await supabase.from('mm_desk_notes').insert({ user_id: userId, note });
+  if (instruction) {
+    try { await supabase.from('mm_tasks').insert({ user_id: userId, instruction, week_of: istDate(), status: 'open' }); }
+    catch (e: any) { console.error('[mmDesk] task file failed:', e?.message || e); }
+  }
   return true;
+}
+
+// ── 4. the loop's reads/writes: the checked instruction + the content pipeline ──
+export async function mmTasks(userId: string) {
+  const { data } = await supabase.from('mm_tasks').select('*').eq('user_id', userId)
+    .order('week_of', { ascending: false }).limit(12);
+  return data ?? [];
+}
+
+// the room's tick — the instruction toggles between done and open
+export async function toggleMmTask(userId: string, id: string) {
+  const { data: row } = await supabase.from('mm_tasks').select('status').eq('id', id).eq('user_id', userId).maybeSingle();
+  if (!row) return null;
+  const next = row.status === 'done' ? 'open' : 'done';
+  const { data } = await supabase.from('mm_tasks').update({ status: next }).eq('id', id).eq('user_id', userId).select().single();
+  return data ?? null;
+}
+
+export async function mmIdeas(userId: string) {
+  const { data } = await supabase.from('mm_ideas').select('*').eq('user_id', userId)
+    .order('created_at', { ascending: false }).limit(60);
+  return data ?? [];
+}
+
+// [0056] DRAFT THIS — the coach pattern on a filed idea: brief + real numbers +
+// the idea → he writes the hook/caption/script in his own voice, and the idea
+// flips idea → drafted. His counsel stops evaporating into chat.
+export async function draftIdea(userId: string, id: string) {
+  const { data: idea } = await supabase.from('mm_ideas').select('*').eq('id', id).eq('user_id', userId).maybeSingle();
+  if (!idea) return null;
+  const [{ data: brief }, timeline] = await Promise.all([
+    supabase.from('mm_brief').select('*').eq('user_id', userId).maybeSingle(),
+    analyticsTimeline(userId),
+  ]);
+  const f = (l: string, v: any) => (v ? `\n${l}: ${String(v).slice(0, 240)}` : '');
+  const briefTxt = brief
+    ? `THE BRIEF:${f('handle', brief.display_name || brief.handle)}${f('platforms', brief.platforms)}${f('niche', brief.niche)}${f('pillars', brief.pillars)}${f('audience', brief.audience)}${f('goal', brief.goal)}`
+    : 'THE BRIEF: thin — work from the idea.';
+  const numbersTxt = timeline.length
+    ? 'WHAT WORKS FOR THEM (their filed numbers):\n' + timeline.slice(0, 5).map((r: any) =>
+        `- ${[r.platform, r.followers && `${r.followers} followers`, r.growth, r.top_content && `top: ${r.top_content}`].filter(Boolean).join(', ')}`).join('\n')
+    : '';
+  const ideaTxt = `THE IDEA to draft:\ntitle: ${idea.title}${idea.format ? `\nformat: ${idea.format}` : ''}${idea.hook ? `\nhook: ${idea.hook}` : ''}`;
+  const msg: any = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001', max_tokens: 600,
+    system: ADVISOR_SOUL + '\n\n[DRAFT THIS — the client picked one filed idea and wants it written. Draft it FROM their brief and their real numbers, for their platform and audience — not a generic template. Give them a scroll-stopping hook, the caption or script body, and 4-6 hashtags if the platform uses them. Plain Indian English, Rs never the symbol. No preamble, no "here is your draft" — just the draft itself, ready to post.]',
+    messages: [{ role: 'user', content: `${briefTxt}\n\n${numbersTxt}\n\n${ideaTxt}\n\nDraft it.` }],
+  });
+  logUsage({ userId, surface: 'other', fn: 'mm_draft', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });
+  const draft = firstText(msg).replace(/\u20B9\s*/g, 'Rs ').trim().slice(0, 4000);
+  const { data } = await supabase.from('mm_ideas').update({ draft: draft || null, status: 'drafted' })
+    .eq('id', id).eq('user_id', userId).select().single();
+  return data ?? null;
+}
+
+// [0056] the pipeline's last hop — a drafted idea marked posted; completes the
+// idea → drafted → posted ladder 0056 defines so no card dead-ends.
+export async function markIdeaPosted(userId: string, id: string) {
+  const { data } = await supabase.from('mm_ideas').update({ status: 'posted' })
+    .eq('id', id).eq('user_id', userId).select().single();
+  return data ?? null;
 }
 
 // ── the scheduler — zip33 pattern: hourly tick, IST gate, per-user idempotency ──
