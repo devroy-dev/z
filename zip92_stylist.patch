@@ -1,0 +1,556 @@
+diff --git a/app/StylistRoom.js b/app/StylistRoom.js
+index 866b4af..51895a2 100644
+--- a/app/StylistRoom.js
++++ b/app/StylistRoom.js
+@@ -10,10 +10,10 @@
+ //  Verdicts on a fit stay in her thread, where photos already flow.
+ // ════════════════════════════════════════════════════════════════════════
+ import React, { useEffect, useState, useCallback } from 'react';
+-import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator } from 'react-native';
++import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, Linking } from 'react-native';
+ import { SafeAreaView } from 'react-native-safe-area-context';
+ import * as ImagePicker from 'expo-image-picker';
+-import { getWardrobe, addWardrobePiece, deleteWardrobePiece } from './api';
++import { getWardrobe, addWardrobePiece, deleteWardrobePiece, getStylistOutfits, getStylistGaps, runStylistGaps, setStylistGapStatus, markPieceWorn } from './api';
+ import { FONTS } from './theme';
+ 
+ const BLUSH = '#E8A9B0';
+@@ -28,30 +28,96 @@ const S = {
+ };
+ 
+ // module scope — the keyboard lesson holds (zip54f)
+-function PieceTile({ piece, onDelete }) {
++function PieceTile({ piece, onDelete, onWorn }) {
++  const worn = piece.wear_count > 0;
+   return (
+     <View style={st.tile}>
+       {piece.url
+         ? <Image source={{ uri: piece.url }} style={st.tileImg} resizeMode="cover" />
+         : <View style={[st.tileImg, st.tileGhost]}><Text style={st.tileGhostTxt}>{piece.kind || 'piece'}</Text></View>}
+       {piece.kind ? <Text style={st.tileKind} numberOfLines={1}>{piece.kind}</Text> : null}
++      <Pressable onPress={() => onWorn(piece)} hitSlop={6} style={st.woreBtn}>
++        <Text style={[st.woreTxt, worn && { color: CHAMPAGNE }]}>{worn ? `worn ×${piece.wear_count}` : 'wore it'}</Text>
++      </Pressable>
+       <Pressable onPress={() => onDelete(piece.id)} hitSlop={10} style={st.tileX}>
+         <Text style={st.tileXTxt}>✕</Text>
+       </Pressable>
+     </View>
+   );
+ }
++function OutfitCard({ outfit, onOpen }) {
++  return (
++    <Pressable style={st.outfit} onPress={onOpen}>
++      <View style={st.outfitThumbs}>
++        {(outfit.pieces || []).slice(0, 5).map((p, i) => (
++          p.url ? <Image key={i} source={{ uri: p.url }} style={st.outfitThumb} resizeMode="cover" />
++                : <View key={i} style={[st.outfitThumb, st.tileGhost]} />
++        ))}
++      </View>
++      <Text style={st.outfitName} numberOfLines={1}>{outfit.name}</Text>
++      {outfit.occasion ? <Text style={st.outfitOcc} numberOfLines={1}>{outfit.occasion}</Text> : null}
++      {outfit.her_read ? <Text style={st.outfitRead} numberOfLines={2}>{outfit.her_read}</Text> : null}
++    </Pressable>
++  );
++}
++function GapRow({ gap, onBought, onOpenCard }) {
++  const bought = gap.status === 'bought';
++  return (
++    <View style={[st.gapRow, bought && { opacity: 0.55 }]}>
++      <View style={{ flex: 1 }}>
++        <Text style={[st.gapWhat, bought && { textDecorationLine: 'line-through' }]}>{gap.what}</Text>
++        {gap.why ? <Text style={st.gapWhy} numberOfLines={2}>{gap.why}</Text> : null}
++        {Array.isArray(gap.shop_cards) && gap.shop_cards.length ? (
++          <View style={st.gapCards}>
++            {gap.shop_cards.slice(0, 3).map((c, i) => (
++              <Pressable key={i} onPress={() => onOpenCard(c.url)} style={st.gapCard}>
++                <Text style={st.gapCardName} numberOfLines={1}>{c.name}</Text>
++                {c.price ? <Text style={st.gapCardPrice}>{c.price}</Text> : null}
++              </Pressable>
++            ))}
++          </View>
++        ) : null}
++      </View>
++      <Pressable onPress={() => onBought(gap)} hitSlop={8} style={st.gapTick}>
++        <Text style={[st.gapTickTxt, bought && { color: CHAMPAGNE }]}>{bought ? '✓' : 'got it'}</Text>
++      </Pressable>
++    </View>
++  );
++}
+ 
+ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAsk = () => {} }) {
+   const [pieces, setPieces] = useState(null);   // null=loading | []
+   const [filing, setFiling] = useState(false);
+   const [occasion, setOccasion] = useState('');
++  const [outfits, setOutfits] = useState([]);
++  const [gaps, setGaps] = useState(null);       // null=not run | []
++  const [runningGaps, setRunningGaps] = useState(false);
+ 
+   const load = useCallback(() => {
+     getWardrobe().then((r) => setPieces(r?.pieces || [])).catch(() => setPieces([]));
++    getStylistOutfits().then(setOutfits).catch(() => {});
++    getStylistGaps().then((g) => setGaps(g && g.length ? g : null)).catch(() => {});
+   }, []);
+   useEffect(() => { load(); }, [load]);
+ 
++  // [0054] wear tracking — one tap, optimistic
++  const wore = async (piece) => {
++    setPieces((cur) => (cur || []).map((p) => (p.id === piece.id ? { ...p, wear_count: (p.wear_count || 0) + 1 } : p)));
++    try { await markPieceWorn(piece.id); } catch (e) { load(); }
++  };
++  // [0054] the gap report — run the audit (Haiku + web search), then it's stored
++  const runGaps = async () => {
++    if (runningGaps) return;
++    setRunningGaps(true);
++    try { const g = await runStylistGaps(); setGaps(g && g.length ? g : []); } catch (e) {} finally { setRunningGaps(false); }
++  };
++  const tickBought = async (gap) => {
++    const next = gap.status === 'bought' ? 'open' : 'bought';
++    setGaps((cur) => (cur || []).map((g) => (g.id === gap.id ? { ...g, status: next } : g)));
++    try { await setStylistGapStatus(gap.id, next); } catch (e) { load(); }
++  };
++  const openCard = (url) => { if (url) Linking.openURL(url).catch(() => {}); };
++
+   const addPiece = async () => {
+     if (filing) return;
+     try {
+@@ -104,7 +170,7 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
+           <Text style={st.empty}>nothing filed yet. add the first piece — a photo is enough, she does the rest.</Text>
+         ) : (
+           <View style={st.grid}>
+-            {pieces.map((p) => <PieceTile key={p.id} piece={p} onDelete={removePiece} />)}
++            {pieces.map((p) => <PieceTile key={p.id} piece={p} onDelete={removePiece} onWorn={wore} />)}
+           </View>
+         )}
+ 
+@@ -112,6 +178,35 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
+           <Text style={st.ctaTxt}>{filing ? 'filing under her eye…' : '+ add a piece'}</Text>
+         </Pressable>
+ 
++        {/* OUTFITS — her filed looks */}
++        {outfits.length > 0 ? (
++          <View>
++            <Text style={st.section}>your looks</Text>
++            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
++              {outfits.map((o) => <OutfitCard key={o.id} outfit={o} onOpen={onChat} />)}
++            </ScrollView>
++          </View>
++        ) : null}
++
++        {/* THE GAP REPORT — stored, not spoken */}
++        <View style={st.gapHead}>
++          <Text style={st.section}>the gap report</Text>
++          <Pressable onPress={runGaps} disabled={runningGaps} style={[st.runBtn, runningGaps && { opacity: 0.6 }]}>
++            <Text style={st.runTxt}>{runningGaps ? 'auditing…' : gaps ? 're-run' : 'run the audit'}</Text>
++          </Pressable>
++        </View>
++        {runningGaps && gaps === null ? (
++          <View style={st.auditRow}><ActivityIndicator color={CHAMPAGNE} /><Text style={st.auditTxt}>she's reading your whole closet — about 15 seconds.</Text></View>
++        ) : gaps === null ? (
++          <Text style={st.empty}>she'll read your full wardrobe and name the pieces worth adding — with real, priced options you can buy. tick them off as you go.</Text>
++        ) : gaps.length === 0 ? (
++          <Text style={st.empty}>no open gaps — your closet's covered for now.</Text>
++        ) : (
++          <View style={{ gap: 8 }}>
++            {gaps.map((g) => <GapRow key={g.id} gap={g} onBought={tickBought} onOpenCard={openCard} />)}
++          </View>
++        )}
++
+         {/* OCCASIONS */}
+         <Text style={st.section}>an occasion</Text>
+         <View style={st.occasionRow}>
+@@ -127,14 +222,6 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
+           <Pressable onPress={askOccasion} style={st.occasionGo}><Text style={st.occasionGoTxt}>style me →</Text></Pressable>
+         </View>
+ 
+-        {/* FILL THE GAP */}
+-        <Pressable
+-          onPress={() => onAsk("read my wardrobe and name the 2–3 missing pieces that would unlock the most outfits. then for the most important one, hunt real options I can buy right now — with prices — that go with what I already own.")}
+-          style={st.gap}>
+-          <Text style={st.gapTxt}>fill the gap →</Text>
+-          <Text style={st.gapSub}>she names what's missing, then hunts it — priced, matched to what you own</Text>
+-        </Pressable>
+-
+         {/* HER VERDICT */}
+         <Pressable onPress={onChat} style={st.ghost}>
+           <Text style={st.ghostTxt}>her verdict on a fit →</Text>
+@@ -172,4 +259,26 @@ const st = StyleSheet.create({
+   gapSub: { color: S.faint, fontFamily: FONTS.light, fontSize: 11, marginTop: 3, lineHeight: 15 },
+   ghost: { marginTop: 10, borderWidth: 1, borderColor: S.hair, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
+   ghostTxt: { color: S.ink, fontFamily: FONTS.semi, fontSize: 13.5 },
++  woreBtn: { position: 'absolute', bottom: 4, right: 6 },
++  woreTxt: { color: S.mist, fontFamily: FONTS.semi, fontSize: 9.5 },
++  outfit: { width: 150, backgroundColor: S.raise, borderWidth: 1, borderColor: S.hair, borderRadius: 12, padding: 10 },
++  outfitThumbs: { flexDirection: 'row', gap: 3, marginBottom: 6 },
++  outfitThumb: { width: 26, height: 34, borderRadius: 5, backgroundColor: S.hair },
++  outfitName: { color: S.ink, fontFamily: FONTS.semi, fontSize: 13 },
++  outfitOcc: { color: CHAMPAGNE, fontFamily: FONTS.light, fontSize: 11, marginTop: 2 },
++  outfitRead: { color: S.mist, fontFamily: FONTS.light, fontSize: 11, marginTop: 4, lineHeight: 15 },
++  gapHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
++  runBtn: { borderWidth: 1.5, borderColor: CHAMPAGNE, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 8 },
++  runTxt: { color: CHAMPAGNE, fontFamily: FONTS.semi, fontSize: 12 },
++  auditRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 10 },
++  auditTxt: { flex: 1, color: S.mist, fontFamily: FONTS.light, fontSize: 12.5, lineHeight: 18 },
++  gapRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: S.raise, borderWidth: 1, borderColor: S.hair, borderRadius: 10, padding: 12 },
++  gapWhat: { color: S.ink, fontFamily: FONTS.semi, fontSize: 13.5 },
++  gapWhy: { color: S.mist, fontFamily: FONTS.light, fontSize: 12, marginTop: 3, lineHeight: 16 },
++  gapCards: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
++  gapCard: { borderWidth: 1, borderColor: S.hair, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: S.ground },
++  gapCardName: { color: CHAMPAGNE, fontFamily: FONTS.semi, fontSize: 11, maxWidth: 120 },
++  gapCardPrice: { color: S.mist, fontFamily: FONTS.light, fontSize: 10, marginTop: 1 },
++  gapTick: { paddingHorizontal: 6, paddingVertical: 4 },
++  gapTickTxt: { color: BLUSH, fontFamily: FONTS.semi, fontSize: 12 },
+ });
+diff --git a/app/api.js b/app/api.js
+index 58e8a5f..c32d89b 100644
+--- a/app/api.js
++++ b/app/api.js
+@@ -563,6 +563,13 @@ export async function getDeskBrief() {
+   try { const j = await authedJSON('GET', '/desk/brief'); return j.items || []; } catch (e) { return []; }
+ }
+ 
++// [0054] the stylist acts — outfits, the gap report, wear tracking
++export async function getStylistOutfits() { try { const j = await authedJSON('GET', '/stylist/outfits'); return j.outfits || []; } catch (e) { return []; } }
++export async function getStylistGaps() { try { const j = await authedJSON('GET', '/stylist/gaps'); return j.gaps || []; } catch (e) { return []; } }
++export async function runStylistGaps() { const j = await authedJSON('POST', '/stylist/gaps/run'); return j.gaps || []; }
++export async function setStylistGapStatus(id, status) { return authedJSON('POST', `/stylist/gaps/${id}`, { status }); }
++export async function markPieceWorn(id) { return authedJSON('POST', `/stylist/wardrobe/${id}/worn`); }
++
+ export async function getMemory() {
+   try { const j = await authedJSON('GET', '/memory'); return j.items || []; } catch (e) { return []; }
+ }
+diff --git a/migrations/0054_stylist_outfits_gaps.sql b/migrations/0054_stylist_outfits_gaps.sql
+new file mode 100644
+index 0000000..6fcf6f1
+--- /dev/null
++++ b/migrations/0054_stylist_outfits_gaps.sql
+@@ -0,0 +1,30 @@
++-- 0054 — THE STYLIST ACTS: outfits are filed work product, gaps are a stored
++-- report, wear is tracked. The wardrobe stops being a photo album.
++create table if not exists z.outfits (
++  id          uuid primary key default gen_random_uuid(),
++  user_id     uuid not null,
++  name        text not null,
++  piece_ids   uuid[] not null default '{}',
++  occasion    text,
++  her_read    text,
++  wear_date   date,
++  created_at  timestamptz not null default now()
++);
++create index if not exists outfits_user_idx on z.outfits (user_id, created_at desc);
++alter table z.outfits enable row level security;
++
++create table if not exists z.wardrobe_gaps (
++  id          uuid primary key default gen_random_uuid(),
++  user_id     uuid not null,
++  what        text not null,
++  why         text,
++  priority    int not null default 3,
++  shop_cards  jsonb,
++  status      text not null default 'open',   -- open | bought | dismissed
++  created_at  timestamptz not null default now()
++);
++create index if not exists wardrobe_gaps_user_idx on z.wardrobe_gaps (user_id, status, priority);
++alter table z.wardrobe_gaps enable row level security;
++
++alter table z.wardrobe_pieces add column if not exists wear_count int not null default 0;
++alter table z.wardrobe_pieces add column if not exists last_worn timestamptz;
+diff --git a/src/deskBrief.ts b/src/deskBrief.ts
+index 0653b4c..29b4262 100644
+--- a/src/deskBrief.ts
++++ b/src/deskBrief.ts
+@@ -19,6 +19,14 @@ const whenLabel = (iso: string): string => {
+   const d = new Date(iso); if (isNaN(d.getTime())) return '';
+   return d.toLocaleString('en-GB', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+ };
++// [0058-fix] trim on a word boundary with an ellipsis, never mid-word.
++const clip = (s: any, n: number): string => {
++  const str = String(s || '');
++  if (str.length <= n) return str;
++  const cut = str.slice(0, n);
++  const sp = cut.lastIndexOf(' ');
++  return (sp > n * 0.6 ? cut.slice(0, sp) : cut).trimEnd() + '…';
++};
+ 
+ // Assembles the brief, priority-ordered (lower prio = more urgent), capped at 5.
+ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
+@@ -54,7 +62,7 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
+     if (tk) {
+       const hrs = (Date.parse(tk.due_at) - Date.now()) / 3600000;
+       items.push({
+-        key: 'task', kicker: 'on your list', line: `${String(tk.title).slice(0, 60)} — due ${whenLabel(tk.due_at)}`,
++        key: 'task', kicker: 'on your list', line: `${clip(tk.title, 56)} — due ${whenLabel(tk.due_at)}`,
+         route: tk.suggested_persona || 'the_front_desk', prio: Math.max(0, hrs / 24),
+       });
+     }
+@@ -65,7 +73,7 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
+     const { data: task } = await supabase.from('mm_tasks').select('instruction, status')
+       .eq('user_id', userId).order('week_of', { ascending: false }).limit(1).maybeSingle();
+     if (task?.instruction && task.status === 'open') {
+-      items.push({ key: 'mm', kicker: "this week's move", line: String(task.instruction).slice(0, 90), route: 'the_media_manager', prio: 5 });
++      items.push({ key: 'mm', kicker: "this week's move", line: clip(task.instruction, 90), route: 'the_media_manager', prio: 5 });
+     } else {
+       const { data: note } = await supabase.from('mm_desk_notes').select('created_at')
+         .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+@@ -89,12 +97,12 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
+     }
+   } catch (e: any) { console.error('[brief] coach:', e?.message || e); }
+ 
+-  // ── stylist gaps — arrives with §3 (migration 0054); guarded until then ───
++  // ── stylist gaps (§3/0054) — the open audit rows ─────────────────────────
+   try {
+     const { count } = await supabase.from('wardrobe_gaps')
+-      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('resolved', false);
++      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'open');
+     if (count && count > 0) {
+-      items.push({ key: 'stylist', kicker: 'your stylist noticed', line: `${count} gap${count === 1 ? '' : 's'} in your wardrobe worth closing`, route: 'the_stylist', prio: 8 });
++      items.push({ key: 'stylist', kicker: 'your stylist noticed', line: `${count} gap${count === 1 ? '' : 's'} in your wardrobe worth closing`, route: 'the_diva', prio: 8 });
+     }
+   } catch { /* table not present yet — silent by design */ }
+ 
+@@ -104,7 +112,7 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
+       .eq('scope', 'in').eq('day', istToday()).maybeSingle();
+     const top = Array.isArray(bul?.stories) ? (bul!.stories as any[])[0] : null;
+     if (top?.headline) {
+-      items.push({ key: 'news', kicker: "today's lead", line: String(top.headline).slice(0, 90), route: 'the_anchor', prio: 9 });
++      items.push({ key: 'news', kicker: "today's lead", line: clip(top.headline, 90), route: 'the_anchor', prio: 9 });
+     }
+   } catch (e: any) { console.error('[brief] news:', e?.message || e); }
+ 
+diff --git a/src/index.ts b/src/index.ts
+index a6b48f7..841e70f 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -33,6 +33,7 @@ import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramm
+ import { startPingScheduler, firePings } from './concierge.js';
+ import { tripsFor, startTripBuild } from './wanderer.js';   // [0055]
+ import { assembleDeskBrief } from './deskBrief.js';   // [0058]
++import { runGapReport, listGaps, setGapStatus, listOutfits, markWorn } from './stylist.js';   // [0054]
+ import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
+ import { getWire, getWireMix } from './wire.js';   // [zip67]
+ import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
+@@ -1215,6 +1216,54 @@ app.delete('/stylist/wardrobe/:id', async (req, res) => {
+   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+ });
+ 
++// [0054] THE STYLIST ACTS — the gap report, outfits, and wear tracking.
++app.post('/stylist/gaps/run', async (req, res) => {
++  try {
++    const authId = await authUser(req);
++    if (!authId) return res.status(401).json({ error: 'unauthorized' });
++    const user = await resolveUser(authId);
++    res.json({ gaps: await runGapReport(user.id, (user as any).region || 'IN') });
++  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
++});
++app.get('/stylist/gaps', async (req, res) => {
++  try {
++    const authId = await authUser(req);
++    if (!authId) return res.status(401).json({ error: 'unauthorized' });
++    const user = await resolveUser(authId);
++    res.json({ gaps: await listGaps(user.id) });
++  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
++});
++app.post('/stylist/gaps/:id', async (req, res) => {
++  try {
++    const authId = await authUser(req);
++    if (!authId) return res.status(401).json({ error: 'unauthorized' });
++    const user = await resolveUser(authId);
++    const status = String(req.body?.status || '');
++    if (!['open', 'bought', 'dismissed'].includes(status)) return res.status(400).json({ error: 'status must be open|bought|dismissed' });
++    const gap = await setGapStatus(user.id, String(req.params.id), status as any);
++    if (!gap) return res.status(404).json({ error: 'not found' });
++    res.json({ gap });
++  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
++});
++app.get('/stylist/outfits', async (req, res) => {
++  try {
++    const authId = await authUser(req);
++    if (!authId) return res.status(401).json({ error: 'unauthorized' });
++    const user = await resolveUser(authId);
++    res.json({ outfits: await listOutfits(user.id) });
++  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
++});
++app.post('/stylist/wardrobe/:id/worn', async (req, res) => {
++  try {
++    const authId = await authUser(req);
++    if (!authId) return res.status(401).json({ error: 'unauthorized' });
++    const user = await resolveUser(authId);
++    const piece = await markWorn(user.id, String(req.params.id));
++    if (!piece) return res.status(404).json({ error: 'not found' });
++    res.json({ piece });
++  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
++});
++
+ // [zip78] ── THE TRIPS ROOM ── the Wanderer's trip files, surfaced as the room's UI.
+ app.get('/wanderer/trips', async (req, res) => {
+   try {
+diff --git a/src/loop.ts b/src/loop.ts
+index d5564f8..2a98b2a 100644
+--- a/src/loop.ts
++++ b/src/loop.ts
+@@ -159,10 +159,28 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
+   let wardrobeBlock = '';
+   if (String(t.persona_key || '') === 'the_diva') {
+     try {
+-      const { data: pieces } = await supabase.from('wardrobe_pieces').select('kind, colors, tags, her_read').eq('user_id', t.user_id).order('created_at', { ascending: false }).limit(30);
+-      if (pieces && pieces.length) {
+-        const lines = pieces.map((p: any) => `  • ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}${p.her_read ? ` — ${p.her_read}` : ''}`).join('\n');
+-        wardrobeBlock = `\n\n[THE WARDROBE — the pieces this client owns, filed under your own eye, newest first. When they ask what to wear — for an occasion, a mood, a day — you style them FROM these pieces first, by name, and only then suggest what\'s missing. Never ask them to list what they own; it is written here.\n${lines}]\n\n[SHOP CARDS — whenever you hunt products online for them, END your reply with one line per option, exactly this machine format, using the REAL product page URLs from your search results (never invented ones): [[SHOP: product name | price | url]] — up to 4 options. Your spoken verdict comes first in your own voice; the card lines come last, nothing after them. If a result has no direct product URL, skip that card rather than fake a link. THE MARKET: this client shops from ${(t as any).region || 'IN'} — hunt on stores that actually ship there (for IN that means Myntra, Ajio, Amazon.in, Flipkart, Tata CLiQ, and brand .in sites), quote prices in their local currency, and never hand them a link that only serves the US.]`;   // [zip63]
++      // [0054] §3.3 relevance retrieval — counts summary + up to 40 pieces, filtered
++      // by what the message is about, then filled newest. Pieces carry their id.
++      const { data: all } = await supabase.from('wardrobe_pieces')
++        .select('id, kind, colors, tags, her_read, wear_count, last_worn')
++        .eq('user_id', t.user_id).order('created_at', { ascending: false }).limit(400);
++      const pieces = all ?? [];
++      if (pieces.length) {
++        const counts: Record<string, number> = {};
++        for (const p of pieces) { const k = p.kind || 'other'; counts[k] = (counts[k] || 0) + 1; }
++        const countLine = Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ');
++        const words = String(message || '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4);
++        const hay = (p: any) => `${p.kind || ''} ${p.colors || ''} ${p.tags || ''}`.toLowerCase();
++        const matched = words.length ? pieces.filter((p: any) => words.some((w) => hay(p).includes(w))) : [];
++        const seen = new Set(matched.map((p: any) => p.id));
++        const filled = [...matched, ...pieces.filter((p: any) => !seen.has(p.id))].slice(0, 40);
++        const lines = filled.map((p: any) => `  • {${p.id}} ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}${p.her_read ? ` — ${p.her_read}` : ''}`).join('\n');
++        const stale = pieces.filter((p: any) => !p.last_worn).slice(0, 3).map((p: any) => `${p.kind || 'a piece'}${p.colors ? ' (' + p.colors + ')' : ''}`);
++        const wearLine = stale.length ? `\n\n[GATHERING DUST — filed but never marked worn: ${stale.join(', ')}. A gentle nudge when they ask what to wear; never a scold.]` : '';
++        wardrobeBlock = `\n\n[THE WARDROBE (${pieces.length} pieces: ${countLine}) — what this client owns, filed under your eye; each line carries its id in braces. When they ask what to wear, style them FROM these by name first, then suggest what is missing. Never ask them to list what they own.\n${lines}]` +
++          `\n\n[FILING A LOOK — whenever you compose an outfit from their filed pieces, END your reply (after your spoken verdict) with ONE line, exactly: [[OUTFIT: name | comma-separated piece ids from the braces above | occasion | date if any]]. Only ids that appear above; leave occasion or date blank (keep the bars) if unclear. Only emit when you actually compose a look.]` +
++          wearLine +
++          `\n\n[SHOP CARDS — whenever you hunt products online for them, END your reply with one line per option, exactly: [[SHOP: product name | price | url]] — up to 4, REAL product page URLs from your search results (never invented ones). Spoken verdict first, cards last, nothing after. THE MARKET: this client shops from ${(t as any).region || 'IN'} — Myntra, Ajio, Amazon.in, Flipkart, Tata CLiQ, brand .in sites; quote local currency; never a US-only link.]`;
+       }
+     } catch (e: any) { console.error('[wardrobe] block failed:', e?.message || e); }
+   }
+@@ -506,6 +524,33 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
+       reply = reply.replace(/\[\[IDEA:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+     }
+ 
++    // [0054] [[OUTFIT: name | piece_ids | occasion | date?]] — her looks become filed objects
++    if (t.persona_key === 'the_diva') {
++      const outfits = [...reply.matchAll(/\[\[OUTFIT:\s*([^|\]]+)\|([^|\]]*)\|([^|\]]*)\|([^\]]*)\]\]/gi)];
++      for (const m of outfits) {
++        const name = m[1].trim().slice(0, 120);
++        if (!name) continue;
++        const pieceIds = m[2].split(',').map((s) => s.trim()).filter((s) => /^[0-9a-f-]{20,40}$/i.test(s)).slice(0, 20);
++        const occasion = m[3].trim().slice(0, 120) || null;
++        const when = m[4].trim() ? parseWhen(m[4].trim()) : null;
++        const wear_date = when ? when.toISOString().slice(0, 10) : null;
++        supabase.from('outfits').insert({ user_id: userId, name, piece_ids: pieceIds, occasion, wear_date })
++          .then(({ error }: any) => { if (error) console.error('[outfit] save failed:', error.message); else console.log('[outfit] filed:', name); });
++        // a dated look knocks the morning of — ~8am IST on the day
++        if (wear_date) {
++          const due = new Date(wear_date + 'T02:30:00Z');
++          if (due.getTime() > Date.now()) {
++            supabase.from('scheduled_pings').insert({
++              user_id: userId, persona_key: 'the_diva', kind: 'reminder', thread_id: null,
++              body: `${occasion ? occasion + ' is today' : "today's the day"} — the "${name}" look is filed. steam it.`,
++              payload: { kind: 'outfit' }, due_at: due.toISOString(),
++            }).then(() => {}, () => {});
++          }
++        }
++      }
++      reply = reply.replace(/\[\[OUTFIT:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
++    }
++
+   // pull web-search sources (if the persona reached the web) so the UI can show
+   // optional source pills — Z still speaks in her own voice; the pills just let a
+   // curious person verify. Dedupe by URL, cap a few, keep titles short.
+diff --git a/src/stylist.ts b/src/stylist.ts
+new file mode 100644
+index 0000000..aea9e08
+--- /dev/null
++++ b/src/stylist.ts
+@@ -0,0 +1,94 @@
++// stylist.ts — [0054] THE STYLIST ACTS. Outfits become filed objects, gaps become
++// a stored audit (Haiku + web search, real finds only), wear gets tracked. The
++// wardrobe stops being a photo album and starts being a working closet.
++import { supabase } from './db.js';
++import { llm, firstText } from './llm.js';
++import { logUsage } from './usage.js';
++
++const anthropic = llm();
++const BUCKET = 'wardrobe';
++
++async function sign(path: string): Promise<string | null> {
++  try { const s = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600); return s.data?.signedUrl ?? null; }
++  catch { return null; }
++}
++
++// ── outfits ────────────────────────────────────────────────────────────────
++// Filed by the [[OUTFIT]] tag in her thread loop; the room reads them here, with
++// each piece's thumbnail resolved from its id.
++export async function listOutfits(userId: string) {
++  const { data } = await supabase.from('outfits').select('*').eq('user_id', userId)
++    .order('created_at', { ascending: false }).limit(40);
++  const outfits = data ?? [];
++  const ids = Array.from(new Set(outfits.flatMap((o: any) => Array.isArray(o.piece_ids) ? o.piece_ids : [])));
++  const thumbs: Record<string, string | null> = {};
++  if (ids.length) {
++    const { data: pcs } = await supabase.from('wardrobe_pieces').select('id, storage_path').in('id', ids as string[]);
++    for (const p of pcs ?? []) thumbs[p.id] = await sign(p.storage_path);
++  }
++  return outfits.map((o: any) => ({
++    ...o,
++    pieces: (Array.isArray(o.piece_ids) ? o.piece_ids : []).map((id: string) => ({ id, url: thumbs[id] ?? null })),
++  }));
++}
++
++// ── the gap report (stored, not spoken) ─────────────────────────────────────
++// On-demand audit of the FULL wardrobe. Re-run replaces the open rows.
++export async function runGapReport(userId: string, region = 'IN'): Promise<any[]> {
++  const { data: pieces } = await supabase.from('wardrobe_pieces')
++    .select('kind, colors, tags, her_read').eq('user_id', userId).order('created_at', { ascending: false }).limit(300);
++  const wardrobe = (pieces ?? []).map((p: any) => `- ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}`).join('\n')
++    || '(the closet is nearly empty)';
++  const sys = `You are THE DIVA — a sharp, warm fashion stylist auditing a client's FULL wardrobe for what's MISSING. Read the closet below, think about the life a person in ${region} actually dresses for (work, festive/wedding occasions, casual, weather), and name the real gaps — versatile pieces that would unlock the most outfits, not luxuries. You have web search: use it to find REAL, currently-buyable products for each gap (never invent a product or URL). For ${region}, prefer stores that ship there (Myntra, Ajio, Amazon.in, Flipkart, Tata CLiQ, brand .in sites) and quote local currency.
++
++Reply with ONLY strict JSON, no fences:
++{ "gaps": [ { "what": "the missing piece, specific", "why": "one line: what it unlocks", "priority": 1-5 (1=fills the biggest hole), "shop_cards": [ { "name": "real product", "price": "with currency", "url": "real product page from your search" } ] } ] }
++Give 3 to 6 gaps, highest priority first. Skip a shop_card rather than fake a URL.`;
++  const msg: any = await anthropic.messages.create({
++    model: 'claude-haiku-4-5-20251001', max_tokens: 2000, __pin: 'anthropic',
++    system: sys,
++    messages: [{ role: 'user', content: `THE CLOSET (${(pieces ?? []).length} pieces):\n${wardrobe}\n\nAudit it.` }],
++    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 } as any],
++  });
++  logUsage({ userId, surface: 'other', fn: 'stylist_gaps', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });
++  const raw = (Array.isArray(msg.content) ? msg.content : []).filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('\n');
++  let parsed: any = {};
++  try { const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); parsed = a >= 0 && b > a ? JSON.parse(raw.slice(a, b + 1)) : {}; } catch { /* below */ }
++  const gaps = Array.isArray(parsed.gaps) ? parsed.gaps.slice(0, 6) : [];
++  if (!gaps.length) return listGaps(userId);   // nothing parsed — leave existing rows intact
++  const rows = gaps.map((g: any) => ({
++    user_id: userId,
++    what: String(g?.what || '').slice(0, 160),
++    why: g?.why ? String(g.why).slice(0, 240) : null,
++    priority: Math.min(5, Math.max(1, Number(g?.priority) || 3)),
++    shop_cards: Array.isArray(g?.shop_cards)
++      ? g.shop_cards.slice(0, 4).map((c: any) => ({ name: String(c?.name || '').slice(0, 120), price: String(c?.price || '').slice(0, 40), url: String(c?.url || '').slice(0, 400) })).filter((c: any) => c.name && c.url)
++      : null,
++    status: 'open',
++  })).filter((r: any) => r.what);
++  // re-run replaces the open rows (bought/dismissed stay on the record)
++  await supabase.from('wardrobe_gaps').delete().eq('user_id', userId).eq('status', 'open');
++  if (rows.length) await supabase.from('wardrobe_gaps').insert(rows);
++  return listGaps(userId);
++}
++
++export async function listGaps(userId: string) {
++  const { data } = await supabase.from('wardrobe_gaps').select('*').eq('user_id', userId)
++    .neq('status', 'dismissed').order('status', { ascending: true }).order('priority', { ascending: true }).limit(20);
++  return data ?? [];
++}
++
++export async function setGapStatus(userId: string, id: string, status: 'open' | 'bought' | 'dismissed') {
++  const { data } = await supabase.from('wardrobe_gaps').update({ status }).eq('id', id).eq('user_id', userId).select().single();
++  return data ?? null;
++}
++
++// ── wear tracking ────────────────────────────────────────────────────────────
++export async function markWorn(userId: string, pieceId: string) {
++  const { data: piece } = await supabase.from('wardrobe_pieces').select('wear_count').eq('id', pieceId).eq('user_id', userId).maybeSingle();
++  if (!piece) return null;
++  const next = (Number(piece.wear_count) || 0) + 1;
++  const { data } = await supabase.from('wardrobe_pieces').update({ wear_count: next, last_worn: new Date().toISOString() })
++    .eq('id', pieceId).eq('user_id', userId).select('id, wear_count, last_worn').single();
++  return data ?? null;
++}

@@ -33,6 +33,7 @@ import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramm
 import { startPingScheduler, firePings } from './concierge.js';
 import { tripsFor, startTripBuild } from './wanderer.js';   // [0055]
 import { assembleDeskBrief } from './deskBrief.js';   // [0058]
+import { runGapReport, listGaps, setGapStatus, listOutfits, markWorn } from './stylist.js';   // [0054]
 import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
 import { getWire, getWireMix } from './wire.js';   // [zip67]
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
@@ -1212,6 +1213,54 @@ app.delete('/stylist/wardrobe/:id', async (req, res) => {
     await supabase.storage.from(WARDROBE_BUCKET).remove([piece.storage_path]).then(() => {}, () => {});
     await supabase.from('wardrobe_pieces').delete().eq('id', piece.id);
     res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
+// [0054] THE STYLIST ACTS — the gap report, outfits, and wear tracking.
+app.post('/stylist/gaps/run', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ gaps: await runGapReport(user.id, (user as any).region || 'IN') });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/stylist/gaps', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ gaps: await listGaps(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/stylist/gaps/:id', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const status = String(req.body?.status || '');
+    if (!['open', 'bought', 'dismissed'].includes(status)) return res.status(400).json({ error: 'status must be open|bought|dismissed' });
+    const gap = await setGapStatus(user.id, String(req.params.id), status as any);
+    if (!gap) return res.status(404).json({ error: 'not found' });
+    res.json({ gap });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.get('/stylist/outfits', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ outfits: await listOutfits(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+app.post('/stylist/wardrobe/:id/worn', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const piece = await markWorn(user.id, String(req.params.id));
+    if (!piece) return res.status(404).json({ error: 'not found' });
+    res.json({ piece });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 

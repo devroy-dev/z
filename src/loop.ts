@@ -159,10 +159,28 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   let wardrobeBlock = '';
   if (String(t.persona_key || '') === 'the_diva') {
     try {
-      const { data: pieces } = await supabase.from('wardrobe_pieces').select('kind, colors, tags, her_read').eq('user_id', t.user_id).order('created_at', { ascending: false }).limit(30);
-      if (pieces && pieces.length) {
-        const lines = pieces.map((p: any) => `  • ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}${p.her_read ? ` — ${p.her_read}` : ''}`).join('\n');
-        wardrobeBlock = `\n\n[THE WARDROBE — the pieces this client owns, filed under your own eye, newest first. When they ask what to wear — for an occasion, a mood, a day — you style them FROM these pieces first, by name, and only then suggest what\'s missing. Never ask them to list what they own; it is written here.\n${lines}]\n\n[SHOP CARDS — whenever you hunt products online for them, END your reply with one line per option, exactly this machine format, using the REAL product page URLs from your search results (never invented ones): [[SHOP: product name | price | url]] — up to 4 options. Your spoken verdict comes first in your own voice; the card lines come last, nothing after them. If a result has no direct product URL, skip that card rather than fake a link. THE MARKET: this client shops from ${(t as any).region || 'IN'} — hunt on stores that actually ship there (for IN that means Myntra, Ajio, Amazon.in, Flipkart, Tata CLiQ, and brand .in sites), quote prices in their local currency, and never hand them a link that only serves the US.]`;   // [zip63]
+      // [0054] §3.3 relevance retrieval — counts summary + up to 40 pieces, filtered
+      // by what the message is about, then filled newest. Pieces carry their id.
+      const { data: all } = await supabase.from('wardrobe_pieces')
+        .select('id, kind, colors, tags, her_read, wear_count, last_worn')
+        .eq('user_id', t.user_id).order('created_at', { ascending: false }).limit(400);
+      const pieces = all ?? [];
+      if (pieces.length) {
+        const counts: Record<string, number> = {};
+        for (const p of pieces) { const k = p.kind || 'other'; counts[k] = (counts[k] || 0) + 1; }
+        const countLine = Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ');
+        const words = String(message || '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4);
+        const hay = (p: any) => `${p.kind || ''} ${p.colors || ''} ${p.tags || ''}`.toLowerCase();
+        const matched = words.length ? pieces.filter((p: any) => words.some((w) => hay(p).includes(w))) : [];
+        const seen = new Set(matched.map((p: any) => p.id));
+        const filled = [...matched, ...pieces.filter((p: any) => !seen.has(p.id))].slice(0, 40);
+        const lines = filled.map((p: any) => `  • {${p.id}} ${[p.kind, p.colors, p.tags].filter(Boolean).join(' · ')}${p.her_read ? ` — ${p.her_read}` : ''}`).join('\n');
+        const stale = pieces.filter((p: any) => !p.last_worn).slice(0, 3).map((p: any) => `${p.kind || 'a piece'}${p.colors ? ' (' + p.colors + ')' : ''}`);
+        const wearLine = stale.length ? `\n\n[GATHERING DUST — filed but never marked worn: ${stale.join(', ')}. A gentle nudge when they ask what to wear; never a scold.]` : '';
+        wardrobeBlock = `\n\n[THE WARDROBE (${pieces.length} pieces: ${countLine}) — what this client owns, filed under your eye; each line carries its id in braces. When they ask what to wear, style them FROM these by name first, then suggest what is missing. Never ask them to list what they own.\n${lines}]` +
+          `\n\n[FILING A LOOK — whenever you compose an outfit from their filed pieces, END your reply (after your spoken verdict) with ONE line, exactly: [[OUTFIT: name | comma-separated piece ids from the braces above | occasion | date if any]]. Only ids that appear above; leave occasion or date blank (keep the bars) if unclear. Only emit when you actually compose a look.]` +
+          wearLine +
+          `\n\n[SHOP CARDS — whenever you hunt products online for them, END your reply with one line per option, exactly: [[SHOP: product name | price | url]] — up to 4, REAL product page URLs from your search results (never invented ones). Spoken verdict first, cards last, nothing after. THE MARKET: this client shops from ${(t as any).region || 'IN'} — Myntra, Ajio, Amazon.in, Flipkart, Tata CLiQ, brand .in sites; quote local currency; never a US-only link.]`;
       }
     } catch (e: any) { console.error('[wardrobe] block failed:', e?.message || e); }
   }
@@ -504,6 +522,33 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
           });
       }
       reply = reply.replace(/\[\[IDEA:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // [0054] [[OUTFIT: name | piece_ids | occasion | date?]] — her looks become filed objects
+    if (t.persona_key === 'the_diva') {
+      const outfits = [...reply.matchAll(/\[\[OUTFIT:\s*([^|\]]+)\|([^|\]]*)\|([^|\]]*)\|([^\]]*)\]\]/gi)];
+      for (const m of outfits) {
+        const name = m[1].trim().slice(0, 120);
+        if (!name) continue;
+        const pieceIds = m[2].split(',').map((s) => s.trim()).filter((s) => /^[0-9a-f-]{20,40}$/i.test(s)).slice(0, 20);
+        const occasion = m[3].trim().slice(0, 120) || null;
+        const when = m[4].trim() ? parseWhen(m[4].trim()) : null;
+        const wear_date = when ? when.toISOString().slice(0, 10) : null;
+        supabase.from('outfits').insert({ user_id: userId, name, piece_ids: pieceIds, occasion, wear_date })
+          .then(({ error }: any) => { if (error) console.error('[outfit] save failed:', error.message); else console.log('[outfit] filed:', name); });
+        // a dated look knocks the morning of — ~8am IST on the day
+        if (wear_date) {
+          const due = new Date(wear_date + 'T02:30:00Z');
+          if (due.getTime() > Date.now()) {
+            supabase.from('scheduled_pings').insert({
+              user_id: userId, persona_key: 'the_diva', kind: 'reminder', thread_id: null,
+              body: `${occasion ? occasion + ' is today' : "today's the day"} — the "${name}" look is filed. steam it.`,
+              payload: { kind: 'outfit' }, due_at: due.toISOString(),
+            }).then(() => {}, () => {});
+          }
+        }
+      }
+      reply = reply.replace(/\[\[OUTFIT:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
   // pull web-search sources (if the persona reached the web) so the UI can show

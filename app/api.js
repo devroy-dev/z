@@ -563,6 +563,13 @@ export async function getDeskBrief() {
   try { const j = await authedJSON('GET', '/desk/brief'); return j.items || []; } catch (e) { return []; }
 }
 
+// [0054] the stylist acts — outfits, the gap report, wear tracking
+export async function getStylistOutfits() { try { const j = await authedJSON('GET', '/stylist/outfits'); return j.outfits || []; } catch (e) { return []; } }
+export async function getStylistGaps() { try { const j = await authedJSON('GET', '/stylist/gaps'); return j.gaps || []; } catch (e) { return []; } }
+export async function runStylistGaps() { const j = await authedJSON('POST', '/stylist/gaps/run'); return j.gaps || []; }
+export async function setStylistGapStatus(id, status) { return authedJSON('POST', `/stylist/gaps/${id}`, { status }); }
+export async function markPieceWorn(id) { return authedJSON('POST', `/stylist/wardrobe/${id}/worn`); }
+
 export async function getMemory() {
   try { const j = await authedJSON('GET', '/memory'); return j.items || []; } catch (e) { return []; }
 }

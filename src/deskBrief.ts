@@ -19,6 +19,14 @@ const whenLabel = (iso: string): string => {
   const d = new Date(iso); if (isNaN(d.getTime())) return '';
   return d.toLocaleString('en-GB', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
 };
+// [0058-fix] trim on a word boundary with an ellipsis, never mid-word.
+const clip = (s: any, n: number): string => {
+  const str = String(s || '');
+  if (str.length <= n) return str;
+  const cut = str.slice(0, n);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > n * 0.6 ? cut.slice(0, sp) : cut).trimEnd() + '…';
+};
 
 // Assembles the brief, priority-ordered (lower prio = more urgent), capped at 5.
 export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
@@ -54,7 +62,7 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
     if (tk) {
       const hrs = (Date.parse(tk.due_at) - Date.now()) / 3600000;
       items.push({
-        key: 'task', kicker: 'on your list', line: `${String(tk.title).slice(0, 60)} — due ${whenLabel(tk.due_at)}`,
+        key: 'task', kicker: 'on your list', line: `${clip(tk.title, 56)} — due ${whenLabel(tk.due_at)}`,
         route: tk.suggested_persona || 'the_front_desk', prio: Math.max(0, hrs / 24),
       });
     }
@@ -65,7 +73,7 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
     const { data: task } = await supabase.from('mm_tasks').select('instruction, status')
       .eq('user_id', userId).order('week_of', { ascending: false }).limit(1).maybeSingle();
     if (task?.instruction && task.status === 'open') {
-      items.push({ key: 'mm', kicker: "this week's move", line: String(task.instruction).slice(0, 90), route: 'the_media_manager', prio: 5 });
+      items.push({ key: 'mm', kicker: "this week's move", line: clip(task.instruction, 90), route: 'the_media_manager', prio: 5 });
     } else {
       const { data: note } = await supabase.from('mm_desk_notes').select('created_at')
         .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -89,12 +97,12 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
     }
   } catch (e: any) { console.error('[brief] coach:', e?.message || e); }
 
-  // ── stylist gaps — arrives with §3 (migration 0054); guarded until then ───
+  // ── stylist gaps (§3/0054) — the open audit rows ─────────────────────────
   try {
     const { count } = await supabase.from('wardrobe_gaps')
-      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('resolved', false);
+      .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'open');
     if (count && count > 0) {
-      items.push({ key: 'stylist', kicker: 'your stylist noticed', line: `${count} gap${count === 1 ? '' : 's'} in your wardrobe worth closing`, route: 'the_stylist', prio: 8 });
+      items.push({ key: 'stylist', kicker: 'your stylist noticed', line: `${count} gap${count === 1 ? '' : 's'} in your wardrobe worth closing`, route: 'the_diva', prio: 8 });
     }
   } catch { /* table not present yet — silent by design */ }
 
@@ -104,7 +112,7 @@ export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
       .eq('scope', 'in').eq('day', istToday()).maybeSingle();
     const top = Array.isArray(bul?.stories) ? (bul!.stories as any[])[0] : null;
     if (top?.headline) {
-      items.push({ key: 'news', kicker: "today's lead", line: String(top.headline).slice(0, 90), route: 'the_anchor', prio: 9 });
+      items.push({ key: 'news', kicker: "today's lead", line: clip(top.headline, 90), route: 'the_anchor', prio: 9 });
     }
   } catch (e: any) { console.error('[brief] news:', e?.message || e); }
 
