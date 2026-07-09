@@ -89,7 +89,7 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
     model: 'claude-haiku-4-5-20251001', max_tokens: 3000, __pin: 'anthropic',
     system: sys,
     messages: [{ role: 'user', content: fileTxt + '\n\nBuild the plan.' }],
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 } as any],
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 } as any],
   });
   logUsage({ userId, surface: 'other', fn: 'trip_build', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });
   const raw = (Array.isArray(msg.content) ? msg.content : [])
@@ -112,7 +112,12 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
   // [0055-fix] a build that produced no real itinerary must NOT masquerade as
   // 'planned' — leave the trip 'dreaming' rather than write a hollow plan.
   const built = Array.isArray(itinerary) && itinerary.length > 0;
-  if (!built) return { ...trip, built: false };
+  if (!built) {
+    // an async build that produced nothing must not stay stuck on 'planning'
+    await supabase.from('trip_files').update({ status: 'dreaming' })
+      .eq('id', tripId).eq('user_id', userId).eq('status', 'planning');
+    return { ...trip, built: false };
+  }
   const patch: any = {
     status: 'planned',
     itinerary,
@@ -138,6 +143,26 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
   return { ...(updated || trip), built: true, pings };
 }
 
+// [0055-fix] ASYNC BUILD — the plan is a 15-25s Haiku+search call; holding the HTTP
+// request open that long is what times out at the proxy (and threw a garbage body
+// mid-test). Instead: flip to 'planning', kick the heavy build off in the background
+// (Railway is a persistent process, like the ping scheduler), and return at once. The
+// room polls the trips list until status leaves 'planning'.
+export async function startTripBuild(userId: string, tripId: string): Promise<any | null> {
+  const { data: trip } = await supabase.from('trip_files')
+    .select('id, destination, dates, travelers, notes, status, start_date, end_date, itinerary, checklist, budget, shop_cards, updated_at')
+    .eq('id', tripId).eq('user_id', userId).maybeSingle();
+  if (!trip) return null;
+  await supabase.from('trip_files').update({ status: 'planning', updated_at: new Date().toISOString() })
+    .eq('id', tripId).eq('user_id', userId);
+  buildTrip(userId, tripId).catch(async (e: any) => {
+    console.error('[trip] async build failed:', e?.message || e);
+    await supabase.from('trip_files').update({ status: 'dreaming' })
+      .eq('id', tripId).eq('user_id', userId).eq('status', 'planning');
+  });
+  return { ...trip, status: 'planning', building: true };
+}
+
 // ── 3. THE READ (with the clock's flip) ────────────────────────────────────
 export async function tripsFor(userId: string): Promise<any[]> {
   const { data } = await supabase.from('trip_files')
@@ -146,7 +171,14 @@ export async function tripsFor(userId: string): Promise<any[]> {
   const trips = (data ?? []) as any[];
   const today = istDate();
   const flips: { id: string; status: string }[] = [];
+  const STALE_PLANNING = 3 * 60 * 1000;   // a build never runs this long; older = orphaned
   for (const t of trips) {
+    if (t.status === 'planning') {
+      if (Date.now() - new Date(t.updated_at).getTime() > STALE_PLANNING) {
+        t.status = 'dreaming'; flips.push({ id: t.id, status: 'dreaming' });
+      }
+      continue;   // still building — leave it
+    }
     if (!t.start_date || t.status === 'done') continue;
     let derived = t.status;
     if (t.end_date && today > t.end_date) derived = 'done';

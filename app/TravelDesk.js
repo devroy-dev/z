@@ -32,7 +32,8 @@ function StatusChip({ status }) {
 }
 function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle }) {
   const line = [trip.dates, trip.travelers].filter(Boolean).join(' · ');
-  const planned = trip.status && trip.status !== 'dreaming';
+  const planning = trip.status === 'planning' || building;
+  const planned = trip.status && trip.status !== 'dreaming' && trip.status !== 'planning';
   const itin = Array.isArray(trip.itinerary) ? trip.itinerary : [];
   const check = Array.isArray(trip.checklist) ? trip.checklist : [];
   const openCount = check.filter((c) => c && !c.done).length;
@@ -42,10 +43,12 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
         <View style={{ flex: 1 }}>
           <View style={st.cardHead}>
             <Text style={st.cardDest} numberOfLines={1}>{trip.destination}</Text>
-            <StatusChip status={trip.status} />
+            <StatusChip status={planning ? 'planning' : trip.status} />
           </View>
           {line ? <Text style={st.cardLine} numberOfLines={1}>{line}</Text> : null}
-          {planned ? (
+          {planning ? (
+            <Text style={st.cardMeta} numberOfLines={1}>building your plan…</Text>
+          ) : planned ? (
             <Text style={st.cardMeta} numberOfLines={1}>
               {itin.length ? `${itin.length}-day plan` : 'planned'}{openCount ? ` · ${openCount} to sort` : ''}{trip.budget ? ` · ${trip.budget}` : ''}
             </Text>
@@ -58,9 +61,14 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
 
       {expanded ? (
         <View style={st.detail}>
-          {!planned ? (
-            <Pressable onPress={() => onBuild(trip)} style={[st.buildBtn, building && { opacity: 0.55 }]} disabled={building}>
-              <Text style={st.buildTxt}>{building ? 'she\u2019s building it…' : 'build the plan →'}</Text>
+          {planning ? (
+            <View style={st.buildingRow}>
+              <ActivityIndicator color={AMBER} />
+              <Text style={st.buildingTxt}>she's building your plan — about 20 seconds. leave this open.</Text>
+            </View>
+          ) : !planned ? (
+            <Pressable onPress={() => onBuild(trip)} style={st.buildBtn}>
+              <Text style={st.buildTxt}>build the plan →</Text>
             </Pressable>
           ) : (
             <View>
@@ -108,14 +116,29 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
     try { await deleteTrip(id); } catch (e) { load(); }
   };
 
-  // [0055] build the plan — server writes itinerary + checklist + dates, flips to planned
+  // [0055] build the plan — the server returns instantly with status 'planning' and
+  // builds in the background; we poll the list until it flips to 'planned'.
   const doBuild = async (trip) => {
     if (buildingId) return;
     setBuildingId(trip.id);
+    setTrips((cur) => (cur || []).map((t) => (t.id === trip.id ? { ...t, status: 'planning' } : t)));
     try {
-      const r = await buildTrip(trip.id);
-      if (r?.trip) setTrips((cur) => (cur || []).map((t) => (t.id === trip.id ? { ...t, ...r.trip } : t)));
-    } catch (e) {} finally { setBuildingId(null); }
+      await buildTrip(trip.id);   // returns at once (status 'planning')
+    } catch (e) { setBuildingId(null); load(); return; }
+    let tries = 0;
+    const poll = async () => {
+      tries++;
+      const r = await getTrips().catch(() => null);
+      const fresh = r?.trips?.find((t) => t.id === trip.id);
+      if (fresh && fresh.status !== 'planning') {
+        setTrips((cur) => (cur || []).map((t) => (t.id === trip.id ? { ...t, ...fresh } : t)));
+        setBuildingId(null);
+        return;
+      }
+      if (tries >= 15) { setBuildingId(null); load(); return; }   // ~60s ceiling
+      setTimeout(poll, 4000);
+    };
+    setTimeout(poll, 4000);
   };
   const toggleExpand = (id) => setExpandedId((cur) => (cur === id ? null : id));
 
@@ -203,6 +226,7 @@ const st = StyleSheet.create({
   cardXTxt: { color: S.mist, fontSize: 11 },
   chip: { fontFamily: FONTS.semi, fontSize: 9.5, letterSpacing: 0.5, textTransform: 'uppercase', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
   chip_dreaming: { color: S.mist, backgroundColor: 'rgba(244,238,230,0.08)' },
+  chip_planning: { color: '#191206', backgroundColor: SAND },
   chip_planned: { color: '#191206', backgroundColor: AMBER },
   chip_booked: { color: '#191206', backgroundColor: SAND },
   chip_live: { color: '#08120A', backgroundColor: '#7BD88F' },
@@ -210,6 +234,8 @@ const st = StyleSheet.create({
   detail: { borderTopWidth: 1, borderTopColor: S.hair, paddingHorizontal: 15, paddingVertical: 12, gap: 10 },
   buildBtn: { borderWidth: 1.5, borderColor: AMBER, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   buildTxt: { color: AMBER, fontFamily: FONTS.semi, fontSize: 13.5 },
+  buildingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  buildingTxt: { flex: 1, color: S.mist, fontFamily: FONTS.light, fontSize: 12.5, lineHeight: 18 },
   dayRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
   dayNum: { color: AMBER, fontFamily: FONTS.semi, fontSize: 11, width: 42, marginTop: 2, textTransform: 'lowercase' },
   dayTitle: { color: S.ink, fontFamily: FONTS.semi, fontSize: 13 },

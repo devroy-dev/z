@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-# zip89d · RECOVERY — origin/main's src/wanderer.ts was committed with merge-conflict
-# markers (zip89c's patch was cut without re-syncing after zip89b, so it carried
-# zip89b's hunks and collided). This restores the file to the correct, clean
-# zip89b+zip89c end-state (max_tokens 3000, empty-build guard, <cite> strip, no
-# _debug). Full-file overwrite — this file is wanderer-owned, single file, verified.
+# zip90 · trip /build goes ASYNC — no more 24s synchronous hold (timeout-fragile).
+# /build now flips the trip to 'planning', builds in the background, returns at once;
+# the room polls until it lands. Also: web_search 3->2 (faster), stuck-'planning'
+# recovery on read. Touches src/wanderer.ts, src/index.ts, app/TravelDesk.js.
 #   run from the repo root:  python3 patch.py
-import os, sys, shutil
-GOOD = 'wanderer.fixed.ts'
-TARGET = 'src/wanderer.ts'
+import os, sys, subprocess
+PATCH='zip90_async_build.patch'; MARKER_FILE='src/wanderer.ts'; MARKER='startTripBuild'; SENTINEL='migrations'
+def sh(*a): return subprocess.run(a, capture_output=True, text=True)
 def die(m): print("  \u2717 "+m); sys.exit(1)
 def main():
-    if not os.path.isfile(TARGET): die("run me from the repo root (need src/wanderer.ts).")
-    if not os.path.isfile(GOOD): die(f"{GOOD} not found — unzip the whole zip89d into the repo root first.")
-    cur = open(TARGET, encoding='utf-8').read()
-    clean = ('<<<<<<<' not in cur) and ('cite[^>]' in cur) and ('_debug' not in cur)
-    if clean:
-        print("  \u00b7 src/wanderer.ts is already clean (zip89b+zip89c) — nothing to do."); return
-    if '<<<<<<<' in cur:
-        print("  \u00b7 conflict markers found — restoring the clean file.")
-    shutil.copyfile(GOOD, TARGET)
-    # sanity: the restored file must be free of markers
-    chk = open(TARGET, encoding='utf-8').read()
-    if '<<<<<<<' in chk: die("restore left markers behind — abort, do not commit.")
-    print("  \u2713 src/wanderer.ts restored (clean, builds green).")
-    print("\n  next: npx tsc --noEmit (expect clean) -> commit -> push. No migration, no OTA.")
+    if not (os.path.isdir(SENTINEL) and os.path.isfile('src/index.ts')): die("run me from the repo root.")
+    if not os.path.isfile(PATCH): die(f"{PATCH} not found — unzip the whole zip90 into the repo root first.")
+    with open(MARKER_FILE, encoding='utf-8') as f:
+        if MARKER in f.read():
+            print("  \u00b7 zip90 already applied (found startTripBuild) — nothing to do."); return
+    chk = sh('git','apply','--3way','--check',PATCH)
+    if chk.returncode != 0:
+        print("  \u2717 does not apply cleanly:"); print((sh('git','apply','--check',PATCH).stderr or chk.stderr).rstrip())
+        print("  \u2192 SHARED file (src/index.ts) may have drifted. git pull --rebase, then re-run."); sys.exit(1)
+    ap = sh('git','apply','--3way',PATCH)
+    if ap.returncode != 0: print("  \u2717 apply failed:"); print((ap.stderr or ap.stdout).rstrip()); sys.exit(1)
+    for p in ['src/wanderer.ts','src/index.ts','app/TravelDesk.js']: print("  \u2713 "+p)
+    print("\n  applied. build + ship (git push; Railway rebuilds) + eas update from app/. No migration.")
 if __name__ == '__main__': main()

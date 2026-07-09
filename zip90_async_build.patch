@@ -1,0 +1,198 @@
+diff --git a/app/TravelDesk.js b/app/TravelDesk.js
+index 71faa9f..0a3bef4 100644
+--- a/app/TravelDesk.js
++++ b/app/TravelDesk.js
+@@ -32,7 +32,8 @@ function StatusChip({ status }) {
+ }
+ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle }) {
+   const line = [trip.dates, trip.travelers].filter(Boolean).join(' · ');
+-  const planned = trip.status && trip.status !== 'dreaming';
++  const planning = trip.status === 'planning' || building;
++  const planned = trip.status && trip.status !== 'dreaming' && trip.status !== 'planning';
+   const itin = Array.isArray(trip.itinerary) ? trip.itinerary : [];
+   const check = Array.isArray(trip.checklist) ? trip.checklist : [];
+   const openCount = check.filter((c) => c && !c.done).length;
+@@ -42,10 +43,12 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
+         <View style={{ flex: 1 }}>
+           <View style={st.cardHead}>
+             <Text style={st.cardDest} numberOfLines={1}>{trip.destination}</Text>
+-            <StatusChip status={trip.status} />
++            <StatusChip status={planning ? 'planning' : trip.status} />
+           </View>
+           {line ? <Text style={st.cardLine} numberOfLines={1}>{line}</Text> : null}
+-          {planned ? (
++          {planning ? (
++            <Text style={st.cardMeta} numberOfLines={1}>building your plan…</Text>
++          ) : planned ? (
+             <Text style={st.cardMeta} numberOfLines={1}>
+               {itin.length ? `${itin.length}-day plan` : 'planned'}{openCount ? ` · ${openCount} to sort` : ''}{trip.budget ? ` · ${trip.budget}` : ''}
+             </Text>
+@@ -58,9 +61,14 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
+ 
+       {expanded ? (
+         <View style={st.detail}>
+-          {!planned ? (
+-            <Pressable onPress={() => onBuild(trip)} style={[st.buildBtn, building && { opacity: 0.55 }]} disabled={building}>
+-              <Text style={st.buildTxt}>{building ? 'she\u2019s building it…' : 'build the plan →'}</Text>
++          {planning ? (
++            <View style={st.buildingRow}>
++              <ActivityIndicator color={AMBER} />
++              <Text style={st.buildingTxt}>she's building your plan — about 20 seconds. leave this open.</Text>
++            </View>
++          ) : !planned ? (
++            <Pressable onPress={() => onBuild(trip)} style={st.buildBtn}>
++              <Text style={st.buildTxt}>build the plan →</Text>
+             </Pressable>
+           ) : (
+             <View>
+@@ -108,14 +116,29 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
+     try { await deleteTrip(id); } catch (e) { load(); }
+   };
+ 
+-  // [0055] build the plan — server writes itinerary + checklist + dates, flips to planned
++  // [0055] build the plan — the server returns instantly with status 'planning' and
++  // builds in the background; we poll the list until it flips to 'planned'.
+   const doBuild = async (trip) => {
+     if (buildingId) return;
+     setBuildingId(trip.id);
++    setTrips((cur) => (cur || []).map((t) => (t.id === trip.id ? { ...t, status: 'planning' } : t)));
+     try {
+-      const r = await buildTrip(trip.id);
+-      if (r?.trip) setTrips((cur) => (cur || []).map((t) => (t.id === trip.id ? { ...t, ...r.trip } : t)));
+-    } catch (e) {} finally { setBuildingId(null); }
++      await buildTrip(trip.id);   // returns at once (status 'planning')
++    } catch (e) { setBuildingId(null); load(); return; }
++    let tries = 0;
++    const poll = async () => {
++      tries++;
++      const r = await getTrips().catch(() => null);
++      const fresh = r?.trips?.find((t) => t.id === trip.id);
++      if (fresh && fresh.status !== 'planning') {
++        setTrips((cur) => (cur || []).map((t) => (t.id === trip.id ? { ...t, ...fresh } : t)));
++        setBuildingId(null);
++        return;
++      }
++      if (tries >= 15) { setBuildingId(null); load(); return; }   // ~60s ceiling
++      setTimeout(poll, 4000);
++    };
++    setTimeout(poll, 4000);
+   };
+   const toggleExpand = (id) => setExpandedId((cur) => (cur === id ? null : id));
+ 
+@@ -203,6 +226,7 @@ const st = StyleSheet.create({
+   cardXTxt: { color: S.mist, fontSize: 11 },
+   chip: { fontFamily: FONTS.semi, fontSize: 9.5, letterSpacing: 0.5, textTransform: 'uppercase', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+   chip_dreaming: { color: S.mist, backgroundColor: 'rgba(244,238,230,0.08)' },
++  chip_planning: { color: '#191206', backgroundColor: SAND },
+   chip_planned: { color: '#191206', backgroundColor: AMBER },
+   chip_booked: { color: '#191206', backgroundColor: SAND },
+   chip_live: { color: '#08120A', backgroundColor: '#7BD88F' },
+@@ -210,6 +234,8 @@ const st = StyleSheet.create({
+   detail: { borderTopWidth: 1, borderTopColor: S.hair, paddingHorizontal: 15, paddingVertical: 12, gap: 10 },
+   buildBtn: { borderWidth: 1.5, borderColor: AMBER, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+   buildTxt: { color: AMBER, fontFamily: FONTS.semi, fontSize: 13.5 },
++  buildingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
++  buildingTxt: { flex: 1, color: S.mist, fontFamily: FONTS.light, fontSize: 12.5, lineHeight: 18 },
+   dayRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+   dayNum: { color: AMBER, fontFamily: FONTS.semi, fontSize: 11, width: 42, marginTop: 2, textTransform: 'lowercase' },
+   dayTitle: { color: S.ink, fontFamily: FONTS.semi, fontSize: 13 },
+diff --git a/src/index.ts b/src/index.ts
+index 03573bc..6bb286c 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -31,7 +31,7 @@ import { runStateWriter, currentStates, startStateScheduler } from './personaSta
+ import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
+ import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
+ import { startPingScheduler, firePings } from './concierge.js';
+-import { buildTrip, tripsFor } from './wanderer.js';   // [0055]
++import { tripsFor, startTripBuild } from './wanderer.js';   // [0055]
+ import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
+ import { getWire, getWireMix } from './wire.js';   // [zip67]
+ import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
+@@ -1223,14 +1223,14 @@ app.get('/wanderer/trips', async (req, res) => {
+     res.json({ trips: await tripsFor(user.id) });   // [0055] full body + live-flip on read
+   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+ });
+-// [0055] BUILD — the coach pattern for travel: itinerary + checklist + parsed
+-// dates + status='planned', her spoken summary into her thread, the clock set.
++// [0055] BUILD — kicks the coach-pattern plan off in the BACKGROUND and returns at
++// once (status 'planning'); the room polls until it flips to 'planned'. No 24s hold.
+ app.post('/wanderer/trips/:id/build', async (req, res) => {
+   try {
+     const authId = await authUser(req);
+     if (!authId) return res.status(401).json({ error: 'unauthorized' });
+     const user = await resolveUser(authId);
+-    const trip = await buildTrip(user.id, String(req.params.id));
++    const trip = await startTripBuild(user.id, String(req.params.id));
+     if (!trip) return res.status(404).json({ error: 'not found' });
+     res.json({ trip });
+   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+diff --git a/src/wanderer.ts b/src/wanderer.ts
+index 6e45ae2..13bdfaf 100644
+--- a/src/wanderer.ts
++++ b/src/wanderer.ts
+@@ -89,7 +89,7 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
+     model: 'claude-haiku-4-5-20251001', max_tokens: 3000, __pin: 'anthropic',
+     system: sys,
+     messages: [{ role: 'user', content: fileTxt + '\n\nBuild the plan.' }],
+-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 } as any],
++    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 } as any],
+   });
+   logUsage({ userId, surface: 'other', fn: 'trip_build', model: 'claude-haiku-4-5-20251001', usage: (msg as any).usage });
+   const raw = (Array.isArray(msg.content) ? msg.content : [])
+@@ -112,7 +112,12 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
+   // [0055-fix] a build that produced no real itinerary must NOT masquerade as
+   // 'planned' — leave the trip 'dreaming' rather than write a hollow plan.
+   const built = Array.isArray(itinerary) && itinerary.length > 0;
+-  if (!built) return { ...trip, built: false };
++  if (!built) {
++    // an async build that produced nothing must not stay stuck on 'planning'
++    await supabase.from('trip_files').update({ status: 'dreaming' })
++      .eq('id', tripId).eq('user_id', userId).eq('status', 'planning');
++    return { ...trip, built: false };
++  }
+   const patch: any = {
+     status: 'planned',
+     itinerary,
+@@ -138,6 +143,26 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
+   return { ...(updated || trip), built: true, pings };
+ }
+ 
++// [0055-fix] ASYNC BUILD — the plan is a 15-25s Haiku+search call; holding the HTTP
++// request open that long is what times out at the proxy (and threw a garbage body
++// mid-test). Instead: flip to 'planning', kick the heavy build off in the background
++// (Railway is a persistent process, like the ping scheduler), and return at once. The
++// room polls the trips list until status leaves 'planning'.
++export async function startTripBuild(userId: string, tripId: string): Promise<any | null> {
++  const { data: trip } = await supabase.from('trip_files')
++    .select('id, destination, dates, travelers, notes, status, start_date, end_date, itinerary, checklist, budget, shop_cards, updated_at')
++    .eq('id', tripId).eq('user_id', userId).maybeSingle();
++  if (!trip) return null;
++  await supabase.from('trip_files').update({ status: 'planning', updated_at: new Date().toISOString() })
++    .eq('id', tripId).eq('user_id', userId);
++  buildTrip(userId, tripId).catch(async (e: any) => {
++    console.error('[trip] async build failed:', e?.message || e);
++    await supabase.from('trip_files').update({ status: 'dreaming' })
++      .eq('id', tripId).eq('user_id', userId).eq('status', 'planning');
++  });
++  return { ...trip, status: 'planning', building: true };
++}
++
+ // ── 3. THE READ (with the clock's flip) ────────────────────────────────────
+ export async function tripsFor(userId: string): Promise<any[]> {
+   const { data } = await supabase.from('trip_files')
+@@ -146,7 +171,14 @@ export async function tripsFor(userId: string): Promise<any[]> {
+   const trips = (data ?? []) as any[];
+   const today = istDate();
+   const flips: { id: string; status: string }[] = [];
++  const STALE_PLANNING = 3 * 60 * 1000;   // a build never runs this long; older = orphaned
+   for (const t of trips) {
++    if (t.status === 'planning') {
++      if (Date.now() - new Date(t.updated_at).getTime() > STALE_PLANNING) {
++        t.status = 'dreaming'; flips.push({ id: t.id, status: 'dreaming' });
++      }
++      continue;   // still building — leave it
++    }
+     if (!t.start_date || t.status === 'done') continue;
+     let derived = t.status;
+     if (t.end_date && today > t.end_date) derived = 'done';
