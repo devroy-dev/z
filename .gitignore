@@ -12,3 +12,9 @@ writer.py
 *.bak
 apply_*.py
 /Coach.js
+
+# zip delivery scaffolding — never commit
+patch.py
+APPLY_*.md
+zip*_*.patch
+zip*.zip
