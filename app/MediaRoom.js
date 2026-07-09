@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';   // [fixes-A X4] the deliverable is extractable
 import { getMmBrief, saveMmBrief, getMmAnalytics, uploadMmAnalytics, getMmDeskNotes,
-  getMmTasks, toggleMmTask, getMmIdeas, draftMmIdea, markMmIdeaPosted, addMmAnalyticsManual, getMmRateCard } from './api';
+  getMmTasks, toggleMmTask, getMmIdeas, draftMmIdea, markMmIdeaPosted, addMmAnalyticsManual, getMmRateCard,
+  updateMmAnalytics, deleteMmAnalytics, refreshMmDeskNote } from './api';
 import { FONTS } from './theme';
 
 // [fixes-A X2] a fetch that FAILED is not a fetch that's EMPTY — this sentinel
@@ -84,15 +85,20 @@ function Chips({ label, value, onChange, options }) {
     </View>
   );
 }
-function NumberRow({ r }) {
+function NumberRow({ r, onEdit, onDelete }) {
+  const [confirm, setConfirm] = useState(false);
   const bits = [r.followers && `${r.followers} followers`, r.reach && `reach ${r.reach}`, r.growth].filter(Boolean).join('  ·  ');
+  const tapX = () => { if (confirm) { onDelete(r); return; } setConfirm(true); setTimeout(() => setConfirm(false), 2500); };
   return (
     <View style={st.numRow}>
-      <View style={{ flex: 1 }}>
+      <Pressable style={{ flex: 1 }} onPress={() => onEdit(r)}>
         <Text style={st.numPlatform}>{r.platform || 'platform'}{r.period ? `  —  ${r.period}` : ''}</Text>
         <Text style={st.numBits}>{bits || 'filed'}</Text>
         {r.top_content ? <Text style={st.numTop} numberOfLines={1}>top: {r.top_content}</Text> : null}
-      </View>
+      </Pressable>
+      <Pressable onPress={tapX} hitSlop={8} style={[st.numX, confirm && st.numXConfirm]}>
+        <Text style={[st.numXTxt, confirm && st.numXTxtConfirm]}>{confirm ? 'delete?' : '✕'}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -164,6 +170,9 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
   const [manualOpen, setManualOpen] = useState(false);
   const [mForm, setMForm] = useState({ platform: '', followers: '', reach: '', period: '' });
   const [savingManual, setSavingManual] = useState(false);
+  const [editId, setEditId] = useState(null);            // [fixes-B MM-A] correcting a filed number
+  const [refreshingNote, setRefreshingNote] = useState(false);   // [fixes-B MM-B] the ↻
+  const [noteLine, setNoteLine] = useState('');          // [fixes-B MM-B] the once-a-day honest line
 
   // [fixes-A X1/X2] load returns a promise so pull-to-refresh can await it;
   // the sections that carry his written work fall to ERR (not []) on failure.
@@ -182,7 +191,36 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
     if (savingManual) return;
     if (!mForm.platform.trim() || (!mForm.followers.trim() && !mForm.reach.trim())) return;
     setSavingManual(true);
-    try { await addMmAnalyticsManual(mForm); setMForm({ platform: '', followers: '', reach: '', period: '' }); setManualOpen(false); load(); } catch (e) {} finally { setSavingManual(false); }
+    try {
+      if (editId) await updateMmAnalytics(editId, mForm);   // [fixes-B MM-A] correction (update-in-place)
+      else await addMmAnalyticsManual(mForm);
+      setMForm({ platform: '', followers: '', reach: '', period: '' }); setManualOpen(false); setEditId(null); load();
+    } catch (e) {} finally { setSavingManual(false); }
+  };
+  // [fixes-B MM-A] tap a filed number to correct it — prefill the manual form
+  const editNumber = (r) => {
+    setMForm({ platform: r.platform || '', followers: r.followers || '', reach: r.reach || '', period: r.period || '' });
+    setEditId(r.id); setManualOpen(true);
+  };
+  const deleteNumber = async (r) => {
+    setTimeline((cur) => (Array.isArray(cur) ? cur.filter((x) => x.id !== r.id) : cur));
+    if (editId === r.id) { setEditId(null); setManualOpen(false); }
+    try { await deleteMmAnalytics(r.id); } catch (e) { load(); }
+  };
+  const toggleManual = () => {
+    if (manualOpen) { setEditId(null); setMForm({ platform: '', followers: '', reach: '', period: '' }); }
+    setManualOpen((v) => !v);
+  };
+  // [fixes-B MM-B] the desk note ↻ — once-a-day gate speaks its honest line
+  const refreshNote = async () => {
+    if (refreshingNote) return;
+    setRefreshingNote(true); setNoteLine('');
+    try {
+      const r = await refreshMmDeskNote();
+      if (r.already) setNoteLine(r.line);
+      else if (r.notes) setNotes(r.notes);
+    } catch (e) { setNoteLine('couldn\u2019t refresh just now — try again in a bit.'); }
+    finally { setRefreshingNote(false); }
   };
 
   // [0056] tick the instruction — optimistic, reconcile on failure
@@ -249,7 +287,12 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
         <Image source={{ uri: 'https://callmez.app/rooms/media-hub.jpg?v=1' }} style={st.hero} resizeMode="cover" />
 
         {/* THE DESK NOTE */}
-        <Text style={st.section}>the desk note</Text>
+        <View style={st.noteHead}>
+          <Text style={[st.section, { marginTop: 0 }]}>the desk note</Text>
+          <Pressable onPress={refreshNote} disabled={refreshingNote} hitSlop={10} style={st.noteRefresh}>
+            <Text style={st.noteRefreshTxt}>{refreshingNote ? '…' : '↻'}</Text>
+          </Pressable>
+        </View>
         {notes === null ? (
           <ActivityIndicator color={FLUORO} style={{ marginVertical: 16 }} />
         ) : notes === ERR ? (
@@ -262,7 +305,19 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
         ) : (
           <Text style={st.empty}>his first memo writes itself this week — it lands here, on the desk, before your day starts.</Text>
         )}
-        {tasks && tasks[0] ? <TaskRow task={tasks[0]} onToggle={toggleTask} /> : null}
+        {noteLine ? <Text style={st.noteLine}>{noteLine}</Text> : null}
+        {/* [fixes-B M3] the WEEK's commitments, not just tasks[0] — open ones + this-week's done (struck) */}
+        {(() => {
+          if (tasks === null) return null;
+          const arr = Array.isArray(tasks) ? tasks : [];
+          const weekAgo = new Date(Date.now() + 5.5 * 3600 * 1000 - 8 * 86400 * 1000).toISOString().slice(0, 10);
+          const shown = [
+            ...arr.filter((t) => t.status === 'open'),
+            ...arr.filter((t) => t.status === 'done' && String(t.week_of || '') >= weekAgo),
+          ];
+          if (!shown.length) return <Text style={st.tasksEmpty}>no commitments on the desk this week — lock one with him and it lands here.</Text>;
+          return shown.map((t) => <TaskRow key={t.id} task={t} onToggle={toggleTask} />);
+        })()}
 
         {/* THE NUMBERS */}
         <Text style={st.section}>the numbers</Text>
@@ -271,7 +326,7 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
         ) : timeline.length === 0 ? (
           <Text style={st.empty}>nothing filed yet. one screenshot of your insights and he carries your trajectory for good.</Text>
         ) : (
-          timeline.slice(0, 6).map((r) => <NumberRow key={r.id} r={r} />)
+          timeline.slice(0, 6).map((r) => <NumberRow key={r.id} r={r} onEdit={editNumber} onDelete={deleteNumber} />)
         )}
 
         <Pressable onPress={fileAnalytics} style={[st.cta, filing && { opacity: 0.6 }]}>
@@ -279,7 +334,7 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
         </Pressable>
         {fileErr ? <Text style={st.err}>{fileErr}</Text> : null}
         {/* [§5.4] or type the numbers by hand — screenshots stay primary */}
-        <Pressable onPress={() => setManualOpen((v) => !v)}><Text style={st.manualToggle}>{manualOpen ? '– type them instead' : 'or type them instead ›'}</Text></Pressable>
+        <Pressable onPress={toggleManual}><Text style={st.manualToggle}>{manualOpen ? (editId ? '– cancel correction' : '– type them instead') : 'or type them instead ›'}</Text></Pressable>
         {manualOpen ? (
           <View style={st.manualBox}>
             <View style={st.manualRow}>
@@ -290,7 +345,7 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
               <TextInput style={st.manualInput} value={mForm.followers} onChangeText={(v) => setMForm((f) => ({ ...f, followers: v }))} placeholder="followers (12.5K)" placeholderTextColor={M.faint} />
               <TextInput style={st.manualInput} value={mForm.reach} onChangeText={(v) => setMForm((f) => ({ ...f, reach: v }))} placeholder="reach (40K)" placeholderTextColor={M.faint} />
             </View>
-            <Pressable onPress={saveManual} style={[st.manualSave, savingManual && { opacity: 0.6 }]}><Text style={st.manualSaveTxt}>{savingManual ? 'filing…' : 'file these numbers'}</Text></Pressable>
+            <Pressable onPress={saveManual} style={[st.manualSave, savingManual && { opacity: 0.6 }]}><Text style={st.manualSaveTxt}>{savingManual ? 'filing…' : editId ? 'save the correction' : 'file these numbers'}</Text></Pressable>
           </View>
         ) : null}
 
@@ -365,6 +420,15 @@ const st = StyleSheet.create({
   sub: { color: M.mist, fontSize: 12, fontFamily: FONTS.light, marginTop: 1 },
   hero: { width: '100%', height: 150, borderRadius: 14, marginBottom: 6 },
   section: { color: M.ink, fontSize: 12, fontFamily: FONTS.semi, letterSpacing: 0.4, marginTop: 18, marginBottom: 8, textTransform: 'lowercase' },
+  noteHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 },
+  noteRefresh: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: M.hair, alignItems: 'center', justifyContent: 'center' },
+  noteRefreshTxt: { color: FLUORO, fontSize: 15, fontFamily: FONTS.semi, lineHeight: 18 },
+  noteLine: { color: M.mist, fontSize: 12, fontFamily: FONTS.light, lineHeight: 17, marginTop: 8 },
+  tasksEmpty: { color: M.mist, fontSize: 12.5, fontFamily: FONTS.light, lineHeight: 18, marginTop: 8 },
+  numX: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, borderWidth: 1, borderColor: M.hair, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  numXConfirm: { backgroundColor: 'rgba(232,169,169,0.15)', borderColor: '#E8A9A9' },
+  numXTxt: { color: M.mist, fontFamily: FONTS.semi, fontSize: 12 },
+  numXTxtConfirm: { color: '#E8A9A9', fontSize: 10.5 },
   empty: { color: M.mist, fontSize: 12.5, fontFamily: FONTS.light, lineHeight: 18 },
   noteCard: { backgroundColor: M.raise, borderLeftWidth: 3, borderLeftColor: FLUORO, borderRadius: 10, padding: 12 },
   noteDate: { color: M.faint, fontSize: 10.5, fontFamily: FONTS.light, marginBottom: 5 },
@@ -391,7 +455,7 @@ const st = StyleSheet.create({
   quietErr: { marginVertical: 12 },
   quietErrTxt: { color: M.mist, fontSize: 12.5, fontFamily: FONTS.light, lineHeight: 18 },
   ideaPosted: { color: M.faint, fontFamily: FONTS.semi, fontSize: 11.5, marginTop: 8 },
-  numRow: { backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 10, padding: 11, marginBottom: 7 },
+  numRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 10, padding: 11, marginBottom: 7 },
   numPlatform: { color: FLUORO, fontSize: 11.5, fontFamily: FONTS.semi, textTransform: 'lowercase' },
   numBits: { color: M.ink, fontSize: 13.5, fontFamily: FONTS.light, marginTop: 3 },
   numTop: { color: M.mist, fontSize: 11.5, fontFamily: FONTS.light, marginTop: 3 },

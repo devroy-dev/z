@@ -1,8 +1,10 @@
 // yourZ — MessageList · the spoken lines, lifted verbatim from RoomChat (R0).
 // Renders you / human / persona lines; personas' *emphasis* markdown never
 // renders raw (the WhatsApp-flat register). Auto-scrolls on growth.
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
+import Svg, { Rect } from 'react-native-svg';
+import * as Clipboard from 'expo-clipboard';
 import { N, nameOf, rgbOf, fmtTime } from './roomTheme';
 
 const flat = (t) => String(t || '').replace(/\*\*?/g, '');
@@ -45,6 +47,28 @@ function MentionedText({ text, mentionables = [], style }) {
   );
 }
 
+// [copy] a small square copy button under the AI's lines (Claude-style). The
+// clipboard capability, made universal — not buried on draft cards. Draws the
+// two-squares glyph with SVG (no font/emoji risk); flashes a check on copy.
+function CopyBtn({ text }) {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    try { await Clipboard.setStringAsync(String(text || '')); setDone(true); setTimeout(() => setDone(false), 1400); } catch (e) {}
+  };
+  return (
+    <Pressable onPress={copy} hitSlop={10} style={styles.copyBtn}>
+      {done ? (
+        <Text style={styles.copyDone}>✓</Text>
+      ) : (
+        <Svg width={13} height={13} viewBox="0 0 24 24">
+          <Rect x="9" y="9" width="12" height="12" rx="2.5" fill="none" stroke={N.moonFaint} strokeWidth="2.2" />
+          <Rect x="4" y="4" width="12" height="12" rx="2.5" fill="none" stroke={N.moonFaint} strokeWidth="2.2" />
+        </Svg>
+      )}
+    </Pressable>
+  );
+}
+
 export function RoomLine({ line, hideSpeaker, mentionables, flatMode }) {
   if (flatMode) return <FlatLine line={line} />;
   if (line.who === 'you') {
@@ -74,6 +98,7 @@ export function RoomLine({ line, hideSpeaker, mentionables, flatMode }) {
         <View style={[styles.bubble, styles.bubbleThem]}>
           <Text style={styles.bubbleText}>{line.typing && !line.text ? '•••' : flat(line.text)}</Text>{line.at && !line.typing ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}
         </View>
+        {!line.typing && line.text ? <CopyBtn text={flat(line.text)} /> : null}
       </View>
     </View>
   );
@@ -105,6 +130,8 @@ const styles = StyleSheet.create({
   bubbleHuman: { backgroundColor: 'rgba(159,176,206,0.10)', borderWidth: 1, borderColor: 'rgba(159,176,206,0.2)', borderTopLeftRadius: 6 },
   bubbleText: { fontFamily: 'Figtree_400Regular', color: N.moon, fontSize: 14.5, lineHeight: 19 },
   stamp: { fontFamily: 'Figtree_300Light', color: 'rgba(233,232,240,0.28)', fontSize: 9.5, marginTop: 2, alignSelf: 'flex-end' },
+  copyBtn: { marginTop: 5, marginLeft: 3, width: 26, height: 26, borderRadius: 7, borderWidth: 1, borderColor: N.hair, alignItems: 'center', justifyContent: 'center' },
+  copyDone: { color: '#97C459', fontFamily: 'Figtree_600SemiBold', fontSize: 13, lineHeight: 15 },
   sharedPhoto: { width: 190, height: 190, borderRadius: 16, resizeMode: 'cover' },
   flatWrap: { marginBottom: 9 },
   flatText: { fontSize: 14.5, lineHeight: 20 },

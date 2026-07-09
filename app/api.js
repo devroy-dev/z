@@ -431,6 +431,20 @@ export async function getMmAnalytics() { return authedJSON('GET', '/mm/analytics
 export async function uploadMmAnalytics(image) { return authedJSON('POST', '/mm/analytics', { image }); }
 // [§5.4] manual numbers + the deal desk
 export async function addMmAnalyticsManual(fields) { const j = await authedJSON('POST', '/mm/analytics/manual', fields); return j.row; }
+// [fixes-B MM-A] correct (update-in-place, keeps created_at order) + delete a filed number
+export async function updateMmAnalytics(id, fields) { const j = await authedJSON('PATCH', `/mm/analytics/${id}`, fields); return j.row; }
+export async function deleteMmAnalytics(id) { return authedJSON('DELETE', `/mm/analytics/${id}`); }
+// [fixes-B MM-B] the desk note ↻ — surfaces the once-a-day gate's honest line (429) instead of throwing it away
+export async function refreshMmDeskNote() {
+  await loadSession();
+  const call = () => fetch(`${API_BASE}/mm/desknote/refresh`, { method: 'POST', headers: headers() });
+  let r = await call();
+  if (r.status === 401 && (await refreshSession())) r = await call();
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 429) return { already: true, line: j.line || 'he wrote today\u2019s already.' };
+  if (!r.ok) throw new Error(j.error || 'refresh failed');
+  return { notes: j.notes || [] };
+}
 export async function getMmRateCard() { try { return await authedJSON('GET', '/mm/ratecard'); } catch (e) { return { cards: [], pitch: '' }; } }
 export async function getMmDeskNotes() { return authedJSON('GET', '/mm/desknotes'); }
 // [0056] the loop that checks — the tickable weekly instruction + the content pipeline
@@ -443,6 +457,8 @@ export async function markMmIdeaPosted(id) { return authedJSON('POST', `/mm/idea
 export async function getWardrobe() { return authedJSON('GET', '/stylist/wardrobe'); }
 export async function getTrips() { return authedJSON('GET', '/wanderer/trips'); }   // [zip79]
 export async function deleteTrip(id) { return authedJSON('DELETE', `/wanderer/trips/${id}`); }   // [zip79]
+// [fixes-B T4/T5] tick a checklist item — writes the same jsonb [[CHECK]] writes
+export async function checkTripItem(id, item, done, pack) { const j = await authedJSON('PATCH', `/wanderer/trips/${id}/check`, { item, done, ...(typeof pack === 'boolean' ? { pack } : {}) }); return j.checklist || []; }
 export async function buildTrip(id) { return authedJSON('POST', `/wanderer/trips/${id}/build`); }   // [0055]
 export async function addWardrobePiece(image) { return authedJSON('POST', '/stylist/wardrobe', { image }); }
 export async function deleteWardrobePiece(id) { return authedJSON('DELETE', `/stylist/wardrobe/${id}`); }
@@ -569,6 +585,11 @@ export async function getRecentPings() {
   try { const j = await authedJSON('GET', '/pings/recent'); return j.pings || []; } catch (e) { return []; }
 }
 
+// [DESK COMES ALIVE] per-room live lines for the desk pane
+export async function getDeskRooms() {
+  try { const j = await authedJSON('GET', '/desk/rooms'); return j.rooms || null; } catch (e) { return null; }
+}
+
 // [0058] the house brief — real state for the desk marquee + Z's mouth
 export async function getDeskBrief() {
   try { const j = await authedJSON('GET', '/desk/brief'); return j.items || []; } catch (e) { return []; }
@@ -576,6 +597,8 @@ export async function getDeskBrief() {
 
 // [0054] the stylist acts — outfits, the gap report, wear tracking
 export async function getStylistOutfits() { try { const j = await authedJSON('GET', '/stylist/outfits'); return j.outfits || []; } catch (e) { return []; } }
+// [fixes-B S4] delete a filed look
+export async function deleteStylistOutfit(id) { return authedJSON('DELETE', `/stylist/outfits/${id}`); }
 export async function getStylistGaps() { try { const j = await authedJSON('GET', '/stylist/gaps'); return j.gaps || []; } catch (e) { return []; } }
 export async function runStylistGaps() { const j = await authedJSON('POST', '/stylist/gaps/run'); return j.gaps || []; }
 export async function setStylistGapStatus(id, status) { return authedJSON('POST', `/stylist/gaps/${id}`, { status }); }

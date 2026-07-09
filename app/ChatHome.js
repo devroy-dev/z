@@ -12,6 +12,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';   // [z
 import { Dimensions } from 'react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert, Linking } from 'react-native';   // [zip67]
 import { FONTS } from './theme';
+import DeskPane from './DeskPane';   // [DESK COMES ALIVE] the desk shows the work
 import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67]
 import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -267,6 +268,9 @@ function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
 
 export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 'thedesk' }) {   // [zip81]
   const [tab, setTab] = useState(initialTab);   // [zip61][zip81] restore the tab we came back to
+  const [deskBump, setDeskBump] = useState(0);            // [DESK COMES ALIVE]
+  const [deskRefreshing, setDeskRefreshing] = useState(false);
+  const deskRefresh = () => { setDeskRefreshing(true); setDeskBump((b) => b + 1); setTimeout(() => setDeskRefreshing(false), 700); };
   const onOpen = (dest) => rawOnOpen(dest && typeof dest === 'object' ? { ...dest, returnTab: tab } : dest);   // [zip81] back remembers this tab
   // ── [zip17] THE QUIET PULL: swipe right anywhere on the list → the world dims
   // and slides → Z. Rightward-only (+16dx to activate, so the OS left-edge back
@@ -450,12 +454,12 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
 
   // [zip68] THE DESK, ALL CHAT — data hoisted so the pane stays a plain expression.
   const DESK_ROOMS = [
-    { face: dpFor('the_front_desk'), name: 'the Host', line: "set it down — i've got it", open: { kind: 'desk' }, tint: '231,176,122' },
-    { face: 'https://callmez.app/faces/the_newsroom.jpg?v=4', name: 'the Newsroom', line: 'the bulletin · fact-checks · ask the anchor', open: { kind: 'bulletin' }, tint: '127,214,236' },
-    { face: 'https://callmez.app/rooms/coaching-hub.jpg?v=1', name: 'the Coaching hub', line: 'name an exam or subject — plans, lessons, quizzes, mocks.', open: { kind: 'coach' }, tint: '150,190,160' },
-    { face: 'https://callmez.app/faces/the_grandmaster.jpg?v=6', name: 'the Grand Master', line: 'come empty-handed. leave understanding what the world runs on.', open: { kind: 'forge' }, tint: '232,120,142' },
+    { face: dpFor('the_front_desk'), name: 'the host', line: "set it down — i've got it", open: { kind: 'desk' }, tint: '231,176,122' },
+    { face: 'https://callmez.app/faces/the_newsroom.jpg?v=4', name: 'the newsroom', line: 'the bulletin · fact-checks · ask the anchor', open: { kind: 'bulletin' }, tint: '127,214,236' },
+    { face: 'https://callmez.app/rooms/coaching-hub.jpg?v=1', name: 'the coaching hub', line: 'name an exam or subject — plans, lessons, quizzes, mocks.', open: { kind: 'coach' }, tint: '150,190,160' },
+    { face: 'https://callmez.app/faces/the_grandmaster.jpg?v=6', name: 'the grand master', line: 'come empty-handed. leave understanding what the world runs on.', open: { kind: 'forge' }, tint: '232,120,142' },
     { face: 'https://callmez.app/rooms/panel-room.jpg?v=1', name: 'the interviewer', line: "name the company and the chair. i'll run the room the way they will.", open: { kind: 'panel' }, tint: '138,160,196' },
-    { face: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the Media Manager', line: 'file the brief once. i run your career like a business.', open: { kind: 'mmroom' }, tint: '169,221,242' },
+    { face: 'https://callmez.app/rooms/media-hub.jpg?v=1', name: 'the media manager', line: 'file the brief once. i run your career like a business.', open: { kind: 'mmroom' }, tint: '169,221,242' },
     { face: 'https://callmez.app/rooms/stylist-wardrobe.jpg?v=1', name: 'the stylist', line: "your wardrobe, under my eye. show me a piece — i'll tell you the truth.", open: { kind: 'stylist' }, tint: '232,169,176' },
     { face: 'https://callmez.app/rooms/travel-desk.jpg?v=1', name: 'the travel desk', line: 'where to, and what are you chasing? the Wanderer knows the way.', open: { kind: 'wanderer' }, tint: '210,150,90' },   // [zip77][zip79] opens the Trips room, not the raw chat
     { face: null, name: 'The Consultant', line: 'sit with Victor — the expert. by thedreamai', open: { kind: 'consult' }, consult: true, tint: '232,162,74' },
@@ -628,7 +632,7 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
         </ScrollView>
       )}
       {tab === 'thedesk' && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{/* [zip68] the Desk, all chat */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 90 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={deskRefreshing} onRefresh={deskRefresh} tintColor="rgba(159,194,232,0.6)" />}>{/* [zip68] the Desk, all chat · [DESK COMES ALIVE] */}
           <View style={st.searchWrap}>
             <Text style={st.searchIcon}>⌕</Text>
             <TextInput value={deskQ} onChangeText={setDeskQ} placeholder="search the house — rooms, chats, groups…" placeholderTextColor={MOON.faint} style={st.searchInput} />
@@ -639,7 +643,7 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
             deskResults.length ? deskResults.map((r, ri) => <DeskRow key={'res' + ri} item={r} />)
               : <Text style={{ fontFamily: FONTS.body, color: MOON.faint, fontSize: 13, textAlign: 'center', marginTop: 30 }}>nothing by that name — yet.</Text>
           ) : (
-            DESK_ROOMS.map((r, ri) => <DeskRow key={'room' + ri} item={r} />)
+            <DeskPane rooms={DESK_ROOMS} onOpen={onOpen} consultLogo={<ConsultLogo />} bump={deskBump} />
           )}
         </ScrollView>
       )}

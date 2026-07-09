@@ -11,7 +11,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getTrips, deleteTrip, buildTrip, buildPacklist } from './api';
+import { getTrips, deleteTrip, buildTrip, buildPacklist, checkTripItem } from './api';
 import { FONTS } from './theme';
 
 // [fixes-A X2] a failed fetch is not an empty desk — the sentinel lets her say so.
@@ -42,7 +42,7 @@ function StatusChip({ status }) {
   const s = status || 'dreaming';
   return <Text style={[st.chip, st['chip_' + s] || st.chip_dreaming]}>{s}</Text>;
 }
-function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle, onPacklist, packing, onStylist }) {
+function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggle, onPacklist, packing, onStylist, onCheck }) {
   const line = [trip.dates, trip.travelers].filter(Boolean).join(' · ');
   const planning = trip.status === 'planning' || building;
   const planned = trip.status && trip.status !== 'dreaming' && trip.status !== 'planning';
@@ -141,7 +141,9 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
                       </View>
                     ))}
                     {pack.filter((c) => !c.piece_id).map((c, i) => (
-                      <Text key={`g${i}`} style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
+                      <Pressable key={`g${i}`} onPress={() => onCheck(trip.id, c.item, true, !c.done)} hitSlop={4}>
+                        <Text style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
+                      </Pressable>
                     ))}
                   </View>
                 ) : <Text style={st.packEmpty}>she'll pack you from your own closet, and flag what's missing.</Text>}
@@ -157,7 +159,9 @@ function TripCard({ trip, onOpen, onDelete, onBuild, building, expanded, onToggl
                 <View style={st.checkBox}>
                   <Text style={st.checkHead}>before you go</Text>
                   {todo.map((c, i) => (
-                    <Text key={i} style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
+                    <Pressable key={i} onPress={() => onCheck(trip.id, c.item, false, !c.done)} hitSlop={4}>
+                      <Text style={[st.checkItem, c.done && st.checkDone]}>{c.done ? '✓' : '○'}  {c.item}</Text>
+                    </Pressable>
                   ))}
                 </View>
               ) : null}
@@ -187,6 +191,14 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
   const removeTrip = async (id) => {
     setTrips((cur) => (cur || []).filter((t) => t.id !== id));
     try { await deleteTrip(id); } catch (e) { load(); }
+  };
+  // [fixes-B T4/T5] tick a checklist item — optimistic, reconcile on failure.
+  // Writes the same jsonb the [[CHECK]] chat tag writes; match by item text + pack flag.
+  const toggleCheck = async (tripId, item, pack, nextDone) => {
+    setTrips((cur) => (Array.isArray(cur) ? cur : []).map((t) => (t.id === tripId
+      ? { ...t, checklist: (Array.isArray(t.checklist) ? t.checklist : []).map((c) => (c.item === item && !!c.pack === !!pack ? { ...c, done: nextDone } : c)) }
+      : t)));
+    try { await checkTripItem(tripId, item, nextDone, pack); } catch (e) { load(); }
   };
 
   // [0055] build the plan — the server returns instantly with status 'planning' and
@@ -267,7 +279,7 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
               <TripCard key={t.id} trip={t} onOpen={openTrip} onDelete={removeTrip}
                 onBuild={doBuild} building={buildingId === t.id}
                 expanded={expandedId === t.id} onToggle={toggleExpand}
-                onPacklist={doPacklist} packing={packingId === t.id} onStylist={onStylist} />
+                onPacklist={doPacklist} packing={packingId === t.id} onStylist={onStylist} onCheck={toggleCheck} />
             ))}
           </View>
         )}

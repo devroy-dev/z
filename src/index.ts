@@ -32,6 +32,7 @@ import { runMorningBriefs, startBriefScheduler } from './morningBrief.js';
 import { runEveningProgrammes, startProgrammeScheduler } from './eveningProgramme.js';
 import { startPingScheduler, firePings } from './concierge.js';
 import { tripsFor, startTripBuild, buildPacklist } from './wanderer.js';   // [0055]
+import { assembleDeskRooms } from './deskRooms.js';   // [DESK COMES ALIVE]
 import { assembleDeskBrief } from './deskBrief.js';   // [0058]
 import { runGapReport, listGaps, setGapStatus, listOutfits, markWorn } from './stylist.js';   // [0054]
 import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin.js';   // [zip54n]
@@ -1311,6 +1312,16 @@ app.post('/wanderer/trips/:id/packlist', async (req, res) => {
 });
 
 // [0058] THE HOUSE BRIEF — real state the Host holds; feeds the marquee + her voice.
+// [DESK COMES ALIVE] per-room live lines for the desk pane. Pure SELECTs.
+app.get('/desk/rooms', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json({ rooms: await assembleDeskRooms(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+
 app.get('/desk/brief', async (req, res) => {
   try {
     const authId = await authUser(req);

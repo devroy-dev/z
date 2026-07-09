@@ -13,7 +13,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, Linking, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { getWardrobe, addWardrobePiece, deleteWardrobePiece, getStylistOutfits, getStylistGaps, runStylistGaps, setStylistGapStatus, markPieceWorn } from './api';
+import { getWardrobe, addWardrobePiece, deleteWardrobePiece, getStylistOutfits, getStylistGaps, runStylistGaps, setStylistGapStatus, markPieceWorn, deleteStylistOutfit } from './api';
 import { FONTS } from './theme';
 
 // [fixes-A X2] a failed load is not an empty closet — say so, once, in her voice.
@@ -48,19 +48,29 @@ function PieceTile({ piece, onDelete, onWorn }) {
     </View>
   );
 }
-function OutfitCard({ outfit, onOpen }) {
+function OutfitCard({ outfit, onOpen, onDelete }) {
+  const [confirm, setConfirm] = useState(false);
+  const tapX = () => {
+    if (confirm) { onDelete(outfit); return; }
+    setConfirm(true); setTimeout(() => setConfirm(false), 2500);
+  };
   return (
-    <Pressable style={st.outfit} onPress={onOpen}>
-      <View style={st.outfitThumbs}>
-        {(outfit.pieces || []).slice(0, 5).map((p, i) => (
-          p.url ? <Image key={i} source={{ uri: p.url }} style={st.outfitThumb} resizeMode="cover" />
-                : <View key={i} style={[st.outfitThumb, st.tileGhost]} />
-        ))}
-      </View>
-      <Text style={st.outfitName} numberOfLines={1}>{outfit.name}</Text>
-      {outfit.occasion ? <Text style={st.outfitOcc} numberOfLines={1}>{outfit.occasion}</Text> : null}
-      {outfit.her_read ? <Text style={st.outfitRead} numberOfLines={2}>{outfit.her_read}</Text> : null}
-    </Pressable>
+    <View style={st.outfitWrap}>
+      <Pressable style={st.outfit} onPress={onOpen}>
+        <View style={st.outfitThumbs}>
+          {(outfit.pieces || []).slice(0, 5).map((p, i) => (
+            p.url ? <Image key={i} source={{ uri: p.url }} style={st.outfitThumb} resizeMode="cover" />
+                  : <View key={i} style={[st.outfitThumb, st.tileGhost]} />
+          ))}
+        </View>
+        <Text style={st.outfitName} numberOfLines={1}>{outfit.name}</Text>
+        {outfit.occasion ? <Text style={st.outfitOcc} numberOfLines={1}>{outfit.occasion}</Text> : null}
+        {outfit.her_read ? <Text style={st.outfitRead} numberOfLines={2}>{outfit.her_read}</Text> : null}
+      </Pressable>
+      <Pressable onPress={tapX} hitSlop={8} style={[st.outfitX, confirm && st.outfitXConfirm]}>
+        <Text style={[st.outfitXTxt, confirm && st.outfitXTxtConfirm]}>{confirm ? 'delete?' : '✕'}</Text>
+      </Pressable>
+    </View>
   );
 }
 // [fixes-A X3·S2/S3] her reasoning was clipped to 2 lines and the shop options
@@ -174,6 +184,11 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
     setPieces((cur) => (cur || []).filter((p) => p.id !== id));
     try { await deleteWardrobePiece(id); } catch (e) { load(); }
   };
+  // [fixes-B S4] delete a filed look — optimistic, reconcile on failure
+  const removeOutfit = async (outfit) => {
+    setOutfits((cur) => cur.filter((o) => o.id !== outfit.id));
+    try { await deleteStylistOutfit(outfit.id); } catch (e) { load(); }
+  };
 
   const askOccasion = () => {
     const what = occasion.trim();
@@ -218,7 +233,7 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
           <View>
             <Text style={st.section}>your looks</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-              {outfits.map((o) => <OutfitCard key={o.id} outfit={o} onOpen={() => setSheetOutfit(o)} />)}
+              {outfits.map((o) => <OutfitCard key={o.id} outfit={o} onOpen={() => setSheetOutfit(o)} onDelete={removeOutfit} />)}
             </ScrollView>
           </View>
         ) : null}
@@ -336,6 +351,11 @@ const st = StyleSheet.create({
   outfitThumb: { width: 26, height: 34, borderRadius: 5, backgroundColor: S.hair },
   outfitName: { color: S.ink, fontFamily: FONTS.semi, fontSize: 13 },
   outfitOcc: { color: CHAMPAGNE, fontFamily: FONTS.light, fontSize: 11, marginTop: 2 },
+  outfitWrap: { position: 'relative' },
+  outfitX: { position: 'absolute', top: 6, right: 6, minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: 'rgba(13,8,9,0.78)', borderWidth: 1, borderColor: S.hair, alignItems: 'center', justifyContent: 'center' },
+  outfitXConfirm: { backgroundColor: 'rgba(232,169,176,0.22)', borderColor: BLUSH },
+  outfitXTxt: { color: S.mist, fontFamily: FONTS.semi, fontSize: 11 },
+  outfitXTxtConfirm: { color: BLUSH, fontSize: 10.5 },
   outfitRead: { color: S.mist, fontFamily: FONTS.light, fontSize: 11, marginTop: 4, lineHeight: 15 },
   gapHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   runBtn: { borderWidth: 1.5, borderColor: CHAMPAGNE, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 8 },

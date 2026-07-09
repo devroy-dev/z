@@ -12,12 +12,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, StatusBar, Pressable, Image, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert, Linking } from 'react-native';   // [zip63]
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Circle, Path, Rect } from 'react-native-svg';
 import { useFonts, Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
 import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold } from '@expo-google-fonts/figtree';
 import VideoCall from './VideoCall';
 import Grain from './Grain';
 import RichText from './RichText';
+import * as Clipboard from 'expo-clipboard';   // [copy] persona-chat message copy
 import * as ImagePicker from 'expo-image-picker';
 import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice, markThreadRead } from './api';
 import { useVoiceNote } from './voice';
@@ -93,6 +94,28 @@ const CHIP_LABEL = (k) => k === 'the_stage' ? 'the stage' : k === 'the_arena' ? 
 const faceFor = (key) => `https://callmez.app/faces/${key}.jpg?v=6`;
 
 // ── small circular DP (cover-fit, aura edge, orb fallback) ──
+// [copy] a small square copy button under the AI's lines in the 1-on-1 chat —
+// the SAME control the rooms got, placed where the persona chat actually renders
+// (Chat.js has its own bubbles; it does not use MessageList). SVG glyph, no font risk.
+function CopyBtn({ text }) {
+  const [copied, setCopied] = useState(false);
+  const doCopy = async () => {
+    try { await Clipboard.setStringAsync(String(text || '')); setCopied(true); setTimeout(() => setCopied(false), 1400); } catch (e) {}
+  };
+  return (
+    <Pressable onPress={doCopy} hitSlop={10} style={{ marginTop: 6, marginLeft: 2, width: 26, height: 26, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(233,232,240,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+      {copied ? (
+        <Text style={{ color: '#97C459', fontFamily: 'Figtree_600SemiBold', fontSize: 13 }}>✓</Text>
+      ) : (
+        <Svg width={13} height={13} viewBox="0 0 24 24">
+          <Rect x="9" y="9" width="12" height="12" rx="2.5" fill="none" stroke="rgba(233,232,240,0.45)" strokeWidth="2.2" />
+          <Rect x="4" y="4" width="12" height="12" rx="2.5" fill="none" stroke="rgba(233,232,240,0.45)" strokeWidth="2.2" />
+        </Svg>
+      )}
+    </Pressable>
+  );
+}
+
 function MiniDP({ uri, size = 38, rgb, isDesk = false }) {
   const [ok, setOk] = useState(true);
   return (
@@ -657,6 +680,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                           </View>
                         )}
                         {m.typing ? <Text style={[styles.themText, { marginTop: 5 }]}>…</Text> : null}
+                        {!m.typing && shopText ? <CopyBtn text={flat(shopText)} /> : null}
                       </>
                     ); })()
                   ) : (
