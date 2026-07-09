@@ -182,6 +182,11 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
           `\n\n[FILING A LOOK — whenever you compose an outfit from their filed pieces, END your reply (after your spoken verdict) with ONE line, exactly: [[OUTFIT: name | comma-separated piece ids from the braces above | occasion | date if any]]. Only ids that appear above; leave occasion or date blank (keep the bars) if unclear. Only emit when you actually compose a look.]` +
           wearLine +
           `\n\n[SHOP CARDS — whenever you hunt products online for them, END your reply with one line per option, exactly: [[SHOP: product name | price | url]] — up to 4, REAL product page URLs from your search results (never invented ones). Spoken verdict first, cards last, nothing after. THE MARKET: this client shops from ${(t as any).region || 'IN'} — Myntra, Ajio, Amazon.in, Flipkart, Tata CLiQ, brand .in sites; quote local currency; never a US-only link.]`;
+      } else {
+        // [fixes-3] THE EMPTY CLOSET SPEAKS — with zero pieces she had no wardrobe context
+        // at all, so she invented looks and narrated filing them (the never-invent law,
+        // broken in her own room). Now the emptiness itself is her ground truth.
+        wardrobeBlock = `\n\n[THE WARDROBE IS EMPTY — nothing is filed under your eye yet. You CANNOT compose, file, or claim to have filed any look: there are no pieces and no ids. Say so plainly when styling comes up, and invite them to add a piece (a photo in the wardrobe room, or right here in chat). You may still advise generally and hunt SHOP cards. NEVER emit [[OUTFIT: …]] until real pieces exist.]`;
       }
     } catch (e: any) { console.error('[wardrobe] block failed:', e?.message || e); }
   }
@@ -398,6 +403,19 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   // [zip54b] THE Rs LAW — media manager only, enforced in code (the soul asks; the pipe guarantees).
   if (t.persona_key === 'the_media_manager') reply = reply.replace(/\u20B9\s*/g, 'Rs ');
 
+  // [fixes-3] THE SILENT-LOSS LAW: a machine tag the strip regex matches but the parse
+  // regex rejected must LOG before it vanishes — malformed tags were disappearing without
+  // a trace (strip is loose, parsers are strict, the stream gate hides the evidence).
+  const logUnparsedTags = (tag: string, parsedCount: number) => {
+    try {
+      const all = [...reply.matchAll(new RegExp(`\\[\\[${tag}:[^\\]]*\\]\\]`, 'gi'))];
+      if (all.length > parsedCount) {
+        console.error(`[${tag.toLowerCase()}] tag malformed (${all.length - parsedCount} unparsed):`,
+          all.map((x) => String(x[0]).slice(0, 160)).join('  ||  '));
+      }
+    } catch { /* forensics never break the turn */ }
+  };
+
   // ── THE FRONT DESK: execute task tags, then strip them from the visible reply ──
   if (t.persona_key === 'the_front_desk') {
     // [[TASK_ADD: title | due: ... | room: persona_key]]
@@ -512,9 +530,12 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
           else console.log('[trip] filed:', destination, '(' + (dates || '?') + ')');   // [zip73] loud on success too
         });
       }
+      logUnparsedTags('TRIP', trips.length);   // [fixes-3]
       reply = reply.replace(/\[\[TRIP:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
       // [0055] §4.6 — conversation keeps the plan current
+      let __itinParsed = 0, __checkParsed = 0;   // [fixes-3]
       for (const m of reply.matchAll(/\[\[ITINERARY:\s*([^|\]]+)\|([^|\]]*)\|([^|\]]*)\|([^\]]*)\]\]/gi)) {
+        __itinParsed++;
         const dest = m[1].trim().slice(0, 120);
         const day = parseInt(m[2].trim(), 10);
         const title = m[3].trim();
@@ -522,11 +543,13 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
         if (dest && day > 0 && (title || items.length)) void updateItineraryDay(userId, dest, day, title, items);
       }
       for (const m of reply.matchAll(/\[\[CHECK:\s*([^|\]]+)\|([^|\]]*)\|([^\]]*)\]\]/gi)) {
+        __checkParsed++;
         const dest = m[1].trim().slice(0, 120);
         const item = m[2].trim();
         const done = !/\b(no|false|undo|untick|not)\b/i.test(m[3]);
         if (dest && item) void tickChecklistItem(userId, dest, item, done);
       }
+      logUnparsedTags('ITINERARY', __itinParsed); logUnparsedTags('CHECK', __checkParsed);   // [fixes-3]
       reply = reply.replace(/\[\[ITINERARY:[^\]]*\]\]/gi, '').replace(/\[\[CHECK:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
@@ -544,6 +567,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
             else console.log('[mm-idea] filed:', title);
           });
       }
+      logUnparsedTags('IDEA', ideas.length);   // [fixes-3]
       reply = reply.replace(/\[\[IDEA:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
@@ -564,15 +588,20 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
       reply = reply.replace(/\[\[TASK:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
-    // [0054] [[OUTFIT: name | piece_ids | occasion | date?]] — her looks become filed objects
+    // [0054] [[OUTFIT: name | piece_ids | occasion | date?]] — her looks become filed objects.
+    // [fixes-3] TOLERANT PARSE: the strict 4-bar regex silently dropped any tag she emitted
+    // with fewer bars — stripped from the reply, hidden by the stream gate, never inserted,
+    // never logged (the two phantom looks). Now: name is required, everything else optional,
+    // and a tag that still fails logs loudly instead of vanishing.
     if (t.persona_key === 'the_diva') {
-      const outfits = [...reply.matchAll(/\[\[OUTFIT:\s*([^|\]]+)\|([^|\]]*)\|([^|\]]*)\|([^\]]*)\]\]/gi)];
+      const outfits = [...reply.matchAll(/\[\[OUTFIT:([^\]]*)\]\]/gi)];
       for (const m of outfits) {
-        const name = m[1].trim().slice(0, 120);
-        if (!name) continue;
-        const pieceIds = m[2].split(',').map((s) => s.trim()).filter((s) => /^[0-9a-f-]{20,40}$/i.test(s)).slice(0, 20);
-        const occasion = m[3].trim().slice(0, 120) || null;
-        const when = m[4].trim() ? parseWhen(m[4].trim()) : null;
+        const parts = m[1].split('|').map((s) => s.trim());
+        const name = (parts[0] || '').slice(0, 120);
+        if (!name) { console.error('[outfit] tag malformed (no name):', m[0].slice(0, 200)); continue; }
+        const pieceIds = (parts[1] || '').split(',').map((s) => s.trim()).filter((s) => /^[0-9a-f-]{20,40}$/i.test(s)).slice(0, 20);
+        const occasion = (parts[2] || '').slice(0, 120) || null;
+        const when = parts[3] ? parseWhen(parts[3]) : null;
         const wear_date = when ? when.toISOString().slice(0, 10) : null;
         supabase.from('outfits').insert({ user_id: userId, name, piece_ids: pieceIds, occasion, wear_date })
           .then(({ error }: any) => { if (error) console.error('[outfit] save failed:', error.message); else console.log('[outfit] filed:', name); });
