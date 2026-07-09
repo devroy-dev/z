@@ -14,7 +14,7 @@ import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Im
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { getMmBrief, saveMmBrief, getMmAnalytics, uploadMmAnalytics, getMmDeskNotes,
-  getMmTasks, toggleMmTask, getMmIdeas, draftMmIdea, markMmIdeaPosted } from './api';
+  getMmTasks, toggleMmTask, getMmIdeas, draftMmIdea, markMmIdeaPosted, addMmAnalyticsManual, getMmRateCard } from './api';
 import { FONTS } from './theme';
 
 const FLUORO = '#A9DDF2';   // [zip54n] the fluoro is retired — the accent is the ice of his own neon sign
@@ -121,7 +121,7 @@ function IdeaCard({ idea, onDraft, onPosted, busy }) {
   );
 }
 
-export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
+export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk = () => {} }) {
   const [brief, setBrief] = useState({});
   const [notes, setNotes] = useState(null);
   const [timeline, setTimeline] = useState(null);
@@ -133,6 +133,11 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
   const [tasks, setTasks] = useState(null);
   const [ideas, setIdeas] = useState(null);
   const [draftingId, setDraftingId] = useState(null);
+  // [§5.4] manual numbers + the deal desk
+  const [rate, setRate] = useState({ cards: [], pitch: '' });
+  const [manualOpen, setManualOpen] = useState(false);
+  const [mForm, setMForm] = useState({ platform: '', followers: '', reach: '', period: '' });
+  const [savingManual, setSavingManual] = useState(false);
 
   const load = useCallback(() => {
     getMmDeskNotes().then((r) => setNotes(r?.notes || [])).catch(() => setNotes([]));
@@ -140,8 +145,16 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
     getMmBrief().then((r) => { if (r?.brief) setBrief(r.brief); }).catch(() => {});
     getMmTasks().then((r) => setTasks(r?.tasks || [])).catch(() => setTasks([]));
     getMmIdeas().then((r) => setIdeas(r?.ideas || [])).catch(() => setIdeas([]));
+    getMmRateCard().then(setRate).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const saveManual = async () => {
+    if (savingManual) return;
+    if (!mForm.platform.trim() || (!mForm.followers.trim() && !mForm.reach.trim())) return;
+    setSavingManual(true);
+    try { await addMmAnalyticsManual(mForm); setMForm({ platform: '', followers: '', reach: '', period: '' }); setManualOpen(false); load(); } catch (e) {} finally { setSavingManual(false); }
+  };
 
   // [0056] tick the instruction — optimistic, reconcile on failure
   const toggleTask = async (task) => {
@@ -231,6 +244,41 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {} }) {
           <Text style={st.ctaTxt}>{filing ? 'under his eye…' : '+ file this month\u2019s analytics'}</Text>
         </Pressable>
         {fileErr ? <Text style={st.err}>{fileErr}</Text> : null}
+        {/* [§5.4] or type the numbers by hand — screenshots stay primary */}
+        <Pressable onPress={() => setManualOpen((v) => !v)}><Text style={st.manualToggle}>{manualOpen ? '– type them instead' : 'or type them instead ›'}</Text></Pressable>
+        {manualOpen ? (
+          <View style={st.manualBox}>
+            <View style={st.manualRow}>
+              <TextInput style={st.manualInput} value={mForm.platform} onChangeText={(v) => setMForm((f) => ({ ...f, platform: v }))} placeholder="platform (instagram)" placeholderTextColor={M.faint} />
+              <TextInput style={st.manualInput} value={mForm.period} onChangeText={(v) => setMForm((f) => ({ ...f, period: v }))} placeholder="period (this month)" placeholderTextColor={M.faint} />
+            </View>
+            <View style={st.manualRow}>
+              <TextInput style={st.manualInput} value={mForm.followers} onChangeText={(v) => setMForm((f) => ({ ...f, followers: v }))} placeholder="followers (12.5K)" placeholderTextColor={M.faint} />
+              <TextInput style={st.manualInput} value={mForm.reach} onChangeText={(v) => setMForm((f) => ({ ...f, reach: v }))} placeholder="reach (40K)" placeholderTextColor={M.faint} />
+            </View>
+            <Pressable onPress={saveManual} style={[st.manualSave, savingManual && { opacity: 0.6 }]}><Text style={st.manualSaveTxt}>{savingManual ? 'filing…' : 'file these numbers'}</Text></Pressable>
+          </View>
+        ) : null}
+
+        {/* [§5.4] THE DEAL DESK — what you can charge, from your own ledger */}
+        {rate.cards.length ? (
+          <View>
+            <Text style={st.section}>the deal desk</Text>
+            <Text style={st.dealHint}>what you can ask per sponsored post — computed from your filed numbers.</Text>
+            {rate.cards.map((c) => (
+              <View key={c.platform} style={st.dealRow}>
+                <Text style={st.dealPlat}>{c.platform}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.dealRs}>Rs {c.low.toLocaleString('en-IN')} – {c.high.toLocaleString('en-IN')}</Text>
+                  <Text style={st.dealBasis}>per post · from your {c.basis}</Text>
+                </View>
+              </View>
+            ))}
+            <Pressable onPress={() => onAsk(rate.pitch)} style={st.pitchBtn}>
+              <Text style={st.pitchTxt}>draft the pitch DM ›</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* THE PIPELINE — ideas he shapes in talk, filed and moved */}
         <Text style={st.section}>the pipeline</Text>
@@ -326,4 +374,17 @@ const st = StyleSheet.create({
   fileBriefTxt: { color: FLUORO, fontFamily: FONTS.semi, fontSize: 13.5 },
   ghost: { marginTop: 12, borderWidth: 1, borderColor: M.hair, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   ghostTxt: { color: M.ink, fontFamily: FONTS.semi, fontSize: 13.5 },
+  manualToggle: { color: '#A9DDF2', fontFamily: FONTS.light, fontSize: 12, marginTop: 10, opacity: 0.85 },
+  manualBox: { marginTop: 10, borderWidth: 1, borderColor: M.hair, borderRadius: 12, padding: 12, gap: 8 },
+  manualRow: { flexDirection: 'row', gap: 8 },
+  manualInput: { flex: 1, backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: M.ink, fontFamily: FONTS.light, fontSize: 12.5 },
+  manualSave: { backgroundColor: '#A9DDF2', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 2 },
+  manualSaveTxt: { color: '#0C0C08', fontFamily: FONTS.semi, fontSize: 13 },
+  dealHint: { color: M.faint, fontFamily: FONTS.light, fontSize: 11.5, lineHeight: 16, marginTop: -2, marginBottom: 10 },
+  dealRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: M.raise, borderWidth: 1, borderColor: M.hair, borderRadius: 10, padding: 12, marginBottom: 8 },
+  dealPlat: { color: '#A9DDF2', fontFamily: FONTS.semi, fontSize: 13, width: 84, textTransform: 'lowercase' },
+  dealRs: { color: M.ink, fontFamily: FONTS.semi, fontSize: 15 },
+  dealBasis: { color: M.faint, fontFamily: FONTS.light, fontSize: 10.5, marginTop: 2 },
+  pitchBtn: { borderWidth: 1.5, borderColor: '#A9DDF2', borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 2 },
+  pitchTxt: { color: '#A9DDF2', fontFamily: FONTS.semi, fontSize: 13.5 },
 });

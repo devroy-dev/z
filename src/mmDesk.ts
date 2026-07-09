@@ -73,6 +73,68 @@ export async function analyticsTimeline(userId: string) {
   return data ?? [];
 }
 
+// ── §5.4 MANUAL NUMBERS + THE DEAL DESK ─────────────────────────────────────
+// Screenshots stay primary; this just removes friction when they'd rather type.
+export async function manualAnalytics(userId: string, f: any) {
+  const row: any = {
+    user_id: userId,
+    platform: f?.platform ? String(f.platform).slice(0, 30) : null,
+    followers: f?.followers ? String(f.followers).slice(0, 60) : null,
+    reach: f?.reach ? String(f.reach).slice(0, 60) : null,
+    growth: f?.growth ? String(f.growth).slice(0, 60) : null,
+    top_content: f?.top_content ? String(f.top_content).slice(0, 240) : null,
+    period: f?.period ? String(f.period).slice(0, 60) : null,
+  };
+  if (!row.platform || (!row.followers && !row.reach)) return null;   // need at least a platform + one number
+  const { data } = await supabase.from('mm_analytics').insert(row).select().single();
+  return data ?? null;
+}
+
+// parse "12.5K" / "1.2M" / "1,20,000" / "500" → a number
+function parseNum(s: any): number {
+  if (s == null) return 0;
+  const str = String(s).trim().toLowerCase().replace(/,/g, '');
+  const m = str.match(/([\d.]+)\s*([km])?/);
+  if (!m) return 0;
+  let n = parseFloat(m[1]) || 0;
+  if (m[2] === 'k') n *= 1_000; else if (m[2] === 'm') n *= 1_000_000;
+  return Math.round(n);
+}
+
+// ── THE RATE CARD — deterministic, NO MODEL. Pure math from the filed ledger. ──
+// A branded post is priced off REACH (the real deliverable a brand buys); when
+// reach isn't filed we estimate it from followers. The three coefficients below
+// are the ONLY judgement in this formula — they're Rs per 1,000 people reached,
+// a read on the Indian creator market. TUNE THEM to taste; everything else is
+// arithmetic the creator can audit.
+const RS_PER_1K_REACH_LOW = 150;    // conservative floor per 1k reached
+const RS_PER_1K_REACH_HIGH = 400;   // strong-ask ceiling per 1k reached
+const REACH_FROM_FOLLOWERS = 0.30;  // if no reach filed, assume ~30% of followers see a post
+const roundRs = (n: number) => (n < 1000 ? Math.round(n / 50) * 50 : Math.round(n / 500) * 500);
+
+export async function rateCard(userId: string) {
+  const { data } = await supabase.from('mm_analytics').select('platform, followers, reach, created_at')
+    .eq('user_id', userId).order('created_at', { ascending: false }).limit(60);
+  const latest: Record<string, any> = {};
+  for (const r of (data ?? [])) { const p = String(r.platform || 'other').toLowerCase(); if (!latest[p]) latest[p] = r; }
+  const cards = Object.entries(latest).map(([platform, r]: [string, any]) => {
+    const followers = parseNum(r.followers);
+    const reach = parseNum(r.reach);
+    const eff = reach > 0 ? reach : Math.round(followers * REACH_FROM_FOLLOWERS);
+    return {
+      platform, followers, reach,
+      low: roundRs(eff / 1000 * RS_PER_1K_REACH_LOW),
+      high: roundRs(eff / 1000 * RS_PER_1K_REACH_HIGH),
+      basis: reach > 0 ? 'reach' : 'followers',
+    };
+  }).filter((c) => c.high > 0).sort((a, b) => b.high - a.high);
+  const inr = (n: number) => n.toLocaleString('en-IN');
+  const pitch = cards.length
+    ? `draft me a short, confident pitch DM to a brand for a paid collaboration. my rates: ${cards.map((c) => `${c.platform} Rs ${inr(c.low)}–${inr(c.high)} per post`).join(', ')}. lead with my strongest platform and keep it specific.`
+    : `help me set my rates — I haven't filed my numbers yet. tell me what you need.`;
+  return { cards, pitch };
+}
+
 export async function deskNotes(userId: string) {
   const { data } = await supabase.from('mm_desk_notes').select('*').eq('user_id', userId)
     .order('created_at', { ascending: false }).limit(12);

@@ -429,6 +429,9 @@ export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief'
 // [zip54l] the desk that watches — analytics under his eye, his weekly memos
 export async function getMmAnalytics() { return authedJSON('GET', '/mm/analytics'); }
 export async function uploadMmAnalytics(image) { return authedJSON('POST', '/mm/analytics', { image }); }
+// [§5.4] manual numbers + the deal desk
+export async function addMmAnalyticsManual(fields) { const j = await authedJSON('POST', '/mm/analytics/manual', fields); return j.row; }
+export async function getMmRateCard() { try { return await authedJSON('GET', '/mm/ratecard'); } catch (e) { return { cards: [], pitch: '' }; } }
 export async function getMmDeskNotes() { return authedJSON('GET', '/mm/desknotes'); }
 // [0056] the loop that checks — the tickable weekly instruction + the content pipeline
 export async function getMmTasks() { return authedJSON('GET', '/mm/tasks'); }

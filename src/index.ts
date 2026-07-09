@@ -38,7 +38,7 @@ import { getBulletin, startBulletinScheduler, refreshBulletin } from './bulletin
 import { getWire, getWireMix } from './wire.js';   // [zip67]
 import { listFollows, addFollow, removeFollow, yourDesk, factCheck, listFactChecks } from './newsdesk.js';   // [0057]
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
-  mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted } from './mmDesk.js';   // [zip54k] [0056]
+  mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted, manualAnalytics, rateCard } from './mmDesk.js';   // [zip54k] [0056] [§5.4 no-migration]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
 import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.js';
@@ -1340,6 +1340,26 @@ app.get('/mm/analytics', async (req, res) => {
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
     res.json({ timeline: await analyticsTimeline(user.id) });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+// [§5.4] manual numbers — type a row by hand (same mm_analytics shape as the screenshot path)
+app.post('/mm/analytics/manual', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const row = await manualAnalytics(user.id, req.body || {});
+    if (!row) return res.status(400).json({ error: 'need a platform and at least followers or reach' });
+    res.json({ row });
+  } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
+});
+// [§5.4] the deal desk — deterministic Rs range from the filed ledger, no model
+app.get('/mm/ratecard', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    res.json(await rateCard(user.id));
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
 app.get('/mm/desknotes', async (req, res) => {

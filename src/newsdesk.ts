@@ -20,6 +20,10 @@ export async function addFollow(userId: string, kind: string, term: string, wire
   const k = ['topic', 'entity', 'story'].includes(kind) ? kind : 'topic';
   const t = String(term || '').trim().slice(0, 160);
   if (!t) return null;
+  // dedup — the same follow (user + kind + term, case-insensitive) returns the existing row
+  const { data: existing } = await supabase.from('news_follows').select('*')
+    .eq('user_id', userId).eq('kind', k).ilike('term', t).limit(1).maybeSingle();
+  if (existing) return existing;
   const row: any = { user_id: userId, kind: k, term: t, wire_topic: wireTopic ? String(wireTopic).slice(0, 40) : null };
   if (k === 'story') row.last_seen = t;   // seed the tracker with the headline
   const { data } = await supabase.from('news_follows').insert(row).select().single();
