@@ -18,3 +18,9 @@ patch.py
 APPLY_*.md
 zip*_*.patch
 zip*.zip
+
+# zip delivery scaffolding — never commit
+patch.py
+APPLY_*.md
+zip*_*.patch
+zip*.zip
