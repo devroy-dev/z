@@ -1,0 +1,44 @@
+diff --git a/src/wanderer.ts b/src/wanderer.ts
+index 4642125..6e45ae2 100644
+--- a/src/wanderer.ts
++++ b/src/wanderer.ts
+@@ -86,7 +86,7 @@ Reply with ONLY strict JSON — no fences, no prose before or after:
+ Resolve relative dates ("next month", "a week in December") to real calendar dates from today. Keep the itinerary to the actual duration; if the duration is unknown, plan 4-5 days.`;
+   const fileTxt = `THE TRIP FILE:\ndestination: ${trip.destination}\ndates (their words): ${trip.dates || 'not given'}\ntravellers: ${trip.travelers || 'not given'}\nnotes / taste: ${trip.notes || 'none'}`;
+   const msg: any = await anthropic.messages.create({
+-    model: 'claude-haiku-4-5-20251001', max_tokens: 1600, __pin: 'anthropic',
++    model: 'claude-haiku-4-5-20251001', max_tokens: 3000, __pin: 'anthropic',
+     system: sys,
+     messages: [{ role: 'user', content: fileTxt + '\n\nBuild the plan.' }],
+     tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 } as any],
+@@ -109,6 +109,10 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
+   const checklist = Array.isArray(x.checklist)
+     ? x.checklist.slice(0, 20).map((c: any) => ({ item: String(c?.item || '').slice(0, 160), done: !!c?.done })).filter((c: any) => c.item)
+     : null;
++  // [0055-fix] a build that produced no real itinerary must NOT masquerade as
++  // 'planned' — leave the trip 'dreaming' rather than write a hollow plan.
++  const built = Array.isArray(itinerary) && itinerary.length > 0;
++  if (!built) return { ...trip, built: false };
+   const patch: any = {
+     status: 'planned',
+     itinerary,
+@@ -120,7 +124,9 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
+   };
+   const { data: updated } = await supabase.from('trip_files').update(patch).eq('id', tripId).eq('user_id', userId).select('*').single();
+   // her voice: the plan isn't just JSON — she leaves a spoken summary on the thread
+-  const summary = String(x.summary || '').replace(/\u20B9\s*/g, 'Rs ').trim().slice(0, 1200);
++  // [0055-fix] the model sometimes wraps web-search citations as inline <cite> tags
++  // inside the summary string — strip the markup, keep the words; her voice stays clean.
++  const summary = String(x.summary || '').replace(/<\/?cite[^>]*>/gi, '').replace(/\u20B9\s*/g, 'Rs ').replace(/\s{2,}/g, ' ').trim().slice(0, 1200);
+   if (summary) {
+     const tid = await wandererThread(userId);
+     if (tid) {
+@@ -129,7 +135,7 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
+     }
+   }
+   const pings = await syncTripPings(updated);
+-  return { ...(updated || trip), pings };
++  return { ...(updated || trip), built: true, pings };
+ }
+ 
+ // ── 3. THE READ (with the clock's flip) ────────────────────────────────────

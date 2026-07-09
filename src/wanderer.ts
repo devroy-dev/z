@@ -110,10 +110,16 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
     ? x.checklist.slice(0, 20).map((c: any) => ({ item: String(c?.item || '').slice(0, 160), done: !!c?.done })).filter((c: any) => c.item)
     : null;
   // [0055-fix] a build that produced no real itinerary must NOT masquerade as
+<<<<<<< ours
   // 'planned'. Bail with the raw model output so a failure is visible, not silent.
   const _debug = { rawLen: raw.length, stop: (msg as any).stop_reason, parsedKeys: Object.keys(x), head: raw.slice(0, 400), tail: raw.slice(-400) };
   const built = Array.isArray(itinerary) && itinerary.length > 0;
   if (!built) return { ...trip, built: false, _debug };
+=======
+  // 'planned' — leave the trip 'dreaming' rather than write a hollow plan.
+  const built = Array.isArray(itinerary) && itinerary.length > 0;
+  if (!built) return { ...trip, built: false };
+>>>>>>> theirs
   const patch: any = {
     status: 'planned',
     itinerary,
@@ -125,7 +131,9 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
   };
   const { data: updated } = await supabase.from('trip_files').update(patch).eq('id', tripId).eq('user_id', userId).select('*').single();
   // her voice: the plan isn't just JSON — she leaves a spoken summary on the thread
-  const summary = String(x.summary || '').replace(/\u20B9\s*/g, 'Rs ').trim().slice(0, 1200);
+  // [0055-fix] the model sometimes wraps web-search citations as inline <cite> tags
+  // inside the summary string — strip the markup, keep the words; her voice stays clean.
+  const summary = String(x.summary || '').replace(/<\/?cite[^>]*>/gi, '').replace(/\u20B9\s*/g, 'Rs ').replace(/\s{2,}/g, ' ').trim().slice(0, 1200);
   if (summary) {
     const tid = await wandererThread(userId);
     if (tid) {
@@ -134,7 +142,11 @@ Resolve relative dates ("next month", "a week in December") to real calendar dat
     }
   }
   const pings = await syncTripPings(updated);
+<<<<<<< ours
   return { ...(updated || trip), built: true, pings, _debug };
+=======
+  return { ...(updated || trip), built: true, pings };
+>>>>>>> theirs
 }
 
 // ── 3. THE READ (with the clock's flip) ────────────────────────────────────
