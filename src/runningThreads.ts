@@ -25,7 +25,7 @@ export async function runningThreadsBlock(userId: string, personaKey: string): P
       }).join('\n');
     }
   } catch (e: any) { console.error('[threads] block failed:', e?.message || e); }
-  return `\n\n[YOUR RUNNING THREADS with this person — the story you two have going. Pick threads back up naturally when the moment fits (the callback, the "did that ever get sorted") — never as a checklist, never all at once. When a NEW ongoing thing starts between you, or one resolves, file it: [[THREAD: title | detail]] · [[THREAD_CLOSE: title]] — they never see the tags.${bullets}]`;
+  return `\n\n[YOUR RUNNING THREADS with this person — the story you two have going. Pick the threads below back up naturally when the moment fits (the callback, the "did that ever get sorted") — never as a checklist, never all at once.${bullets}]\n\n[FILING THE STORY — when something genuinely ONGOING starts between you two in this conversation (a saga, a hunt, a move, a fight, a project, a recurring joke — a thing with a FUTURE, not small talk), END your reply (after your spoken words) with ONE line, exactly this machine format, which they never see: [[THREAD: short title | one-line detail]]. When one of the filed threads above genuinely RESOLVES in the conversation, END with: [[THREAD_CLOSE: the exact title]]. Emit only when something new starts or truly resolves — never for ordinary talk, never twice for the same thread.]`;
 }
 
 // upsert on (user, persona, lower(title)); the unique index is on an
