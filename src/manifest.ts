@@ -23,19 +23,19 @@ import { supabase } from './db.js';
 //  Source of truth: src/personas.ts display fields. BUMP THE VERSION on
 //  every roster edit — the client only overwrites its cache on a newer one.
 // ════════════════════════════════════════════════════════════════════════
-export const ROSTER_VERSION = 3;   // [§6] three seats join the firm
+export const ROSTER_VERSION = 4;   // [§8.1] door-chip labels ride the manifest
 
 export function rosterManifest() {
   const personas = Object.values(PERSONAS).map((p) => ({
     key: p.key, name: p.defaultName, line: p.line, rgb: p.rgb,
-    group: p.group, room: p.room, webEnabled: p.webEnabled,
+    group: p.group, room: p.room, roomChip: (p as any).roomChip ?? null, webEnabled: p.webEnabled,
     shareable: p.shareable, rosterVisible: p.rosterVisible, retired: false,
   }));
   // retired keys ride along with display data so legacy 1:1 threads still
   // render their own face/name — but never seatable, never on the shelf.
   for (const [key, d] of Object.entries(RETIRED_DISPLAY)) {
     personas.push({ key, name: d.name, line: d.line, rgb: d.rgb,
-      group: null, room: null, webEnabled: false,
+      group: null, room: null, roomChip: null, webEnabled: false,
       shareable: false, rosterVisible: false, retired: true });
   }
   return { version: ROSTER_VERSION, personas, groups: ROSTER_GROUPS, retired: RETIRED };

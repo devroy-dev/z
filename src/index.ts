@@ -454,6 +454,17 @@ app.delete('/public-rooms/:id', async (req, res) => {
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 // create a companion
+// [§8.3] the persona's daily state line for the chat header — one cheap read,
+// piggybacked onto the thread-open response so the client never double-fetches.
+async function todayStateLine(personaKey: string): Promise<string | null> {
+  try {
+    const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    const { data } = await supabase.from('persona_states')
+      .select('status_line').eq('persona_key', personaKey).eq('date', today).maybeSingle();
+    return (data as any)?.status_line || null;
+  } catch { return null; }
+}
+
 app.post('/threads', async (req, res) => {
   try {
     const authId = await authUser(req);
@@ -471,11 +482,11 @@ app.post('/threads', async (req, res) => {
     // reuse the user's existing 1:1 thread for this persona if one exists (no duplicates, history stays)
     const resolvedKey = persona ? persona.key : custom.key;
     const { data: existing } = await supabase.from('threads')
-      .select('id, persona_key, companion_name, avatar_url, accent')
+      .select('id, persona_key, companion_name, avatar_url, accent, created_at')
       .eq('user_id', user.id).eq('persona_key', resolvedKey)
       .eq('is_group', false).is('deleted_at', null)
       .order('last_active', { ascending: false }).limit(1).maybeSingle();
-    if (existing) return res.json(existing);
+    if (existing) return res.json({ ...existing, state_line: await todayStateLine(resolvedKey) });   // [§8.3] the live header piggyback — no second fetch
     const { data, error } = await supabase.from('threads').insert({
       user_id: user.id,
       persona_key: persona ? persona.key : custom.key,
@@ -484,9 +495,9 @@ app.post('/threads', async (req, res) => {
       companion_gender: gender ?? null,
       avatar_url: avatarUrl ?? null,
       accent: accent ?? null,
-    }).select('id, persona_key, companion_name, avatar_url, accent').single();
+    }).select('id, persona_key, companion_name, avatar_url, accent, created_at').single();
     if (error) return res.status(500).json({ error: 'thread insert: ' + error.message });
-    res.json(data);
+    res.json({ ...(data as any), state_line: await todayStateLine(persona ? persona.key : custom.key) });   // [§8.3]
   } catch (e: any) {
     res.status(500).json({ error: 'threads failed: ' + (e?.message || String(e)) });
   }

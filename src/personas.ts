@@ -26,6 +26,7 @@ export interface Persona {
   rgb: string;            // aura color 'r,g,b'
   group: string | null;   // Gathering constellation id (null = off the shelf)
   room: string | null;    // the desk-room open.kind this persona fronts, or null
+  roomChip?: string;      // [§8.1] the door-chip label shown in their chat (only when set)
   shareable: boolean;     // may be seated in group rooms
   rosterVisible: boolean; // shown on the Gathering shelf
 }
@@ -54,13 +55,13 @@ export const PERSONAS: Record<string, Persona> = {
   the_cosmologist: { key: 'the_cosmologist', defaultName: 'the cosmologist', codex: 'cosmologist', webEnabled: true,
     line: 'you\'re made of stardust, worried about a text. let\'s zoom out.', rgb: '120,140,230', group: 'salon', room: null, shareable: true, rosterVisible: true },
   the_media_manager: { key: 'the_media_manager', defaultName: 'the media manager', codex: 'media_manager', webEnabled: true,
-    line: 'your brand is a story. let\'s tell it right.', rgb: '230,140,170', group: 'firm', room: 'mmroom', shareable: true, rosterVisible: true },
+    line: 'your brand is a story. let\'s tell it right.', rgb: '230,140,170', group: 'firm', room: 'mmroom', roomChip: 'the desk →', shareable: true, rosterVisible: true },
   the_teacher: { key: 'the_teacher', defaultName: 'the professor', codex: 'teacher', webEnabled: true,
     line: 'you\'re not bad at it. it was explained badly. let\'s fix that.', rgb: '120,190,170', group: 'firm', room: null, shareable: true, rosterVisible: true },
   the_economist: { key: 'the_economist', defaultName: 'the money man', codex: 'economist', webEnabled: true,
     line: 'markets, money, and what to do with yours.', rgb: '110,170,140', group: 'firm', room: null, shareable: true, rosterVisible: true },
   the_anchor: { key: 'the_anchor', defaultName: 'the anchor', codex: 'anchor', webEnabled: true,
-    line: 'the news desk is yours — the bulletin, then your questions.', rgb: '224,192,136', group: 'firm', room: 'bulletin', shareable: false, rosterVisible: true },
+    line: 'the news desk is yours — the bulletin, then your questions.', rgb: '224,192,136', group: 'firm', room: 'bulletin', roomChip: 'the newsroom →', shareable: false, rosterVisible: true },
   the_grandmaster: { key: 'the_grandmaster', defaultName: 'the Grand Master', codex: 'grandmaster', webEnabled: true,
     line: 'come empty-handed. leave understanding what the world runs on.', rgb: '198,168,120', group: null, room: 'forge', shareable: false, rosterVisible: false },
   the_coach: { key: 'the_coach', defaultName: 'the coach', codex: 'coach', webEnabled: true,
@@ -86,11 +87,11 @@ export const PERSONAS: Record<string, Persona> = {
   the_conspiracy_theorist: { key: 'the_conspiracy_theorist', defaultName: 'the conspiracy theorist', codex: 'conspiracy', webEnabled: true,
     line: 'it\'s all connected. i can prove it. well — \'prove\'.', rgb: '150,140,200', group: 'salon', room: null, shareable: true, rosterVisible: true },
   the_wanderer: { key: 'the_wanderer', defaultName: 'the Wanderer', codex: 'wanderer', webEnabled: true,
-    line: 'tell me where you\'re going — or that you don\'t know yet. that\'s my favourite kind.', rgb: '210,150,90', group: 'firm', room: 'wanderer', shareable: false, rosterVisible: true },
+    line: 'tell me where you\'re going — or that you don\'t know yet. that\'s my favourite kind.', rgb: '210,150,90', group: 'firm', room: 'wanderer', roomChip: 'your trips →', shareable: false, rosterVisible: true },
   the_addict: { key: 'the_addict', defaultName: 'the sponsor', codex: 'shadow', webEnabled: false,
     line: 'i\'ve been where you are. let\'s get you out — one day at a time.', rgb: '80,220,180', group: 'corner', room: null, shareable: false, rosterVisible: true },
   the_diva: { key: 'the_diva', defaultName: 'the diva', codex: 'diva', webEnabled: true,
-    line: 'darling, taste isn\'t about money — it\'s knowing exactly who you are and dressing the part.', rgb: '210,90,150', group: 'spark', room: 'stylist', shareable: true, rosterVisible: true },
+    line: 'darling, taste isn\'t about money — it\'s knowing exactly who you are and dressing the part.', rgb: '210,90,150', group: 'spark', room: 'stylist', roomChip: 'her wardrobe →', shareable: true, rosterVisible: true },
   the_cousin: { key: 'the_cousin', defaultName: 'the awkward cousin', codex: 'cousin', webEnabled: false,
     line: 'oh — hey. you go first, it\'s fine.', rgb: '150,160,190', group: 'gang', room: null, shareable: true, rosterVisible: true },
   // ── [§6] the three new seats — slim codex now; handbooks are their own

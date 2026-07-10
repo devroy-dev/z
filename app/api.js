@@ -383,6 +383,10 @@ export async function listThreads() {
   try { return await authedJSON('GET', '/threads'); } catch (e) { return []; }
 }
 
+export async function getPersonaThreads(personaKey) {   // [§8.2] the shared story
+  try { const j = await authedJSON('GET', `/personas/${personaKey}/threads`); return (j && j.threads) || []; } catch (e) { return []; }
+}
+
 export async function getPersonaStates() {
   try { const j = await authedJSON('GET', '/persona-states'); return j.states || {}; } catch (e) { return {}; }
 }
@@ -700,7 +704,7 @@ export async function openThreadInfo(personaKey, name) {
     if (r.status === 401 && (await refreshSession())) r = await call();
     const j = await r.json().catch(() => ({}));
     const id = j.id || j.thread_id || null;
-    if (id) return { id, name: j.companion_name || null, avatar: j.avatar_url || null };
+    if (id) return { id, name: j.companion_name || null, avatar: j.avatar_url || null, firstMet: j.created_at || null, stateLine: j.state_line || null };   // [§8.2][§8.3]
   } catch (e) {}
   return null;
 }

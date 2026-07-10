@@ -8,7 +8,7 @@
 //  Judge fonts/glow on device. Structure-only on web.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
-import { nameOf, lineOf, groupsList } from './roster';
+import { nameOf, lineOf, groupsList, rgbOf } from './roster';
 import { View, Text, StyleSheet, StatusBar, Pressable, Image, ScrollView, TextInput , RefreshControl } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -101,6 +101,46 @@ function PresenceRow({ pkey, tone, pinned, onPin, onOpen, names = {}, states = {
   );
 }
 
+// ── [§8.4] TONIGHT — three spotlit presences. Freshest daily states, biased
+// hard toward the ones not talked to in 7 days (or never): the cold-start
+// answer to a shelf of two dozen faces. Pinned faces already glow on the
+// shelf, so they sit this row out.
+function pickTonight(states, recency, pins) {
+  const WEEK = 7 * 864e5;
+  const shelf = groupsList().flatMap((g) => g.keys);
+  const cands = shelf.filter((k) => states[k] && states[k].status_line && !pins.includes(k));
+  const quiet = (k) => { const la = recency[k]; return !la || (Date.now() - new Date(la).getTime()) > WEEK; };
+  const ranked = [...cands].sort((a, b) => {
+    const q = (quiet(b) ? 1 : 0) - (quiet(a) ? 1 : 0);
+    if (q) return q;   // the not-talked-to rise first
+    const ra = recency[a] ? new Date(recency[a]).getTime() : 0;
+    const rb = recency[b] ? new Date(recency[b]).getTime() : 0;
+    return ra - rb;    // then the longest-quiet among the rest
+  });
+  return ranked.slice(0, 3);
+}
+
+function TonightRow({ states, recency, pins, onOpen, names = {} }) {
+  const picks = pickTonight(states, recency, pins);
+  if (!picks.length) return null;
+  return (
+    <View style={{ marginBottom: 6 }}>
+      <Text style={styles.shelfLabel}>tonight</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 18, gap: 14 }}>
+        {picks.map((k) => (
+          <Pressable key={k} onPress={() => onOpen(k)} style={{ width: 210, borderRadius: 16, borderWidth: 1, borderColor: `rgba(${rgbOf(k)},0.30)`, backgroundColor: `rgba(${rgbOf(k)},0.07)`, padding: 12, flexDirection: 'row', alignItems: 'center' }}>
+            <Presence pkey={k} tone={C.moonBlue} size={46} />
+            <View style={{ marginLeft: 10, flex: 1 }}>
+              <Text style={styles.rowName} numberOfLines={1}>{names[k] || nameOf(k)}</Text>
+              <Text style={styles.rowStatus} numberOfLines={2}>“{states[k].status_line}”</Text>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 // ── the pinned "shelf" — warmer, closer, horizontal ──
 // each item opens on tap; the ★ badge unpins it (the only place a favourite can
 // be removed, since pinned personas are filtered out of the lists below).
@@ -166,6 +206,7 @@ export default function Roster({ onOpen = () => {}, onCreate = () => {} }) {
   const [pins, setPins] = useState(PINS_CACHE);
   const [query, setQuery] = useState('');
   const [states, setStates] = useState({});
+  const [recency, setRecency] = useState({});   // [§8.4] persona_key → last_active
   useEffect(() => { getPersonaStates().then(setStates).catch(() => {}); }, []);
   const [refreshing, setRefreshing] = useState(false);
   const pullRefresh = async () => {
@@ -184,6 +225,9 @@ export default function Roster({ onOpen = () => {}, onCreate = () => {} }) {
       const m = {};
       ts.forEach((t) => { if (t?.persona_key && t?.companion_name) m[t.persona_key] = t.companion_name; });
       NAMES_CACHE = m; setNames(m);
+      const rec = {};
+      ts.forEach((t) => { if (t?.persona_key && t?.last_active) rec[t.persona_key] = t.last_active; });   // [§8.4] recency for the tonight bias
+      setRecency(rec);
     });
   }, []);
   const togglePin = useCallback((k) => {
@@ -232,7 +276,10 @@ export default function Roster({ onOpen = () => {}, onCreate = () => {} }) {
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 96 }} keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor="#9FC2E8" colors={["#9FC2E8"]} progressBackgroundColor="#100E15" />}>
-            {query.trim().length === 0 && <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} names={names} />}
+            {query.trim().length === 0 && (<>
+              <TonightRow states={states} recency={recency} pins={pins} onOpen={onOpen} names={names} />
+              <PinnedShelf pins={pins} onOpen={onOpen} onPin={togglePin} names={names} />
+            </>)}
             {query.trim().length === 0 && (
               <View style={styles.constellation}>
                 <View style={styles.groupHead}>

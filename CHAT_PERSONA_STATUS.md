@@ -11,7 +11,7 @@ Spec: CHAT_PERSONA_SPEC.md (v1). Build order §9. One phase per sitting.
 | 4 | Handbook rail (§5) | **SHIPPED both pushes, fully proven:** prepass fired (byFn 2 calls), deep turn billed sonnet ₹3.72 / small talk haiku ₹0.50, post-split counsel matched baseline (whitelisting priced, ASCI disclosure grounded), silence law held. Watch-item: chat usage rows carry persona_key null (one-liner in index.ts if per-persona cuts wanted). |
 | 5 | Three seats: advocate / trainer / CHEF (owner renamed khansama→chef) (§6) | **BUILT — sitting 5.** `APPLY_THREE_SEATS.md`, v3. shareable:false declared (rail is 1:1-only — reversible one-liner). Faces flagged: the_advocate/the_trainer/the_chef.jpg. Handbooks = own sittings. Awaiting curls + device. |
 | 6 | Running threads + migration (§7) | not started |
-| 7 | UI: door chips → profile story → live header → tonight row (§8) | not started |
+| 7 | UI sweep (§8) — THE FINAL PHASE | **BUILT — sitting 7.** `APPLY_UI_SWEEP.md`, v4. Declared adaptation: header fallback = state→soul-line→affordance (live header's subtitle was the tap affordance, not the soul-line). Awaiting curls + device. |
 
 ## Verified against live code (this sitting)
 - All 7 P0 claims real. Drift: growth filter already had `the_teacher` — fix was

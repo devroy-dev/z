@@ -20,8 +20,8 @@ import Grain from './Grain';
 import RichText from './RichText';
 import * as Clipboard from 'expo-clipboard';   // [copy] persona-chat message copy
 import * as ImagePicker from 'expo-image-picker';
-import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice, markThreadRead } from './api';
-import { nameOf, personaOf, isKnown } from './roster';
+import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, getPersonaThreads, transcribeVoice, markThreadRead } from './api';   // [§8.2]
+import { nameOf, personaOf, isKnown, roomOf, chipOf } from './roster';   // [§8.1]
 import { useVoiceNote } from './voice';
 import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip05] instant-paint cache
 // [zip11] stamp last_active on this thread inside the home-list cache so the list
@@ -202,7 +202,10 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   const [showProfile, setShowProfile] = React.useState(false);
   const [profDiary, setProfDiary] = React.useState(null);
   const [profBlurb, setProfBlurb] = React.useState(null);
-  const openProfile = () => { setShowProfile(true); if (profDiary === null) getPersonaDiary(KEY).then((r) => { setProfDiary((r && r.entries) ? r.entries : []); setProfBlurb((r && r.blurb) ? r.blurb : null); }); };
+  const [profStory, setProfStory] = React.useState(null);   // [§8.2] open running threads
+  const [firstMet, setFirstMet] = React.useState(null);     // [§8.2] thread created_at
+  const [stateLine, setStateLine] = React.useState(null);   // [§8.3] today's daily state
+  const openProfile = () => { setShowProfile(true); if (profDiary === null) getPersonaDiary(KEY).then((r) => { setProfDiary((r && r.entries) ? r.entries : []); setProfBlurb((r && r.blurb) ? r.blurb : null); }); if (profStory === null) getPersonaThreads(KEY).then(setProfStory).catch(() => setProfStory([])); };   // [§8.2]
   const LIVE_STREAM = KEY === 'z' || KEY === 'z_serious' || KEY === 'the_anchor';   // Z + the anchor stream live; the desk delivers in blocks
   const WARM = KEY === 'the_anchor' || KEY === 'the_front_desk' || LIVE_STREAM; // trinity keeps the warm register
   const PLAIN = !LIVE_STREAM; // whatsapp-flat: no italics/bold for anyone but Z
@@ -270,6 +273,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
       if (!info) return;
       setThreadId(info.id);
       markThreadRead(info.id);   // opening the chat clears its unread badge
+      if (info.firstMet) setFirstMet(info.firstMet);   // [§8.2]
+      if (info.stateLine) setStateLine(info.stateLine); // [§8.3]
       if (info.name) { NAME_CACHE[KEY] = info.name; setCname(info.name); setNameDraft(info.name); }
       if (info.avatar) { AVATAR_CACHE[KEY] = info.avatar; setAvatar(info.avatar); }
       // the past belongs on the screen: load this thread's saved conversation
@@ -521,6 +526,19 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
             )}
             <Text style={pcStyles.profLine}>{P.line}</Text>
           </View>
+          {(firstMet || (profStory && profStory.length)) ? (
+            <>
+              <Text style={pcStyles.profLabel}>your story</Text>
+              <View style={{ paddingHorizontal: 26 }}>
+                {firstMet ? <Text style={pcStyles.profEntry}>first met {new Date(firstMet).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</Text> : null}
+                {(profStory || []).map((t) => (
+                  <View key={t.title} style={{ marginTop: 8, paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: `rgba(${rgb},0.35)` }}>
+                    <Text style={pcStyles.profEntry}>{t.title}{t.detail ? ` — ${t.detail}` : ''}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : null}{/* [§8.2] the shared life above; their life below */}
           {profBlurb ? (
             <>
               <Text style={pcStyles.profLabel}>their story</Text>
@@ -566,7 +584,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
               <View style={{ marginLeft: 11, flex: 1 }}>
                 <Pressable hitSlop={6} onPress={openProfile}>
                   <Text style={styles.topName} numberOfLines={1}>{KEY === 'the_front_desk' ? 'the Host' : cname}</Text>{/* [zip54p] */}
-                  <Text style={styles.topStatus}>tap for profile</Text>
+                  <Text style={styles.topStatus} numberOfLines={1}>{stateLine ? `“${stateLine}”` : (P.line || 'tap for profile')}</Text>{/* [§8.3] the header comes alive */}
                 </Pressable>
               </View>
             </View>
@@ -586,7 +604,12 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
 
           {KEY === 'the_front_desk' ? (
             <Image source={{ uri: 'https://callmez.app/faces/the_front_desk.jpg?v=5' }} style={{ width: 'auto', height: 120, borderRadius: 14, marginHorizontal: 14, marginTop: 6 }} resizeMode="cover" />
-          ) : null}{/* [zip54o] the desk crowns her thread, the media-house treatment */}
+          ) : null}
+          {roomOf(KEY) && chipOf(KEY) ? (
+            <Pressable onPress={() => onRoute({ kind: roomOf(KEY) })} style={{ alignSelf: 'flex-start', marginLeft: 16, marginTop: 6, paddingHorizontal: 13, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: `rgba(${rgb},0.35)`, backgroundColor: `rgba(${rgb},0.10)` }}>
+              <Text style={{ fontFamily: 'Figtree_500Medium', color: `rgb(${rgb})`, fontSize: 12.5 }}>{chipOf(KEY)}</Text>
+            </Pressable>
+          ) : null}{/* [§8.1] utility becomes discoverable from the relationship */}{/* [zip54o] the desk crowns her thread, the media-house treatment */}
           {/* conversation — fills the space; empty state centers instead of leaving a dead zone */}
           <ScrollView
             ref={scrollRef}
