@@ -117,24 +117,37 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
     return () => clearTimeout(t);
   }, [lines, roomId]);
 
-  // the ported onLiveMessage: filter, dedup by ID (never content — two humans
-  // saying the same words are two messages [H1]), reconcile own echoes.
+  // the ported onLiveMessage: THE DEDUPE LAW (H1b — see realtime.js header):
+  // every message arrives on up to two transports (broadcast + pg_changes).
+  // Key on the DB id ('m:'+id) — identical on both — plus 'cid:'+client_id for
+  // own lines. Check BOTH keys before painting, register both after: that makes
+  // it arrival-order-proof. Content-key survives as last resort only (old server
+  // payloads). NEVER created_at — it differs between transports (learned twice).
   const onLive = useCallback((m) => {
     if (!m || String(m.thread_id) !== String(roomId)) return;
     const who = m.sender_user_id || m.persona_key || '';
-    const key = m.client_id ? ('cid:' + m.client_id)
-      : (m.created_at ? (m.created_at + ':' + m.role + ':' + who)
-      : (m.role + ':' + who + ':' + (m.content || '')));   // [H1] id-first dedupe
-    if (renderedRef.current.has(key)) return;
-    renderedRef.current.add(key);
+    const keys = [];
+    if (m.client_id) keys.push('cid:' + m.client_id);
+    if (m.id) keys.push('m:' + m.id);
+    if (!keys.length) keys.push(m.role + ':' + who + ':' + (m.content || ''));   // [H1b] old-payload fallback
+    if (keys.some((k) => renderedRef.current.has(k))) { keys.forEach((k) => renderedRef.current.add(k)); return; }
+    keys.forEach((k) => renderedRef.current.add(k));
     if (m.role === 'user' && m.sender_user_id && meIdRef.current && m.sender_user_id === meIdRef.current) {
       // [H1] my own message, back from the server:
-      //  - sent from THIS device → flip its optimistic line to 'sent' (the tick).
-      //  - sent from ANOTHER of my devices → render it (was silently dropped before).
+      //  - broadcast copy (has client_id) from THIS device → flip pending → 'sent'.
+      //  - pg_changes copy (id, no client_id) when the broadcast was MISSED →
+      //    reconcile by text against an unreconciled own line instead of doubling.
+      //  - genuinely another device's send → render it (was silently dropped pre-H1).
       if (m.client_id && sentCidsRef.current.has(m.client_id)) {
         setLines((cur) => cur.map((l) => l.id === m.client_id ? { ...l, state: 'sent', at: l.at || m.created_at || null } : l));
       } else {
-        setLines((cur) => [...cur, { id: key, who: 'you', text: m.content || '', at: m.created_at, state: 'sent' }]);
+        setLines((cur) => {
+          if (!m.client_id) {
+            const i = cur.findIndex((l) => l.who === 'you' && l.text === (m.content || '') && !l.reconciled);
+            if (i >= 0) { const next = [...cur]; next[i] = { ...next[i], state: 'sent', at: next[i].at || m.created_at || null, reconciled: true }; return next; }
+          }
+          return [...cur, { id: keys[0], who: 'you', text: m.content || '', at: m.created_at, state: 'sent' }];
+        });
       }
       setFloor(m.sender_user_id || null);
       setRtRendered((n) => n + 1);
@@ -142,7 +155,7 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
     }
 
     if (m.role === 'user') {
-      setLines((cur) => [...cur, { id: key, who: 'human', uid: m.sender_user_id || null, name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '', at: m.created_at }]);   // [zip54p/57b] the stamp's fuel
+      setLines((cur) => [...cur, { id: keys[0], who: 'human', uid: m.sender_user_id || null, name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '', at: m.created_at }]);   // [zip54p/57b] the stamp's fuel [H1b keys[0]]
       setFloor(m.sender_user_id || null);
     } else {
       if (pendingRef.current) {
@@ -150,7 +163,7 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
         if (graceRef.current) { clearTimeout(graceRef.current); graceRef.current = null; }
         setLines((cur) => cur.map((l) => l.id === pid ? { ...l, key: m.persona_key, text: m.content || '', typing: false } : l));
       } else {
-        setLines((cur) => [...cur, { id: key, who: 'them', key: m.persona_key, text: m.content || '' }]);
+        setLines((cur) => [...cur, { id: keys[0], who: 'them', key: m.persona_key, text: m.content || '' }]);   // [H1b keys[0]]
       }
       setFloor(m.persona_key || null);
     }

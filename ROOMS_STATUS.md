@@ -44,5 +44,23 @@ UNIFIED across all room-shaped surfaces. `DMScreen` and `CuratedRoomScreen` both
 | **H2 — component extraction** | **SATISFIED by R0's dismantle** (ruling 3, invariant recorded above). No further build. |
 | **H3 — presence + typing** | NOT BUILT. Next hardening sitting. Transport proven (duel keystream = client→client channels; zip48 inbox = per-user channels). Open ruling from the hardening doc still needed: last-seen privacy — on by default or opt-in. |
 
+## H1B + COALESCER (second sitting, CE rulings executed)
+
+**Rulings received (locked):** H1b GO as designed; Problem 2 straight to (b) — the composer never relocks, house register; Problem 3 LOW, mechanical strip only, names-not-shapes (`^[A-Za-z@ ]{1,24}:` ruled too hungry — strip only known member/persona names); Problem 4 SHIP the conditional register line (one-human rooms are the dominant use, register wound not polish). 3+4 bundled as the next groupLoop sitting, never ridden in.
+
+**Shipped (apply_h1b_coalescer.py):**
+- Dedupe on DB message id: all three inserts `.select('id')`, broadcast carries `id`; client checks BOTH candidate keys before painting and registers both after (arrival-order-proof); content-key demoted to last-resort (old-payload fallback); `created_at` tier deleted. Own pg_changes-first arrival reconciles by text instead of doubling.
+- `realtime.js` header rewritten to teach the law (CE condition — the mechanism that failed).
+- `src/turnCoalescer.ts`: per-thread turn gate — 2s idle debounce, pending accumulation, RECURSIVE re-check (comment forbids one-shotting it), error-clear + 90s hard TTL (silence-by-bug law), newest closure wins. DIRECTOR silence law untouched — the gate spawns turns, never forces replies.
+- `/chat` shared conversation path: persist + broadcast + `{done, saved, client_id}` INSTANTLY; the turn runs out-of-band via the coalescer. Games/roleplay threads (`game_mode`/`scenario_key`) keep the old synchronous one-turn-per-move path.
+- Unit harness proven: 4-message burst → 1 turn; mid-turn accumulation → exactly one recursive follow-up from the newest message's closure; thrown turn → guard clears, next message revives the room.
+
+**Behavior changes declared:**
+- In conversation rooms the SSE no longer streams persona tokens (clients already rendered from broadcast; `onToken` was a no-op) — the sent tick now flips near-instantly.
+- The client's optimistic typing bubble may fade (2.5s grace) before a coalesced reply lands; the reply then appends bubble-less. Defensible under the pacing law; revisit with H3's real typing indicators.
+- An image in a coalesced burst rides only the turn that fires; earlier fragments' photos survive in history as the `[shared a photo]` marker.
+
+**Watch items:** Problem 3 (self-prefix leak, names-not-shapes strip) + Problem 4 (conditional direct-address register) = the next groupLoop sitting, with the proof pair (one human → direct address; second human joins → narration returns). `/rooms` GET shadowed by `public/rooms/` static dir → `express.static(..., { redirect: false })` one-liner, owner has not yet ruled it in.
+
 ## NEXT SITTING PICKS UP
 H3 (presence + human typing), or spec phase 1 (P0 fixes + gate §3 + doorway §4) if the owner reorders. Phase 1 note: `/public-rooms` directory returns no last-active — the doorway's "last active" line needs a threads join added to that route.

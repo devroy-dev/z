@@ -4,8 +4,18 @@
 //   • the server broadcasts each saved room message to channel 'room-{threadId}'
 //     (event 'msg') — reliable, no WAL/RLS-on-socket dependency.
 //   • postgres_changes is a FALLBACK in case a broadcast is missed; the consumer
-//     dedups across both paths (keyed on role:who:content, NOT created_at, which
-//     differs between paths and caused double-rendering in the PWA).
+//     dedups across both paths. THE DEDUPE LAW (H1b, learned twice now):
+//       key on the DB MESSAGE ID first ('m:'+id) — it is byte-identical on both
+//       transports; the sender's own lines also key on client_id ('cid:'+cid).
+//       Check BOTH candidate keys before painting; REGISTER both after — that is
+//       what makes the dedupe arrival-order-proof (broadcast-first or pg-first).
+//       role:who:content survives ONLY as the last-resort fallback for payloads
+//       from an old server build carrying neither id.
+//     NEVER key on created_at — it differs between the two transports (broadcast
+//     stamps at publish; pg_changes carries the row's insert time). That exact
+//     mistake caused double-rendering in the PWA, was written here as a warning,
+//     and was made AGAIN in H1 by an author who didn't re-read this header.
+//     Read the header. That's what it's for.
 //   • NO server-side channel filter — filters silently drop events on the z
 //     schema, so we filter by thread_id in the consumer instead.
 //  supabase-js needs the URL polyfill in React Native, or the realtime socket

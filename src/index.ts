@@ -24,6 +24,7 @@ import { seedLibrary, listLibrary, codexPlan, subjectMeta } from './coachLibrary
 import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag, coachReaction } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
+import { scheduleGroupTurn } from './turnCoalescer.js';   // [coalescer]
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
 import { myArcs, startArc, ARCS, completeArcIfFinal } from './arcs.js';
@@ -3780,7 +3781,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   try {
     // look up the thread. shared rooms: any MEMBER may chat (not just owner).
     const { data: th } = await supabase.from('threads')
-      .select('is_group, is_shared, user_id, member_keys').eq('id', threadId).is('deleted_at', null).maybeSingle();
+      .select('is_group, is_shared, user_id, member_keys, game_mode, scenario_key').eq('id', threadId).is('deleted_at', null).maybeSingle();   // [coalescer] games/roleplay keep the synchronous path
     if (!th) { res.write(`data: ${JSON.stringify({ error: 'thread not found' })}\n\n`); return res.end(); }
     const isOwner = th.user_id === user.id;
     // A DM is a shared thread with NO persona members — two humans, no one to "generate"
@@ -3820,6 +3821,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       void broadcastRoomMessage(threadId, {
         role: 'user', content: String(message), sender_user_id: user.id,
         sender_name: user.display_name || 'someone', client_id: clientId,   // [H1]
+        id: saved?.id || null,   // [H1b]
       });
       res.write(`data: ${JSON.stringify({ done: true, saved: saved?.id || null, client_id: clientId })}\n\n`);
       return res.end();
@@ -3829,16 +3831,44 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       if (!isOwner && !(await isRoomMember(threadId, user.id))) {
         res.write(`data: ${JSON.stringify({ error: 'you are not in this room' })}\n\n`); return res.end();
       }
-      await runGroupTurn({
-        userId: user.id, threadId, message, image: image ?? null, senderName: user.display_name || 'someone',
-        clientId,   // [H1]
-        addressed: Array.isArray(addressed) ? addressed : undefined,
-        onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
-        onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),
-        onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),
+      // [coalescer] games & roleplay keep the synchronous one-turn-per-move path —
+      // their turn structure (judge goes last, scene beats) expects it.
+      const coalesce = !th.game_mode && !(th as any).scenario_key;
+      if (!coalesce) {
+        await runGroupTurn({
+          userId: user.id, threadId, message, image: image ?? null, senderName: user.display_name || 'someone',
+          clientId,   // [H1]
+          addressed: Array.isArray(addressed) ? addressed : undefined,
+          onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
+          onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),
+          onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),
+        });
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        return res.end();
+      }
+      // [coalescer] the conversation path: the human's message lands INSTANTLY —
+      // persist + broadcast + done — and the AI turn is gated per-thread. The
+      // composer never relocks; a person's keyboard never waits on a machine.
+      const imgOk2 = !!image && typeof image === 'object' && /^image\/(jpeg|png|gif|webp)$/.test((image as any).media_type || '');
+      const stored2 = imgOk2 ? (message ? String(message) + '\n[shared a photo]' : '[shared a photo]') : String(message || '');
+      const { data: savedRoom } = await supabase.from('messages')
+        .insert({ thread_id: threadId, user_id: user.id, role: 'user', content: stored2, sender_user_id: user.id })
+        .select('id').maybeSingle();
+      await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
+      void broadcastRoomMessage(threadId, {
+        role: 'user', content: stored2, sender_user_id: user.id,
+        sender_name: user.display_name || 'someone', client_id: clientId, id: (savedRoom as any)?.id ?? null,   // [H1][H1b]
       });
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.write(`data: ${JSON.stringify({ done: true, saved: (savedRoom as any)?.id || null, client_id: clientId })}\n\n`);
       res.end();
+      const senderName = user.display_name || 'someone';
+      const uid = user.id;
+      scheduleGroupTurn(threadId, () => runGroupTurn({
+        userId: uid, threadId, message: stored2, image: image ?? null, senderName,
+        clientId, alreadyPersisted: true,   // [H1b/coalescer]
+        addressed: Array.isArray(addressed) ? addressed : undefined,
+      }));
+      return;
     } else if (th.is_group && isOwner) {
       // ARENA support in groups: strip score tags from the moderator's visible stream,
       // and after its turn, parse + emit score/result + persist the match.

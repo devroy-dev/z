@@ -116,6 +116,8 @@ export interface GroupTurnInput {
   message: string;
   senderName?: string;   // in a shared room: the human who just spoke
   clientId?: string | null;  // [H1] the sender's optimistic-line id, echoed in the broadcast
+  alreadyPersisted?: boolean; // [H1b/coalescer] /chat persisted+broadcast the user message upstream;
+                              // skip the insert/broadcast here AND the transcript append (history has it)
   image?: { media_type: string; data: string } | null;  // a shared photo, base64 — seen by every persona this turn
   addressed?: string[];  // explicit  / tapped faces — those personas answer
   onPersonaStart?: (personaKey: string, name: string) => void;
@@ -212,9 +214,11 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // persist the user message (mark an attached photo so the transcript shows it)
   const imgOk = !!input.image && /^image\/(jpeg|png|gif|webp)$/.test(input.image.media_type);
   const storedContent = imgOk ? (message ? message + '\n[shared a photo]' : '[shared a photo]') : message;
-  await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: storedContent, sender_user_id: userId });
-  if (t.is_shared) {
-    await broadcastRoomMessage(threadId, { role: 'user', content: storedContent, sender_user_id: userId, sender_name: input.senderName ?? null, client_id: input.clientId ?? null });   // [H1]
+  if (!input.alreadyPersisted) {   // [H1b/coalescer] shared rooms persist upstream in /chat now
+    const { data: savedUser } = await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: storedContent, sender_user_id: userId }).select('id').maybeSingle();
+    if (t.is_shared) {
+      await broadcastRoomMessage(threadId, { role: 'user', content: storedContent, sender_user_id: userId, sender_name: input.senderName ?? null, client_id: input.clientId ?? null, id: (savedUser as any)?.id ?? null });   // [H1][H1b]
+    }
   }
 
   // build a readable transcript: each assistant line prefixed with WHO said it (by name),
@@ -231,7 +235,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const nowMark = withGapMarker('', __lastAt, new Date().toISOString());
     if (nowMark) priorLines.push(nowMark.trim());
   }
-  priorLines.push(`${input.senderName ? input.senderName : 'THEM'}: ${message}`);
+  if (!input.alreadyPersisted) priorLines.push(`${input.senderName ? input.senderName : 'THEM'}: ${message}`);   // [H1b/coalescer] when persisted upstream, history already ends with it
 
   // each member responds in order, seeing the running transcript incl. this turn's prior replies
   const saidThisTurn: string[] = [];
@@ -395,11 +399,11 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     logUsage({ userId, threadId, personaKey: key, surface: 'group', fn: 'group_turn', model: MODEL, usage: (final as any).usage });
 
     // persist with persona_key so the surface knows who spoke
-    await supabase.from('messages').insert({
+    const { data: savedReply } = await supabase.from('messages').insert({
       thread_id: threadId, user_id: userId, role: 'assistant', content: reply, persona_key: key,
-    });
+    }).select('id').maybeSingle();   // [H1b] the id IS the dedupe key on both transports
     if (t.is_shared) {
-      await broadcastRoomMessage(threadId, { role: 'assistant', content: reply, persona_key: key });
+      await broadcastRoomMessage(threadId, { role: 'assistant', content: reply, persona_key: key, id: (savedReply as any)?.id ?? null });   // [H1b]
     }
     saidThisTurn.push(`${nameFor(key)}: ${reply}`);
     input.onPersonaEnd?.(key, reply);
