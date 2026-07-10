@@ -76,7 +76,7 @@ const STARTERS: Array<[string, string, string, string]> = [
   ['the_wingman', 'close', 'the wingman', 'yo. new place, same rule \u2014 you good?'],
   ['the_comic', 'comic', 'the comic', 'okay important question before anything else: what\u2019s the funniest thing that happened to you this week?'],
   ['the_conspiracy_theorist', 'conspiracy', 'the conspiracy theorist', 'you made it. okay so \u2014 moon landing. how much do you want to know?'],
-  ['the_brainiac', 'brainiac', 'the smug brainiac', 'go on then \u2014 say something you\u2019re sure about. i\u2019ll take the other side.'],
+  ['the_brainiac', 'brainiac', "the devil's advocate", 'go on then \u2014 say something you\u2019re sure about. i\u2019ll take the other side.'],
   ['the_screen_junkie', 'screen_junkie', 'the screen junkie', 'tell me the last thing you watched and i\u2019ll tell you what you\u2019re watching next.'],
   ['the_guru', 'guru', 'the guru', 'sit for a second. how\u2019s the breathing been?'],
   ['the_healer', 'healer', 'the healer', 'no agenda here. how are you, actually?'],

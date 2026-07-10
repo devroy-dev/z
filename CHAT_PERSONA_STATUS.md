@@ -6,8 +6,8 @@ Spec: CHAT_PERSONA_SPEC.md (v1). Build order §9. One phase per sitting.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | P0 bug fixes (§1) | **SHIPPED + device-verified.** |
-| 2 | Roster manifest backend + `app/roster.js` + delete 4 local registries (§2) | **BUILT — sitting 2.** `APPLY_ROSTER_MANIFEST.md`; server curls must pass before OTA. Awaiting device verify. |
-| 3 | Roster settlement: folds, renames, regroup, wannabe move (§3) + guru absorb + hottie/crush law rewrites (§4) | not started |
+| 2 | Roster manifest backend + `app/roster.js` + delete 4 local registries (§2) | **SHIPPED + device-verified** (incl. airplane-mode cold start). |
+| 3 | Roster settlement: folds, renames, regroup, wannabe move (§3) + guru absorb + hottie/crush law rewrites (§4) + riders (fallback generator, ChatHome repoint) | **BUILT — sitting 3.** `APPLY_ROSTER_SETTLEMENT.md`, ROSTER_VERSION 2. Awaiting curls + device. |
 | 4 | Handbook rail: MM 98KB→10KB split + pre-pass + escalation (§5) | not started |
 | 5 | Three new seats: advocate / trainer / khansama (§6) | not started |
 | 6 | Running threads + migration (§7) | not started |
@@ -51,13 +51,33 @@ Spec: CHAT_PERSONA_SPEC.md (v1). Build order §9. One phase per sitting.
   Phase-3 candidates to derive from personas.ts: `app/roomTheme.js` and
   index.ts `SHAREABLE_ROSTER` (room-suggestion prompt).
 
+## Sitting-3 record (Phase 3)
+- Folds live server-wide: RETIRED map now 6; oracle/hippie deleted from
+  PERSONAS, display preserved in RETIRED_DISPLAY. Guru codex §16 absorbs the
+  rat-race register. Legacy-oracle nuance accepted per spec: those threads now
+  speak the anchor's institutional-register codex.
+- Fold blast radius beyond the spec, all fixed: SHAREABLE_PERSONAS gate now
+  DERIVED from personas.ts shareable flags; SHAREABLE_ROSTER prompt −3;
+  BUZZERS hippie→guru; PURSUITS −2 (retired soap operas stop). Starter seeder
+  brainiac name settled.
+- Riders shipped: scripts/gen_roster_fallback.mjs (fallback machine-written
+  between anchors — STANDING LAW: personas.ts edit → version bump → build →
+  generator → gate → ship); ChatHome's four personaMeta reads repointed
+  (rgb() wrapping for tones).
+- SPEC ARITHMETIC DRIFT declared: §3.4 table sums to 24 shelf seats (spec note
+  says 22). Table followed; owner may name two more off-shelf seats later.
+- Left alone, logged: simFloor reading authored by the_oracle key (works via
+  retired display; owner may re-attribute to the money man later); llm.ts
+  oracle pin; app/roomTheme.js display fallback.
+
 ## Next sitting picks up
-Phase 3 — roster settlement (data edits only now: folds oracle→anchor +
-hippie→guru incl. guru codex absorb section, renames mentor-line/sponsor,
-§3.4 regroup as ROSTER_GROUPS + group-field edits, wannabe off-shelf/unseatable)
-+ §4 hottie/crush codex law rewrites. Every roster edit = personas.ts +
-ROSTER_VERSION bump. Remember: folds move RETIRED entries and delete PERSONAS
-entries — keys stay reachable via personaByKey forever.
+Phase 4 — the handbook rail (§5): MM codex 98KB→~10KB split (LIFE heading
+sacred), handbook-media-manager.md in §N slicer format, pre-pass wiring in
+loop.ts (Haiku temp-0 JSON, empty sections valid), Sonnet escalation via
+modelForTier('top') scoped to handbook personas, logUsage fn tags
+('handbook-prepass', escalation). Read first: src/codexRetrieval.ts,
+src/grandMaster.ts (~L6 streaming rationale), src/loop.ts static-prefix
+assembly + models.ts. Curl-prove the pre-pass BEFORE the split ships (§9).
 
 ## Open asset dependency (Phase 5, flag early)
 Three face images needed at `callmez.app/faces/{the_advocate,the_trainer,the_khansama}.jpg`

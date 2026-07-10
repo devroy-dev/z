@@ -18,7 +18,7 @@ import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the 
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { personaMeta } from './games/personas';
+import { nameOf, rgbOf } from './roster';   // [§3 rider] the games table keeps its cast; the inbox reads the one roster
 
 // ── MOONLIGHT: the cold register ──
 export const MOON = {
@@ -124,7 +124,7 @@ function UpdatesFeed({ onOpen, embedded = false }) {   // [zip61] embedded on th
     </ScrollView>
   );
 }
-const nameOf = (k) => (personaMeta(k)?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
+// [§3 rider] nameOf now comes from ./roster (retired keys included, junk keys prettified)
 const commTint = (hex, a) => { const h = String(hex).replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 
 // the communities directory — curated public rooms anyone can join. Opens the
@@ -196,7 +196,7 @@ function PublicRooms({ onOpen }) {
 
       {(rooms || []).map((room) => {
         const door = (room.personas || [])[0];
-        const tone = (door && personaMeta(door)?.tone) || MOON.moon;
+        const tone = door ? `rgb(${rgbOf(door)})` : MOON.moon;
         const here = room.memberCount || 0;
         return (
         <Pressable key={room.id} style={[st.commCard, { backgroundColor: commTint(tone, 0.05), borderColor: commTint(tone, 0.16) }]} onPress={() => enter(room)}>
@@ -597,7 +597,7 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
                   <Row
                     face={r.kind === 'persona' && !r.key.startsWith('custom_') ? dpFor(r.key) : null}
                     glyph={r.kind === 'persona' && r.key.startsWith('custom_') ? (r.name && r.name[0] ? r.name[0].toUpperCase() : '✦') : r.kind === 'dm' ? '🙂' : r.kind === 'room' ? '👥' : null}
-                    tone={r.kind === 'persona' ? (personaMeta(r.key)?.tone || MOON.hair) : MOON.hair}
+                    tone={r.kind === 'persona' ? `rgb(${rgbOf(r.key)})` : MOON.hair}
                     name={r.name} line={r.line} time={ago(r.at)} unread={r.unread} pinned={r.pinnedByMe}
                     onPress={() => onOpen(
                       r.kind === 'persona' ? { kind: 'persona', key: r.key }

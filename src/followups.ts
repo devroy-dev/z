@@ -112,7 +112,7 @@ async function threadFor(userId: string, personaKey: string): Promise<string | n
   return error ? null : data.id;
 }
 
-const BUZZERS = ['the_comic','the_brother','the_wingman','the_screen_junkie','the_cousin','the_diva','the_wannabe','the_hippie'];
+const BUZZERS = ['the_comic','the_brother','the_wingman','the_screen_junkie','the_cousin','the_diva','the_wannabe','the_guru'];   // [§3.1] hippie folded — the guru inherits the slot
 
 async function todaysState(personaKey: string): Promise<{ status_line: string; log_entry: string } | null> {
   const today = new Date().toISOString().slice(0, 10);

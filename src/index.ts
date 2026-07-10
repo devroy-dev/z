@@ -53,7 +53,7 @@ import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
 import { gardenUserMemory } from './memoryGardener.js';   // [zip03]
 import { readMemoryBlock } from './memory.js';
-import { personaByKey } from './personas.js';
+import { personaByKey, PERSONAS } from './personas.js';
 import { rosterManifest } from './manifest.js';
 import { PROFILE_BLURBS } from './blurbs.js';
 import { supabase } from './db.js';
@@ -118,13 +118,9 @@ const otpClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_A
 // one env switch, no rebuild.
 // personas allowed in shared multi-human rooms — the safe-social/intellect set only.
 // NEVER the crush, self-loathing/self-obsessed, addict, hottie, wingman, stranger (1:1 only).
-const SHAREABLE_PERSONAS = new Set([
-  'the_guru','the_oracle','the_brainiac','the_brother','the_healer',
-  'the_comic','the_mentor','the_colleague','the_philosopher','the_historian',
-  'the_cosmologist','the_moderator','the_media_manager','the_teacher',
-  'the_economist','the_wannabe','the_screen_junkie','the_orator','the_conspiracy_theorist',
-  'the_hippie','the_diva','the_cousin',
-]);
+// [§3] derived from the one roster — edit personas.ts, never this line. Retired
+// keys and unseated personas (romance seats, the wannabe) fall out automatically.
+const SHAREABLE_PERSONAS = new Set(Object.values(PERSONAS).filter((p) => p.shareable).map((p) => p.key));
 
 const OPEN_MODE = (process.env.OPEN_MODE ?? 'true') === 'true';
 
@@ -2756,7 +2752,6 @@ app.post('/pins', async (req, res) => {
 // no live web call per tap, so refresh is fast and free.
 const SHAREABLE_ROSTER: [string, string][] = [
   ['the_guru', 'deep knowledge, learning, the big questions'],
-  ['the_oracle', 'quick facts, the "google friend", trivia'],
   ['the_brainiac', 'debate, devil\'s advocate, sharpening ideas'],
   ['the_brother', 'family, loyalty, real talk'],
   ['the_healer', 'heartbreak, love, emotional wounds'],
@@ -2770,10 +2765,8 @@ const SHAREABLE_ROSTER: [string, string][] = [
   ['the_media_manager', 'branding, social, image'],
   ['the_teacher', 'explaining hard things simply (the professor)'],
   ['the_economist', 'money, markets, investing, cost of living (the money man)'],
-  ['the_wannabe', 'hype, betting, get-rich energy (the wannabe hustler)'],
   ['the_screen_junkie', 'movies, shows, what to watch'],
   ['the_orator', 'speech, persuasion, rhetoric'],
-  ['the_hippie', 'calm, nature, anti-rat-race'],
   ['the_diva', 'style, taste, fashion'],
   ['the_cousin', 'shy, relatable, everyday (the awkward cousin)'],
   ['the_conspiracy_theorist', 'conspiracies, cover-ups, aliens, "it\'s all connected" (for fun)'],
