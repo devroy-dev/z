@@ -55,6 +55,7 @@ import { gardenUserMemory } from './memoryGardener.js';   // [zip03]
 import { readMemoryBlock } from './memory.js';
 import { personaByKey, PERSONAS } from './personas.js';
 import { rosterManifest } from './manifest.js';
+import { openRunningThreads } from './runningThreads.js';   // [§7]
 import { PROFILE_BLURBS } from './blurbs.js';
 import { supabase } from './db.js';
 
@@ -2781,6 +2782,20 @@ app.get('/roster-manifest', (_req, res) => {
     res.json(rosterManifest());
   } catch (e: any) {
     res.status(500).json({ error: 'roster manifest failed: ' + (e?.message || String(e)) });
+  }
+});
+
+// ── [§7] the shared story, served — the profile sheet's "your story" reads
+// this. Own threads only; institutions never carry any so return [] cleanly.
+app.get('/personas/:key/threads', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const threads = await openRunningThreads(user.id, String(req.params.key || ''));
+    res.json({ threads });
+  } catch (e: any) {
+    res.status(500).json({ error: 'threads failed: ' + (e?.message || String(e)) });
   }
 });
 

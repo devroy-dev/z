@@ -11,6 +11,7 @@ import { buildCustomPrefix } from './content.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { retrievePrep, analogyBank as gmAnalogyBank } from './grandMaster.js';
 import { handbookPrep, hasHandbook } from './handbooks.js';   // [§5] the handbook rail
+import { runningThreadsBlock, fileRunningThread, closeRunningThread } from './runningThreads.js';   // [§7] the shared story
 import { modelForTier } from './models.js';
 import { readMemoryBlock, harvestMemory, harvestTrip } from './memory.js';   // [zip74]
 import { personaByKey, type CodexKey } from './personas.js';
@@ -320,7 +321,12 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   let lifeBlock = '';
   try { if (!institutional) lifeBlock = await stateBlockFor(t.persona_key); } catch (e: any) { console.error('[life] block failed:', e?.message || e); }   // [zip04] an institution has no diary to leak
 
-  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${wardrobeBlock}${tripBlock}${lifeBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides
+  // [§7] THE SHARED STORY — what this persona and this person have going
+  // between them. Same boundary as the memory block: institutions carry none.
+  let runThreadsBlock = '';
+  try { if (!institutional) runThreadsBlock = await runningThreadsBlock(userId, String(t.persona_key || '')); } catch (e: any) { console.error('[threads] block failed:', e?.message || e); }
+
+  const dynamic = `\n\n[${todayLine}]${ownerLine}${seriousLine}${gameLine}${frontDeskBlock}${mmBlock}${wardrobeBlock}${tripBlock}${lifeBlock}${runThreadsBlock}${memoryBlock}${registerNote}`;   // [zip54d] the brief rides; [§7] the shared story rides beside the diary
 
   // cache_control is valid at runtime (prompt caching) but not in this SDK's
   // TextBlockParam type (0.32.x typed it as beta). Cast keeps the field in the
@@ -605,6 +611,24 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
           });
       }
       reply = reply.replace(/\[\[TASK:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // [§7] [[THREAD: title | detail]] / [[THREAD_CLOSE: title]] — the shared
+    // story files itself. Tolerant parse (the fixes-3 lesson): a missing
+    // detail bar still files the title rather than vanishing silently.
+    if (!institutional) {
+      const filedT = [...reply.matchAll(/\[\[THREAD:\s*([^|\]]+)(?:\|([^\]]*))?\]\]/gi)];
+      for (const m of filedT) {
+        const title = m[1].trim();
+        if (title) void fileRunningThread(userId, String(t.persona_key || ''), title, (m[2] ?? '').trim() || null);
+      }
+      logUnparsedTags('THREAD', filedT.length);
+      const closedT = [...reply.matchAll(/\[\[THREAD_CLOSE:\s*([^\]]+)\]\]/gi)];
+      for (const m of closedT) {
+        const title = m[1].trim();
+        if (title) void closeRunningThread(userId, String(t.persona_key || ''), title);
+      }
+      reply = reply.replace(/\[\[THREAD(?:_CLOSE)?:[^\]]*\]\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
     // [0054] [[OUTFIT: name | piece_ids | occasion | date?]] — her looks become filed objects.
