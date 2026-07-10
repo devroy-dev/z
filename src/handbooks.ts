@@ -19,9 +19,9 @@ const PREPASS_MODEL = 'claude-haiku-4-5-20251001';
 // the rail's seats — the media manager now; the three §6 seats join in Phase 5.
 const HANDBOOKS: Partial<Record<string, string>> = {
   the_media_manager: 'handbook-media-manager.md',
-  // the_advocate:  'handbook-legal-in.md',     // Phase 5
-  // the_trainer:   'handbook-training.md',     // Phase 5
-  // the_khansama:  'handbook-kitchen-in.md',   // Phase 5
+  // the_advocate:  'handbook-legal-in.md',     // own authoring sitting
+  // the_trainer:   'handbook-training.md',     // own authoring sitting
+  // the_chef:      'handbook-kitchen-in.md',   // own authoring sitting (owner renamed khansama → chef)
 };
 
 export function hasHandbook(personaKey: string): boolean {

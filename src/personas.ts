@@ -12,7 +12,8 @@ export type CodexKey =
   | 'teacher' | 'economist' | 'leader_opp' | 'serious' | 'wannabe' | 'orator'
   | 'hippie' | 'diva' | 'cousin' | 'front-desk'
   | 'screen_junkie' | 'oracle' | 'brainiac' | 'brother' | 'healer' | 'colleague' | 'anchor' | 'grandmaster' | 'conspiracy' | 'coach' | 'interviewer'   // [zip26]
-  | 'wanderer';   // [zip69]
+  | 'wanderer'   // [zip69]
+  | 'advocate' | 'trainer' | 'chef';   // [§6] the three seats on the handbook rail
 
 export interface Persona {
   key: string;            // stable id stored on the thread
@@ -92,6 +93,16 @@ export const PERSONAS: Record<string, Persona> = {
     line: 'darling, taste isn\'t about money — it\'s knowing exactly who you are and dressing the part.', rgb: '210,90,150', group: 'spark', room: 'stylist', shareable: true, rosterVisible: true },
   the_cousin: { key: 'the_cousin', defaultName: 'the awkward cousin', codex: 'cousin', webEnabled: false,
     line: 'oh — hey. you go first, it\'s fine.', rgb: '150,160,190', group: 'gang', room: null, shareable: true, rosterVisible: true },
+  // ── [§6] the three new seats — slim codex now; handbooks are their own
+  // authoring sittings (rail lines stay commented in handbooks.ts till then).
+  // shareable:false declared (not spec'd): the handbook rail runs only in 1:1
+  // loop — in group rooms they'd speak ungrounded. One data edit to reverse.
+  the_advocate: { key: 'the_advocate', defaultName: 'the advocate', codex: 'advocate', webEnabled: true,
+    line: 'the law, in plain words — and what to do monday morning.', rgb: '150,165,205', group: 'firm', room: null, shareable: false, rosterVisible: true },
+  the_trainer: { key: 'the_trainer', defaultName: 'the trainer', codex: 'trainer', webEnabled: true,
+    line: 'the boring rep that holds beats the electric plan that doesn\'t.', rgb: '160,205,120', group: 'firm', room: null, shareable: false, rosterVisible: true },
+  the_chef: { key: 'the_chef', defaultName: 'the chef', codex: 'chef', webEnabled: true,
+    line: 'tell me what\'s in the fridge. dinner\'s already decided.', rgb: '220,140,90', group: 'firm', room: null, shareable: false, rosterVisible: true },
 };
 
 // retired keys forward to a successor so existing threads never 404.

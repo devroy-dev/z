@@ -23,7 +23,7 @@ import { supabase } from './db.js';
 //  Source of truth: src/personas.ts display fields. BUMP THE VERSION on
 //  every roster edit — the client only overwrites its cache on a newer one.
 // ════════════════════════════════════════════════════════════════════════
-export const ROSTER_VERSION = 2;   // [§3] roster settlement
+export const ROSTER_VERSION = 3;   // [§6] three seats join the firm
 
 export function rosterManifest() {
   const personas = Object.values(PERSONAS).map((p) => ({
