@@ -295,10 +295,16 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         // [zip54p/57a] content-dedupe: a streamed copy of a row history now carries must die,
         // whatever its id. typing/notSent always survive. Then ONE order: the clock's.
         const hkeys = new Set(hist.map((m) => m.who + '|' + m.text));
-        const merged = hist.concat(cur.filter((m) => !hids.has(m.id) && !String(m.id).startsWith('h') && (m.typing || m.notSent || !hkeys.has(m.who + '|' + m.text))));
-        const __ts = (m) => { if (m.typing || m.notSent) return Infinity; const v = m.at ? new Date(m.at).getTime() : NaN; return isNaN(v) ? Infinity : v; };
-        merged.sort((a, b) => __ts(a) - __ts(b));
-        setMessages(merged);
+        // [cur-fix] the reconcile lost its (cur) wrapper somewhere along the way —
+        // every fetch threw ReferenceError into the silent catch; history never
+        // rendered and only cache-holding threads looked alive. Back inside the
+        // functional update where it was born (zip05).
+        setMessages((cur) => {
+          const merged = hist.concat(cur.filter((m) => !hids.has(m.id) && !String(m.id).startsWith('h') && (m.typing || m.notSent || !hkeys.has(m.who + '|' + m.text))));
+          const __ts = (m) => { if (m.typing || m.notSent) return Infinity; const v = m.at ? new Date(m.at).getTime() : NaN; return isNaN(v) ? Infinity : v; };
+          merged.sort((a, b) => __ts(a) - __ts(b));
+          return merged;
+        });
         if (hist.length) {
           // the thread opens where the conversation IS — at the end, like any chat app
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
