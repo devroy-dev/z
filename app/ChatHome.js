@@ -425,7 +425,7 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
   }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
-  const PINNED_KEYS = new Set(['the_front_desk', 'z', 'z_serious', 'the_grandmaster', 'the_interviewer', 'the_media_manager', 'the_diva']);   // [zip28] [zip54d] [zip54j]
+  const PINNED_KEYS = new Set(['the_front_desk', 'z_serious', 'the_grandmaster', 'the_interviewer', 'the_media_manager', 'the_diva']);   // [zip28] [zip54d] [zip54j]
   // chats tab = 1:1 persona threads + human DMs. Persona ROOMS (with persona members,
   // like "Nolan's Odyssey") stay in the GROUPS tab. A DM is a shared thread with no
   // persona members → it belongs here, as a normal conversation.
@@ -449,7 +449,7 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
     return String(a.at || '') < String(b.at || '') ? 1 : -1;
   })
    .filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
-   .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_professor','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : filt === 'unread' ? (r.unread > 0) : filt === 'fav' ? r.favourite : true);
+   .filter((r) => filt === 'growth' ? (r.kind === 'persona' && ['the_orator','the_media_manager','the_guru','the_economist','the_teacher','the_mentor','the_healer'].includes(r.key)) : filt === 'unread' ? (r.unread > 0) : filt === 'fav' ? r.favourite : true);
   const recents = filt === 'archived' ? allRows.filter((r) => r.archived) : allRows.filter((r) => !r.archived);
 
   // [zip68] THE DESK, ALL CHAT — data hoisted so the pane stays a plain expression.

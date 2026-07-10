@@ -40,7 +40,7 @@ const GROUPS = [
   { id: 'wild',    name: 'The Unpredictables', tone: C.moonBlue, sub: 'careful what you wish for',
     keys: ['the_crush','the_hottie','the_diva','the_wannabe','the_orator','the_media_manager'] },
   { id: 'faculty', name: 'The Faculty',        tone: C.moonBlue, sub: 'come to learn',
-    keys: ['the_teacher','the_economist','the_anchor'] },
+    keys: ['the_teacher','the_economist','the_anchor','the_wanderer'] },   // [P0#5] wanderer was in no constellation — undiscoverable; Faculty interim until the §3.4 regroup
 ];
 
 const PERSONAS = {
@@ -70,6 +70,7 @@ const PERSONAS = {
   the_teacher:{name:'the professor',desc:"you're not bad at it. it was explained badly."},
   the_economist:{name:'the money man',desc:"markets, money, and what to do with yours. let's make it make sense."},
   the_anchor:{name:'the anchor',desc:"the 9 o'clock bulletin, waiting for your questions."},
+  the_wanderer:{name:'the Wanderer',desc:"tell me where you're going — or that you don't know yet. that's my favourite kind."},   // [P0#5]
 };
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=6`;   // [zip54r]
 const toneFor = (k) => (GROUPS.find(g => g.keys.includes(k))?.tone) || C.ember;

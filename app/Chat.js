@@ -63,7 +63,7 @@ const PERSONAS = {
   the_crush:{name:'the crush',desc:"summon the courage and try your luck.",rgb:'255,140,170'},
   the_wingman:{name:'the wingman',desc:"aka the dating coach. let's get you some action.",rgb:'74,134,255'},
   the_comic:{name:'the comic',desc:"knock knock.",rgb:'240,180,70'},
-  the_cynic:{name:'the cynic',desc:"everything's a disaster. wonderful, isn't it?",rgb:'150,150,150'},
+  the_cynic:{name:'the cynic',desc:"everything's a disaster. wonderful, isn't it?",rgb:'150,150,150'},   // retired — display-only for legacy threads
   the_oracle:{name:'the oracle',desc:"because we all have a google friend.",rgb:'110,200,200'},
   the_guru:{name:'the guru',desc:"there is one god and his name is knowledge.",rgb:'230,190,90'},
   the_philosopher:{name:'the philosopher',desc:"we're all going to die. let's figure out why we lived.",rgb:'180,160,210'},
@@ -77,15 +77,15 @@ const PERSONAS = {
   the_grandmaster:{name:'the Grand Master',desc:"come empty-handed. leave understanding what the world runs on.",rgb:'198,168,120'},
   the_coach:{name:'the coach',desc:"name a subject. i'll build the road and walk it with you.",rgb:'231,176,122'},
   the_interviewer:{name:'the interviewer',desc:"name the company and the chair. i'll run the room the way they will.",rgb:'138,160,196'},   // [zip26]
-  the_leader_opp:{name:'the leader of opposition',desc:"whatever side you're on, i'm on the other. facts not opinions.",rgb:'200,120,110'},
+  the_leader_opp:{name:'the leader of opposition',desc:"whatever side you're on, i'm on the other. facts not opinions.",rgb:'200,120,110'},   // retired — display-only for legacy threads
   the_hippie:{name:'the hippie',desc:"the rat race has a prize, man — a slightly richer rat. come breathe. the sunset's free.",rgb:'120,170,120'},
   the_diva:{name:'the diva',desc:"darling, taste isn't about money — it's knowing exactly who you are and dressing the part.",rgb:'210,90,150'},
   the_cousin:{name:'the awkward cousin',desc:"oh — hey. you go first, it's fine.",rgb:'150,160,190'},
   the_wannabe:{name:'the wannabe hustler',desc:"place your bets — the house is HOT tonight.",rgb:'235,180,90'},
-  the_stranger:{name:'the loyal friend',desc:"trust me with your life — i'll guard your secrets with mine.",rgb:'110,150,160'},
+  the_stranger:{name:'the loyal friend',desc:"trust me with your life — i'll guard your secrets with mine.",rgb:'110,150,160'},   // retired — display-only for legacy threads
   the_mentor:{name:'the motivator',desc:"i'll push you when you can't push yourself. you've got more in you than you think.",rgb:'230,190,110'},
   the_addict:{name:'the rehab',desc:"i've been where you are. let's get you out — one day at a time.",rgb:'80,220,180'},
-  the_self_obsessed:{name:'the guardian angel',desc:"the world can be cruel. i'm in your corner — you're stronger than they made you feel.",rgb:'235,165,185'},
+  the_self_obsessed:{name:'the guardian angel',desc:"the world can be cruel. i'm in your corner — you're stronger than they made you feel.",rgb:'235,165,185'},   // retired — display-only for legacy threads
   the_moderator:{name:'the moderator',desc:"two of you, one me. let's keep it civil... ish.",rgb:'120,180,150'},
   the_front_desk:{name:'the front desk',desc:"welcome back. i've got your list, and i know which room can help.",rgb:'231,176,122'},
 };
