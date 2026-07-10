@@ -425,7 +425,10 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
   }, [load]);
   const pull = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
-  const PINNED_KEYS = new Set(['the_front_desk', 'z_serious', 'the_grandmaster', 'the_interviewer', 'the_media_manager', 'the_diva']);   // [zip28] [zip54d] [zip54j]
+  // [chats-show-relationships] the zip28 pinned strip died in a redesign but its exclusion
+  // filter survived, exiling companions from their own conversations. Only Z's two selves
+  // stay off the list — the Host lives on the desk, z_serious in the Meditation room.
+  const PINNED_KEYS = new Set(['the_front_desk', 'z_serious']);
   // chats tab = 1:1 persona threads + human DMs. Persona ROOMS (with persona members,
   // like "Nolan's Odyssey") stay in the GROUPS tab. A DM is a shared thread with no
   // persona members → it belongs here, as a normal conversation.
