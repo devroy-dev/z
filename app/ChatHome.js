@@ -266,7 +266,7 @@ function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
   );
 }
 
-export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 'thedesk' }) {   // [zip81]
+export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 'thedesk', diag = false }) {   // [zip81] [H1c]
   const [tab, setTab] = useState(initialTab);   // [zip61][zip81] restore the tab we came back to
   const [deskBump, setDeskBump] = useState(0);            // [DESK COMES ALIVE]
   const [deskRefreshing, setDeskRefreshing] = useState(false);
@@ -566,8 +566,9 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
           <View style={st.searchWrap}>
             <Text style={st.searchIcon}>⌕</Text>
             <TextInput value={q} onChangeText={setQ} placeholder="search the house…" placeholderTextColor={MOON.faint} style={st.searchInput} />
-        {/* [zip56] inbox channel diag — temporary */}
-        <Text style={{ fontFamily: 'Figtree_300Light', fontSize: 10, color: 'rgba(233,232,240,0.4)', paddingHorizontal: 4, marginTop: 2 }}>inbox:{inboxRt}  b:{inboxBumps}</Text>
+        {/* [zip56→H1c] inbox channel probe — founder-flag only (long-press callmeZ). It
+            diagnosed H1c from a field screenshot; it stays one flag away forever. */}
+        {diag ? <Text style={{ fontFamily: 'Figtree_300Light', fontSize: 10, color: 'rgba(233,232,240,0.4)', paddingHorizontal: 4, marginTop: 2 }}>inbox:{inboxRt}  b:{inboxBumps}</Text> : null}
           </View>
           {quietHint ? (
             <Text style={{ fontFamily: FONTS.body, color: 'rgba(233,232,240,0.34)', fontSize: 12, textAlign: 'center', marginBottom: 8, fontStyle: 'italic' }}>swipe right when you need the quiet</Text>

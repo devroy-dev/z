@@ -235,7 +235,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
             : <DMScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
         )
       : <Chat key={chatOpen.key} personaKey={chatOpen.key} initialDraft={chatOpen.draft || ''} autoSend={!!chatOpen.autoSend} onBack={() => { if (chatOpen.from) { setChatOpen(null); setOverlay({ tab: chatOpen.from }); } else { setChatOpen(null); } }} onRoute={navigate} diag={diag} onCost={(inr) => setSessCost((c) => c + (inr || 0))} />)
-    : <ChatHome onOpen={openFromChat} initialTab={returnTab} />;   // [zip81]
+    : <ChatHome onOpen={openFromChat} initialTab={returnTab} diag={diag} />;   // [zip81] [H1c] probe rides the founder flag
 
   const playFactory = screens[active === 'play' ? 'play' : 'play'];
   const content = world === 'chat' ? chatContent : playFactory({ navigate, target });

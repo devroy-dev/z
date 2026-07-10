@@ -62,5 +62,15 @@ UNIFIED across all room-shaped surfaces. `DMScreen` and `CuratedRoomScreen` both
 
 **Watch items:** Problem 3 (self-prefix leak, names-not-shapes strip) + Problem 4 (conditional direct-address register) = the next groupLoop sitting, with the proof pair (one human → direct address; second human joins → narration returns). `/rooms` GET shadowed by `public/rooms/` static dir → `express.static(..., { redirect: false })` one-liner, owner has not yet ruled it in.
 
+## H1C — INBOX LIVENESS (third sitting) + THE DM PRODUCT RULING
+
+**PRODUCT RULING (owner, recorded as ordered):** human↔human DMs are commodity plumbing, not product — they stay at their current floor PERMANENTLY. The canonical social unit is the INHABITED ROOM (humans + personas). Consequences, binding on all future sittings of this spec: H1c was fixed because the inbox path is the list's liveness for ROOMS/GROUPS (the DM was merely the test vector); H3's presence/typing scopes to rooms only — no DM typing, no DM presence, ever; no further DM-specific sittings exist in this spec's future.
+
+**H1c diagnosis (CE leg-3 prior + field screenshot `inbox:connecting b:0`, all three shapes verified in code):** (1) getClient set realtime auth once-or-never — cold-start race cached the singleton unauthed forever, rotated tokens never refreshed; (2) one .subscribe(), no retry — a failed/never-answering join stayed dead until remount, and the diag's initial 'connecting' was simply never overwritten; (3) the "already live" early-return neither replayed status nor rewired handlers — a remount read 'connecting b:0' over a healthy channel feeding a dead closure.
+
+**Shipped (apply_h1c_inbox_liveness.py):** AUTH LAW — token (re)applied on every getClient call (rooms/duels inherit for free); RETRY LAW — inbox join watchdog (8s no-answer = failure) + backoff re-join capped at 5 (statuses surface as retrying-N / gave-up), retry re-runs auth; early-return now rewires handlers through module refs and replays the last real status. The zip56 probe demoted behind the founder diag flag (long-press callmeZ) — invisible in production, one flag away forever (CE: it just proved its worth).
+
+**Proof pair (device):** BEFORE (current build): probe reads `inbox:connecting b:0` on the chats list — confirms field reproduction. AFTER (OTA): probe reads `SUBSCRIBED`, `b:` increments on a curl-fired room/DM message with the list on screen, and the row bumps + reorders live. Bump-buffer race guard NOT added per CE — only if leg-1 evidence appears post-fix.
+
 ## NEXT SITTING PICKS UP
 H3 (presence + human typing), or spec phase 1 (P0 fixes + gate §3 + doorway §4) if the owner reorders. Phase 1 note: `/public-rooms` directory returns no last-active — the doorway's "last active" line needs a threads join added to that route.

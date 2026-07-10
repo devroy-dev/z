@@ -31,12 +31,18 @@ let _channel = null;
 // lazy singleton client: fetch the public config, create the client, auth the
 // realtime socket with the user's token (so RLS-scoped events are delivered).
 async function getClient() {
-  if (_sb) return _sb;
+  // [H1c] AUTH LAW: the token is (re)applied on EVERY call, not only at client
+  // creation. The old shape set auth once — a cold-start race (first caller
+  // winning before session hydration) cached the singleton UNAUTHED FOREVER,
+  // and a rotated token was never refreshed. That family produced the field
+  // reading `inbox:connecting b:0`.
   try {
-    const r = await fetch(`${API_BASE}/config`);
-    const cfg = await r.json();
-    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return null;
-    _sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false } });
+    if (!_sb) {
+      const r = await fetch(`${API_BASE}/config`);
+      const cfg = await r.json();
+      if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return null;
+      _sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: false } });
+    }
     const { token } = await loadSession();
     if (token) { try { await _sb.realtime.setAuth(token); } catch (e) {} }
     return _sb;
@@ -75,23 +81,76 @@ export function unsubscribe() {
 // ════════════════════════════════════════════════════════════════════════
 let _inboxChannel = null;
 let _inboxUserId = null;
+let _inboxOnBump = null;      // [H1c] handlers live in module refs the channel reads
+let _inboxOnStatus = null;    //       through — a remount REWIRES instead of feeding
+let _inboxLastStatus = null;  //       a dead closure (the early-return swallow).
+let _inboxRetryTimer = null;
+let _inboxRetries = 0;
+let _inboxJoinWatchdog = null;
+const INBOX_MAX_RETRIES = 5;
 
-export async function subscribeInbox(userId, onBump, onStatus) {
-  const sb = await getClient();
-  if (!sb) { onStatus && onStatus('no-client'); return () => {}; }
-  if (_inboxChannel && _inboxUserId === userId) return unsubscribeInbox; // already live
-  unsubscribeInbox();
-  _inboxUserId = userId;
+function _inboxJoin(sb, userId) {
+  if (_inboxJoinWatchdog) { clearTimeout(_inboxJoinWatchdog); _inboxJoinWatchdog = null; }
   _inboxChannel = sb.channel('user-' + userId, { config: { broadcast: { self: false } } })
     .on('broadcast', { event: 'inbox' }, (payload) => {
-      const b = payload && payload.payload; if (b) onBump(b);
+      const b = payload && payload.payload; if (b && _inboxOnBump) _inboxOnBump(b);
     })
-    .subscribe((status, err) => { onStatus && onStatus(status, err); });
+    .subscribe((status, err) => {
+      _inboxLastStatus = status;
+      if (_inboxJoinWatchdog) { clearTimeout(_inboxJoinWatchdog); _inboxJoinWatchdog = null; }
+      if (_inboxOnStatus) _inboxOnStatus(status, err);
+      if (status === 'SUBSCRIBED') { _inboxRetries = 0; return; }
+      // [H1c] RETRY LAW: the old shape subscribed once and a failed join stayed
+      // dead until remount. Error/timeout/close now re-joins with backoff, capped.
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') _inboxScheduleRetry(userId);
+    });
+  // a join that never calls back at all (the 'connecting forever' field reading)
+  // is also a failure — watchdog it.
+  _inboxJoinWatchdog = setTimeout(() => {
+    _inboxJoinWatchdog = null;
+    if (_inboxLastStatus !== 'SUBSCRIBED' && _inboxUserId === userId) _inboxScheduleRetry(userId);
+  }, 8000);
+}
+
+function _inboxScheduleRetry(userId) {
+  if (_inboxRetryTimer || _inboxUserId !== userId) return;
+  if (_inboxRetries >= INBOX_MAX_RETRIES) { if (_inboxOnStatus) _inboxOnStatus('gave-up'); return; }
+  const wait = Math.min(15000, 1500 * Math.pow(2, _inboxRetries));
+  _inboxRetries += 1;
+  if (_inboxOnStatus) _inboxOnStatus('retrying-' + _inboxRetries);
+  _inboxRetryTimer = setTimeout(async () => {
+    _inboxRetryTimer = null;
+    if (_inboxUserId !== userId) return;
+    if (_inboxChannel && _sb) { try { _sb.removeChannel(_inboxChannel); } catch (e) {} _inboxChannel = null; }
+    const sb = await getClient();   // re-applies auth (the AUTH LAW above)
+    if (!sb) { _inboxScheduleRetry(userId); return; }
+    _inboxJoin(sb, userId);
+  }, wait);
+}
+
+export async function subscribeInbox(userId, onBump, onStatus) {
+  _inboxOnBump = onBump; _inboxOnStatus = onStatus;   // [H1c] rewire FIRST, every call
+  const sb = await getClient();
+  if (!sb) { onStatus && onStatus('no-client'); return () => {}; }
+  if (_inboxChannel && _inboxUserId === userId) {
+    // already live: replay the real status instead of leaving the new mount on
+    // its initial 'connecting' (the exact zip56 field reading), and the rewire
+    // above already points bumps at the LIVE closure.
+    if (onStatus && _inboxLastStatus) onStatus(_inboxLastStatus);
+    return unsubscribeInbox;
+  }
+  unsubscribeInbox();
+  _inboxUserId = userId;
+  _inboxRetries = 0;
+  _inboxJoin(sb, userId);
   return unsubscribeInbox;
 }
 
 export function unsubscribeInbox() {
-  if (_inboxChannel && _sb) { try { _sb.removeChannel(_inboxChannel); } catch (e) {} _inboxChannel = null; _inboxUserId = null; }
+  if (_inboxRetryTimer) { clearTimeout(_inboxRetryTimer); _inboxRetryTimer = null; }
+  if (_inboxJoinWatchdog) { clearTimeout(_inboxJoinWatchdog); _inboxJoinWatchdog = null; }
+  if (_inboxChannel && _sb) { try { _sb.removeChannel(_inboxChannel); } catch (e) {} }
+  _inboxChannel = null; _inboxUserId = null; _inboxOnBump = null; _inboxOnStatus = null; _inboxLastStatus = null; _inboxRetries = 0;
 }
 
 // ════════════════════════════════════════════════════════════════════════
