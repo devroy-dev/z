@@ -8,7 +8,8 @@
 //  she builds it) · CONTINUE (open her thread). No search engine, no OTA — she
 //  plans and points; bookable finds land as cards in her thread.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { roomCache, saveRoomCache } from './roomCache';   // [rooms-alive]
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getTrips, deleteTrip, buildTrip, buildPacklist, checkTripItem } from './api';
@@ -185,7 +186,10 @@ export default function TravelDesk({ onBack = () => {}, onChat = () => {}, onAsk
   const [refreshing, setRefreshing] = useState(false);   // [fixes-A X1] pull-to-refresh
 
   const load = useCallback(() => getTrips().then((r) => setTrips(r?.trips || [])).catch(() => setTrips(ERR)), []);
+  // [rooms-alive] the trips paint from memory before first frame
+  useLayoutEffect(() => { const c = roomCache('travel'); if (c?.trips) setTrips(c.trips); }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (trips !== null) saveRoomCache('travel', { trips }); }, [trips]);   // [rooms-alive]
   const onRefresh = useCallback(() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }, [load]);
 
   const removeTrip = async (id) => {

@@ -4,7 +4,8 @@
 //  then the nation and the world. Tap any story and walk into his studio
 //  to ask what it actually means.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { roomCache, saveRoomCache } from './roomCache';   // [rooms-alive]
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Image, ActivityIndicator, Linking, RefreshControl } from 'react-native';   // [zip67]
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';   // [fixes-A X4] the verdict is extractable
@@ -43,15 +44,27 @@ export default function Bulletin({ onBack = () => {}, onAskAnchor = () => {} }) 
 
   const load = async () => {
     // [fixes-A X2] a failed feed fetch must not read as an eternal "the anchor is at the desk…"
-    try { const f = await getBulletinFeed(); setFeed(f || { local: [], national: [], city: null }); setFeedErr(false); }
-    catch (e) { setFeedErr(true); }
-    try { const w = await getWireFeed(null, true); if (w?.items?.length) setWireItems(w.items); } catch (e) {}   // [zip67] refresh ALWAYS moves the wire
-    loadDesk();
+    await Promise.all([   // [rooms-alive] three sequential awaits were a third of the felt delay
+      getBulletinFeed().then((f) => { setFeed(f || { local: [], national: [], city: null }); setFeedErr(false); }).catch(() => setFeedErr(true)),
+      getWireFeed(null, true).then((w) => { if (w?.items?.length) setWireItems(w.items); }).catch(() => {}),   // [zip67] refresh ALWAYS moves the wire
+      loadDesk(),
+    ]);
   };
   const loadDesk = async () => {
     try { const [fl, dk, fc] = await Promise.all([getNewsFollows(), getYourDesk(), getFactChecks()]); setFollows(fl); setDeskItems(dk); setFactHistory(fc); } catch (e) {}
   };
+  // [rooms-alive] the edition paints from memory before first frame
+  useLayoutEffect(() => {
+    const c = roomCache('bulletin'); if (!c) return;
+    if (c.feed) setFeed(c.feed); if (c.wireItems?.length) setWireItems(c.wireItems);
+    if (c.follows?.length) setFollows(c.follows); if (c.deskItems?.length) setDeskItems(c.deskItems);
+    if (c.factHistory?.length) setFactHistory(c.factHistory);
+  }, []);
   useEffect(() => { load(); }, []);
+  useEffect(() => {   // [rooms-alive]
+    if (!feed) return;
+    saveRoomCache('bulletin', { feed, wireItems, follows, deskItems, factHistory });
+  }, [feed, wireItems, follows, deskItems, factHistory]);
   // [fixes-A X1] pull-to-refresh — load() never nulls feed, so the screen won't blank
   const onRefresh = async () => { setRefreshing(true); try { await load(); } finally { setRefreshing(false); } };
   // [fixes-A N1] a compact history verdict expands in place to the full card

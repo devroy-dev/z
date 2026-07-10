@@ -9,7 +9,8 @@
 //  numbers out, the brief self-updates) · THE BRIEF (folded into a drawer —
 //  present, no longer the point) · his desk, one door away.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { roomCache, saveRoomCache } from './roomCache';   // [rooms-alive]
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -198,7 +199,18 @@ export default function MediaRoom({ onBack = () => {}, onChat = () => {}, onAsk 
     getMmIdeas().then((r) => setIdeas(r?.ideas || [])).catch(() => setIdeas(ERR)),
     getMmRateCard().then(setRate).catch(() => {}),
   ]), []);
+  // [rooms-alive] paint the last known desk BEFORE first frame; network refreshes behind
+  useLayoutEffect(() => {
+    const c = roomCache('mm'); if (!c) return;
+    if (c.notes) setNotes(c.notes); if (c.timeline) setTimeline(c.timeline);
+    if (c.brief) setBrief(c.brief); if (c.tasks) setTasks(c.tasks);
+    if (c.ideas) setIdeas(c.ideas); if (c.rate) setRate(c.rate);
+  }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {   // [rooms-alive] write-through whenever fresh data lands (sentinels guarded in saveRoomCache)
+    if (notes === null || tasks === null) return;
+    saveRoomCache('mm', { notes, timeline, brief, tasks, ideas, rate });
+  }, [notes, timeline, brief, tasks, ideas, rate]);
   const onRefresh = useCallback(() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }, [load]);
 
   const saveManual = async () => {

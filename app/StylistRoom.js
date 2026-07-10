@@ -9,7 +9,8 @@
 //  (she names what's missing, then hunts it live — her web, her taste).
 //  Verdicts on a fit stay in her thread, where photos already flow.
 // ════════════════════════════════════════════════════════════════════════
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { roomCache, saveRoomCache } from './roomCache';   // [rooms-alive]
 import { View, Text, StyleSheet, StatusBar, Pressable, TextInput, ScrollView, Image, ActivityIndicator, Linking, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -134,7 +135,16 @@ export default function StylistRoom({ onBack = () => {}, onChat = () => {}, onAs
     getStylistOutfits().then((r) => setOutfits(Array.isArray(r) ? r : [])).catch(() => {}),
     getStylistGaps().then((g) => setGaps(g && g.length ? g : null)).catch(() => {}),
   ]), []);
+  // [rooms-alive] the closet paints from memory before first frame
+  useLayoutEffect(() => {
+    const c = roomCache('stylist'); if (!c) return;
+    if (c.pieces) setPieces(c.pieces); if (c.outfits) setOutfits(c.outfits); if (c.gaps) setGaps(c.gaps);
+  }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {   // [rooms-alive]
+    if (pieces === null) return;
+    saveRoomCache('stylist', { pieces, outfits, gaps });
+  }, [pieces, outfits, gaps]);
   const onRefresh = useCallback(() => { setRefreshing(true); load().finally(() => setRefreshing(false)); }, [load]);
 
   // [0054] wear tracking — one tap, optimistic
