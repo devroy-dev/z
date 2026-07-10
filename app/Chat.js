@@ -21,6 +21,7 @@ import RichText from './RichText';
 import * as Clipboard from 'expo-clipboard';   // [copy] persona-chat message copy
 import * as ImagePicker from 'expo-image-picker';
 import { loadSession, openThreadInfo, streamChat, clearThread, renameThread, setThreadAvatar, getRoomMessages, getPersonaDiary, transcribeVoice, markThreadRead } from './api';
+import { nameOf, personaOf, isKnown } from './roster';
 import { useVoiceNote } from './voice';
 import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip05] instant-paint cache
 // [zip11] stamp last_active on this thread inside the home-list cache so the list
@@ -51,46 +52,11 @@ const N = {
 };
 
 // ── persona registry: name · soul-line · aura rgb (the room's light) ──
-const PERSONAS = {
-  the_brother:{name:'the brother',desc:"love them, hate them, can't live without them. let's talk family.",rgb:'200,120,80'},
-  the_anchor:{name:'the anchor',desc:"the news desk is yours — the bulletin, then your questions.",rgb:'224,192,136'},
-  the_healer:{name:'the healer',desc:"love once and you know what love is. love twice and you know what life is.",rgb:'124,92,220'},
-  the_brainiac:{name:"the devil's advocate",desc:"i'll take the other side just to watch you get sharper.",rgb:'90,200,230'},
-  the_conspiracy_theorist:{name:'the conspiracy theorist',desc:"it's all connected. i can prove it. well — 'prove'.",rgb:'150,140,200'},
-  the_wanderer:{name:'the Wanderer',desc:"tell me where you're going — or that you don't know yet. that's my favourite kind.",rgb:'210,150,90'},   // [zip77]
-  the_screen_junkie:{name:'the screen junkie',desc:"endless suggestions, countless screen time.",rgb:'120,150,230'},
-  the_hottie:{name:'the hottie',desc:"i bet i'll sweep you off your feet.",rgb:'255,120,140'},
-  the_crush:{name:'the crush',desc:"summon the courage and try your luck.",rgb:'255,140,170'},
-  the_wingman:{name:'the wingman',desc:"aka the dating coach. let's get you some action.",rgb:'74,134,255'},
-  the_comic:{name:'the comic',desc:"knock knock.",rgb:'240,180,70'},
-  the_cynic:{name:'the cynic',desc:"everything's a disaster. wonderful, isn't it?",rgb:'150,150,150'},   // retired — display-only for legacy threads
-  the_oracle:{name:'the oracle',desc:"because we all have a google friend.",rgb:'110,200,200'},
-  the_guru:{name:'the guru',desc:"there is one god and his name is knowledge.",rgb:'230,190,90'},
-  the_philosopher:{name:'the philosopher',desc:"we're all going to die. let's figure out why we lived.",rgb:'180,160,210'},
-  the_historian:{name:'the historian',desc:"everything happening now has happened before. let me show you.",rgb:'200,160,110'},
-  the_cosmologist:{name:'the cosmologist',desc:"you're made of stardust, worried about a text. let's zoom out.",rgb:'120,140,230'},
-  the_colleague:{name:'the colleague',desc:"every office is a battlefield. let's get you through yours.",rgb:'190,160,110'},
-  the_media_manager:{name:'the media manager',desc:"your brand is a story. let's tell it right.",rgb:'230,140,170'},
-  the_orator:{name:'the orator',desc:"your words control your future, your speech controls life.",rgb:'210,150,90'},
-  the_economist:{name:'the money man',desc:"markets, money, and what to do with yours.",rgb:'110,170,140'},
-  the_teacher:{name:'the professor',desc:"you're not bad at it. it was explained badly. let's fix that.",rgb:'120,190,170'},
-  the_grandmaster:{name:'the Grand Master',desc:"come empty-handed. leave understanding what the world runs on.",rgb:'198,168,120'},
-  the_coach:{name:'the coach',desc:"name a subject. i'll build the road and walk it with you.",rgb:'231,176,122'},
-  the_interviewer:{name:'the interviewer',desc:"name the company and the chair. i'll run the room the way they will.",rgb:'138,160,196'},   // [zip26]
-  the_leader_opp:{name:'the leader of opposition',desc:"whatever side you're on, i'm on the other. facts not opinions.",rgb:'200,120,110'},   // retired — display-only for legacy threads
-  the_hippie:{name:'the hippie',desc:"the rat race has a prize, man — a slightly richer rat. come breathe. the sunset's free.",rgb:'120,170,120'},
-  the_diva:{name:'the diva',desc:"darling, taste isn't about money — it's knowing exactly who you are and dressing the part.",rgb:'210,90,150'},
-  the_cousin:{name:'the awkward cousin',desc:"oh — hey. you go first, it's fine.",rgb:'150,160,190'},
-  the_wannabe:{name:'the wannabe hustler',desc:"place your bets — the house is HOT tonight.",rgb:'235,180,90'},
-  the_stranger:{name:'the loyal friend',desc:"trust me with your life — i'll guard your secrets with mine.",rgb:'110,150,160'},   // retired — display-only for legacy threads
-  the_mentor:{name:'the motivator',desc:"i'll push you when you can't push yourself. you've got more in you than you think.",rgb:'230,190,110'},
-  the_addict:{name:'the rehab',desc:"i've been where you are. let's get you out — one day at a time.",rgb:'80,220,180'},
-  the_self_obsessed:{name:'the guardian angel',desc:"the world can be cruel. i'm in your corner — you're stronger than they made you feel.",rgb:'235,165,185'},   // retired — display-only for legacy threads
-  the_moderator:{name:'the moderator',desc:"two of you, one me. let's keep it civil... ish.",rgb:'120,180,150'},
-  the_front_desk:{name:'the front desk',desc:"welcome back. i've got your list, and i know which room can help.",rgb:'231,176,122'},
-};
+// [manifest] the local PERSONAS registry is dead — one roster, served (./roster).
+// Retired keys (cynic, leader_opp, stranger, self_obsessed) ride the manifest
+// with display data so legacy threads still render their own face and name.
 const DEFAULT_KEY = 'the_brother';
-const CHIP_LABEL = (k) => k === 'the_stage' ? 'the stage' : k === 'the_arena' ? 'the arena' : k === 'z_serious' ? 'the quiet room' : (PERSONAS[k]?.name || k.replace(/^the_/, 'the ').replace(/_/g, ' '));
+const CHIP_LABEL = (k) => k === 'the_stage' ? 'the stage' : k === 'the_arena' ? 'the arena' : k === 'z_serious' ? 'the quiet room' : nameOf(k);
 const faceFor = (key) => `https://callmez.app/faces/${key}.jpg?v=6`;
 
 // ── small circular DP (cover-fit, aura edge, orb fallback) ──
@@ -218,7 +184,7 @@ const pcStyles = StyleSheet.create({
 });
 
 export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, initialDraft = '', autoSend = false, onRoute = () => {}, diag = false, onCost }) {
-  const KEY = PERSONAS[personaKey] ? personaKey : DEFAULT_KEY;
+  const KEY = isKnown(personaKey) ? personaKey : DEFAULT_KEY;
   // a tapped card walks them through a door — same mapping the desk lobby used
   const routeTo = (key) => {
     if (key === 'the_anchor') return onRoute({ tab: 'bulletin' });
@@ -241,7 +207,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   const WARM = KEY === 'the_anchor' || KEY === 'the_front_desk' || LIVE_STREAM; // trinity keeps the warm register
   const PLAIN = !LIVE_STREAM; // whatsapp-flat: no italics/bold for anyone but Z
   const flat = (t) => PLAIN ? String(t || '').replace(/\*\*?/g, '') : t;
-  const P = PERSONAS[KEY];
+  const P = personaOf(KEY);
   const rgb = P.rgb;
   const dp = faceFor(KEY);
 
@@ -553,7 +519,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                 <Text style={pcStyles.profHint}>tap to rename</Text>
               </Pressable>
             )}
-            <Text style={pcStyles.profLine}>{P.desc}</Text>
+            <Text style={pcStyles.profLine}>{P.line}</Text>
           </View>
           {profBlurb ? (
             <>
@@ -643,7 +609,7 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
                   )}
                 </Pressable>
                 <Text style={styles.epName}>{cname}</Text>
-                <Text style={styles.epLine}>{P.desc}</Text>
+                <Text style={styles.epLine}>{P.line}</Text>
               </View>
             ) : (
               messages.map((m, mi) => (

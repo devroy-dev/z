@@ -54,6 +54,7 @@ import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usa
 import { gardenUserMemory } from './memoryGardener.js';   // [zip03]
 import { readMemoryBlock } from './memory.js';
 import { personaByKey } from './personas.js';
+import { rosterManifest } from './manifest.js';
 import { PROFILE_BLURBS } from './blurbs.js';
 import { supabase } from './db.js';
 
@@ -2777,6 +2778,18 @@ const SHAREABLE_ROSTER: [string, string][] = [
   ['the_cousin', 'shy, relatable, everyday (the awkward cousin)'],
   ['the_conspiracy_theorist', 'conspiracies, cover-ups, aliens, "it\'s all connected" (for fun)'],
 ];
+
+// ── THE ROSTER MANIFEST — one roster, served (authless: public display data
+// only; the faces are public URLs already). Long client cache; the version
+// field is the invalidator. ─────────────────────────────────────────────
+app.get('/roster-manifest', (_req, res) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json(rosterManifest());
+  } catch (e: any) {
+    res.status(500).json({ error: 'roster manifest failed: ' + (e?.message || String(e)) });
+  }
+});
 
 app.get('/rooms/suggestions', async (req, res) => {
   try {

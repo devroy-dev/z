@@ -14,8 +14,32 @@
 //    desk can never advertise a room that doesn't exist.
 // ════════════════════════════════════════════════════════════════════════
 import { ARCS } from './arcs.js';
-import { personaByKey } from './personas.js';
+import { personaByKey, PERSONAS, RETIRED, RETIRED_DISPLAY, ROSTER_GROUPS } from './personas.js';
 import { supabase } from './db.js';
+
+// ════════════════════════════════════════════════════════════════════════
+//  THE ROSTER MANIFEST — one roster, served. The four hand-copied client
+//  registries (Desk/Chat/Roster/Rooms) are dead; the app boots on this.
+//  Source of truth: src/personas.ts display fields. BUMP THE VERSION on
+//  every roster edit — the client only overwrites its cache on a newer one.
+// ════════════════════════════════════════════════════════════════════════
+export const ROSTER_VERSION = 1;
+
+export function rosterManifest() {
+  const personas = Object.values(PERSONAS).map((p) => ({
+    key: p.key, name: p.defaultName, line: p.line, rgb: p.rgb,
+    group: p.group, room: p.room, webEnabled: p.webEnabled,
+    shareable: p.shareable, rosterVisible: p.rosterVisible, retired: false,
+  }));
+  // retired keys ride along with display data so legacy 1:1 threads still
+  // render their own face/name — but never seatable, never on the shelf.
+  for (const [key, d] of Object.entries(RETIRED_DISPLAY)) {
+    personas.push({ key, name: d.name, line: d.line, rgb: d.rgb,
+      group: null, room: null, webEnabled: false,
+      shareable: false, rosterVisible: false, retired: true });
+  }
+  return { version: ROSTER_VERSION, personas, groups: ROSTER_GROUPS, retired: RETIRED };
+}
 
 // ── games playable RIGHT NOW vs a persona (App.js launch switch is the law) ──
 export const SOLO_GAMES: { id: string; name: string; line: string }[] = [

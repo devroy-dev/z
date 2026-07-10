@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { FONTS } from './theme';
 import { parseCards, ProgrammeCard } from './Chat';
+import { nameOf, personaOf } from './roster';
 import { loadSession, openThread, streamChat, listThreads, listTasks, setTaskStatus, getNotes, deleteNote, getLedger, getRecentPings, getArcs, startArc, acceptDropin, ignoreDropin , getMe, getDeskBrief, setMorningBrief } from './api';   // [PHASE 6]
 import { MOTIONS } from './games/debate/motions';
 import { LIBRARY as STAGE_LIB } from './stage/library';
@@ -40,33 +41,7 @@ const aura = (rgb, a) => `rgba(${rgb},${a})`;
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=6`;
 
 // full persona registry — name · tagline · aura rgb (from the PWA, the source of truth)
-const PERSONA_META = {
-  the_wingman:{name:'the wingman',desc:"aka the dating coach. let's get you some action.",rgb:'74,134,255'},
-  the_hottie:{name:'the hottie',desc:"i bet i'll sweep you off your feet.",rgb:'255,120,140'},
-  the_comic:{name:'the comic',desc:"knock knock.",rgb:'240,180,70'},
-  the_crush:{name:'the crush',desc:"summon the courage and try your luck.",rgb:'255,140,170'},
-  the_screen_junkie:{name:'the screen junkie',desc:"endless suggestions, countless screen time.",rgb:'120,150,230'},
-  the_guru:{name:'the guru',desc:"there is one god and his name is knowledge.",rgb:'230,190,90'},
-  the_oracle:{name:'the oracle',desc:"because we all have a google friend.",rgb:'110,200,200'},
-  the_philosopher:{name:'the philosopher',desc:"we're all going to die. let's figure out why we lived.",rgb:'180,160,210'},
-  the_historian:{name:'the historian',desc:"everything happening now has happened before. let me show you.",rgb:'200,160,110'},
-  the_cosmologist:{name:'the cosmologist',desc:"you're made of stardust, worried about a text. let's zoom out.",rgb:'120,140,230'},
-  the_media_manager:{name:'the media manager',desc:"your brand is a story. let's tell it right.",rgb:'230,140,170'},
-  the_teacher:{name:'the professor',desc:"you're not bad at it. it was explained badly. let's fix that.",rgb:'120,190,170'},
-  the_orator:{name:'the orator',desc:"your words control your future, your speech controls life.",rgb:'210,150,90'},
-  the_economist:{name:'the money man',desc:"markets, money, and what to do with yours.",rgb:'110,170,140'},
-  the_wannabe:{name:'the wannabe hustler',desc:"place your bets — the house is HOT tonight.",rgb:'235,180,90'},
-  the_brother:{name:'the brother',desc:"love them, hate them, can't live without them. let's talk family.",rgb:'200,120,80'},
-  the_healer:{name:'the healer',desc:"love once and you know what love is. love twice and you know what life is.",rgb:'124,92,220'},
-  the_colleague:{name:'the colleague',desc:"every office is a battlefield. let's get you through yours.",rgb:'190,160,110'},
-  the_mentor:{name:'the motivator',desc:"i'll push you when you can't push yourself.",rgb:'230,190,110'},
-  the_brainiac:{name:"the devil's advocate",desc:"i'll take the other side just to watch you get sharper.",rgb:'90,200,230'},
-  the_conspiracy_theorist:{name:'the conspiracy theorist',desc:"it's all connected. i can prove it. well — 'prove'.",rgb:'150,140,200'},
-  the_addict:{name:'the rehab',desc:"i've been where you are. let's get you out — one day at a time.",rgb:'80,220,180'},
-  the_hippie:{name:'the hippie',desc:"the rat race has a prize, man — a slightly richer rat. come breathe.",rgb:'120,170,120'},
-  the_diva:{name:'the diva',desc:"taste isn't about money — it's knowing exactly who you are.",rgb:'210,90,150'},
-  the_cousin:{name:'the awkward cousin',desc:"oh — hey. you go first, it's fine.",rgb:'150,160,190'},
-};
+// [manifest] PERSONA_META is dead — one roster, served (./roster).
 // the special rooms (not personas) — their own emblem + one-line
 const SPECIALS = {
   z_serious:   { label: 'the quiet room', line: 'just us. somewhere quieter.', inward: true },
@@ -74,7 +49,7 @@ const SPECIALS = {
   the_arena:   { label: 'the arena',   line: 'a game. beat the scroll.' },
   the_journal: { label: 'the journal', line: 'say it out. no one listening but me.' },
 };
-const nameFallback = (k) => (PERSONA_META[k] && PERSONA_META[k].name) || (k || '').replace(/^the_/, 'the ').replace(/_/g, ' ');
+const nameFallback = (k) => nameOf(k);
 
 function greetingFor() {
   const h = new Date().getHours();
@@ -133,10 +108,10 @@ function Avatar({ pkey, uri, size = 46, rgb }) {
 function DoorCard({ dkey, name, uri, onPress }) {
   const sp = SPECIALS[dkey];
   const inward = sp && sp.inward;
-  const meta = PERSONA_META[dkey];
+  const meta = personaOf(dkey);
   const rgb = meta ? meta.rgb : null;
   const label = sp ? sp.label : (name || nameFallback(dkey));
-  const line = sp ? sp.line : (meta ? meta.desc : '');
+  const line = sp ? sp.line : (meta ? meta.line : '');
   const washCol = inward ? N.candleGlow : (rgb ? aura(rgb, 0.20) : N.hair);
   const goCol = inward ? N.candle : (rgb ? aura(rgb, 0.8) : N.moonFaint);
   return (

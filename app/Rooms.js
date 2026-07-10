@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { getRoomSuggestions, listRooms, createRoom, leaveRoom, deleteRoomThread } from './api';
+import { nameOf, rgbOf, shareableKeys } from './roster';
 import Grain from './Grain';
 
 const N = {
@@ -25,19 +26,8 @@ const N = {
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=6`;
 
 // persona display names + aura rgb (the room's light comes from who's in it)
-const P = {
-  the_guru:['the guru','230,190,90'], the_oracle:['the oracle','110,200,200'], the_brainiac:['the brainiac','90,200,230'],
-  the_brother:['the brother','200,120,80'], the_healer:['the healer','124,92,220'], the_comic:['the comic','240,180,70'],
-  the_mentor:['the motivator','230,190,110'], the_colleague:['the colleague','190,160,110'], the_philosopher:['the philosopher','180,160,210'],
-  the_historian:['the historian','200,160,110'], the_cosmologist:['the cosmologist','120,140,230'], the_moderator:['the moderator','120,180,150'],
-  the_media_manager:['the media manager','230,140,170'], the_teacher:['the professor','120,190,170'],
-  the_economist:['the economist','110,170,140'], the_wannabe:['the wannabe hustler','235,180,90'],
-  the_screen_junkie:['the screen junkie','120,150,230'], the_orator:['the orator','210,150,90'], the_hippie:['the hippie','120,170,120'],
-  the_diva:['the diva','210,90,150'], the_cousin:['the awkward cousin','150,160,190'],
-};
-const SHAREABLE = Object.keys(P);
-const nameOf = (k) => (P[k] ? P[k][0] : k);
-const rgbOf = (k) => (P[k] ? P[k][1] : '231,176,122');
+// [manifest] the local P/SHAREABLE registry is dead — one roster, served.
+// nameOf/rgbOf/shareableKeys come from ./roster (cache-first, bg refresh).
 const shuffle = (a) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 
 // ── a face in a cluster ──
@@ -234,7 +224,7 @@ export default function Rooms({ onOpen = () => {}, onBack = null }) {
               <Text style={styles.sheetTitle}>who's in the room?</Text>
               <Text style={styles.sheetSub}>pick up to 5 — invite friends once you're inside</Text>
               <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
-                {SHAREABLE.map((k) => {
+                {shareableKeys().map((k) => {
                   const on = picked.includes(k);
                   return (
                     <Pressable key={k} style={styles.pickRow} onPress={() => togglePick(k)}>

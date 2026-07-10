@@ -24,6 +24,7 @@ import { Figtree_300Light, Figtree_400Regular, Figtree_500Medium, Figtree_600Sem
 
 import Nav, { WorldStub } from './Nav';
 import Roster from './Roster';
+import { initRoster } from './roster';
 import CreatePersona from './CreatePersona';
 import Chat from './Chat';
 import Play from './Play';
@@ -238,6 +239,7 @@ export default function App() {
   });
   const [authed, setAuthed] = React.useState(null); // null=checking, false=door, true=in
   React.useEffect(() => {
+    initRoster();   // [manifest] cache-first, bg refresh — never blocks
     (async () => {
       if (await isLoggedIn()) { setAuthed(true); return; }
       // try a silent refresh before showing the door

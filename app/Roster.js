@@ -8,6 +8,7 @@
 //  Judge fonts/glow on device. Structure-only on web.
 // ════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useState, useCallback } from 'react';
+import { nameOf, lineOf, groupsList } from './roster';
 import { View, Text, StyleSheet, StatusBar, Pressable, Image, ScrollView, TextInput , RefreshControl } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,50 +31,11 @@ const C = {
 // ── constellations keep their identity by NAME, not by room-lighting the screen.
 // Moonlight register: every group tone is moon-blue; the persona's own aura survives
 // only as a faint ring accent per row (set below), never as a full-screen wash. ──
-const GROUPS = [
-  { id: 'gang',    name: 'The Gang',           tone: C.moonBlue, sub: 'the ones who just get it',
-    keys: ['the_brother','the_cousin','the_wingman','the_colleague','the_comic','the_screen_junkie'] },
-  { id: 'support', name: 'The Support',        tone: C.moonBlue, sub: 'when you need to be held, not fixed',
-    keys: ['the_healer','the_guru','the_hippie','the_mentor','the_oracle','the_addict'] },
-  { id: 'crazies', name: 'The Crazies',        tone: C.moonBlue, sub: 'the ones who make you think',
-    keys: ['the_brainiac','the_philosopher','the_cosmologist','the_historian','the_conspiracy_theorist'] },
-  { id: 'wild',    name: 'The Unpredictables', tone: C.moonBlue, sub: 'careful what you wish for',
-    keys: ['the_crush','the_hottie','the_diva','the_wannabe','the_orator','the_media_manager'] },
-  { id: 'faculty', name: 'The Faculty',        tone: C.moonBlue, sub: 'come to learn',
-    keys: ['the_teacher','the_economist','the_anchor','the_wanderer'] },   // [P0#5] wanderer was in no constellation — undiscoverable; Faculty interim until the §3.4 regroup
-];
-
-const PERSONAS = {
-  the_brother:{name:'the brother',desc:"love them, hate them, can't live without them."},
-  the_cousin:{name:'the awkward cousin',desc:"oh — hey. you go first, it's fine."},
-  the_wingman:{name:'the wingman',desc:"aka the dating coach. let's get you some action."},
-  the_colleague:{name:'the colleague',desc:"every office is a battlefield. let's get you through yours."},
-  the_comic:{name:'the comic',desc:"knock knock."},
-  the_screen_junkie:{name:'the screen junkie',desc:"endless suggestions, countless screen time."},
-  the_healer:{name:'the healer',desc:"love once and you know love. love twice and you know life."},
-  the_guru:{name:'the guru',desc:"there is one god and his name is knowledge."},
-  the_hippie:{name:'the hippie',desc:"come breathe. the sunset's free."},
-  the_mentor:{name:'the motivator',desc:"i'll push you when you can't push yourself."},
-  the_oracle:{name:'the oracle',desc:"because we all have a google friend."},
-  the_addict:{name:'the rehab',desc:"i've been where you are. one day at a time."},
-  the_brainiac:{name:"the devil's advocate",desc:"i'll take the other side just to watch you get sharper."},
-  the_conspiracy_theorist:{name:'the conspiracy theorist',desc:"it's all connected. i can prove it. well — 'prove'."},
-  the_philosopher:{name:'the philosopher',desc:"we're all going to die. let's figure out why we lived."},
-  the_cosmologist:{name:'the cosmologist',desc:"you're made of stardust, worried about a text."},
-  the_historian:{name:'the historian',desc:"everything now has happened before. let me show you."},
-  the_crush:{name:'the crush',desc:"summon the courage and try your luck."},
-  the_hottie:{name:'the hottie',desc:"i bet i'll sweep you off your feet."},
-  the_diva:{name:'the diva',desc:"taste isn't about money, darling."},
-  the_wannabe:{name:'the wannabe hustler',desc:"ayy place your bets — the house is HOT tonight."},
-  the_orator:{name:'the orator',desc:"your words control your future."},
-  the_media_manager:{name:'the media manager',desc:"your brand is a story. let's tell it right."},
-  the_teacher:{name:'the professor',desc:"you're not bad at it. it was explained badly."},
-  the_economist:{name:'the money man',desc:"markets, money, and what to do with yours. let's make it make sense."},
-  the_anchor:{name:'the anchor',desc:"the 9 o'clock bulletin, waiting for your questions."},
-  the_wanderer:{name:'the Wanderer',desc:"tell me where you're going — or that you don't know yet. that's my favourite kind."},   // [P0#5]
-};
+// [manifest] the local GROUPS/PERSONAS registries are dead — one roster,
+// served (./roster). Constellations render from groupsList(); every group
+// keeps the moonlight tone (the register law above).
 const faceFor = (k) => `https://callmez.app/faces/${k}.jpg?v=6`;   // [zip54r]
-const toneFor = (k) => (GROUPS.find(g => g.keys.includes(k))?.tone) || C.ember;
+const toneFor = (k) => (groupsList().some(g => g.keys.includes(k)) ? C.moonBlue : C.ember);
 
 // ── one breathing presence: a face inside a glowing, living ring ──
 function Presence({ pkey, tone, size = 60, dim = false }) {
@@ -120,7 +82,7 @@ function Presence({ pkey, tone, size = 60, dim = false }) {
 
 // ── a full row in a constellation: presence + name + tagline + pin ──
 function PresenceRow({ pkey, tone, pinned, onPin, onOpen, names = {}, states = {} }) {
-  const p = PERSONAS[pkey] || { name: pkey, desc: '' };
+  const p = { name: nameOf(pkey), desc: lineOf(pkey) };
   const shownName = names[pkey] || p.name;
   return (
     <Pressable style={styles.row} onPress={() => onOpen(pkey)}>
@@ -154,7 +116,7 @@ function PinnedShelf({ pins, onOpen, onPin, names = {} }) {
             <Pressable hitSlop={10} onPress={() => onPin(k)} style={styles.shelfStar}>
               <Text style={styles.shelfStarTxt}>★</Text>
             </Pressable>
-            <Text style={styles.shelfName} numberOfLines={1}>{names[k] || (PERSONAS[k]||{}).name}</Text>
+            <Text style={styles.shelfName} numberOfLines={1}>{names[k] || nameOf(k)}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -167,8 +129,7 @@ function Constellation({ group, pins, onPin, onOpen, query, names = {}, states =
   const q = (query || '').trim().toLowerCase();
   const matches = (k) => {
     if (!q) return true;
-    const p = PERSONAS[k] || {};
-    return (p.name || k).toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q);
+    return nameOf(k).toLowerCase().includes(q) || (lineOf(k) || '').toLowerCase().includes(q);
   };
   const visible = group.keys.filter((k) => !pins.includes(k) && matches(k));
   if (!visible.length) return null;
@@ -301,8 +262,8 @@ export default function Roster({ onOpen = () => {}, onCreate = () => {} }) {
                 </Pressable>
               </View>
             )}
-            {GROUPS.map((g) => (
-              <Constellation key={g.id} group={g} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} states={states} />
+            {groupsList().map((g) => (
+              <Constellation key={g.id} group={{ ...g, name: g.label, tone: C.moonBlue }} pins={pins} onPin={togglePin} onOpen={onOpen} query={query} names={names} states={states} />
             ))}
           </ScrollView>
         </SafeAreaView>
