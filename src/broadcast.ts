@@ -15,6 +15,7 @@ export async function broadcastRoomMessage(threadId: string, msg: {
   sender_user_id?: string | null;
   sender_name?: string | null;
   created_at?: string;
+  client_id?: string | null;   // [H1] the sender's own id — echo dedupe + sent-tick
 }): Promise<void> {
   if (!SUPABASE_URL || !SERVICE_KEY) return;
   try {
@@ -27,6 +28,7 @@ export async function broadcastRoomMessage(threadId: string, msg: {
       sender_user_id: msg.sender_user_id ?? null,
       sender_name: msg.sender_name ?? null,
       created_at: createdAt,
+      client_id: msg.client_id ?? null,   // [H1]
     };
     const messages: any[] = [{ topic: `room-${threadId}`, event: 'msg', payload: roomPayload }];
 

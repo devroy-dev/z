@@ -287,13 +287,13 @@ export async function openThread(personaKey, name) {
 
 // ---- the main event: stream a chat reply ----
 // onToken(text) fires per streamed token; onRoutes(arr), onDone(), onError(msg) optional.
-export async function streamChat({ threadId, message, image, persona, addressed, onToken, onRoutes, onDone, onError }) {
+export async function streamChat({ threadId, message, image, persona, addressed, clientId, onToken, onRoutes, onDone, onError }) {   // [H1] clientId
   await loadSession();
   try {
     const doFetch = () => fetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ threadId, message, image, persona, addressed }),
+      body: JSON.stringify({ threadId, message, image, persona, addressed, clientId }),   // [H1]
     });
     let res = await doFetch();
     // stale token → refresh once and retry (else chat silently fails on expiry)

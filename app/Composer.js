@@ -103,11 +103,11 @@ export default function Composer({
       ) : null}
       <View style={styles.composer}>
         <View style={[styles.field, { flexDirection: 'row', alignItems: 'flex-end' }]}>
-          <TextInput value={draft} onChangeText={setDraft} placeholder={voice.recording ? 'listening…' : placeholder} placeholderTextColor={N.moonFaint} style={[styles.input, { flex: 1 }]} multiline editable={!sending} />
-          <Pressable style={styles.inlineBtn} onPress={pickPhoto} disabled={sending} hitSlop={6}>
+          <TextInput value={draft} onChangeText={setDraft} placeholder={voice.recording ? 'listening…' : placeholder} placeholderTextColor={N.moonFaint} style={[styles.input, { flex: 1 }]} multiline />{/* [H1] never locked mid-send */}
+          <Pressable style={styles.inlineBtn} onPress={pickPhoto} hitSlop={6}>
             <Text style={styles.inlineBtnTxt}>＋</Text>
           </Pressable>
-          <Pressable style={styles.inlineBtn} onPress={onMic} disabled={sending || transcribing} hitSlop={6}>
+          <Pressable style={styles.inlineBtn} onPress={onMic} disabled={transcribing} hitSlop={6}>
             <Text style={[styles.inlineMicTxt, voice.recording && styles.micBtnLive]}>{transcribing ? '…' : voice.recording ? '■' : '🎤'}</Text>
           </Pressable>
         </View>

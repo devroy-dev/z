@@ -46,7 +46,9 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
   const renderedRef = useRef(new Set());
   const meIdRef = useRef(null);
   const pendingRef = useRef(null);
-  const sendingRef = useRef(false);
+  const inflightRef = useRef(new Set());   // [H1] cids in flight (rapid sends allowed)
+  const sentCidsRef = useRef(new Set());   // [H1] cids this device sent — echo reconcile
+  const linesRef = useRef([]);             // [H1] mirror for retry lookup
   const graceRef = useRef(null);
 
   // load members + history, then subscribe. teardown on unmount / room change.
@@ -100,6 +102,8 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
     return () => { alive = false; unsubscribe(); if (graceRef.current) clearTimeout(graceRef.current); };
   }, [roomId]);
 
+  useEffect(() => { linesRef.current = lines; }, [lines]);   // [H1] retry lookup
+
   // snapshot the settled room for the next instant paint (typing lines never cached).
   useEffect(() => {
     if (!lines.length) return;
@@ -113,14 +117,29 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
     return () => clearTimeout(t);
   }, [lines, roomId]);
 
-  // the ported onLiveMessage: filter, dedup, skip own, fill-or-append.
+  // the ported onLiveMessage: filter, dedup by ID (never content — two humans
+  // saying the same words are two messages [H1]), reconcile own echoes.
   const onLive = useCallback((m) => {
     if (!m || String(m.thread_id) !== String(roomId)) return;
     const who = m.sender_user_id || m.persona_key || '';
-    const key = m.role + ':' + who + ':' + (m.content || '');
+    const key = m.client_id ? ('cid:' + m.client_id)
+      : (m.created_at ? (m.created_at + ':' + m.role + ':' + who)
+      : (m.role + ':' + who + ':' + (m.content || '')));   // [H1] id-first dedupe
     if (renderedRef.current.has(key)) return;
     renderedRef.current.add(key);
-    if (m.role === 'user' && m.sender_user_id && meIdRef.current && m.sender_user_id === meIdRef.current) return;
+    if (m.role === 'user' && m.sender_user_id && meIdRef.current && m.sender_user_id === meIdRef.current) {
+      // [H1] my own message, back from the server:
+      //  - sent from THIS device → flip its optimistic line to 'sent' (the tick).
+      //  - sent from ANOTHER of my devices → render it (was silently dropped before).
+      if (m.client_id && sentCidsRef.current.has(m.client_id)) {
+        setLines((cur) => cur.map((l) => l.id === m.client_id ? { ...l, state: 'sent', at: l.at || m.created_at || null } : l));
+      } else {
+        setLines((cur) => [...cur, { id: key, who: 'you', text: m.content || '', at: m.created_at, state: 'sent' }]);
+      }
+      setFloor(m.sender_user_id || null);
+      setRtRendered((n) => n + 1);
+      return;
+    }
 
     if (m.role === 'user') {
       setLines((cur) => [...cur, { id: key, who: 'human', uid: m.sender_user_id || null, name: members[m.sender_user_id] || m.sender_name || 'someone', text: m.content || '', at: m.created_at }]);   // [zip54p/57b] the stamp's fuel
@@ -138,31 +157,46 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
     setRtRendered((n) => n + 1);
   }, [roomId, members]);
 
-  // the send path — @mention resolution + optimistic you-line + typing bubble
-  // (rooms only) with the Director-silence grace. Returns immediately.
-  const send = useCallback(({ text, image, addressed = [] }) => {
+  // the send path — @mention resolution + optimistic you-line (pending → sent →
+  // failed-with-retry [H1]) + typing bubble (rooms only) with the Director-silence
+  // grace. No hard send lock: the composer stays live while a turn streams; each
+  // send settles itself. Returns immediately.
+  const send = useCallback(({ text, image, addressed = [], retryCid = null }) => {
     const body = String(text || '').trim();
-    if ((!body && !image) || sendingRef.current || !roomId) return false;
-    sendingRef.current = true; setSending(true);
+    if ((!body && !image) || !roomId) return false;
+    const cid = retryCid || ('c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7));   // [H1]
+    sentCidsRef.current.add(cid);
+    inflightRef.current.add(cid); setSending(true);
     void bumpHomeCache(roomId);
     const atKeys = personas.filter((k) => {
       const short = nameOf(k).replace(/^the /, '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return new RegExp(`@\\s*(the\\s+)?${short}`, 'i').test(body);
     });
     const addr = [...new Set([...addressed, ...atKeys])];
-    const myId = 'me_' + Date.now();
-    const pid = 'p_' + Date.now();
-    if (!isDM) pendingRef.current = pid;
-    setLines((cur) => isDM
-      ? [...cur, { id: myId, who: 'you', text: body, imageUri: image?.uri || null }]
-      : [...cur, { id: myId, who: 'you', text: body, imageUri: image?.uri || null }, { id: pid, who: 'them', text: '', typing: true }]);
+    const pid = 'p_' + cid;
+    const wantBubble = !isDM && !pendingRef.current;   // one typing bubble at a time
+    if (wantBubble) pendingRef.current = pid;
+    setLines((cur) => {
+      let next = retryCid
+        ? cur.map((l) => (l.id === cid ? { ...l, state: 'pending' } : l))
+        : [...cur, { id: cid, who: 'you', text: body, imageUri: image?.uri || null, imageData: image?.data || null, state: 'pending' }];
+      if (wantBubble) next = [...next, { id: pid, who: 'them', text: '', typing: true }];
+      return next;
+    });
+    // settle this cid: 'sent' wins over a late 'failed'; both idempotent (the
+    // stream path can fire onDone twice — harmless here by design).
+    const settle = (state) => {
+      inflightRef.current.delete(cid);
+      if (!inflightRef.current.size) setSending(false);
+      setLines((cur) => cur.map((l) => (l.id === cid && l.state !== 'sent' ? { ...l, state, at: state === 'sent' ? (l.at || new Date().toISOString()) : l.at } : l)));
+    };
     streamChat({
-      threadId: roomId, message: body,
+      threadId: roomId, message: body, clientId: cid,
       image: image ? { media_type: 'image/jpeg', data: image.data } : undefined,
       addressed: addr.length ? addr : undefined,
       onToken: () => {},
       onDone: () => {
-        sendingRef.current = false; setSending(false);
+        settle('sent');   // backstop — the broadcast echo usually beat us here
         if (graceRef.current) clearTimeout(graceRef.current);
         graceRef.current = setTimeout(() => {
           if (pendingRef.current === pid) {
@@ -172,12 +206,20 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
         }, 2500);
       },
       onError: () => {
-        sendingRef.current = false; setSending(false);
+        settle('failed');   // [H1] failure visible, never silent (X2 law)
         if (pendingRef.current === pid) { pendingRef.current = null; setLines((cur) => cur.filter((l) => l.id !== pid)); }
       },
     });
     return true;
   }, [roomId, personas, isDM, members]);
 
-  return { lines, booted, members, avatars, meId, floor, rt, rtCount, rtLast, rtRendered, sending, send, setMembers };
+  // [H1] tap-to-retry a failed line: same cid, same text/photo — the id makes
+  // the resend safe against a ghost double-render if the first one half-landed.
+  const retrySend = useCallback((cid) => {
+    const l = (linesRef.current || []).find((x) => x.id === cid && x.who === 'you');
+    if (!l || l.state !== 'failed') return;
+    send({ text: l.text, image: l.imageData ? { data: l.imageData, uri: l.imageUri } : null, retryCid: cid });
+  }, [send]);
+
+  return { lines, booted, members, avatars, meId, floor, rt, rtCount, rtLast, rtRendered, sending, send, retrySend, setMembers };
 }

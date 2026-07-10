@@ -12,7 +12,7 @@ const flat = (t) => String(t || '').replace(/\*\*?/g, '');
 // [zip84] Tier-2 flat feed: handle in aura colour, keeper marked, no bubble.
 const FLAT_HUES = ['#F0997B', '#85B7EB', '#EF9F27', '#ED93B1', '#97C459', '#5DCAA5', '#AFA9EC'];
 const hashHue = (s) => FLAT_HUES[Math.abs([...String(s || 'x')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % FLAT_HUES.length];
-function FlatLine({ line }) {
+function FlatLine({ line, onRetry }) {
   let handle, color;
   if (line.who === 'you') { handle = 'you'; color = '#E7B07A'; }
   else if (line.who === 'human') { handle = line.name || 'someone'; color = hashHue(line.name); }
@@ -25,6 +25,12 @@ function FlatLine({ line }) {
         <Text style={[styles.flatHandle, { color }]}>{handle}</Text>{keeper ? <Text style={[styles.flatDiamond, { color }]}> ◆</Text> : null}<Text style={styles.flatBody}>{'  '}{body}</Text>
       </Text>
       {line.imageUri ? <Image source={{ uri: line.imageUri }} style={styles.flatPhoto} /> : null}
+      {line.state === 'pending' ? <Text style={styles.flatPending}>…</Text> : null}
+      {line.state === 'failed' ? (
+        <Pressable onPress={() => onRetry && onRetry(line.id)} hitSlop={6}>
+          <Text style={styles.failText}>didn't send — tap to retry</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -69,14 +75,25 @@ function CopyBtn({ text }) {
   );
 }
 
-export function RoomLine({ line, hideSpeaker, mentionables, flatMode }) {
-  if (flatMode) return <FlatLine line={line} />;
+export function RoomLine({ line, hideSpeaker, mentionables, flatMode, onRetry }) {
+  if (flatMode) return <FlatLine line={line} onRetry={onRetry} />;
   if (line.who === 'you') {
+    // [H1] the sender always knows where their message stands: pending '…',
+    // sent = stamp + faint tick, failed = an explicit retry line. Never silent.
     return (
       <View style={[styles.lineRow, { justifyContent: 'flex-end' }]}>
         <View style={{ alignItems: 'flex-end', maxWidth: '84%' }}>
           {line.imageUri ? <Image source={{ uri: line.imageUri }} style={styles.sharedPhoto} /> : null}
-          {line.text ? <View style={[styles.bubble, styles.bubbleYou, line.imageUri && { marginTop: 4 }]}><MentionedText text={line.text} mentionables={mentionables} style={styles.bubbleText} />{line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}</Text> : null}</View> : null}
+          {line.text ? <View style={[styles.bubble, styles.bubbleYou, line.imageUri && { marginTop: 4 }]}><MentionedText text={line.text} mentionables={mentionables} style={styles.bubbleText} />
+            {line.state === 'pending'
+              ? <Text style={styles.stamp}>…</Text>
+              : (line.at ? <Text style={styles.stamp}>{fmtTime(line.at)}{line.state === 'sent' ? ' ✓' : ''}</Text> : null)}
+          </View> : null}
+          {line.state === 'failed' ? (
+            <Pressable onPress={() => onRetry && onRetry(line.id)} hitSlop={6}>
+              <Text style={styles.failText}>didn't send — tap to retry</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     );
@@ -104,7 +121,7 @@ export function RoomLine({ line, hideSpeaker, mentionables, flatMode }) {
   );
 }
 
-export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.', mentionables = [], flatFeed = false }) {
+export default function MessageList({ lines, booted, hideSpeaker = false, emptyCopy = 'a shared room — say something to get it going.', mentionables = [], flatFeed = false, onRetry }) {   // [H1]
   const ref = useRef(null);
   return (
     <ScrollView
@@ -114,7 +131,7 @@ export default function MessageList({ lines, booted, hideSpeaker = false, emptyC
     >
       {lines.length === 0
         ? (booted ? <Text style={styles.empty}>{emptyCopy}</Text> : null)
-        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} mentionables={mentionables} flatMode={flatFeed} />)}
+        : lines.map((l) => <RoomLine key={l.id} line={l} hideSpeaker={hideSpeaker} mentionables={mentionables} flatMode={flatFeed} onRetry={onRetry} />)}
     </ScrollView>
   );
 }
@@ -139,4 +156,6 @@ const styles = StyleSheet.create({
   flatDiamond: { fontSize: 10 },
   flatBody: { fontFamily: 'Figtree_400Regular', color: '#D6D4DE' },
   flatPhoto: { width: 180, height: 180, borderRadius: 14, resizeMode: 'cover', marginTop: 6 },
+  flatPending: { color: 'rgba(233,232,240,0.3)', fontSize: 11, marginTop: 1 },
+  failText: { fontFamily: 'Figtree_500Medium', color: '#E8836B', fontSize: 11.5, marginTop: 4, marginRight: 3 },
 });

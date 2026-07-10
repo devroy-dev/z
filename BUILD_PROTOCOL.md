@@ -21,6 +21,11 @@ rides their machinery.
 4. **Check the migration ladder:** `ls migrations/ | tail`. The spec
    assumed a numbering; if the ladder moved, renumber the spec's SQL
    before writing it. Never reuse a number.
+   **Reserved numbers are law:** a number reserved by a parked spec stays
+   its address even while unbuilt (e.g. 0060 = advisory z-side, parked with
+   the lane per Erratum 2; wakes at the payments sitting). Holes are
+   harmless in a hand-applied ladder; stable addresses across specs are
+   not negotiable. Never fill a hole; never renumber around one.
 
 ## 3. SCOPE LAW
 - **One phase per sitting.** The spec's build-order table is the contract;

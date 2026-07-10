@@ -3768,6 +3768,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   }
 
   const { threadId, message, image, addressed } = req.body ?? {};
+  const clientId = typeof (req.body ?? {}).clientId === 'string' ? String((req.body as any).clientId).slice(0, 48) : null;   // [H1]
   const hasImage = !!image && typeof image === 'object' && typeof image.data === 'string';
   if (!threadId || (!message && !hasImage)) return res.status(400).json({ error: 'threadId and message (or image) required' });
 
@@ -3818,9 +3819,9 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       // best-effort + already persisted; client has a pg_changes fallback).
       void broadcastRoomMessage(threadId, {
         role: 'user', content: String(message), sender_user_id: user.id,
-        sender_name: user.display_name || 'someone',
+        sender_name: user.display_name || 'someone', client_id: clientId,   // [H1]
       });
-      res.write(`data: ${JSON.stringify({ done: true, saved: saved?.id || null })}\n\n`);
+      res.write(`data: ${JSON.stringify({ done: true, saved: saved?.id || null, client_id: clientId })}\n\n`);
       return res.end();
     }
     if (th.is_shared) {
@@ -3830,6 +3831,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       }
       await runGroupTurn({
         userId: user.id, threadId, message, image: image ?? null, senderName: user.display_name || 'someone',
+        clientId,   // [H1]
         addressed: Array.isArray(addressed) ? addressed : undefined,
         onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
         onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),

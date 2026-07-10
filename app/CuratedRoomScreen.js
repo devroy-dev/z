@@ -233,7 +233,7 @@ export default function CuratedRoomScreen({ room, onBack = () => {} }) {
         </View>
         )}
 
-        <MessageList lines={(isPublic && (blocked.size || muted.size)) ? feed.lines.filter((l) => !(l.uid && (blocked.has(l.uid) || muted.has(l.uid)))) : feed.lines} booted={feed.booted} mentionables={mentionables} flatFeed={!!room?.publicRoomId} />
+        <MessageList lines={(isPublic && (blocked.size || muted.size)) ? feed.lines.filter((l) => !(l.uid && (blocked.has(l.uid) || muted.has(l.uid)))) : feed.lines} booted={feed.booted} mentionables={mentionables} flatFeed={!!room?.publicRoomId} onRetry={feed.retrySend} />
         <Composer onSend={onSend} sending={feed.sending} mentionables={mentionables} addressed={addressed} onAddressed={setAddressed} />
       </SafeAreaView>
       </KeyboardAvoidingView>

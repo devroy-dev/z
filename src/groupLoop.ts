@@ -115,6 +115,7 @@ export interface GroupTurnInput {
   threadId: string;
   message: string;
   senderName?: string;   // in a shared room: the human who just spoke
+  clientId?: string | null;  // [H1] the sender's optimistic-line id, echoed in the broadcast
   image?: { media_type: string; data: string } | null;  // a shared photo, base64 — seen by every persona this turn
   addressed?: string[];  // explicit  / tapped faces — those personas answer
   onPersonaStart?: (personaKey: string, name: string) => void;
@@ -213,7 +214,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   const storedContent = imgOk ? (message ? message + '\n[shared a photo]' : '[shared a photo]') : message;
   await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: storedContent, sender_user_id: userId });
   if (t.is_shared) {
-    await broadcastRoomMessage(threadId, { role: 'user', content: storedContent, sender_user_id: userId, sender_name: input.senderName ?? null });
+    await broadcastRoomMessage(threadId, { role: 'user', content: storedContent, sender_user_id: userId, sender_name: input.senderName ?? null, client_id: input.clientId ?? null });   // [H1]
   }
 
   // build a readable transcript: each assistant line prefixed with WHO said it (by name),
