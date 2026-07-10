@@ -3128,13 +3128,17 @@ app.get('/threads/:id/messages', async (req, res) => {
       }
     }
     // shared room: return EVERYONE's messages (the whole room). solo thread: just this user's.
+    // [history-window] LAST 200, not first — ascending+limit froze long threads
+    // in their oldest 200 messages forever (new messages could never load).
+    // Fetch newest-first, then reverse so the client still renders oldest→newest.
     let q = supabase.from('messages')
       .select('role, content, persona_key, created_at, sender_user_id')
       .eq('thread_id', threadId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(200);
     if (!thread.is_shared) q = q.eq('user_id', user.id);
-    const { data: msgs } = await q;
+    const { data: msgsDesc } = await q;
+    const msgs = (msgsDesc ?? []).reverse();
     // resolve a roster of member names (id -> display_name) for shared rooms
     let roster: Record<string,string> = {};
     if (thread.is_shared) {
