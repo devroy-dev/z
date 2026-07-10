@@ -10,6 +10,8 @@ import { getCustomPersona, RETIRED_CODEX, CUSTOM_SEATBELT } from './customPerson
 import { buildCustomPrefix } from './content.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { retrievePrep, analogyBank as gmAnalogyBank } from './grandMaster.js';
+import { handbookPrep, hasHandbook } from './handbooks.js';   // [§5] the handbook rail
+import { modelForTier } from './models.js';
 import { readMemoryBlock, harvestMemory, harvestTrip } from './memory.js';   // [zip74]
 import { personaByKey, type CodexKey } from './personas.js';
 import { stateBlockFor, currentStates } from './personaStates.js';
@@ -35,6 +37,7 @@ export interface ZTurnInput {
 export interface ZTurnResult {
   reply: string;
   usage: { in: number; out: number; cacheRead: number; cacheWrite: number };
+  model?: string;   // [§5.3] the model that actually ran (escalation must bill correctly)
   sources?: { url: string; title: string }[];
   routes?: string[];
 }
@@ -366,6 +369,22 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
     } catch (e) { /* best-effort; he still teaches from his soul + forge */ }
   }
 
+  // ── [§5] THE HANDBOOK RAIL: domain personas keep their knowledge in a sliceable
+  //    handbook, consulted per-turn by a silent pre-pass (same mould as the GM's,
+  //    same reason: the reply must stream). The pre-pass also judges DEPTH — a
+  //    "deep" verdict runs THIS turn on the top tier. Scoped to handbook personas
+  //    only; a failed pre-pass never blocks the turn. Empty sections is normal.
+  let turnModel = MODEL;
+  if (hasHandbook(String(t.persona_key || '')) && !hasImage) {
+    try {
+      const lastA = [...priorTurns].reverse().find((m2: any) => m2.role === 'assistant');
+      const lastLine = typeof lastA?.content === 'string' ? lastA.content : '';
+      const hp = await handbookPrep(String(t.persona_key), typeof message === 'string' ? message : '', lastLine, userId, threadId);
+      if (hp?.block) system.push({ type: 'text', text: hp.block });
+      if (hp?.deep) turnModel = modelForTier('top');   // [§5.3] the model decided; billed via the turn's own usage row
+    } catch (e: any) { console.error('[handbook] pre-pass failed (turn proceeds):', e?.message || e); }
+  }
+
   // ── the Haiku call (streamed) ─────────────────────────────────────────
   // Web-enabled personas (brainiac, comic, screen junkie) get Anthropic's server-side
   // web_search tool so they can reach live facts (current films, what's streaming, today's
@@ -378,7 +397,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   if (persona?.webEnabled && !hasImage) {
     tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 4 });
   }
-  const streamArgs: any = { model: MODEL, max_tokens: 1024, system, messages, __pin: pinnedProvider(t.persona_key) || undefined };   // [zip54g] world affairs ride Haiku
+  const streamArgs: any = { model: turnModel, max_tokens: 1024, system, messages, __pin: pinnedProvider(t.persona_key) || undefined };   // [zip54g] world affairs ride Haiku; [§5.3] turnModel escalates on a deep handbook verdict
   if (tools.length) streamArgs.tools = tools;
   const stream = anthropic.messages.stream(streamArgs);
   let __chars = 0;
@@ -660,5 +679,5 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   if (!institutional) void harvestMemory(userId, threadId, message, reply);
   if (t.persona_key === 'the_wanderer') void harvestTrip(userId, threadId, message);   // [zip74] the engine records the trip, tag or no tag
 
-  return { reply, usage, sources, routes };
+  return { reply, usage, model: turnModel, sources, routes };
 }

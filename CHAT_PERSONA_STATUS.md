@@ -7,8 +7,8 @@ Spec: CHAT_PERSONA_SPEC.md (v1). Build order §9. One phase per sitting.
 |---|---|---|
 | 1 | P0 bug fixes (§1) | **SHIPPED + device-verified.** |
 | 2 | Roster manifest backend + `app/roster.js` + delete 4 local registries (§2) | **SHIPPED + device-verified** (incl. airplane-mode cold start). |
-| 3 | Roster settlement: folds, renames, regroup, wannabe move (§3) + guru absorb + hottie/crush law rewrites (§4) + riders (fallback generator, ChatHome repoint) | **BUILT — sitting 3.** `APPLY_ROSTER_SETTLEMENT.md`, ROSTER_VERSION 2. Awaiting curls + device. |
-| 4 | Handbook rail: MM 98KB→10KB split + pre-pass + escalation (§5) | not started |
+| 3 | Roster settlement (§3) + codex laws (§4) + riders | **SHIPPED, curl-proven, character-proven, device-verified.** Character ledger: hottie PASS (watchpoint: echoed codex example line verbatim — recheck in longer chat); crush law held under 2 probes, explains-the-mechanism quirk ACCEPTED BY OWNER (runs raw); guru PASS (register adapted, not recited). |
+| 4 | Handbook rail: MM split + pre-pass + escalation (§5) | **BUILT — sitting 4.** `APPLY_HANDBOOK_RAIL.md` — TWO pushes: A rail (tome riding) → curl-prove → B split. Escalation billing bug in index.ts fixed en route. |
 | 5 | Three new seats: advocate / trainer / khansama (§6) | not started |
 | 6 | Running threads + migration (§7) | not started |
 | 7 | UI: door chips → profile story → live header → tonight row (§8) | not started |
@@ -70,14 +70,32 @@ Spec: CHAT_PERSONA_SPEC.md (v1). Build order §9. One phase per sitting.
   retired display; owner may re-attribute to the money man later); llm.ts
   oracle pin; app/roomTheme.js display fallback.
 
+## Sitting-4 record (Phase 4)
+- Drift from spec, followed live code: MM register lives in
+  media-manager-soul.md (institutional, always-on, untouched) — slim codex is
+  ~3KB (seat + creed + LIFE), not 10KB; HANDBOOKS map lives in handbooks.ts
+  (loop.ts stays a feeder per house law); index lazy-cached (GM's own pattern).
+- The tome was already slicer-native: 140 sections, MASTER INDEX doubles as
+  router map. Slices proven: §N.M, bare N, Appendix refs. Bare-chapter refs
+  slice from the first subsection (cosmetic — map lists §N.M ids).
+- Latent bug fixed: index.ts logged chat usage with hardcoded Haiku —
+  escalated turns would bill wrong. loop returns real model, index logs it.
+- Pre-pass judges depth (the model decides escalation — owner-locked design);
+  scoped to HANDBOOKS keys only; empty sections valid; failure never blocks.
+- Two-push gate honored: rail ships with tome still riding; slim codex staged
+  as codex-media-manager.SLIM.md, moved into place ONLY after live curls prove
+  handbook-prepass fires and a deep turn bills Sonnet.
+
 ## Next sitting picks up
-Phase 4 — the handbook rail (§5): MM codex 98KB→~10KB split (LIFE heading
-sacred), handbook-media-manager.md in §N slicer format, pre-pass wiring in
-loop.ts (Haiku temp-0 JSON, empty sections valid), Sonnet escalation via
-modelForTier('top') scoped to handbook personas, logUsage fn tags
-('handbook-prepass', escalation). Read first: src/codexRetrieval.ts,
-src/grandMaster.ts (~L6 streaming rationale), src/loop.ts static-prefix
-assembly + models.ts. Curl-prove the pre-pass BEFORE the split ships (§9).
+Phase 5 — three new seats on the rail (§6): advocate / trainer / khansama.
+personas.ts entries + CodexKey + CODEX_FILES + ROSTER_VERSION bump + fallback
+generator run; slim codexes authored per §6.2–6.4 skeletons (LIFE section
+mandatory, lane edges in the ONE LAW, no invented URLs — advocate grounding
+law); handbooks are their own authoring sittings (rail lines stay commented in
+handbooks.ts until each handbook exists); THREE FACE IMAGES needed at
+callmez.app/faces/{the_advocate,the_trainer,the_khansama}.jpg — FLAG TO OWNER
+EARLY; monogram fallback covers meanwhile. All three group 'firm',
+webEnabled true.
 
 ## Open asset dependency (Phase 5, flag early)
 Three face images needed at `callmez.app/faces/{the_advocate,the_trainer,the_khansama}.jpg`

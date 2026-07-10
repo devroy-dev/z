@@ -3914,7 +3914,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         });
         await supabase.from('threads').update({ game_mode: null }).eq('id', threadId);
       }
-      logUsage({ userId: user.id, threadId, surface: 'chat', fn: 'chat', model: 'claude-haiku-4-5-20251001', usage: result.usage });
+      logUsage({ userId: user.id, threadId, surface: 'chat', fn: 'chat', model: (result as any).model || 'claude-haiku-4-5-20251001', usage: result.usage });   // [§5.3] escalated turns bill their real tier
       const _diag = diagEcho(user.id, { usage: result.usage, model: 'claude-haiku-4-5-20251001', fn: 'chat' });
       res.write(`data: ${JSON.stringify({ done: true, usage: result.usage, ...(_diag ? { cost: _diag } : {}) })}\n\n`);
       res.end();
