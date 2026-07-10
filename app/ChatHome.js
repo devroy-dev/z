@@ -13,7 +13,7 @@ import { Dimensions } from 'react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert, Linking } from 'react-native';   // [zip67]
 import { FONTS } from './theme';
 import DeskPane from './DeskPane';   // [DESK COMES ALIVE] the desk shows the work
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67]
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe, loadSession, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67] [H1c-2] loadSession
 import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
@@ -351,7 +351,10 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
   // room) means one load() — server truth carries the full row in.
   const knownIdsRef = useRef(new Set());
   const meIdRef = useRef(null);
-  const [inboxRt, setInboxRt] = useState('connecting');   // [zip56] diag
+  const [inboxRt, setInboxRt] = useState('off');   // [zip56→H1c-2] PROBE LAW: 'off' until
+  // subscribeInbox is actually INVOKED; 'connecting' only once it truly is. A diagnostic
+  // that renders identically for never-attempted and attempting-and-failing is a
+  // diagnostic that lies — it burned two diagnoses on this exact channel.
   const [inboxBumps, setInboxBumps] = useState(0);        // [zip56] diag
   useEffect(() => {
     knownIdsRef.current = new Set([...(threads || []).map((t) => t.id), ...(rooms || []).map((r) => r.id)]);
@@ -361,9 +364,20 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
     (async () => {
       try {
         const me = await getMe();
-        if (!alive || !me?.id) return;
-        meIdRef.current = me.id;
-        await subscribeInbox(me.id, (b) => {
+        // [H1c-2] IDENTITY PRECONDITION — read before touching this guard:
+        // the inbox topic is `user-<z.users.id>` (the server fans bumps to
+        // room_members.user_id). That id comes from /me's `id` (added H1c-2 —
+        // for the app's whole life before that, /me returned NO id, this guard
+        // returned unconditionally, and subscribeInbox NEVER RAN — the H1c bug).
+        // Fallback: loadSession().userId is the same z.users.id, minted by
+        // /auth/verify and stored as z_real_uid — it keeps the list alive
+        // against an old server during a deploy gap.
+        let uid = me?.id || null;
+        if (!uid) { try { uid = (await loadSession()).userId || null; } catch (e) {} }
+        if (!alive || !uid) return;
+        meIdRef.current = uid;
+        setInboxRt('connecting');   // [H1c-2] PROBE LAW: now it's true
+        await subscribeInbox(uid, (b) => {
           setInboxBumps((n) => n + 1);   // [zip56] diag: every bump, before any filtering
           if (!b || !b.thread_id) return;
           const stamp = b.last_active || new Date().toISOString();

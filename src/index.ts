@@ -1718,6 +1718,8 @@ app.get('/me', async (req, res) => {
       .select('display_name, handle, region, dob, sex, serious_mode, avatar_url, morning_brief, morning_brief_hour')
       .eq('id', user.id).maybeSingle();
     res.json({
+      id: user.id,   // [H1c-2] the identity endpoint's silence about identity is what
+                     // killed the inbox channel for the app's whole life — never again.
       displayName: data?.display_name ?? null,
       handle: (data as any)?.handle ?? null,
       region: data?.region ?? null,

@@ -72,5 +72,15 @@ UNIFIED across all room-shaped surfaces. `DMScreen` and `CuratedRoomScreen` both
 
 **Proof pair (device):** BEFORE (current build): probe reads `inbox:connecting b:0` on the chats list — confirms field reproduction. AFTER (OTA): probe reads `SUBSCRIBED`, `b:` increments on a curl-fired room/DM message with the list on screen, and the row bumps + reorders live. Bump-buffer race guard NOT added per CE — only if leg-1 evidence appears post-fix.
 
+## H1C-2 — THE TRUE FIX (erratum on H1c's diagnosis, CE GO with four conditions)
+
+**Root cause, final:** `GET /me` never returned an `id`; ChatHome guarded on `me?.id`; **`subscribeInbox` never executed on any build in the app's history.** `inbox:connecting b:0` was not a sick channel — it was NO channel: the probe's untouched initial state. H1c's three legs (mine) and the leg-3 prior (CE's) were both analysis of code with zero executions. The room channel's post-H1c `rt:SUBSCRIBED r:1` proved the socket/auth healthy throughout.
+
+**Shipped (apply_h1c2_identity.py):** `/me` gains `id: user.id` — the identity endpoint's silence about identity caused this and would cause it again (CE's reason on record). ChatHome resolves `me?.id || loadSession().userId` (z_real_uid = the same z.users.id, minted by /auth/verify) — survives the deploy gap — with the precondition documented at the guard so the next author inherits tonight instead of repeating it. H1c's hardening (auth law, retry watchdog, early-return rewire) STAYS: real latent defects, now guarding code that runs.
+
+**THE PROBE LAW (systemic lesson, CE condition 3, binding on future diagnostics):** a diagnostic that renders identically for never-attempted and attempting-and-failing is a diagnostic that LIES — it burned two diagnoses on this one channel. The inbox probe now reads `off` until subscribeInbox is truly invoked, `connecting` only once it is. Probe stays behind the founder flag (long-press callmeZ), one flag away forever.
+
+**Proof (CE condition 4):** list on screen, bump curl fired → `inbox:SUBSCRIBED` for the first time in the app's history, `b:` ticks, the row moves without a reload. Owner to screenshot the probe line for this doc — the tombstone of a good bug.
+
 ## NEXT SITTING PICKS UP
 H3 (presence + human typing), or spec phase 1 (P0 fixes + gate §3 + doorway §4) if the owner reorders. Phase 1 note: `/public-rooms` directory returns no last-active — the doorway's "last active" line needs a threads join added to that route.
