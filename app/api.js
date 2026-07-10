@@ -687,8 +687,8 @@ export async function getRoomMembers(roomId) {
   try { return await authedJSON('GET', `/rooms/${roomId}/members`); } catch (e) { return { members: {}, meId: null }; }
 }
 // a room's saved conversation → { messages: [...], meId }
-export async function getRoomMessages(roomId) {
-  try { return await authedJSON('GET', `/threads/${roomId}/messages`); } catch (e) { return { messages: [], meId: null }; }
+export async function getRoomMessages(roomId, before) {
+  try { return await authedJSON('GET', `/threads/${roomId}/messages${before ? ('?before=' + encodeURIComponent(before)) : ''}`); } catch (e) { return { messages: [], meId: null }; }
 }
 
 // like openThread, but keeps the thread's saved identity (custom name / avatar)

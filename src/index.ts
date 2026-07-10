@@ -3130,14 +3130,20 @@ app.get('/threads/:id/messages', async (req, res) => {
     // shared room: return EVERYONE's messages (the whole room). solo thread: just this user's.
     // [history-window] LAST 200, not first — ascending+limit froze long threads
     // in their oldest 200 messages forever (new messages could never load).
-    // Fetch newest-first, then reverse so the client still renders oldest→newest.
+    // [history-pages] ?before=<ISO> pages backward through the past: newest-first
+    // window strictly older than the cursor, reversed for the client. hasMore
+    // tells the client whether another page exists. Row ids ride along so the
+    // client can key pages without index collisions.
+    const before = typeof req.query.before === 'string' && req.query.before ? req.query.before : null;
     let q = supabase.from('messages')
-      .select('role, content, persona_key, created_at, sender_user_id')
+      .select('id, role, content, persona_key, created_at, sender_user_id')
       .eq('thread_id', threadId)
       .order('created_at', { ascending: false })
       .limit(200);
+    if (before) q = q.lt('created_at', before);
     if (!thread.is_shared) q = q.eq('user_id', user.id);
     const { data: msgsDesc } = await q;
+    const hasMore = (msgsDesc ?? []).length === 200;
     const msgs = (msgsDesc ?? []).reverse();
     // resolve a roster of member names (id -> display_name) for shared rooms
     let roster: Record<string,string> = {};
@@ -3151,7 +3157,7 @@ app.get('/threads/:id/messages', async (req, res) => {
     }
     // attach sender_name to each message
     const out = (msgs ?? []).map((m: any) => ({ ...m, sender_name: m.sender_user_id ? (roster[m.sender_user_id] || 'someone') : null }));
-    res.json({ messages: out, is_group: !!thread.is_group, is_shared: !!thread.is_shared, roster, you: user.id });
+    res.json({ messages: out, hasMore, is_group: !!thread.is_group, is_shared: !!thread.is_shared, roster, you: user.id });   // [history-pages]
   } catch (e: any) { res.status(500).json({ error: 'history failed: ' + (e?.message || String(e)) }); }
 });
 

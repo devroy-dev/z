@@ -235,6 +235,11 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
   const [avatar, setAvatar] = useState(AVATAR_CACHE[KEY] || null);
 
   const scrollRef = useRef(null);
+  // [history-pages] the past, paged: cursor = oldest loaded created_at
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
+  const hasMoreRef = useRef(false);
+  const oldestRef = useRef(null);
   const sendingRef = useRef(false);
   const retryImgRef = useRef(null);   // [zip22] dodges the stale-closure trap on retry
   const seededRef = useRef(false);
@@ -282,6 +287,8 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
         const hist = (j.messages || [])
           .map((m, i) => ({ id: 'h' + (m.id || i), who: m.role === 'user' ? 'you' : 'them', text: m.content || '', at: m.created_at }))
           .filter((m) => m.text);
+        hasMoreRef.current = !!j.hasMore;                      // [history-pages]
+        oldestRef.current = hist[0]?.at || null;
         // [zip05] reconcile: fresh history wins; live entries sent after the cache
         // paint (non-'h' ids) survive; cached rows not in fresh history are stale → drop.
         const hids = new Set(hist.map((m) => m.id));
@@ -375,6 +382,27 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
     } else {
       await voice.start();
     }
+  };
+
+  // [history-pages] scroll-up loads the previous page; ids are real row ids so
+  // pages can never collide; content-dedupe guards the cache-painted overlap.
+  const loadOlder = () => {
+    if (loadingOlderRef.current || !hasMoreRef.current || !oldestRef.current || !threadId) return;
+    loadingOlderRef.current = true; setLoadingOlder(true);
+    getRoomMessages(threadId, oldestRef.current).then((j) => {
+      const older = (j.messages || [])
+        .map((m, i) => ({ id: 'h' + (m.id || ('p' + (m.created_at || i))), who: m.role === 'user' ? 'you' : 'them', text: m.content || '', at: m.created_at }))
+        .filter((m) => m.text);
+      hasMoreRef.current = !!j.hasMore;
+      if (older.length) {
+        oldestRef.current = older[0]?.at || oldestRef.current;
+        setMessages((cur) => {
+          const ids = new Set(cur.map((m) => m.id));
+          const keys = new Set(cur.map((m) => m.who + '|' + m.text));
+          return older.filter((m) => !ids.has(m.id) && !keys.has(m.who + '|' + m.text)).concat(cur);
+        });
+      }
+    }).catch(() => {}).finally(() => { loadingOlderRef.current = false; setLoadingOlder(false); });
   };
 
   const scrollDown = () => { if (atBottomRef.current) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60); };
@@ -621,7 +649,12 @@ export default function Chat({ personaKey = DEFAULT_KEY, onBack = () => {}, init
             onScroll={(e) => {
               const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
               atBottomRef.current = (contentSize.height - (contentOffset.y + layoutMeasurement.height)) < 120;
-            }}>
+              if (contentOffset.y < 80) loadOlder();           // [history-pages] the top edge asks for the past
+            }}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>{/* [history-pages] prepend without the jump */}
+            {loadingOlder && !empty ? (
+              <Text style={{ alignSelf: 'center', color: 'rgba(228,234,242,0.35)', fontSize: 11, paddingVertical: 6 }}>· fetching the past ·</Text>
+            ) : null}
             {empty ? (
               <View style={styles.epigraph}>
                 <Pressable onPress={pickAvatar} style={[styles.epFace, { borderColor: `rgba(${rgb},0.5)`, shadowColor: `rgb(${rgb})` }]}>
