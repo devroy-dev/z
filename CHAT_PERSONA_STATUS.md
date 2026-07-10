@@ -9,8 +9,8 @@ Spec: CHAT_PERSONA_SPEC.md (v1). Build order §9. One phase per sitting.
 | 2 | Roster manifest backend + `app/roster.js` + delete 4 local registries (§2) | **SHIPPED + device-verified** (incl. airplane-mode cold start). |
 | 3 | Roster settlement (§3) + codex laws (§4) + riders | **SHIPPED, curl-proven, character-proven, device-verified.** Character ledger: hottie PASS (watchpoint: echoed codex example line verbatim — recheck in longer chat); crush law held under 2 probes, explains-the-mechanism quirk ACCEPTED BY OWNER (runs raw); guru PASS (register adapted, not recited). |
 | 4 | Handbook rail (§5) | **SHIPPED both pushes, fully proven:** prepass fired (byFn 2 calls), deep turn billed sonnet ₹3.72 / small talk haiku ₹0.50, post-split counsel matched baseline (whitelisting priced, ASCI disclosure grounded), silence law held. Watch-item: chat usage rows carry persona_key null (one-liner in index.ts if per-persona cuts wanted). |
-| 5 | Three seats (§6, khansama→chef) | **SHIPPED + fully character-proven.** Chef PASS clean (fridge-first). Trainer + advocate failed first proofs → METHOD LESSON (owner ruling): lane edges re-authored AFFIRMATIVE — action as trait, why wired into THE LIFE (never-lists fold under pressure). Re-proofs PASSED against own bad history. Watchpoints: advocate spent 2 questions (both load-bearing — observe, don't pre-fence); all 3 narrate web searches ('let me check') — cosmetic, parked. Faces still pending (owner providing; public/faces needs git push). |
-| 6 | Running threads + migration 0059 (§7) | **BUILT — sitting 6.** `APPLY_RUNNING_THREADS.md`. MIGRATION FIRST in Supabase, then push. Awaiting SQL + curls. |
+| 5 | Three seats: advocate / trainer / CHEF (owner renamed khansama→chef) (§6) | **BUILT — sitting 5.** `APPLY_THREE_SEATS.md`, v3. shareable:false declared (rail is 1:1-only — reversible one-liner). Faces flagged: the_advocate/the_trainer/the_chef.jpg. Handbooks = own sittings. Awaiting curls + device. |
+| 6 | Running threads + migration (§7) | not started |
 | 7 | UI: door chips → profile story → live header → tonight row (§8) | not started |
 
 ## Verified against live code (this sitting)
@@ -87,11 +87,25 @@ Spec: CHAT_PERSONA_SPEC.md (v1). Build order §9. One phase per sitting.
   handbook-prepass fires and a deep turn bills Sonnet.
 
 ## Next sitting picks up
-Phase 7 — UI (§8), each independently shippable, in order: door chips
-(roomOf() already in the manifest/client), profile "your story" (reads
-GET /personas/:key/threads + thread created_at), live header (verify the
-persona-states GET the Roster uses; piggyback state onto openThreadInfo per
-§8.3), the Gathering "tonight" row (freshest states ∩ 7-day-quiet bias).
-All app/ — ships BOTH eas update AND git push. Interleavable anytime: the
-three handbook authoring sittings (legal-in / training / kitchen-in — content
-+ one uncommented line each in handbooks.ts).
+Phase 6 — running threads (§7): migration (check ladder — spec assumed 0059;
+verify `ls migrations/ | tail` at sitting start), [[THREAD]]/[[THREAD_CLOSE]]
+tags on the [[TRIP]] mould in loop.ts post-stream (~L516 region), the dynamic
+block for non-institutional personas (gapLabel from timegap.ts; memory-block
+boundary at loop ~L112), max-3-open auto-close, GET /personas/:key/threads.
+Then Phase 7 UI. Handbook authoring sittings (legal-in / training / kitchen-in)
+can interleave anytime — each is content + one uncommented line in
+handbooks.ts.
+
+(Phase 5 original note, superseded: advocate / trainer / khansama.
+personas.ts entries + CodexKey + CODEX_FILES + ROSTER_VERSION bump + fallback
+generator run; slim codexes authored per §6.2–6.4 skeletons (LIFE section
+mandatory, lane edges in the ONE LAW, no invented URLs — advocate grounding
+law); handbooks are their own authoring sittings (rail lines stay commented in
+handbooks.ts until each handbook exists); THREE FACE IMAGES needed at
+callmez.app/faces/{the_advocate,the_trainer,the_khansama}.jpg — FLAG TO OWNER
+EARLY; monogram fallback covers meanwhile. All three group 'firm',
+webEnabled true.
+
+## Open asset dependency (Phase 5, flag early)
+Three face images needed at `callmez.app/faces/{the_advocate,the_trainer,the_khansama}.jpg`
+— monogram fallback covers the gap meanwhile.

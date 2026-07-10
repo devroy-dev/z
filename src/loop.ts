@@ -11,7 +11,7 @@ import { buildCustomPrefix } from './content.js';
 import { buildStaticPrefix, readContentFile } from './content.js';
 import { retrievePrep, analogyBank as gmAnalogyBank } from './grandMaster.js';
 import { handbookPrep, hasHandbook } from './handbooks.js';   // [§5] the handbook rail
-import { runningThreadsBlock, fileRunningThread, closeRunningThread } from './runningThreads.js';   // [§7] the shared story
+import { runningThreadsBlock, fileRunningThread, closeRunningThread, harvestThreads } from './runningThreads.js';   // [§7] the shared story
 import { modelForTier } from './models.js';
 import { readMemoryBlock, harvestMemory, harvestTrip } from './memory.js';   // [zip74]
 import { personaByKey, type CodexKey } from './personas.js';
@@ -701,6 +701,7 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   // intake details must never become biography. They read no memory (zip04)
   // and now write none.
   if (!institutional) void harvestMemory(userId, threadId, message, reply);
+  if (!institutional) void harvestThreads(userId, threadId, String(t.persona_key || ''), message, reply);   // [§7 · CE ruling] the engine records the saga, tag or no tag
   if (t.persona_key === 'the_wanderer') void harvestTrip(userId, threadId, message);   // [zip74] the engine records the trip, tag or no tag
 
   return { reply, usage, model: turnModel, sources, routes };

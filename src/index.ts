@@ -55,7 +55,7 @@ import { gardenUserMemory } from './memoryGardener.js';   // [zip03]
 import { readMemoryBlock } from './memory.js';
 import { personaByKey, PERSONAS } from './personas.js';
 import { rosterManifest } from './manifest.js';
-import { openRunningThreads } from './runningThreads.js';   // [§7]
+import { openRunningThreads, armThreadsJanitor } from './runningThreads.js';   // [§7]
 import { PROFILE_BLURBS } from './blurbs.js';
 import { supabase } from './db.js';
 
@@ -76,6 +76,7 @@ const __dirname2 = dirname(fileURLToPath(import.meta.url));
 const anthropicShared = llm();   // [zip34] the second generator — provider-routable
 startFollowupScheduler();
 startStateScheduler();
+armThreadsJanitor();   // [§7 · CE ruling] closure is part of the story
 startBriefScheduler();
 startMorningLineScheduler();   // [PHASE 6] the Host's opt-in morning line (old brief skips opted users — one knock)
 startProgrammeScheduler();
