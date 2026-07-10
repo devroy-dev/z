@@ -192,6 +192,8 @@ function Constellation({ group, pins, onPin, onOpen, query, names = {}, states =
 // the known list instead of flashing empty while the server refetches. Lives at
 // module scope, so it survives every Roster remount (chat-back, tab-switch).
 let PINS_CACHE = [];
+let STATES_CACHE = {};    // [§8.4 polish] tonight paints instantly on remount
+let RECENCY_CACHE = {};   // [§8.4 polish]
 // custom companion names you've set (persona key → your name), overlaid on the
 // static defaults so a rename shows up in the list/shelf. Cached to avoid a flash.
 let NAMES_CACHE = {};
@@ -205,9 +207,9 @@ export default function Roster({ onOpen = () => {}, onCreate = () => {} }) {
   // shows immediately on remount (no empty flash); the fetch reconciles quietly.
   const [pins, setPins] = useState(PINS_CACHE);
   const [query, setQuery] = useState('');
-  const [states, setStates] = useState({});
-  const [recency, setRecency] = useState({});   // [§8.4] persona_key → last_active
-  useEffect(() => { getPersonaStates().then(setStates).catch(() => {}); }, []);
+  const [states, setStates] = useState(STATES_CACHE);
+  const [recency, setRecency] = useState(RECENCY_CACHE);   // [§8.4] persona_key → last_active, cache-seeded
+  useEffect(() => { getPersonaStates().then((st) => { STATES_CACHE = st; setStates(st); }).catch(() => {}); }, []);
   const [refreshing, setRefreshing] = useState(false);
   const pullRefresh = async () => {
     setRefreshing(true);
@@ -227,7 +229,7 @@ export default function Roster({ onOpen = () => {}, onCreate = () => {} }) {
       NAMES_CACHE = m; setNames(m);
       const rec = {};
       ts.forEach((t) => { if (t?.persona_key && t?.last_active) rec[t.persona_key] = t.last_active; });   // [§8.4] recency for the tonight bias
-      setRecency(rec);
+      RECENCY_CACHE = rec; setRecency(rec);
     });
   }, []);
   const togglePin = useCallback((k) => {
