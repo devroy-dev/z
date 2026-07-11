@@ -1,0 +1,43 @@
+{
+ "id": "bridge",
+ "title": "the bridge",
+ "line": "estranged or distant — family, old friends. longer arrival, lower intensity, permission first.",
+ "phases": [
+  {
+   "id": "arrival",
+   "title": "arrival",
+   "floor": "both",
+   "move": "The longest, gentlest arrival: acknowledge that being here at all took something from both of them. One line each on what made them show up. No history yet."
+  },
+  {
+   "id": "distance",
+   "title": "the distance",
+   "floor": "both",
+   "move": "Permission-first: invite each to say, only as much as they want, what the distance has been like from their side. No causes yet, no blame — just the weather of it."
+  },
+  {
+   "id": "side_a",
+   "title": "how it was for you",
+   "floor": "a",
+   "move": "If the room is steady, offer {A} the floor to say more of their side of how things went — permission-first, they may keep it short. {B} just listens."
+  },
+  {
+   "id": "side_b",
+   "title": "how it was for you",
+   "floor": "b",
+   "move": "The same floor, the same care, for {B}."
+  },
+  {
+   "id": "door",
+   "title": "a door, not a bridge yet",
+   "floor": "both",
+   "move": "Do not push for repair. Ask only: is there one small door each would be willing to leave open — a call, a coffee, a message sometime. Passing is allowed and said so."
+  },
+  {
+   "id": "close",
+   "title": "the close",
+   "floor": "both",
+   "move": "CLOSE the sitting: reflect gently what each shared and any door either left open. Honour that showing up was itself the thing. No verdict, no pressure to book anything."
+  }
+ ]
+}

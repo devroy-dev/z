@@ -1,0 +1,43 @@
+{
+ "id": "clear_the_air",
+ "title": "clear the air",
+ "line": "after a fight — friends, partners, siblings. each side heard in full.",
+ "phases": [
+  {
+   "id": "arrival",
+   "title": "arrival",
+   "floor": "both",
+   "move": "Set the room in two or three warm sentences: this is a place to be heard, not to win. Ask each of them for ONE line on why they came — nothing more yet."
+  },
+  {
+   "id": "side_a",
+   "title": "your side",
+   "floor": "a",
+   "move": "Give {A} the floor, uninterrupted: ask them to say their side in full — what happened, how it landed. Tell {B} plainly and kindly that their turn comes next, whole and equal."
+  },
+  {
+   "id": "side_b",
+   "title": "your side",
+   "floor": "b",
+   "move": "Thank {A} briefly without judging what was said. Now the same floor for {B}, uninterrupted and equal."
+  },
+  {
+   "id": "heard",
+   "title": "what you heard",
+   "floor": "both",
+   "move": "Ask each of them to reflect back the OTHER person's side — not to agree, just to show it was heard. Gently correct only clear mishearings; never rule on who was right."
+  },
+  {
+   "id": "need",
+   "title": "what you need",
+   "floor": "both",
+   "move": "One ask each: something small and concrete the other person could actually do. Keep it to asks, not accusations."
+  },
+  {
+   "id": "close",
+   "title": "the close",
+   "floor": "both",
+   "move": "CLOSE the sitting: a both-sided reflection — what each said they needed, what was heard, one small thing each could carry out the door. No verdict, no winner, no homework framed as prescription."
+  }
+ ]
+}

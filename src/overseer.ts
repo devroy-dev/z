@@ -29,11 +29,22 @@ interface DayMsg { role: string; content: string; created_at: string; }
 async function windowMessages(userId: string, sinceISO: string): Promise<DayMsg[]> {
   const { data } = await supabase
     .from('messages')
-    .select('role, content, created_at')
+    .select('role, content, created_at, thread_id')
     .eq('user_id', userId)
     .gte('created_at', sinceISO)
     .order('created_at', { ascending: true });
-  const msgs = (data ?? []) as DayMsg[];
+  // [R4] THE WALL: session transcripts never leave the room — the overseer's
+  // window sweep drops every message that lives in an is_session thread.
+  let rows = (data ?? []) as any[];
+  {
+    const tids = [...new Set(rows.map((r: any) => r.thread_id).filter(Boolean))];
+    if (tids.length) {
+      const { data: th } = await supabase.from('threads').select('id, is_session').in('id', tids);
+      const walled = new Set((th ?? []).filter((t: any) => t.is_session).map((t: any) => t.id));
+      if (walled.size) rows = rows.filter((r: any) => !walled.has(r.thread_id));
+    }
+  }
+  const msgs = rows.map((r: any) => ({ role: r.role, content: r.content, created_at: r.created_at })) as DayMsg[];
   // fold in voice-journal transcripts from the same window — overseer material under the
   // same codex. marked so the overseer knows it was spoken aloud (rawer, more honest).
   const { data: journals } = await supabase

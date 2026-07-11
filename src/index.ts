@@ -15,6 +15,7 @@ import { transcribeAndStore, transcribeAudio, storeJournalText } from './journal
 import { AccessToken } from 'livekit-server-sdk';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
+import { sessionByThread, sessionFormats, sessionFormat, openSessionArrival, runSessionTurn, sessionEndedLine } from './sessionLoop.js';   // [R4] THE SESSION
 import { broadcastRoomMessage } from './broadcast.js';
 import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';
 import { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';
@@ -529,6 +530,127 @@ app.post('/rooms/:id/handle', async (req, res) => {
     if (!r.ok) return res.status(r.code === 'handle_taken' ? 409 : 400).json({ error: r.error, code: r.code });
     res.json({ ok: true, handle: r.handle });
   } catch (e: any) { res.status(500).json({ error: 'handle failed: ' + (e?.message || String(e)) }); }
+});
+
+// ═══ [R4] THE SESSION — two humans, a moderator, a structured sitting ═══
+// Consent is the door: invite by handle → explicit accept → live; either
+// party ends it in one tap. Content NEVER rides these routes — titles,
+// formats, and status only (the wall).
+app.get('/sessions/formats', async (_req, res) => {
+  res.json(sessionFormats().map((f) => ({ id: f.id, title: f.title, line: f.line, phases: f.phases.map((p) => p.title) })));
+});
+
+// create + invite by handle. [Declared deviation from §4.3's link-token
+// sketch: invite-by-handle rides the existing identity graph and keeps the
+// whole consent flow in-app; the link claim pattern can come later.]
+app.post('/sessions', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const fmt = sessionFormat(String((req.body ?? {}).format || ''));
+    if (!fmt) return res.status(400).json({ error: 'pick a sitting format', code: 'format_required' });
+    const raw = String((req.body ?? {}).inviteeHandle || '').trim().replace(/^@/, '');
+    if (!raw) return res.status(400).json({ error: 'who is this sitting with? their @handle.', code: 'invitee_required' });
+    const { data: them } = await supabase.from('users')
+      .select('id, display_name, handle').ilike('handle', raw).is('deleted_at', null).maybeSingle();
+    if (!them) return res.status(404).json({ error: `no one by @${raw} in the house.`, code: 'no_such_handle' });
+    if ((them as any).id === me.id) return res.status(400).json({ error: "a sitting needs two of you." });
+    const { data: thread, error: te } = await supabase.from('threads').insert({
+      user_id: me.id, is_group: true, is_shared: true, is_session: true,
+      member_keys: ['the_healer'], companion_name: fmt.title,
+    }).select('id').single();
+    if (te || !thread) return res.status(500).json({ error: 'session open: ' + (te?.message || 'failed') });
+    const { data: sess, error: se } = await supabase.from('sessions').insert({
+      thread_id: thread.id, format: fmt.id, initiator: me.id, invitee: (them as any).id, status: 'invited',
+    }).select('id, thread_id, format, status').single();
+    if (se || !sess) return res.status(500).json({ error: 'session register: ' + (se?.message || 'failed') });
+    await supabase.from('room_members').insert({ thread_id: thread.id, user_id: me.id, role: 'owner' });
+    res.json({ id: (sess as any).id, threadId: thread.id, format: fmt.id, title: fmt.title, status: 'invited', invitee: { handle: (them as any).handle, name: (them as any).display_name } });
+  } catch (e: any) { res.status(500).json({ error: 'session failed: ' + (e?.message || String(e)) }); }
+});
+
+// mine — both sides, title + format + status ONLY. Never content (the wall).
+app.get('/sessions', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data } = await supabase.from('sessions')
+      .select('id, thread_id, format, status, phase, floor_holder, initiator, invitee, created_at, closed_at')
+      .or(`initiator.eq.${me.id},invitee.eq.${me.id}`)
+      .order('created_at', { ascending: false }).limit(40);
+    const rows = (data ?? []) as any[];
+    const otherIds = [...new Set(rows.map((r) => (r.initiator === me.id ? r.invitee : r.initiator)).filter(Boolean))];
+    const names: Record<string, string> = {};
+    if (otherIds.length) {
+      const { data: us } = await supabase.from('users').select('id, display_name, handle').in('id', otherIds);
+      for (const u of (us ?? []) as any[]) names[u.id] = u.display_name || ('@' + u.handle);
+    }
+    res.json(rows.map((r) => ({
+      id: r.id, threadId: r.thread_id, format: r.format,
+      title: sessionFormat(r.format)?.title || r.format,
+      status: r.status, phase: r.phase,
+      phaseTitle: sessionFormat(r.format)?.phases?.[r.phase]?.title || null,
+      floorHolder: r.floor_holder,
+      yourRole: r.initiator === me.id ? 'initiator' : 'invited',
+      otherName: names[r.initiator === me.id ? r.invitee : r.initiator] || 'someone',
+      createdAt: r.created_at, closedAt: r.closed_at,
+    })));
+  } catch (e: any) { res.status(500).json({ error: 'sessions failed: ' + (e?.message || String(e)) }); }
+});
+
+// the consent gate: only the named invitee, explicitly. The room goes live.
+app.post('/sessions/:id/accept', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: s } = await supabase.from('sessions')
+      .select('id, thread_id, format, moderator_key, initiator, invitee, status, phase, floor_holder')
+      .eq('id', req.params.id).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such sitting' });
+    if ((s as any).invitee !== me.id) return res.status(403).json({ error: 'this invitation is not yours' });
+    if ((s as any).status !== 'invited') return res.status(400).json({ error: 'this sitting already ' + ((s as any).status === 'live' ? 'started' : 'ended') + '.' });
+    await supabase.from('sessions').update({ status: 'live' }).eq('id', (s as any).id);
+    await supabase.from('room_members').insert({ thread_id: (s as any).thread_id, user_id: me.id, role: 'member' });
+    res.json({ ok: true, threadId: (s as any).thread_id });
+    void openSessionArrival({ ...(s as any), status: 'live' });   // the moderator sets the room, paced
+  } catch (e: any) { res.status(500).json({ error: 'accept failed: ' + (e?.message || String(e)) }); }
+});
+
+// declining is consent too — plainly, no residue.
+app.post('/sessions/:id/decline', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: s } = await supabase.from('sessions').select('id, invitee, status').eq('id', req.params.id).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such sitting' });
+    if ((s as any).invitee !== me.id) return res.status(403).json({ error: 'this invitation is not yours' });
+    if ((s as any).status !== 'invited') return res.status(400).json({ error: 'too late to decline.' });
+    await supabase.from('sessions').update({ status: 'ended', closed_at: new Date().toISOString() }).eq('id', (s as any).id);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'decline failed: ' + (e?.message || String(e)) }); }
+});
+
+// NEVER CAPTIVE: either party, one tap, any moment, instant. No guilt line,
+// no are-you-sure — the room simply ends.
+app.post('/sessions/:id/end', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: s } = await supabase.from('sessions')
+      .select('id, thread_id, format, moderator_key, initiator, invitee, status, phase, floor_holder')
+      .eq('id', req.params.id).maybeSingle();
+    if (!s) return res.status(404).json({ error: 'no such sitting' });
+    if ((s as any).initiator !== me.id && (s as any).invitee !== me.id) return res.status(403).json({ error: 'not your sitting' });
+    if ((s as any).status === 'closed' || (s as any).status === 'ended') return res.json({ ok: true });
+    await supabase.from('sessions').update({ status: 'ended', closed_at: new Date().toISOString(), floor_holder: null }).eq('id', (s as any).id);
+    res.json({ ok: true });
+    void sessionEndedLine(s as any);   // one plain line so the other device learns
+  } catch (e: any) { res.status(500).json({ error: 'end failed: ' + (e?.message || String(e)) }); }
 });
 
 // creator-only: delete a public room — drops it from the directory (active=false,
@@ -2760,7 +2882,7 @@ app.get('/threads', async (req, res) => {
     const user = await resolveUser(authId);
     const { data } = await supabase.from('threads')
       .select('id, persona_key, companion_name, avatar_url, accent, last_active')
-      .eq('user_id', user.id).is('deleted_at', null)
+      .eq('user_id', user.id).eq('is_session', false).is('deleted_at', null)   // [R4] sessions list ONLY in the sessions pane
       .order('last_active', { ascending: false });
     const threads = data ?? [];
     // unread = messages newer than this user's last_read_at for the thread. One read
@@ -3428,7 +3550,7 @@ app.get('/rooms', async (req, res) => {
     if (!ids.length) return res.json([]);
     const { data: threads } = await supabase.from('threads')
       .select('id, companion_name, member_keys, last_active, user_id')
-      .in('id', ids).eq('is_shared', true).is('deleted_at', null)
+      .in('id', ids).eq('is_shared', true).eq('is_session', false).is('deleted_at', null)   // [R4] the wall: sessions never list as rooms
       .order('last_active', { ascending: false });
     // [R3] which of these are FLOOR rooms — the client routes them through the
     // doorway, never CuratedRoomScreen. One indexed IN query for the whole list.
@@ -3934,7 +4056,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
   try {
     // look up the thread. shared rooms: any MEMBER may chat (not just owner).
     const { data: th } = await supabase.from('threads')
-      .select('is_group, is_shared, user_id, member_keys, game_mode, scenario_key').eq('id', threadId).is('deleted_at', null).maybeSingle();   // [coalescer] games/roleplay keep the synchronous path
+      .select('is_group, is_shared, user_id, member_keys, game_mode, scenario_key, is_session').eq('id', threadId).is('deleted_at', null).maybeSingle();   // [coalescer] games/roleplay keep the synchronous path [R4] sessions ride the shared branch
     if (!th) { res.write(`data: ${JSON.stringify({ error: 'thread not found' })}\n\n`); return res.end(); }
     const isOwner = th.user_id === user.id;
     // A DM is a shared thread with NO persona members — two humans, no one to "generate"
@@ -3989,6 +4111,14 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       // membership gate: only members of the room may post
       if (!isOwner && !(await isRoomMember(threadId, user.id))) {
         res.write(`data: ${JSON.stringify({ error: 'you are not in this room' })}\n\n`); return res.end();
+      }
+      // [R4] THE SESSION rides this branch: consented, live, moderator-only.
+      // Before the room is live (invited), no words land — consent first.
+      const sess = th.is_session ? await sessionByThread(threadId) : null;
+      if (th.is_session && (!sess || sess.status !== 'live')) {
+        const line = sess && (sess.status === 'closed' || sess.status === 'ended')
+          ? 'this sitting is complete.' : "the sitting hasn't started — they haven't accepted yet.";
+        res.write(`data: ${JSON.stringify({ error: line, code: 'session_not_live' })}\n\n`); return res.end();
       }
       // [R1] THE IDENTITY WALL at the send: in a public room the speaker is
       // their handle — on the wire, in history stamps, and in the DIRECTOR's
@@ -4056,6 +4186,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       void broadcastRoomMessage(threadId, {
         role: 'user', content: stored2, sender_user_id: user.id,
         sender_name: speakerName, client_id: clientId, id: (savedRoom as any)?.id ?? null,   // [H1][H1b][R1]
+        inboxPreviewOverride: th.is_session ? 'a session' : null,   // [R4] the wall
       });
       res.write(`data: ${JSON.stringify({ done: true, saved: (savedRoom as any)?.id || null, client_id: clientId })}\n\n`);
       res.end();
@@ -4063,12 +4194,18 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       if (pubRoom) void judge(pubRoom.id, threadId, user.id, stored2);
       const senderName = speakerName;   // [R1]
       const uid = user.id;
+      if (th.is_session) {
+        // [R4] one presence: the phase controller feeds the coalescer; the
+        // DIRECTOR never casts inside a session.
+        scheduleGroupTurn(threadId, () => runSessionTurn({ threadId, senderUserId: uid, message: stored2 }));
+      } else {
       scheduleGroupTurn(threadId, () => runGroupTurn({
         userId: uid, threadId, message: stored2, image: image ?? null, senderName,
         isPublic: isPublicThread,   // [R1]
         clientId, alreadyPersisted: true,   // [H1b/coalescer]
         addressed: Array.isArray(addressed) ? addressed : undefined,
       }));
+      }
       return;
     } else if (th.is_group && isOwner) {
       // ARENA support in groups: strip score tags from the moderator's visible stream,

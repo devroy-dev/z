@@ -1,0 +1,37 @@
+{
+ "id": "cofounder",
+ "title": "the co-founder sitting",
+ "line": "the working relationship — what's working, what's grinding, the decision you've been avoiding.",
+ "phases": [
+  {
+   "id": "arrival",
+   "title": "arrival",
+   "floor": "both",
+   "move": "Set a working-room tone: candid, respectful, no scorekeeping. One line each on the state of the partnership as they see it today."
+  },
+  {
+   "id": "working",
+   "title": "what's working",
+   "floor": "both",
+   "move": "What's genuinely working between them — each names at least one thing the OTHER carries well. Make them be specific."
+  },
+  {
+   "id": "grinding",
+   "title": "what's grinding",
+   "floor": "both",
+   "move": "What's grinding. One at a time, concrete, about the work and the pattern — steer them off character verdicts and onto behaviour."
+  },
+  {
+   "id": "avoided",
+   "title": "the avoided decision",
+   "floor": "both",
+   "move": "Name it: one decision they have both been circling without making. Get the real disagreement stated plainly by each side; do not resolve it for them."
+  },
+  {
+   "id": "close",
+   "title": "the close",
+   "floor": "both",
+   "move": "CLOSE the sitting: reflect both positions on the avoided decision fairly, what each said was working and grinding, and one concrete next step EACH offered — theirs, not yours. No verdict on who is right."
+  }
+ ]
+}

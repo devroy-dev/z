@@ -163,13 +163,41 @@ section switch, not one continuous scroll — preserves both surfaces'
 scroll/overlay machinery with zero internal surgery. Owner may re-rule for
 the single-scroll version (one focused sitting).
 
+## R4 — THE SESSION (this sitting, ROOMS_SPEC_V2 §4 — the moat)
+
+**Shipped (apply_rooms_r4.py + 0080 + 6 new files — see APPLY_ROOMS_R4.md):**
+sessionLoop.ts phase controller above the room (moderator-only; no DIRECTOR
+casting; [[SILENT]]/[[ADVANCE]]/[[CLOSE]] tags; soft floor — off-turn words
+always persist, she re-holds gently; pacing law; Haiku, logUsage
+fn session-mod); four format JSONs in content/sessions/ (clear the air ·
+check-in · co-founder · bridge) — the chassis the battlefield inherits
+later; consent both ways (invite-by-@handle → explicit accept makes the
+room live and READABLE; decline exists); NEVER CAPTIVE (either party, one
+tap, instant, no confirm); the crisis ramp in every turn prompt; the close
+is both-sided and verdict-free, kept in the room. THE WALL GREP-PROVEN at
+every entry point before ship: loop.ts harvesters structurally unreachable
+(is_shared returns pre-runZTurn), threads-janitor + gardener transitively
+walled, room-memory refused inside harvestRoomMemory itself, the OVERSEER'S
+WINDOW SWEEP (a real breach found in audit) now drops is_session threads,
+inbox previews read "a session" on all three broadcast paths, /threads +
+/rooms filtered, GET /sessions carries no content. Surfaces: SessionScreen
+(fourth thin shell — phase quiet, floor indicated, one-tap end, kept-card
+close) + SessionsPane as the fold's third section. The healer's session
+overlay authored as content/codex-healer-session-overlay.DRAFT.md —
+DRAFT-FOR-DEV, wired to nothing.
+
+**Declared:** invite-by-handle instead of the link-token sketch; 9s state
+poll instead of a state broadcast (hardening pass); healer-only moderator
+in v1; 0081 stays reserved.
+
 ## NEXT SITTING PICKS UP (updated)
-R4 — THE SESSION (V2 §4): 0080_sessions.sql (0080–0081 reserved),
-sessionLoop.ts phase controller above groupLoop (moderator-only, no DIRECTOR
-casting), four format JSONs in content/sessions/, soft floor by register,
-the crisis ramp in the moderator's turn prompt, THE WALL grep-proven at
-every harvester entry point (harvestMemory · thread harvester · nightly
-janitor) BEFORE ship, inbox previews content-free, either-party end in one
-tap. The healer's session overlay is DRAFT-FOR-DEV — never session-shipped.
-R5 (house slate) after; H3 rooms-only whenever scheduled; battlefield
-inherits the phase engine after R4.
+R5 — the house slate (v1 §8): the weekly programme (the anchor's 9 o'clock ·
+debate night · the trivia gauntlet) built BESIDE eveningProgramme.ts, never
+an extension of it (audit ruling); house rooms carry isHouse; announced via
+the Host's desk brief + ONE opt-in scheduled_pings knock for joined rooms —
+the one-knock law is house-wide. After R5: H3 (presence/typing, rooms-only)
+whenever a hardening sitting is scheduled (last-seen privacy ruling still
+owed by the owner); the battlefield inherits the session phase chassis on
+its own track; the owner-to-slot pile stands (memory chip · host behaviors ·
+hostless backfill · muted enforcement with room notifications · overlay
+blessing · single-scroll fold re-rule).

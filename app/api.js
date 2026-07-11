@@ -522,6 +522,29 @@ export async function setThreadPrefs(threadId, prefs) {
 export async function getThreadPrefs(threadId) {
   try { return await authedJSON('GET', `/thread/prefs?threadId=${encodeURIComponent(threadId)}`); } catch (e) { return null; }
 }
+// ---- [R4] THE SESSION ----
+export async function getSessionFormats() {
+  try { return await authedJSON('GET', '/sessions/formats'); } catch (e) { return []; }
+}
+export async function createSession(format, inviteeHandle) {
+  try { return await authedJSON('POST', '/sessions', { format, inviteeHandle }); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function getSessions() {
+  try { return await authedJSON('GET', '/sessions'); } catch (e) { return []; }
+}
+export async function acceptSession(id) {
+  try { return await authedJSON('POST', `/sessions/${id}/accept`, {}); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function declineSession(id) {
+  try { return await authedJSON('POST', `/sessions/${id}/decline`, {}); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+export async function endSession(id) {
+  try { return await authedJSON('POST', `/sessions/${id}/end`, {}); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
 
 // ── fantasy football (house league — EPL + UCL, real data) ──
 export async function ffStatus(league = 'epl') {

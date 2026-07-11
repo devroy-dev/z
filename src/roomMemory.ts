@@ -57,7 +57,8 @@ export async function readRoomMemoryBlock(threadId: string, personaKey?: string)
 export async function harvestRoomMemory(threadId: string): Promise<number> {
   try {
     const { data: th } = await supabase.from('threads')
-      .select('member_keys').eq('id', threadId).maybeSingle();
+      .select('member_keys, is_session').eq('id', threadId).maybeSingle();
+    if ((th as any)?.is_session) return 0;   // [R4] THE WALL: the function itself refuses sessions — every caller is covered
     const roomPersonaKeys: string[] = ((th as any)?.member_keys || []).filter(Boolean);
 
     const { data: history } = await supabase
@@ -148,7 +149,7 @@ export async function runRoomMemoryHarvest(): Promise<{ rooms: number; items: nu
   const threadIds = [...new Set((active ?? []).map((r: any) => String(r.thread_id)))];
   if (!threadIds.length) return { rooms: 0, items: 0 };
   const { data: shared } = await supabase
-    .from('threads').select('id').in('id', threadIds).eq('is_shared', true).is('deleted_at', null);
+    .from('threads').select('id').in('id', threadIds).eq('is_shared', true).eq('is_session', false).is('deleted_at', null);   // [R4] the wall: sessions are never harvested
   let rooms = 0, items = 0;
   for (const t of (shared ?? []) as any[]) {
     const nn = await harvestRoomMemory(t.id);

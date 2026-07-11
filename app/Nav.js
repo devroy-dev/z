@@ -27,6 +27,7 @@ import CuratedRoomScreen from './CuratedRoomScreen';
 import ChatHome, { MOON } from './ChatHome';
 import PublicDoorway from './PublicDoorway';       // [R1] the floor's threshold
 import PublicRoomScreen from './PublicRoomScreen'; // [R1] the floor's register
+import SessionScreen from './SessionScreen';       // [R4] the sitting's room
 import You from './You';
 
 const N = {
@@ -179,6 +180,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'persona') return setChatOpen(dest);
     if (dest.kind === 'play') { setChatOpen(null); setWorld('play'); setActive('play'); return; }   // [R3] play is a noun in the one nav
     if (dest.kind === 'publicDoorway') return setChatOpen(dest);   // [R1] every public entry passes the threshold
+    if (dest.kind === 'session') return setChatOpen(dest);   // [R4] the sitting
     if (dest.kind === 'room') {
       // [R3] a FLOOR room reaching this router (recents row, the Gathering's
       // list, desk search) always enters through its doorway — the threshold
@@ -243,6 +245,9 @@ export default function Nav({ screens, onLogout = () => {} }) {
   const chatContent = chatOpen
     ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
       : chatOpen.kind === 'roster' ? screens.gathering({ navigate, target: null })
+      : chatOpen.kind === 'session' ? (
+          <SessionScreen session={chatOpen.session} onBack={() => setChatOpen(null)} />
+        )
       : chatOpen.kind === 'publicDoorway' ? (
           // [R1] the mandatory threshold — consent, 18+, the handle — then the register
           <PublicDoorway room={chatOpen.room} onBack={() => setChatOpen(null)}

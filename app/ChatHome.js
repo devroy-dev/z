@@ -17,6 +17,7 @@ import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, set
 import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
+import SessionsPane from './SessionsPane';   // [R4] the SESSIONS section
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { nameOf, rgbOf, shareableKeys } from './roster';   // [§3 rider] the games table keeps its cast; the inbox reads the one roster [R2] host picker
 
@@ -668,7 +669,7 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
       {tab === 'rooms' && (
         <View style={{ flex: 1 }}>
           <View style={st.sectBar}>
-            {[['house', 'tonight in the house'], ['floor', 'the floor']].map(([id, label]) => (
+            {[['house', 'tonight in the house'], ['floor', 'the floor'], ['sessions', 'sessions']].map(([id, label]) => (   /* [R4] */
               <Pressable key={id} style={[st.sectBtn, roomsSect === id && st.sectOn]} onPress={() => setRoomsSect(id)}>
                 <Text style={[st.sectTxt, roomsSect === id && st.sectTxtOn]}>{label}</Text>
               </Pressable>
@@ -676,7 +677,9 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
           </View>
           {roomsSect === 'house'
             ? <Rooms embedded onOpen={(r) => onOpen({ kind: 'room', room: r })} />
-            : <PublicRooms onOpen={onOpen} />}
+            : roomsSect === 'sessions'
+              ? <SessionsPane onOpen={onOpen} />
+              : <PublicRooms onOpen={onOpen} />}
         </View>
       )}
 

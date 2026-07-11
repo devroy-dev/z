@@ -17,6 +17,7 @@ export async function broadcastRoomMessage(threadId: string, msg: {
   created_at?: string;
   client_id?: string | null;   // [H1] the sender's own id — echo dedupe + sent-tick
   id?: string | null;          // [H1b] the DB row id — identical on both transports; the dedupe key
+  inboxPreviewOverride?: string | null;   // [R4] THE WALL: session previews read "a session", never content
 }): Promise<void> {
   if (!SUPABASE_URL || !SERVICE_KEY) return;
   try {
@@ -43,7 +44,7 @@ export async function broadcastRoomMessage(threadId: string, msg: {
     try {
       const { data: mem } = await supabase.from('room_members')
         .select('user_id').eq('thread_id', threadId).limit(200);
-      const preview = String(msg.content || '').slice(0, 120);
+      const preview = msg.inboxPreviewOverride != null ? String(msg.inboxPreviewOverride) : String(msg.content || '').slice(0, 120);   // [R4] the wall
       for (const m of (mem ?? [])) {
         if (!m?.user_id) continue;
         messages.push({

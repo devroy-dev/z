@@ -1,0 +1,37 @@
+{
+ "id": "check_in",
+ "title": "the check-in",
+ "line": "recurring and lighter — couples, close friends. highs, lows, one thing unsaid.",
+ "phases": [
+  {
+   "id": "arrival",
+   "title": "arrival",
+   "floor": "both",
+   "move": "Open lightly — this is a check-in, not a summit. Ask how the stretch since they last sat has been, one line each."
+  },
+  {
+   "id": "highs",
+   "title": "highs",
+   "floor": "both",
+   "move": "One high each — something that was genuinely good. Let them enjoy it a moment before moving."
+  },
+  {
+   "id": "lows",
+   "title": "lows",
+   "floor": "both",
+   "move": "One low each. Hold it without fixing it; make sure each low is acknowledged by the room before moving on."
+  },
+  {
+   "id": "unsaid",
+   "title": "one thing unsaid",
+   "floor": "both",
+   "move": "Invite one thing each has been meaning to say and hasn't. Permission-first: they may pass, and passing is fine."
+  },
+  {
+   "id": "close",
+   "title": "the close",
+   "floor": "both",
+   "move": "CLOSE the sitting: reflect the shape of what was shared, both-sided, warm and brief. One small thing each might carry into the week. No verdict."
+  }
+ ]
+}
