@@ -4149,6 +4149,23 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       // (the coalesced insert below and groupLoop's, which this branch feeds).
       // A hit never persists, never broadcasts; in a public room it also feeds
       // the ladder (severe → instant ban, per the doorman's own doctrine).
+      // [casting fix] TYPED SUMMONS: the Composer's @popover fills `addressed`
+      // only on a TAP — "@the guru" typed and sent ships addressed:[]. Parse the
+      // text against the room's persona names server-side (tolerant of the
+      // "the " prefix and spaces) and merge, so a named summon always lands.
+      const addressedMerged: string[] = Array.isArray(addressed) ? [...addressed] : [];
+      try {
+        const txt = String(message || '').toLowerCase();
+        if (txt.includes('@')) {
+          for (const k of ((th.member_keys || []) as string[])) {
+            if (addressedMerged.includes(k)) continue;
+            const nm = (personaByKey(k)?.defaultName || '').toLowerCase();
+            if (!nm) continue;
+            const bare = nm.replace(/^the\s+/, '');
+            if (txt.includes('@' + nm) || txt.includes('@' + bare)) addressedMerged.push(k);
+          }
+        }
+      } catch (e) { /* the net is best-effort */ }
       const l1 = deterministicCheck(String(message || ''));
       if (l1.action === 'block') {
         res.write(`data: ${JSON.stringify({ error: "that message wasn't sent — house rules.", code: 'house_rules' })}\n\n`);
@@ -4167,7 +4184,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
           userId: user.id, threadId, message, image: image ?? null, senderName: speakerName,
           isPublic: isPublicThread,   // [R1]
           clientId,   // [H1]
-          addressed: Array.isArray(addressed) ? addressed : undefined,
+          addressed: addressedMerged.length ? addressedMerged : undefined,   // [casting fix]
           onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
           onToken: (key, t) => res.write(`data: ${JSON.stringify({ speaker: key, token: t })}\n\n`),
           onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),
@@ -4208,7 +4225,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
         userId: uid, threadId, message: stored2, image: image ?? null, senderName,
         isPublic: isPublicThread,   // [R1]
         clientId, alreadyPersisted: true,   // [H1b/coalescer]
-        addressed: Array.isArray(addressed) ? addressed : undefined,
+        addressed: addressedMerged.length ? addressedMerged : undefined,   // [casting fix]
       }));
       }
       return;

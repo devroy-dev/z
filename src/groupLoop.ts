@@ -65,7 +65,9 @@ async function directRoom(
     const sys =
       `You direct a chat between one person and a few AI personas. Pick who should ` +
       `answer the LATEST message — usually ONE best-fit persona, occasionally TWO if the ` +
-      `message clearly invites several (e.g. "what do you all think?"). A substantive ` +
+      `message clearly invites several (e.g. "what do you all think?"). ` +
+      `IF THE MESSAGE NAMES OR SUMMONS A SPECIFIC PERSONA (an @mention or their name, ` +
+      `even loosely — "guru" for "the guru") → pick THAT persona, always. A substantive ` +
       `message almost always gets one voice — this is a lively group chat. BUT: if the ` +
       `latest message is noise, a bare ack ("ok", a lone emoji), or a machine-shaped ` +
       `string (test text, codes, timestamps), return [] — silence, or letting it lie, ` +
@@ -299,7 +301,15 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     const humanSenders = new Set((history ?? []).filter((m: any) => m.role === 'user' && m.sender_user_id).map((m: any) => m.sender_user_id));
     if (userId) humanSenders.add(userId);
     const humanCount = Math.max((mem ?? []).length || 1, humanSenders.size || 1);
-    const roster = members.map((k) => ({ key: k, name: nameFor(k) }));
+    // [casting fix] THE DOORMAN IS NOT A CONVERSATIONALIST. In a plain room the
+    // moderator guards (doormanSpeak is his voice) — he never takes the mic as
+    // a best-fit pick. Legacy hostless rooms (pre-inhabitation-law) keep him as
+    // the only voice rather than going mute. An EXPLICIT summon (@moderator)
+    // still reaches him — honored against the FULL room, director bypassed.
+    const conversable = members.filter((k) => k !== 'the_moderator');
+    const castMembers = conversable.length ? conversable : members;
+    const explicit = [...new Set((input.addressed || []).filter((k) => members.includes(k)))].slice(0, 3);
+    const roster = castMembers.map((k) => ({ key: k, name: nameFor(k) }));
     const recent = priorLines.slice(-12).join('\n');
     // [audit #6] rotation: the last few persona voices, so the director can vary
     const recentSpeakers: string[] = [];
@@ -307,7 +317,9 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       const m: any = (history as any)[i];
       if (m.role === 'assistant' && m.persona_key && !recentSpeakers.includes(m.persona_key)) recentSpeakers.push(m.persona_key);
     }
-    speakers = await directRoom(members, roster, recent, input.senderName, humanCount, input.addressed, recentSpeakers);
+    speakers = explicit.length
+      ? explicit
+      : await directRoom(castMembers, roster, recent, input.senderName, humanCount, undefined, recentSpeakers);
     // nobody should speak — the humans are talking (or it was noise); stay quiet
     if (!speakers.length) return;
     if (humanCount <= 1) soloHumanNote = `\n\n[ONE HUMAN IS IN THIS ROOM: ${input.senderName || 'the person'}. Talk TO them, directly, second person — never narrate ABOUT them to the room. There is no audience here but the two of you and the other personas.]`;
