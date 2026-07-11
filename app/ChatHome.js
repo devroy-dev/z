@@ -13,7 +13,7 @@ import { Dimensions } from 'react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert, Linking } from 'react-native';   // [zip67]
 import { FONTS } from './theme';
 import DeskPane from './DeskPane';   // [DESK COMES ALIVE] the desk shows the work
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, createPublicRoom, deleteRoomThread, getMe, loadSession, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67] [H1c-2] loadSession [R1] joinPublicRoom moved to the doorway
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, setThreadPrefs, getPublicRooms, createPublicRoom, deleteRoomThread, getMe, loadSession, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67] [H1c-2] loadSession [R1] joinPublicRoom moved to the doorway
 import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
@@ -286,7 +286,8 @@ function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
 }
 
 export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 'thedesk', diag = false }) {   // [zip81] [H1c]
-  const [tab, setTab] = useState(initialTab);   // [zip61][zip81] restore the tab we came back to
+  const [tab, setTab] = useState(initialTab === 'groups' ? 'rooms' : initialTab);   // [zip61][zip81] restore the tab we came back to [R3] groups folded into rooms
+  const [roomsSect, setRoomsSect] = useState('house');   // [R3] the fold's sections: tonight in the house | the floor
   const [deskBump, setDeskBump] = useState(0);            // [DESK COMES ALIVE]
   const [deskRefreshing, setDeskRefreshing] = useState(false);
   const deskRefresh = () => { setDeskRefreshing(true); setDeskBump((b) => b + 1); setTimeout(() => setDeskRefreshing(false), 700); };
@@ -348,18 +349,15 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
   const [filt, setFilt] = useState('all');
   const [zFace, setZFace] = useState(true);
   const [deskFace, setDeskFace] = useState(true);
-  const [friendList, setFriendList] = useState([]);
-  const [opening, setOpening] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [t, r, f] = await Promise.all([getThreads(), listRooms(), getFriends()]);
+      const [t, r] = await Promise.all([getThreads(), listRooms()]);   // [R3] getFriends left with the DM affordance
       const tt = Array.isArray(t) ? t : [];
       const rr = Array.isArray(r) ? r : (r?.rooms || []);
       setThreads(tt);
       setRooms(rr);
-      setFriendList((f && f.friends) ? f.friends : []);
       AsyncStorage.setItem('z_home_cache', JSON.stringify({ t: tt, r: rr })).catch(() => {});
     } catch (e) {}
   }, []);
@@ -426,16 +424,8 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
     return () => { alive = false; try { unsubscribeInbox(); } catch (e) {} };
   }, [load]);
 
-  // tap a friend → open (or create) the DM thread, then land in the normal chat surface.
-  const openFriendDM = useCallback(async (friend) => {
-    if (opening) return;
-    setOpening(true);
-    try {
-      const r = await openDM(friend.id);
-      if (r && r.id) onOpen({ kind: 'dm', threadId: r.id, name: friend.display_name || ('@' + friend.handle) });
-    } catch (e) {}
-    setOpening(false);
-  }, [opening, onOpen]);
+  // [R3] openFriendDM died with the DM-creation affordance (V2 §1's death list) —
+  // human↔human DMs are commodity plumbing; existing threads stay readable.
   // paint the last-known list instantly, then refresh behind it — kills the
   // pinned-rows-then-blank-wait on every open.
   useEffect(() => {
@@ -513,7 +503,7 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
     }
     for (const rm of (rooms || [])) {
       const nm = rm.name || '';
-      if (nm && nm.toLowerCase().includes(deskDq)) hits.push({ face: null, name: nm, line: 'public room', open: { kind: 'room', room: { id: rm.threadId || rm.id, name: nm, personas: rm.personas || [] } }, tag: 'room' });
+      if (nm && nm.toLowerCase().includes(deskDq)) hits.push({ face: null, name: nm, line: rm.publicRoomId ? 'public room' : 'room', open: { kind: 'room', room: rm }, tag: 'room' });   // [R3] floor rooms detour via Nav's doorway interception
     }
     deskResults = hits;
   }
@@ -607,28 +597,15 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
             <Text style={{ fontFamily: FONTS.body, color: 'rgba(233,232,240,0.34)', fontSize: 12, textAlign: 'center', marginBottom: 8, fontStyle: 'italic' }}>swipe right when you need the quiet</Text>
           ) : null}
           <View style={st.chips}>
-            {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['friends','live friends'],['archived','archived']].map(([id,label]) => (
+            {[['all','all'],['fav','favourites'],['growth','growth'],['unread','unread'],['archived','archived']].map(([id,label]) => (   /* [R3] 'live friends' died with the DM-creation affordance */
               <Pressable key={id} style={[st.chip, filt === id && st.chipOn]} onPress={() => setFilt(id)}>
                 <Text style={[st.chipTxt, filt === id && st.chipTxtOn]}>{label}</Text>
               </Pressable>
             ))}
           </View>
-          {filt === 'friends' ? (
-            friendList.length === 0 ? (
-              <Text style={st.empty}>no friends yet — add people by handle in the You tab, then they show up here to chat.</Text>
-            ) : (
-              friendList.map((fr) => (
-                <Row key={fr.id}
-                  face={fr.avatar_url || null}
-                  glyph={fr.avatar_url ? null : '🙂'}
-                  tone={MOON.hair}
-                  name={fr.display_name || ('@' + fr.handle)}
-                  line={fr.handle ? '@' + fr.handle : 'tap to chat'}
-                  onPress={() => openFriendDM(fr)}
-                />
-              ))
-            )
-          ) : (
+          {/* [R3] the friends-DM branch died with the DM-creation affordance —
+              existing DM threads stay readable in the recents below. */}
+          {(
             <>
               {recents.map((r, i) => (
                 <ReanimatedSwipeable key={r.threadId || i} renderRightActions={rowActions(r)} overshootRight={false} friction={2} dragOffsetFromLeftEdge={200}>
@@ -685,8 +662,23 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
           )}
         </ScrollView>
       )}
-      {tab === 'groups' && <Rooms onOpen={(r) => onOpen({ kind: 'room', room: r })} />}
-      {tab === 'rooms' && <PublicRooms onOpen={onOpen} />}
+      {/* [R3] THE FOLD: the groups tab is dead. Every inhabited space lives in
+          ONE rooms tab, sectioned — the Gathering (its tonight-row machinery
+          intact) and the floor. SESSIONS renders here once R4 builds it. */}
+      {tab === 'rooms' && (
+        <View style={{ flex: 1 }}>
+          <View style={st.sectBar}>
+            {[['house', 'tonight in the house'], ['floor', 'the floor']].map(([id, label]) => (
+              <Pressable key={id} style={[st.sectBtn, roomsSect === id && st.sectOn]} onPress={() => setRoomsSect(id)}>
+                <Text style={[st.sectTxt, roomsSect === id && st.sectTxtOn]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {roomsSect === 'house'
+            ? <Rooms embedded onOpen={(r) => onOpen({ kind: 'room', room: r })} />
+            : <PublicRooms onOpen={onOpen} />}
+        </View>
+      )}
 
       {/* compose */}
       {tab === 'chats' && (
@@ -695,18 +687,19 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
         </Pressable>
       )}
 
-      {/* the inner tabs */}
+      {/* the inner tabs — [R3] THE NAV FOLD: one nav, four nouns. groups is dead;
+          play is a noun, not a world behind a pill. */}
       <View style={st.tabs}>
-        {[['thedesk', 'the Desk'], ['chats', 'chats'], ['groups', 'groups'], ['rooms', 'rooms']].map(([id, label]) => {   /* [zip61] */
+        {[['thedesk', 'the Desk'], ['chats', 'chats'], ['rooms', 'rooms'], ['play', 'play']].map(([id, label]) => {   /* [zip61] [R3] */
           const on = tab === id;
           const stroke = on ? MOON.moon : MOON.faint;
           return (
-            <Pressable key={id} style={st.tabBtn} onPress={() => setTab(id)}>
+            <Pressable key={id} style={st.tabBtn} onPress={() => (id === 'play' ? onOpen({ kind: 'play' }) : setTab(id))}>
               <Svg width="22" height="22" viewBox="0 0 24 24">
                 {id === 'chats' && <><Circle cx="12" cy="11" r="7.5" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M7 20 L9 15.5" stroke={stroke} strokeWidth="1.6" fill="none" strokeLinecap="round" /></>}
                 {id === 'thedesk' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" strokeDasharray="4 3" /><Circle cx="12" cy="12" r="3" fill={stroke} /></>}
-                {id === 'groups' && <><Circle cx="9" cy="9.5" r="3.4" stroke={stroke} strokeWidth="1.6" fill="none" /><Circle cx="16.5" cy="10.5" r="2.6" stroke={stroke} strokeWidth="1.4" fill="none" /><SvgPath d="M3.5 19 Q9 13.5 14.5 19" stroke={stroke} strokeWidth="1.6" fill="none" strokeLinecap="round" /><SvgPath d="M15 18 Q17.5 15.5 21 18" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" /></>}
                 {id === 'rooms' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M4.5 12 H19.5 M12 4.5 C9 8, 9 16, 12 19.5 M12 4.5 C15 8, 15 16, 12 19.5" stroke={stroke} strokeWidth="1.2" fill="none" /></>}
+                {id === 'play' && <><SvgPath d="M7.5 8.5h9a4 4 0 0 1 4 4a2.6 2.6 0 0 1-4.7 1.5l-.5-.7H8.7l-.5.7A2.6 2.6 0 0 1 3.5 12.5a4 4 0 0 1 4-4z" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" /><SvgPath d="M7 11.2v2M6 12.2h2" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" /><Circle cx="15.8" cy="11.6" r="0.75" fill={stroke} /><Circle cx="17.4" cy="13.1" r="0.75" fill={stroke} /></>}
               </Svg>
               <Text style={[st.tabTxt, on && st.tabOn]}>{label}</Text>
             </Pressable>
@@ -771,6 +764,11 @@ const st = StyleSheet.create({
   tabs: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: MOON.raise, borderTopWidth: 1, borderTopColor: MOON.hair, paddingBottom: 22, paddingTop: 14 },
   tabBtn: { flex: 1, alignItems: 'center', gap: 4 },
   tabTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 13.5 },
+  sectBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },   // [R3]
+  sectBtn: { borderRadius: 999, borderWidth: 1, borderColor: 'rgba(233,232,240,0.12)', paddingHorizontal: 14, paddingVertical: 7 },   // [R3]
+  sectOn: { borderColor: 'rgba(231,176,122,0.55)', backgroundColor: 'rgba(231,176,122,0.10)' },   // [R3]
+  sectTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 12 },   // [R3]
+  sectTxtOn: { color: '#F3CFA3' },   // [R3]
   tabOn: { color: MOON.moon },
   tabDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: MOON.moon },
   soonWrap: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 40 },

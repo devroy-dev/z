@@ -36,11 +36,11 @@ const N = {
   candle: '#E7B07A', candleHot: '#F3CFA3',
 };
 
-const TABS = [
-  { id: 'desk',      label: 'Desk' },
-  { id: 'gathering', label: 'Gathering' },
-  { id: 'rooms',     label: 'Rooms' },
-  { id: 'play',      label: 'Play' },
+const TABS = [   // [R3] the four nouns — the play world's bottom bar mirrors ChatHome's
+  { id: 'thedesk', label: 'the Desk' },
+  { id: 'chats',   label: 'chats' },
+  { id: 'rooms',   label: 'rooms' },
+  { id: 'play',    label: 'play' },
 ];
 
 // ── custom Nightfall icons — clean shapes, candle when active ──
@@ -49,15 +49,15 @@ function Icon({ id, active }) {
   const common = { stroke: s, strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
   return (
     <Svg width="25" height="25" viewBox="0 0 24 24">
-      {/* Desk = the concierge bell (someone's here, at the door) */}
-      {id === 'desk' && <>
+      {/* the Desk = the concierge bell (someone's here, at the door) */}
+      {id === 'thedesk' && <>
         <Path d="M5.5 17.5h13" {...common} />
         <Path d="M7 17.5v-4a5 5 0 0 1 10 0v4" {...common} />
         <Path d="M12 8.5V6.9M10.9 6.9h2.2" {...common} />
         {active && <Circle cx="12" cy="20" r="1.1" fill={N.candle} />}
       </>}
-      {/* Gathering = a cluster of people (your people) */}
-      {id === 'gathering' && <>
+      {/* chats = a cluster of people (your people) */}
+      {id === 'chats' && <>
         <Circle cx="8" cy="9" r="2.3" {...common} />
         <Circle cx="16" cy="9" r="2.3" {...common} />
         <Path d="M4 17.5c0-2.2 1.8-3.8 4-3.8s4 1.6 4 3.8" {...common} />
@@ -177,8 +177,19 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
     if (dest.kind === 'z') return setOverlay({ tab: 'quiet' });
     if (dest.kind === 'persona') return setChatOpen(dest);
+    if (dest.kind === 'play') { setChatOpen(null); setWorld('play'); setActive('play'); return; }   // [R3] play is a noun in the one nav
     if (dest.kind === 'publicDoorway') return setChatOpen(dest);   // [R1] every public entry passes the threshold
-    if (dest.kind === 'room') return setChatOpen(dest);
+    if (dest.kind === 'room') {
+      // [R3] a FLOOR room reaching this router (recents row, the Gathering's
+      // list, desk search) always enters through its doorway — the threshold
+      // is mandatory, every entry (v1 §4). listRooms rows carry id=threadId +
+      // publicRoomId; the doorway wants the public id up front.
+      const r = dest.room || {};
+      if (r.publicRoomId && r.id !== undefined && !r.handle) {
+        return setChatOpen({ kind: 'publicDoorway', room: { id: r.publicRoomId, threadId: r.id, name: r.name, personas: (r.personas || []).filter((k) => k !== 'the_moderator'), youCreated: !!r.youCreated } });
+      }
+      return setChatOpen(dest);
+    }
     if (dest.kind === 'dm') return setChatOpen({ kind: 'room', room: { id: dest.threadId, name: dest.name, personas: [] } });
     if (dest.kind === 'roster') return setChatOpen(dest);
   };
@@ -252,20 +263,13 @@ export default function Nav({ screens, onLogout = () => {} }) {
 
   return (
     <View style={[styles.root, world === 'chat' && { backgroundColor: MOON.ground }]}>
-      {/* the shell header: the pill between worlds */}
+      {/* the shell header — [R3] THE PILL IS DEAD. One nav, four nouns; the mark and ⋮ remain. */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: world === 'chat' ? MOON.ground : 'transparent' }}>
         {!chatOpen && (
           <View style={styles.shellBar}>
             <Pressable onLongPress={() => setDiag((d) => { if (!d) setSessCost(0); return !d; })} delayLongPress={600}><Text style={[styles.shellMark, world === 'chat' && { color: MOON.porcelain }]}>callme<Text style={{ color: world === 'chat' ? MOON.moon : '#E7B07A' }}>Z</Text></Text></Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             {diag ? <Text style={styles.sessCost}>₹{sessCost.toFixed(2)}</Text> : null}
-            <View style={[styles.pill, world === 'chat' && { borderColor: MOON.hairStrong }]}>
-              {[['chat', 'chat'], ['play', '✦ play']].map(([id, label]) => (
-                <Pressable key={id} onPress={() => setWorld(id)} style={[styles.pillSeg, world === id && (id === 'chat' ? styles.pillOnCool : styles.pillOnWarm)]}>
-                  <Text style={[styles.pillTxt, world === id && { color: id === 'chat' ? MOON.moon : '#F0C990' }]}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
             <Pressable hitSlop={10} onPress={() => setOverlay({ tab: 'you' })}>
               <Text style={{ color: world === 'chat' ? MOON.mist : 'rgba(245,236,225,0.6)', fontSize: 21, marginTop: -2 }}>⋮</Text>
             </Pressable>
@@ -274,6 +278,14 @@ export default function Nav({ screens, onLogout = () => {} }) {
         )}
       </SafeAreaView>
       <View style={{ flex: 1 }}>{content}</View>
+      {/* [R3] in the play world the same four nouns sit at the bottom — one nav
+          everywhere; tapping a chat-world noun walks home to that tab. */}
+      {world === 'play' && (
+        <BottomNav active="play" onChange={(id) => {
+          if (id === 'play') return;
+          setWorld('chat'); setActive('desk'); setReturnTab(id);
+        }} />
+      )}
     </View>
   );
 }

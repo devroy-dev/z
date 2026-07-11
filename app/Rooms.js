@@ -99,7 +99,7 @@ function YourRoomRow({ room, onOpen, onDelete }) {
   );
 }
 
-export default function Rooms({ onOpen = () => {}, onBack = null }) {
+export default function Rooms({ onOpen = () => {}, onBack = null, embedded = false }) {   // [R3] embedded: the fold's TONIGHT IN THE HOUSE section — same machinery, no world chrome
   const [suggestions, setSuggestions] = useState([]);
   const [suggShown, setSuggShown] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -163,10 +163,11 @@ export default function Rooms({ onOpen = () => {}, onBack = null }) {
   const togglePick = (k) => setPicked((cur) => cur.includes(k) ? cur.filter((x) => x !== k) : (cur.length < 5 ? [...cur, k] : cur));
 
   return (
-    <View style={styles.root}>
-      <LinearGradient colors={[`rgba(231,176,122,0.10)`, `rgba(231,176,122,0.03)`, N.night]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-        <Grain />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+    <View style={embedded ? { flex: 1 } : styles.root}>
+      {!embedded && <LinearGradient colors={[`rgba(231,176,122,0.10)`, `rgba(231,176,122,0.03)`, N.night]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />}
+      {!embedded && <Grain />}
+      <SafeAreaView style={{ flex: 1 }} edges={embedded ? [] : ['top']}>
+        {!embedded && (
         <View style={styles.header}>
           {onBack ? (
             <Pressable hitSlop={12} onPress={onBack} style={styles.backRow}>
@@ -177,6 +178,7 @@ export default function Rooms({ onOpen = () => {}, onBack = null }) {
           <Text style={styles.kicker}>together</Text>
           <Text style={styles.title}>your rooms</Text>
         </View>
+        )}
 
         {/* full-width GATHER A ROOM bar */}
         <Pressable style={styles.gather} onPress={() => setPicker(true)}>

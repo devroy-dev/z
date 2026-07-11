@@ -51,23 +51,17 @@ import PusoyTable from './games/pusoy/Table';
 import DebateMatch from './games/debate/Match';
 import TriviaMatch from './games/trivia/Match';
 import VerbalMatch from './games/verbal/Match';
-import Rooms from './Rooms';
-import DMScreen from './DMScreen';   // [zip49] the dismantle: RoomChat died here
-import CuratedRoomScreen from './CuratedRoomScreen';
 import Desk from './Desk';
 import You from './You';
 import Door from './Door';
 import { isLoggedIn, refreshSession, logout, savePush } from './api';
 import { registerForPush, pushPermission } from './push';
-import PublicRoom from './PublicRoom';
-import Lobby from './Lobby';
 import { C } from './theme';
 
 // the built worlds, by tab id. (desk/rooms/arena/you are stubs for now.)
 const SCREENS = {
   gathering: (p) => <GatheringWorld {...p} />,
   desk:  (p) => <DeskWorld {...p} />,
-  rooms: (p) => <RoomsWorld {...p} />,
   play:  (p) => <PlayWorld {...p} />,
   arena: () => <WorldStub kicker="compete" title="Arena" line="games with friends — and always one AI. coming alive next." />,
   stage: () => <WorldStub kicker="rehearse" title="Stage" line="step into the scene. coming alive next." />,
@@ -213,22 +207,8 @@ function GatheringWorld({ navigate, target }) {
   return <Roster onOpen={(pkey) => setOpenChat(pkey)} onCreate={() => setCreating(true)} />;
 }
 
-function RoomsWorld() {
-  const [view, setView] = React.useState('lobby');   // 'lobby' | 'myrooms'
-  const [openRoom, setOpenRoom] = React.useState(null);
-  useBackLayer(view === 'myrooms', React.useCallback(() => { setView('lobby'); return true; }, []));
-  useBackLayer(!!openRoom, React.useCallback(() => { setOpenRoom(null); return true; }, []));
-  if (openRoom && !openRoom.create) {
-    if (openRoom.kind === 'public') {
-      return <PublicRoom room={openRoom} onExit={() => setOpenRoom(null)} />;
-    }
-    return ((openRoom?.personas && openRoom.personas.length) || openRoom?.persona)
-      ? <CuratedRoomScreen room={openRoom} onBack={() => setOpenRoom(null)} />
-      : <DMScreen room={openRoom} onBack={() => setOpenRoom(null)} />;
-  }
-  if (view === 'myrooms') return <Rooms onOpen={(r) => setOpenRoom(r)} onBack={() => setView('lobby')} />;
-  return <Lobby onOpen={(r) => setOpenRoom({ ...r, kind: 'public' })} onMyRooms={() => setView('myrooms')} />;
-}
+// [R3] RoomsWorld died with the world pill — the Lobby placeholder chain and the
+// PublicRoom mock are gone; every room lives in ChatHome's folded rooms tab.
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({

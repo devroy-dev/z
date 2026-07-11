@@ -140,9 +140,36 @@ rejoin), injected-mute rejection, judge strike + warning line, report-room +
 view, prefs pair. Offender is always the disposable account in a disposable
 room. Device verification pending.
 
+## R3 — THE NAV FOLD (this sitting, ROOMS_SPEC_V2 §1)
+
+**Shipped (apply_rooms_r3.py, applies AFTER R2 — see APPLY_ROOMS_R3.md):**
+one nav, four nouns (the Desk · chats · rooms · play); THE PILL IS DEAD; the
+groups tab is dead (stale returnTabs map to rooms); play is a noun — its
+world carries the same four-noun bar home. The rooms tab folded: one tab,
+sectioned (tonight in the house = the Gathering embedded, machinery intact ·
+the floor = the public directory); SESSIONS section lands with R4. Deaths
+executed: RoomsWorld + Lobby.js (invented numbers) + PublicRoom.js mock
+DELETED; every DM-creation affordance gone (chats "live friends" filter,
+You-tab "chat ›"); existing DM threads stay readable rows. GET /rooms rows
+carry publicRoomId + youCreated, and Nav's room router detours ANY
+floor-room open through the doorway — recents, the Gathering's list, desk
+search — closing R1's declared search/inbox drift. THE BUMP VERIFIED: the
+H1c-2 handler updates the one list model at ChatHome level regardless of
+rendered tab — chats rows bump exactly as before; the rooms-tab directories
+are snapshot+pull (never bump-wired, no regression).
+
+**Judgment call on record:** the fold's sections render behind an in-tab
+section switch, not one continuous scroll — preserves both surfaces'
+scroll/overlay machinery with zero internal surgery. Owner may re-rule for
+the single-scroll version (one focused sitting).
+
 ## NEXT SITTING PICKS UP (updated)
-R3 — the nav fold (V2 §1): the chat·play world pill dies, one bottom nav
-(the Desk · chats · rooms · play), the Gathering's tonight-row moves home,
-the Lobby placeholder chain + PublicRoom.js mock deleted, DM-creation
-affordances die (existing DM threads stay readable), the H1c-2 inbox bump
-verified across both tabs — the fold's only transport risk.
+R4 — THE SESSION (V2 §4): 0080_sessions.sql (0080–0081 reserved),
+sessionLoop.ts phase controller above groupLoop (moderator-only, no DIRECTOR
+casting), four format JSONs in content/sessions/, soft floor by register,
+the crisis ramp in the moderator's turn prompt, THE WALL grep-proven at
+every harvester entry point (harvestMemory · thread harvester · nightly
+janitor) BEFORE ship, inbox previews content-free, either-party end in one
+tap. The healer's session overlay is DRAFT-FOR-DEV — never session-shipped.
+R5 (house slate) after; H3 rooms-only whenever scheduled; battlefield
+inherits the phase engine after R4.

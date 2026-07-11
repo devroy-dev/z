@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { C, FONTS } from './theme';
-import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName, savePush, getPushPrefs, openDM } from './api';
+import { getLedger, getMemory, forgetMemory, setHandle, findByHandle, requestFriend, respondFriend, getFriends, getMe, authDiag, updateProfile, exportMyData, deleteMyAccount, cachedName, savePush, getPushPrefs } from './api';   // [R3] openDM left with the DM affordance
 import AsyncStorage from '@react-native-async-storage/async-storage';   // [zip08] profile identity cache
 import { registerForPush, pushPermission } from './push';
 
@@ -188,9 +188,8 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
   const [finding, setFinding] = useState(false);
   const [friends, setFriends] = useState({ friends: [], incoming: [], outgoing: [] });
   const loadFriends = React.useCallback(() => { getFriends().then((f) => setFriends(f || { friends: [], incoming: [], outgoing: [] })); }, []);
-  const openFriendChat = async (u) => {
-    try { const r = await openDM(u.id); if (r && r.id) { onBack(); onOpenChat({ kind: 'dm', threadId: r.id, name: u.display_name || ('@' + u.handle) }); } } catch (e) {}
-  };
+  // [R3] openFriendChat died with the DM-creation affordance (V2 §1) — the friend
+  // graph stays (it feeds room invites); DMs stop being a thing you make.
   React.useEffect(() => { loadFriends(); }, [loadFriends]);
   // seed the saved handle from the server so it shows after leaving/returning (not just the session you set it in)
   const [myName, setMyName] = React.useState('');
@@ -324,7 +323,7 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
           {friends.friends.length === 0 ? (
             <Text style={styles.friendMuted}>no one yet. share your handle or add someone above.</Text>
           ) : friends.friends.map((u) => (
-            <Pressable key={u.id} style={styles.friendCard} onPress={() => openFriendChat(u)}>
+            <View key={u.id} style={styles.friendCard}>
               {u.avatar_url
                 ? <Image source={{ uri: u.avatar_url }} style={styles.friendAvatar} />
                 : <View style={[styles.friendAvatar, styles.friendAvatarEmpty]}><Text style={styles.friendAvatarLetter}>{(u.display_name || u.handle || '?').slice(0,1).toUpperCase()}</Text></View>}
@@ -332,8 +331,7 @@ export default function You({ onBack = () => {}, onLogout = () => {}, onOpenChat
                 <Text style={styles.friendName}>{u.display_name || '@' + u.handle}</Text>
                 <Text style={styles.friendSub}>@{u.handle}</Text>
               </View>
-              <Text style={styles.friendGo}>chat ›</Text>
-            </Pressable>
+            </View>
           ))}
 
           {friends.outgoing.length > 0 && (

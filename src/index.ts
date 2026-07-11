@@ -3430,6 +3430,14 @@ app.get('/rooms', async (req, res) => {
       .select('id, companion_name, member_keys, last_active, user_id')
       .in('id', ids).eq('is_shared', true).is('deleted_at', null)
       .order('last_active', { ascending: false });
+    // [R3] which of these are FLOOR rooms — the client routes them through the
+    // doorway, never CuratedRoomScreen. One indexed IN query for the whole list.
+    const pubByThread: Record<string, { id: string; own: boolean }> = {};
+    {
+      const { data: pubs } = await supabase.from('public_rooms')
+        .select('id, thread_id, created_by').in('thread_id', ids);
+      for (const p of (pubs ?? []) as any[]) pubByThread[p.thread_id] = { id: p.id, own: p.created_by === user.id };
+    }
     const prefs: Record<string, any> = {};
     {
       const { data: rr } = await supabase.from('thread_reads')
@@ -3449,6 +3457,8 @@ app.get('/rooms', async (req, res) => {
         id: t.id, name: t.companion_name,
         personas: (t.member_keys || []), persona: (t.member_keys || [])[0] || null,
         is_owner: t.user_id === user.id,
+        publicRoomId: pubByThread[t.id]?.id || null,           // [R3] the floor's identity
+        youCreated: !!pubByThread[t.id]?.own,                  // [R3]
         last_active: t.last_active, last_message,
         ...(prefs[t.id] || { pinned: false, favourite: false, archived: false }),
       };
