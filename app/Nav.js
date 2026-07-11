@@ -28,6 +28,7 @@ import ChatHome, { MOON } from './ChatHome';
 import PublicDoorway from './PublicDoorway';       // [R1] the floor's threshold
 import PublicRoomScreen from './PublicRoomScreen'; // [R1] the floor's register
 import SessionScreen from './SessionScreen';       // [R4] the sitting's room
+import FoldBar, { FOLD_TABS } from './FoldBar';    // [audit-3] the ONE bar, both worlds
 import You from './You';
 
 const N = {
@@ -37,71 +38,7 @@ const N = {
   candle: '#E7B07A', candleHot: '#F3CFA3',
 };
 
-const TABS = [   // [R3] the four nouns — the play world's bottom bar mirrors ChatHome's
-  { id: 'thedesk', label: 'the Desk' },
-  { id: 'chats',   label: 'chats' },
-  { id: 'rooms',   label: 'rooms' },
-  { id: 'play',    label: 'play' },
-];
-
-// ── custom Nightfall icons — clean shapes, candle when active ──
-function Icon({ id, active }) {
-  const s = active ? N.candle : N.navIdle;
-  const common = { stroke: s, strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
-  return (
-    <Svg width="25" height="25" viewBox="0 0 24 24">
-      {/* the Desk = the concierge bell (someone's here, at the door) */}
-      {id === 'thedesk' && <>
-        <Path d="M5.5 17.5h13" {...common} />
-        <Path d="M7 17.5v-4a5 5 0 0 1 10 0v4" {...common} />
-        <Path d="M12 8.5V6.9M10.9 6.9h2.2" {...common} />
-        {active && <Circle cx="12" cy="20" r="1.1" fill={N.candle} />}
-      </>}
-      {/* chats = a cluster of people (your people) */}
-      {id === 'chats' && <>
-        <Circle cx="8" cy="9" r="2.3" {...common} />
-        <Circle cx="16" cy="9" r="2.3" {...common} />
-        <Path d="M4 17.5c0-2.2 1.8-3.8 4-3.8s4 1.6 4 3.8" {...common} />
-        <Path d="M12 17.5c0-2.2 1.8-3.8 4-3.8s4 1.6 4 3.8" {...common} />
-      </>}
-      {/* Rooms = overlapping speech bubbles (together) */}
-      {id === 'rooms' && <>
-        <Path d="M3.5 8A1.6 1.6 0 0 1 5.1 6.4h6.8A1.6 1.6 0 0 1 13.5 8v3.2a1.6 1.6 0 0 1-1.6 1.6H7l-3 2.3v-2.3A1.6 1.6 0 0 1 3.5 11.2z" {...common} />
-        <Path d="M15.4 9.4h3.5A1.6 1.6 0 0 1 20.5 11v3.2a1.6 1.6 0 0 1-1.6 1.6v2l-2.6-2h-2.1" {...common} />
-      </>}
-      {/* Play = a game controller */}
-      {id === 'play' && <>
-        <Path d="M7.5 8.5h9a4 4 0 0 1 4 4a2.6 2.6 0 0 1-4.7 1.5l-.5-.7H8.7l-.5.7A2.6 2.6 0 0 1 3.5 12.5a4 4 0 0 1 4-4z" {...common} />
-        <Path d="M7 11.2v2M6 12.2h2" {...common} />
-        <Circle cx="15.8" cy="11.6" r="0.75" fill={s} />
-        <Circle cx="17.4" cy="13.1" r="0.75" fill={s} />
-      </>}
-      {/* You = single head + shoulders */}
-      {id === 'you' && <>
-        <Circle cx="12" cy="8" r="3.2" {...common} />
-        <Path d="M6 19c0-3.3 2.7-6 6-6s6 2.7 6 6" {...common} />
-      </>}
-    </Svg>
-  );
-}
-
-function BottomNav({ active, onChange }) {
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
-      {TABS.map((t) => {
-        const on = active === t.id;
-        return (
-          <Pressable key={t.id} style={styles.tab} onPress={() => onChange(t.id)} hitSlop={6}>
-            {on && <View style={styles.tabGlow} />}
-            <Icon id={t.id} active={on} />
-            <Text style={[styles.tabLabel, on && { color: N.candle }]}>{t.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
+// [audit-3] TABS / Icon / BottomNav died here — FoldBar.js is the one bar.
 
 // ── a simple "coming alive" stub for worlds not built yet ──
 export function WorldStub({ title, kicker, line }) {
@@ -158,7 +95,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
       return;
     }
     if (tab === 'play') { setChatOpen(null); setWorld('play'); setActive('play'); setTarget(typeof dest === 'string' ? null : dest); return; }
-    if (TABS.some((t) => t.id === tab)) {
+    if (FOLD_TABS.some(([id]) => id === tab)) {   // [audit-3] deep-link fallback rides the one bar's ids
       setActive(tab);
       setTarget(typeof dest === 'string' ? null : dest);
     }
@@ -286,7 +223,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
       {/* [R3] in the play world the same four nouns sit at the bottom — one nav
           everywhere; tapping a chat-world noun walks home to that tab. */}
       {world === 'play' && (
-        <BottomNav active="play" onChange={(id) => {
+        <FoldBar dark active="play" onChange={(id) => {
           if (id === 'play') return;
           setWorld('chat'); setActive('desk'); setReturnTab(id);
         }} />

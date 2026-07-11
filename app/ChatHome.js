@@ -18,6 +18,7 @@ import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the 
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import SessionsPane from './SessionsPane';   // [R4] the SESSIONS section
+import FoldBar from './FoldBar';   // [audit-3] the ONE bottom bar, both worlds
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { nameOf, rgbOf, shareableKeys } from './roster';   // [§3 rider] the games table keeps its cast; the inbox reads the one roster [R2] host picker
 
@@ -301,7 +302,7 @@ function Row({ face, glyph, tone, name, line, time, pinned, unread, onPress }) {
 
 export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 'thedesk', diag = false }) {   // [zip81] [H1c]
   const [tab, setTab] = useState(initialTab === 'groups' ? 'rooms' : initialTab);   // [zip61][zip81] restore the tab we came back to [R3] groups folded into rooms
-  const [roomsSect, setRoomsSect] = useState('house');   // [R3] the fold's sections: tonight in the house | the floor
+  const [roomsSect, setRoomsSect] = useState(null);   // [R3→doors] null = THE DOORS; 'house' | 'floor' | 'sessions' = inside one
   const [deskBump, setDeskBump] = useState(0);            // [DESK COMES ALIVE]
   const [deskRefreshing, setDeskRefreshing] = useState(false);
   const deskRefresh = () => { setDeskRefreshing(true); setDeskBump((b) => b + 1); setTimeout(() => setDeskRefreshing(false), 700); };
@@ -694,21 +695,42 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
       {/* [R3] THE FOLD: the groups tab is dead. Every inhabited space lives in
           ONE rooms tab, sectioned — the Gathering (its tonight-row machinery
           intact) and the floor. SESSIONS renders here once R4 builds it. */}
+      {/* [audit-2] DOORS, not filter pills: the rooms tab lands on three
+          entrances — places you walk into and back out of. Static one-line
+          descriptors only (live counts would mean fetches or invented numbers). */}
       {tab === 'rooms' && (
-        <View style={{ flex: 1 }}>
-          <View style={st.sectBar}>
-            {[['house', 'tonight in the house'], ['floor', 'the floor'], ['sessions', 'sessions']].map(([id, label]) => (   /* [R4] */
-              <Pressable key={id} style={[st.sectBtn, roomsSect === id && st.sectOn]} onPress={() => setRoomsSect(id)}>
-                <Text style={[st.sectTxt, roomsSect === id && st.sectTxtOn]}>{label}</Text>
+        roomsSect === null ? (
+          <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 100, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
+            <Text style={st.doorsKicker}>the rooms</Text>
+            {[
+              ['house', 'tonight in the house', 'your people and your cast — the rooms you gather', '#E7B07A', '◆'],
+              ['floor', 'the floor', 'open rooms · strangers meet handles · 18+ · the doorman on the door', '#9FC2E8', '◈'],
+              ['sessions', 'sessions', 'a held room for two — a third presence keeps it steady', '#C4A4E8', '❖'],
+            ].map(([id, name, line, tone, glyph]) => (
+              <Pressable key={id} style={[st.doorCard, { borderColor: tone + '55' }]} onPress={() => setRoomsSect(id)}>
+                <View style={[st.doorSpine, { backgroundColor: tone }]} />
+                <Text style={[st.doorGlyph, { color: tone }]}>{glyph}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.doorName}>{name}</Text>
+                  <Text style={st.doorLine} numberOfLines={2}>{line}</Text>
+                </View>
+                <Text style={[st.doorChev, { color: tone }]}>›</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
+        ) : (
+        <View style={{ flex: 1 }}>
+          <Pressable style={st.doorBack} onPress={() => setRoomsSect(null)} hitSlop={8}>
+            <Text style={st.doorBackTxt}>‹ the rooms</Text>
+            <Text style={st.doorHere}>{roomsSect === 'house' ? 'tonight in the house' : roomsSect === 'floor' ? 'the floor' : 'sessions'}</Text>
+          </Pressable>
           {roomsSect === 'house'
             ? <Rooms embedded onOpen={(r) => onOpen({ kind: 'room', room: r })} />
             : roomsSect === 'sessions'
               ? <SessionsPane onOpen={onOpen} />
               : <PublicRooms onOpen={onOpen} />}
         </View>
+        )
       )}
 
       {/* compose */}
@@ -718,25 +740,8 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
         </Pressable>
       )}
 
-      {/* the inner tabs — [R3] THE NAV FOLD: one nav, four nouns. groups is dead;
-          play is a noun, not a world behind a pill. */}
-      <View style={st.tabs}>
-        {[['thedesk', 'the Desk'], ['chats', 'chats'], ['rooms', 'rooms'], ['play', 'play']].map(([id, label]) => {   /* [zip61] [R3] */
-          const on = tab === id;
-          const stroke = on ? MOON.moon : MOON.faint;
-          return (
-            <Pressable key={id} style={st.tabBtn} onPress={() => (id === 'play' ? onOpen({ kind: 'play' }) : setTab(id))}>
-              <Svg width="22" height="22" viewBox="0 0 24 24">
-                {id === 'chats' && <><Circle cx="12" cy="11" r="7.5" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M7 20 L9 15.5" stroke={stroke} strokeWidth="1.6" fill="none" strokeLinecap="round" /></>}
-                {id === 'thedesk' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" strokeDasharray="4 3" /><Circle cx="12" cy="12" r="3" fill={stroke} /></>}
-                {id === 'rooms' && <><Circle cx="12" cy="12" r="8" stroke={stroke} strokeWidth="1.6" fill="none" /><SvgPath d="M4.5 12 H19.5 M12 4.5 C9 8, 9 16, 12 19.5 M12 4.5 C15 8, 15 16, 12 19.5" stroke={stroke} strokeWidth="1.2" fill="none" /></>}
-                {id === 'play' && <><SvgPath d="M7.5 8.5h9a4 4 0 0 1 4 4a2.6 2.6 0 0 1-4.7 1.5l-.5-.7H8.7l-.5.7A2.6 2.6 0 0 1 3.5 12.5a4 4 0 0 1 4-4z" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" /><SvgPath d="M7 11.2v2M6 12.2h2" stroke={stroke} strokeWidth="1.4" fill="none" strokeLinecap="round" /><Circle cx="15.8" cy="11.6" r="0.75" fill={stroke} /><Circle cx="17.4" cy="13.1" r="0.75" fill={stroke} /></>}
-              </Svg>
-              <Text style={[st.tabTxt, on && st.tabOn]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* [audit-3] the ONE bar — FoldBar, shared with the play world pixel-for-pixel */}
+      <FoldBar active={tab} onChange={(id) => (id === 'play' ? onOpen({ kind: 'play' }) : setTab(id))} />
       </Animated.View>
     </View>
     </GestureDetector>
@@ -795,11 +800,16 @@ const st = StyleSheet.create({
   tabs: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', backgroundColor: MOON.raise, borderTopWidth: 1, borderTopColor: MOON.hair, paddingBottom: 22, paddingTop: 14 },
   tabBtn: { flex: 1, alignItems: 'center', gap: 4 },
   tabTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 13.5 },
-  sectBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },   // [R3]
-  sectBtn: { borderRadius: 999, borderWidth: 1, borderColor: 'rgba(233,232,240,0.12)', paddingHorizontal: 14, paddingVertical: 7 },   // [R3]
-  sectOn: { borderColor: 'rgba(231,176,122,0.55)', backgroundColor: 'rgba(231,176,122,0.10)' },   // [R3]
-  sectTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 12 },   // [R3]
-  sectTxtOn: { color: '#F3CFA3' },   // [R3]
+  doorsKicker: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 11, letterSpacing: 2.2, textTransform: 'uppercase', marginBottom: 12, paddingHorizontal: 2 },   // [audit-2]
+  doorCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, borderWidth: 1, backgroundColor: 'rgba(233,232,240,0.03)', padding: 16, marginBottom: 12, overflow: 'hidden' },   // [audit-2]
+  doorSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, opacity: 0.75 },   // [audit-2]
+  doorGlyph: { fontSize: 20, width: 28, textAlign: 'center' },   // [audit-2]
+  doorName: { fontFamily: 'Fraunces_400Regular', color: MOON.moon, fontSize: 18 },   // [audit-2]
+  doorLine: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12, lineHeight: 17, marginTop: 3 },   // [audit-2]
+  doorChev: { fontSize: 22, marginLeft: 4 },   // [audit-2]
+  doorBack: { flexDirection: 'row', alignItems: 'baseline', gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },   // [audit-2]
+  doorBackTxt: { fontFamily: FONTS.medium, color: MOON.faint, fontSize: 13 },   // [audit-2]
+  doorHere: { fontFamily: 'Fraunces_400Regular', color: MOON.moon, fontSize: 15 },   // [audit-2]
   tabOn: { color: MOON.moon },
   tabDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: MOON.moon },
   soonWrap: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 40 },
