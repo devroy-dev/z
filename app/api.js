@@ -943,8 +943,8 @@ export async function markThreadRead(threadId) {
 }
 
 // ---- PUBLIC ROOMS (communities) ----
-export async function getPublicRooms() {
-  try { return await authedJSON('GET', '/public-rooms'); } catch (e) { return []; }
+export async function getPublicRooms(q) {
+  try { return await authedJSON('GET', '/public-rooms' + (q ? `?q=${encodeURIComponent(q)}` : '')); } catch (e) { return []; }
 }
 export async function joinPublicRoom(roomId, handle) {
   try { return await authedJSON('POST', `/public-rooms/${roomId}/join`, handle ? { handle } : {}); }

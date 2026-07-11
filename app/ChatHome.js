@@ -139,6 +139,13 @@ function PublicRooms({ onOpen }) {
   const [saving, setSaving] = useState(false);
   const reload = () => getPublicRooms().then((r) => setRooms(Array.isArray(r) ? r : []));
   useEffect(() => { reload(); }, []);
+  // [search] find a room on the floor: client-filter over the loaded directory
+  // (small today); the server's ?q= exists for when the floor outgrows a page.
+  const [floorQ, setFloorQ] = useState('');
+  const fq = floorQ.trim().toLowerCase();
+  const shown = fq
+    ? (rooms || []).filter((r) => (r.name || '').toLowerCase().includes(fq) || (r.theme || '').toLowerCase().includes(fq))
+    : (rooms || []);
   // [R1] every public entry passes THE DOORWAY — consent (server-recorded),
   // the 18+ gate, and the handle live there now. The old AsyncStorage consent
   // flag and the client-side auto-join are gone: the server is the gate.
@@ -224,7 +231,12 @@ function PublicRooms({ onOpen }) {
         </Pressable>
       )}
 
-      {(rooms || []).map((room) => {
+      <View style={st.floorSearchWrap}>
+        <Text style={st.searchIcon}>⌕</Text>
+        <TextInput value={floorQ} onChangeText={setFloorQ} placeholder="find a room on the floor…" placeholderTextColor={MOON.faint} style={st.searchInput} autoCapitalize="none" />
+      </View>
+      {fq && !shown.length ? <Text style={[st.commSub, { textAlign: 'center', marginTop: 20 }]}>no room by that name — create it above.</Text> : null}
+      {shown.map((room) => {
         const door = (room.personas || [])[0];
         const tone = door ? `rgb(${rgbOf(door)})` : MOON.moon;
         const here = room.memberCount || 0;
@@ -494,6 +506,12 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
     { face: null, name: 'The Consultant', line: 'sit with Victor — the expert. by thedreamai', open: { kind: 'consult' }, consult: true, tint: '232,162,74' },
   ];
   const deskDq = deskQ.trim().toLowerCase();
+  // [search] the desk searches the FLOOR too: lazy one-shot directory fetch on
+  // first desk query, so unjoined public rooms are discoverable by name.
+  const [directory, setDirectory] = useState(null);
+  useEffect(() => {
+    if (deskDq && directory === null) { setDirectory([]); getPublicRooms().then((r) => setDirectory(Array.isArray(r) ? r : [])); }
+  }, [deskDq, directory]);
   let deskResults = null;
   if (deskDq) {
     const hits = [];
@@ -506,6 +524,15 @@ export default function ChatHome({ onOpen: rawOnOpen = () => {}, initialTab = 't
     for (const rm of (rooms || [])) {
       const nm = rm.name || '';
       if (nm && nm.toLowerCase().includes(deskDq)) hits.push({ face: null, name: nm, line: rm.publicRoomId ? 'public room' : 'room', open: { kind: 'room', room: rm }, tag: 'room' });   // [R3] floor rooms detour via Nav's doorway interception
+    }
+    // [search] the directory: unjoined floor rooms, straight to their doorway
+    const seen = new Set(hits.map((h) => h.name.toLowerCase()));
+    for (const d of (directory || [])) {
+      const nm = d.name || '';
+      if (!nm || seen.has(nm.toLowerCase())) continue;
+      if (nm.toLowerCase().includes(deskDq) || (d.theme || '').toLowerCase().includes(deskDq)) {
+        hits.push({ face: null, name: nm, line: d.joined ? 'public room' : 'on the floor — join', open: { kind: 'publicDoorway', room: d }, tag: 'room' });
+      }
     }
     deskResults = hits;
   }
@@ -788,6 +815,7 @@ const st = StyleSheet.create({
   commMeta: { fontFamily: FONTS.light, color: MOON.mist, fontSize: 11, flex: 1 },  // [zip82 meta]
   commGo: { fontFamily: FONTS.semibold, fontSize: 12.5 },
   commTonight: { fontFamily: FONTS.medium, color: '#E7B07A', fontSize: 11.5, marginTop: 3 },   // [R5]
+  floorSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(233,232,240,0.12)', backgroundColor: 'rgba(233,232,240,0.04)', paddingHorizontal: 10 },   // [search]
   commGoWrap: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },
   commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
   commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },

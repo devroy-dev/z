@@ -399,9 +399,18 @@ app.get('/public-rooms', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const me = await resolveUser(authId);
-    const { data: rooms } = await supabase.from('public_rooms')
+    // [search] optional ?q= — name/theme match, capped; the directory-tab's
+    // topic axis grows from this exact seam later.
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 60) : '';
+    let sel = supabase.from('public_rooms')
       .select('id, thread_id, slug, name, theme, persona_keys, member_count, sort_order, created_by, is_house')
-      .eq('active', true).order('is_house', { ascending: false }).order('sort_order', { ascending: true });
+      .eq('active', true);
+    if (q) {
+      const safe = q.replace(/[%_,()]/g, ' ').trim();
+      if (safe) sel = sel.or(`name.ilike.%${safe}%,theme.ilike.%${safe}%`);
+    }
+    const { data: rooms } = await sel
+      .order('is_house', { ascending: false }).order('sort_order', { ascending: true }).limit(q ? 30 : 200);
     // which of these has the user already joined?
     const threadIds = (rooms ?? []).map((r: any) => r.thread_id);
     const joined = new Set<string>();
