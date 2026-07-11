@@ -190,14 +190,31 @@ DRAFT-FOR-DEV, wired to nothing.
 poll instead of a state broadcast (hardening pass); healer-only moderator
 in v1; 0081 stays reserved.
 
-## NEXT SITTING PICKS UP (updated)
-R5 — the house slate (v1 §8): the weekly programme (the anchor's 9 o'clock ·
-debate night · the trivia gauntlet) built BESIDE eveningProgramme.ts, never
-an extension of it (audit ruling); house rooms carry isHouse; announced via
-the Host's desk brief + ONE opt-in scheduled_pings knock for joined rooms —
-the one-knock law is house-wide. After R5: H3 (presence/typing, rooms-only)
-whenever a hardening sitting is scheduled (last-seen privacy ruling still
-owed by the owner); the battlefield inherits the session phase chassis on
-its own track; the owner-to-slot pile stands (memory chip · host behaviors ·
-hostless backfill · muted enforcement with room notifications · overlay
-blessing · single-scroll fold re-rule).
+## R5 — THE HOUSE SLATE (this sitting — the clock; v1 §8 as written)
+
+**Shipped (apply_rooms_r5.py + src/houseSlate.ts — see APPLY_ROOMS_R5.md):**
+migration-free, built BESIDE eveningProgramme.ts (audit ruling). Three
+programmed house rooms ensured idempotently at boot (the 9 o'clock nightly
+21:00 IST · debate night Fridays 20:00 · the trivia gauntlet Wednesdays
+20:00), hosts opening on REAL material only (bulletin headlines / the
+MOTIONS bank / no trivia facts in the opener — never invent). 5-min tick +
+hour gate + opened-today guard = once per day, restart-safe. Announced,
+never spammed: the Host's brief gains a model-free "tonight at the house"
+source; ONE scheduled_pings knock for members of tonight's room with the
+one-knock law enforced at the insert; the floor's cards render tonight's
+line. fn house-slate, Haiku, pacing law.
+
+**Declared:** empty house rooms get no performance (messages.user_id NOT
+NULL — attributed to the first member; quiet until someone lives there);
+the brief item routes to the host persona; host pulse (§5.2) stays in the
+owner pile.
+
+## THE SPEC CLOSES — R1→R5 SHIPPED
+Remaining outside the build-order table: H3 (presence/typing, ROOMS-ONLY
+per the DM ruling) whenever a hardening sitting is scheduled — the
+last-seen privacy ruling is still owed by the owner. The battlefield
+inherits the session phase chassis on its own track. The owner-to-slot
+pile: memory chip (§7.2) · host behaviors (greeting/@host/pulse, §5.2) ·
+hostless-room backfill · thread_reads.muted enforcement (with room
+notifications, §10) · the healer's session overlay blessing · single-scroll
+fold re-rule · session-state broadcast (replacing the 9s poll).

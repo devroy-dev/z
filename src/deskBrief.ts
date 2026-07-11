@@ -5,6 +5,7 @@
 // Every source is guarded on its own — a table that arrives in a later phase
 // (stylist's wardrobe_gaps, §3/0054) simply contributes nothing until it exists.
 import { supabase } from './db.js';
+import { tonightOnTheSlate } from './houseSlate.js';   // [R5] the clock feeds the brief
 
 export type BriefItem = { key: string; kicker: string; line: string; route: string; prio: number };
 
@@ -31,6 +32,15 @@ const clip = (s: any, n: number): string => {
 // Assembles the brief, priority-ordered (lower prio = more urgent), capped at 5.
 export async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {
   const items: BriefItem[] = [];
+
+  // ── [R5] tonight at the house — the slate, data only, never a model ──────
+  try {
+    const on = tonightOnTheSlate();
+    if (on.length) {
+      const line = on.map((e) => `${e.title} · ${e.hourIST > 12 ? e.hourIST - 12 : e.hourIST}pm`).join('  ·  ');
+      items.push({ key: 'slate', kicker: 'tonight at the house', line: clip(line, 96), route: on[0].host, prio: 7 });
+    }
+  } catch (e) { /* the slate contributes nothing if it can't */ }
 
   // ── trips counting down (trip_files v2) ──────────────────────────────────
   try {

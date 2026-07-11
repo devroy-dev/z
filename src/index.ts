@@ -16,6 +16,7 @@ import { AccessToken } from 'livekit-server-sdk';
 import { runZTurn } from './loop.js';
 import { runGroupTurn } from './groupLoop.js';
 import { sessionByThread, sessionFormats, sessionFormat, openSessionArrival, runSessionTurn, sessionEndedLine } from './sessionLoop.js';   // [R4] THE SESSION
+import { armHouseSlate, tonightOnTheSlate } from './houseSlate.js';   // [R5] THE CLOCK
 import { broadcastRoomMessage } from './broadcast.js';
 import { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';
 import { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';
@@ -84,6 +85,7 @@ startBriefScheduler();
 startMorningLineScheduler();   // [PHASE 6] the Host's opt-in morning line (old brief skips opted users — one knock)
 startProgrammeScheduler();
 startPingScheduler();
+armHouseSlate();   // [R5] the house clock — programming, or rooms die quiet
 startDeskNoteScheduler();   // [zip54k] the weekly memo joins the house's jobs
 startBulletinScheduler();
 startSimScheduler();
@@ -413,12 +415,15 @@ app.get('/public-rooms', async (req, res) => {
         .select('id, last_active').in('id', threadIds);
       for (const t of (ths ?? []) as any[]) lastActive[t.id] = t.last_active || null;
     }
+    const slateBySlug: Record<string, string> = {};   // [R5] tonight's programme on the card
+    for (const ev of tonightOnTheSlate()) slateBySlug[ev.slug] = `${ev.title} · ${ev.hourIST > 12 ? ev.hourIST - 12 : ev.hourIST}pm`;
     res.json((rooms ?? []).map((r: any) => ({
       id: r.id, threadId: r.thread_id, slug: r.slug, name: r.name, theme: r.theme,
       personas: (r.persona_keys || []).filter((k: string) => k !== 'the_moderator'),
       doorman: 'the_moderator',
       memberCount: r.member_count, joined: joined.has(r.thread_id),
       lastActive: lastActive[r.thread_id] || null,   // [R1]
+      tonight: (r.is_house && slateBySlug[r.slug]) || null,   // [R5]
       isHouse: !!r.is_house, youCreated: r.created_by === me.id,
     })));
   } catch (e: any) { res.status(500).json({ error: 'public rooms failed: ' + (e?.message || String(e)) }); }

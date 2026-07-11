@@ -240,6 +240,7 @@ function PublicRooms({ onOpen }) {
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  ·  yours' : ''}</Text>
             <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>
+            {room.tonight ? <Text style={st.commTonight} numberOfLines={1}>tonight · {room.tonight}</Text> : null}{/* [R5] the clock on the card */}
             <View style={st.commMetaRow}>
               <View style={[st.commDot, { backgroundColor: tone }]} />
               <Text style={st.commMeta} numberOfLines={1}>{door ? nameOf(door) + ' hosting' : 'open room'}{here > 1 ? '  ·  ' + here + ' here' : ''}{room.isHouse ? '  ·  house' : ''}</Text>
@@ -786,6 +787,7 @@ const st = StyleSheet.create({
   commTheme: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12.5, marginTop: 2, lineHeight: 17 },
   commMeta: { fontFamily: FONTS.light, color: MOON.mist, fontSize: 11, flex: 1 },  // [zip82 meta]
   commGo: { fontFamily: FONTS.semibold, fontSize: 12.5 },
+  commTonight: { fontFamily: FONTS.medium, color: '#E7B07A', fontSize: 11.5, marginTop: 3 },   // [R5]
   commGoWrap: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },
   commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
   commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },

@@ -1,0 +1,42 @@
+[
+ [
+  "src/index.ts",
+  "import { runZTurn } from './loop.js';\nimport { runGroupTurn } from './groupLoop.js';\nimport { sessionByThread, sessionFormats, sessionFormat, openSessionArrival, runSessionTurn, sessionEndedLine } from './sessionLoop.js';   // [R4] THE SESSION\nimport { broadcastRoomMessage } from './broadcast.js';\nimport { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';\nimport { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';\n",
+  "import { runZTurn } from './loop.js';\nimport { runGroupTurn } from './groupLoop.js';\nimport { sessionByThread, sessionFormats, sessionFormat, openSessionArrival, runSessionTurn, sessionEndedLine } from './sessionLoop.js';   // [R4] THE SESSION\nimport { armHouseSlate, tonightOnTheSlate } from './houseSlate.js';   // [R5] THE CLOCK\nimport { broadcastRoomMessage } from './broadcast.js';\nimport { createTraitors, stepTraitors, viewTraitors, type Seat as TSeat } from './games/traitors.js';\nimport { createStory, stepStory, viewStory, storyText, type Seat as StorySeat } from './games/storyCollab.js';\n"
+ ],
+ [
+  "src/index.ts",
+  "startMorningLineScheduler();   // [PHASE 6] the Host's opt-in morning line (old brief skips opted users \u2014 one knock)\nstartProgrammeScheduler();\nstartPingScheduler();\nstartDeskNoteScheduler();   // [zip54k] the weekly memo joins the house's jobs\nstartBulletinScheduler();\nstartSimScheduler();\n",
+  "startMorningLineScheduler();   // [PHASE 6] the Host's opt-in morning line (old brief skips opted users \u2014 one knock)\nstartProgrammeScheduler();\nstartPingScheduler();\narmHouseSlate();   // [R5] the house clock \u2014 programming, or rooms die quiet\nstartDeskNoteScheduler();   // [zip54k] the weekly memo joins the house's jobs\nstartBulletinScheduler();\nstartSimScheduler();\n"
+ ],
+ [
+  "src/index.ts",
+  "        .select('id, last_active').in('id', threadIds);\n      for (const t of (ths ?? []) as any[]) lastActive[t.id] = t.last_active || null;\n    }\n    res.json((rooms ?? []).map((r: any) => ({\n      id: r.id, threadId: r.thread_id, slug: r.slug, name: r.name, theme: r.theme,\n      personas: (r.persona_keys || []).filter((k: string) => k !== 'the_moderator'),\n",
+  "        .select('id, last_active').in('id', threadIds);\n      for (const t of (ths ?? []) as any[]) lastActive[t.id] = t.last_active || null;\n    }\n    const slateBySlug: Record<string, string> = {};   // [R5] tonight's programme on the card\n    for (const ev of tonightOnTheSlate()) slateBySlug[ev.slug] = `${ev.title} \u00b7 ${ev.hourIST > 12 ? ev.hourIST - 12 : ev.hourIST}pm`;\n    res.json((rooms ?? []).map((r: any) => ({\n      id: r.id, threadId: r.thread_id, slug: r.slug, name: r.name, theme: r.theme,\n      personas: (r.persona_keys || []).filter((k: string) => k !== 'the_moderator'),\n"
+ ],
+ [
+  "src/index.ts",
+  "      doorman: 'the_moderator',\n      memberCount: r.member_count, joined: joined.has(r.thread_id),\n      lastActive: lastActive[r.thread_id] || null,   // [R1]\n      isHouse: !!r.is_house, youCreated: r.created_by === me.id,\n    })));\n  } catch (e: any) { res.status(500).json({ error: 'public rooms failed: ' + (e?.message || String(e)) }); }\n",
+  "      doorman: 'the_moderator',\n      memberCount: r.member_count, joined: joined.has(r.thread_id),\n      lastActive: lastActive[r.thread_id] || null,   // [R1]\n      tonight: (r.is_house && slateBySlug[r.slug]) || null,   // [R5]\n      isHouse: !!r.is_house, youCreated: r.created_by === me.id,\n    })));\n  } catch (e: any) { res.status(500).json({ error: 'public rooms failed: ' + (e?.message || String(e)) }); }\n"
+ ],
+ [
+  "src/deskBrief.ts",
+  "// Every source is guarded on its own \u2014 a table that arrives in a later phase\n// (stylist's wardrobe_gaps, \u00a73/0054) simply contributes nothing until it exists.\nimport { supabase } from './db.js';\n\nexport type BriefItem = { key: string; kicker: string; line: string; route: string; prio: number };\n\n",
+  "// Every source is guarded on its own \u2014 a table that arrives in a later phase\n// (stylist's wardrobe_gaps, \u00a73/0054) simply contributes nothing until it exists.\nimport { supabase } from './db.js';\nimport { tonightOnTheSlate } from './houseSlate.js';   // [R5] the clock feeds the brief\n\nexport type BriefItem = { key: string; kicker: string; line: string; route: string; prio: number };\n\n"
+ ],
+ [
+  "src/deskBrief.ts",
+  "// Assembles the brief, priority-ordered (lower prio = more urgent), capped at 5.\nexport async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {\n  const items: BriefItem[] = [];\n\n  // \u2500\u2500 trips counting down (trip_files v2) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  try {\n",
+  "// Assembles the brief, priority-ordered (lower prio = more urgent), capped at 5.\nexport async function assembleDeskBrief(userId: string): Promise<BriefItem[]> {\n  const items: BriefItem[] = [];\n\n  // \u2500\u2500 [R5] tonight at the house \u2014 the slate, data only, never a model \u2500\u2500\u2500\u2500\u2500\u2500\n  try {\n    const on = tonightOnTheSlate();\n    if (on.length) {\n      const line = on.map((e) => `${e.title} \u00b7 ${e.hourIST > 12 ? e.hourIST - 12 : e.hourIST}pm`).join('  \u00b7  ');\n      items.push({ key: 'slate', kicker: 'tonight at the house', line: clip(line, 96), route: on[0].host, prio: 7 });\n    }\n  } catch (e) { /* the slate contributes nothing if it can't */ }\n\n  // \u2500\u2500 trips counting down (trip_files v2) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  try {\n"
+ ],
+ [
+  "app/ChatHome.js",
+  "          <View style={{ flex: 1, marginLeft: 12 }}>\n            <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  \u00b7  yours' : ''}</Text>\n            <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>\n            <View style={st.commMetaRow}>\n              <View style={[st.commDot, { backgroundColor: tone }]} />\n              <Text style={st.commMeta} numberOfLines={1}>{door ? nameOf(door) + ' hosting' : 'open room'}{here > 1 ? '  \u00b7  ' + here + ' here' : ''}{room.isHouse ? '  \u00b7  house' : ''}</Text>\n",
+  "          <View style={{ flex: 1, marginLeft: 12 }}>\n            <Text style={st.commName} numberOfLines={1}>{room.name}{room.youCreated ? '  \u00b7  yours' : ''}</Text>\n            <Text style={st.commTheme} numberOfLines={2}>{room.theme}</Text>\n            {room.tonight ? <Text style={st.commTonight} numberOfLines={1}>tonight \u00b7 {room.tonight}</Text> : null}{/* [R5] the clock on the card */}\n            <View style={st.commMetaRow}>\n              <View style={[st.commDot, { backgroundColor: tone }]} />\n              <Text style={st.commMeta} numberOfLines={1}>{door ? nameOf(door) + ' hosting' : 'open room'}{here > 1 ? '  \u00b7  ' + here + ' here' : ''}{room.isHouse ? '  \u00b7  house' : ''}</Text>\n"
+ ],
+ [
+  "app/ChatHome.js",
+  "  commTheme: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12.5, marginTop: 2, lineHeight: 17 },\n  commMeta: { fontFamily: FONTS.light, color: MOON.mist, fontSize: 11, flex: 1 },  // [zip82 meta]\n  commGo: { fontFamily: FONTS.semibold, fontSize: 12.5 },\n  commGoWrap: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },\n  commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },\n  commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },\n",
+  "  commTheme: { fontFamily: FONTS.body, color: MOON.mist, fontSize: 12.5, marginTop: 2, lineHeight: 17 },\n  commMeta: { fontFamily: FONTS.light, color: MOON.mist, fontSize: 11, flex: 1 },  // [zip82 meta]\n  commGo: { fontFamily: FONTS.semibold, fontSize: 12.5 },\n  commTonight: { fontFamily: FONTS.medium, color: '#E7B07A', fontSize: 11.5, marginTop: 3 },   // [R5]\n  commGoWrap: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },\n  commSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },\n  commMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },\n"
+ ]
+]
