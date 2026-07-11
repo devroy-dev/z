@@ -37,6 +37,7 @@ async function directRoom(
   transcript: string,
   senderName: string,
   humanCount: number,
+  recentSpeakers?: string[],
   addressed?: string[],
 ): Promise<string[]> {
   if (members.length === 0) return members; // no personas to direct
@@ -53,15 +54,23 @@ async function directRoom(
   if (humanCount <= 1) {
     if (members.length === 1) return members; // the one persona answers
     // pick the single best-fit persona for this message
+    // [register (d)] silence is now LEGAL solo: noise, bare acks, and machine-shaped
+    // strings may earn quiet. [audit #6] and the same voice must not take every turn.
     const cast = roster.map((r) => `- ${r.key} ("${r.name}")`).join('\n');
+    const rotLine = (recentSpeakers && recentSpeakers.length)
+      ? `\nSpoke most recently (newest first): ${recentSpeakers.join(', ')} — prefer a fitting voice that HASN'T spoken recently; the same persona should not take every turn.`
+      : '';
     const sys =
       `You direct a chat between one person and a few AI personas. Pick who should ` +
       `answer the LATEST message — usually ONE best-fit persona, occasionally TWO if the ` +
-      `message clearly invites several (e.g. "what do you all think?"). Someone should ` +
-      `almost always answer — this is a lively group chat, not a quiet room.\n\n` +
+      `message clearly invites several (e.g. "what do you all think?"). A substantive ` +
+      `message almost always gets one voice — this is a lively group chat. BUT: if the ` +
+      `latest message is noise, a bare ack ("ok", a lone emoji), or a machine-shaped ` +
+      `string (test text, codes, timestamps), return [] — silence, or letting it lie, ` +
+      `is better than performing at noise.${rotLine}\n\n` +
       `The personas:\n${cast}\n\n` +
       `Output ONLY a JSON array of persona keys, in order, e.g. ["the_oracle"] or ` +
-      `["the_wannabe","the_oracle"]. No prose.`;
+      `["the_wannabe","the_oracle"] or []. No prose.`;
     try {
       const r = await anthropic.messages.create({
         model: MODEL, max_tokens: 60, system: sys,
@@ -71,8 +80,9 @@ async function directRoom(
       const m = txt.match(/\[[^\]]*\]/);
       const arr = m ? JSON.parse(m[0]) : [];
       const valid = (Array.isArray(arr) ? arr : []).filter((k: any) => typeof k === 'string' && members.includes(k));
-      const picked = [...new Set(valid)].slice(0, 2) as string[];
-      return picked.length ? picked : members.slice(0, 1); // never silent in a solo room
+      // [register (d)] an empty pick is now the model CHOOSING silence — honor it.
+      // Only an ERROR falls back to one voice (a broken director must not mute the room).
+      return [...new Set(valid)].slice(0, 2) as string[];
     } catch {
       return members.slice(0, 1);
     }
@@ -187,7 +197,9 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   const memoryBlock = t.is_shared ? '' : await readMemoryBlock(userId);
   // in a shared room, replace the single-owner identity line with the room's people
   if (t.is_shared && input.senderName) {
-    ownerLine = `\n\n[THIS IS A SHARED ROOM with real people in it. The person who just spoke is "${input.senderName}". You know these people only from your shared time in THIS room — the room memory below is what you remember together. You have no private history about anyone from outside this room. Greet and treat everyone by name.]`;
+    // [register] "Greet and treat everyone by name" was a STANDING ORDER read on
+    // every turn — the ayyy-Dev loop's smoking gun. Names yes; greeting no.
+    ownerLine = `\n\n[THIS IS A SHARED ROOM with real people in it. The person who just spoke is "${input.senderName}" — address the person who spoke, by that name. You know these people only from your shared time in THIS room — the room memory below is what you remember together. You have no private history about anyone from outside this room. Use people's names, never "THEM" — but do not greet: the conversation is already running.]`;
   }
   const todayLine = `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
 
@@ -240,19 +252,46 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   // each member responds in order, seeing the running transcript incl. this turn's prior replies
   const saidThisTurn: string[] = [];
 
+  // [Problem 3 — names, not shapes] the model occasionally echoes the transcript's
+  // "Name:" convention into its own reply. Strip a leading self- or member-prefix —
+  // ONLY when it matches a known name (member humans, personas, or the speaker's own
+  // name); "PSA:" and "Note:" survive. Applied at PERSIST (history is truth); the live stream may flash a prefix once — accepted, not worth buffering the gate chain for.
+  const knownPrefixNames = new Set<string>([
+    ...Object.values(nameByUid),
+    ...members.map((k) => nameFor(k)),
+    ...(input.senderName ? [input.senderName] : []),
+  ].filter(Boolean).map((n) => String(n).toLowerCase()));
+  const stripSelfPrefix = (text: string): string => {
+    const m = text.match(/^([^\n:]{1,32}):\s+/);
+    if (m && knownPrefixNames.has(m[1].trim().toLowerCase())) return text.slice(m[0].length);
+    return text;
+  };
+
   // THE DIRECTOR — only for shared rooms with real people, and not during arena/roleplay
   // (those have their own turn structure). Decides which personas should speak this turn.
   let speakers = members;
+  let soloHumanNote = '';   // [register] (c) one-human rooms: talk TO them, not ABOUT them
   if (t.is_shared && input.senderName && !gameMode && !scenarioKey) {
     // how many real people are in this room? solo (just the sender) → lively;
     // multiple humans → the restraint director (let people talk to each other).
     const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', threadId);
-    const humanCount = (mem ?? []).length || 1;
+    // [audit #7] membership rows can drift; a room where two humans have SPOKEN
+    // is a two-human room regardless. Floor humanCount on the transcript's truth.
+    const humanSenders = new Set((history ?? []).filter((m: any) => m.role === 'user' && m.sender_user_id).map((m: any) => m.sender_user_id));
+    if (userId) humanSenders.add(userId);
+    const humanCount = Math.max((mem ?? []).length || 1, humanSenders.size || 1);
     const roster = members.map((k) => ({ key: k, name: nameFor(k) }));
     const recent = priorLines.slice(-12).join('\n');
-    speakers = await directRoom(members, roster, recent, input.senderName, humanCount, input.addressed);
-    // nobody should speak — the humans are talking; stay quiet
+    // [audit #6] rotation: the last few persona voices, so the director can vary
+    const recentSpeakers: string[] = [];
+    for (let i = (history ?? []).length - 1; i >= 0 && recentSpeakers.length < 3; i--) {
+      const m: any = (history as any)[i];
+      if (m.role === 'assistant' && m.persona_key && !recentSpeakers.includes(m.persona_key)) recentSpeakers.push(m.persona_key);
+    }
+    speakers = await directRoom(members, roster, recent, input.senderName, humanCount, input.addressed, recentSpeakers);
+    // nobody should speak — the humans are talking (or it was noise); stay quiet
     if (!speakers.length) return;
+    if (humanCount <= 1) soloHumanNote = `\n\n[ONE HUMAN IS IN THIS ROOM: ${input.senderName || 'the person'}. Talk TO them, directly, second person — never narrate ABOUT them to the room. There is no audience here but the two of you and the other personas.]`;
   }
 
   // ROLEPLAY PACING — so the scene doesn't dump a wall of text:
@@ -338,14 +377,14 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       try { roomMemBlock = await readRoomMemoryBlock(threadId, key); } catch (e: any) { console.error('[roommem] block failed:', e?.message || e); }
     }
 
-    const dynamic = `\n\n[${todayLine}${sinceLine(__lastAt)}]${ownerLine}${groupNote}${gameBlock}${rpBlock}${lifeBlock}${memoryBlock}${roomMemBlock}`;
+    const dynamic = `\n\n[${todayLine}${sinceLine(__lastAt)}]${ownerLine}${soloHumanNote}${groupNote}${gameBlock}${rpBlock}${lifeBlock}${memoryBlock}${roomMemBlock}`;
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: staticPrefix, cache_control: { type: 'ephemeral' } } as Anthropic.TextBlockParam,
       // [zip51] THE ROOM CONDUCT LAW — the one surface that had no conduct law,
       // and exactly where the narration leak appeared ("Dev walks in, drops
       // three letters, and the silence waits."). Written law beats implicit norm.
-      { type: 'text', text: '[ROOM CONDUCT — absolute: You are speaking IN A GROUP CHAT, as yourself, in first person. Your reply is ONLY the message you send — never narration, never a third-person description of the scene or of what anyone did or said, never stage directions, never a preamble about the moment. Begin directly with your own spoken words. And speak PLAINLY: everyday words, short sentences, the way real people talk in a group chat — no literary flourishes, no poetic scene-setting.]' },
+      { type: 'text', text: '[ROOM CONDUCT — absolute: You are speaking IN A GROUP CHAT, as yourself, in first person. Your reply is ONLY the message you send — never narration, never a third-person description of the scene or of what anyone did or said, never stage directions, never a preamble about the moment. Begin directly with your own spoken words. And speak PLAINLY: everyday words, short sentences, the way real people talk in a group chat — no literary flourishes, no poetic scene-setting. THE RE-ENTRY LAW: when time has passed, acknowledge it at most once, briefly, then continue the conversation where it lives — never re-open it as an arrival, never perform a welcome. Do not start with a greeting unless someone genuinely just joined the room for the first time. NEVER imitate the register of your own previous messages — vary your openings; you are a person, not a catchphrase.]' },
     ];
     if (dynamic.trim()) system.push({ type: 'text', text: dynamic });
 
@@ -394,7 +433,7 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
       throw err;
     });
     { const rest = __tags.flush(); if (rest) input.onToken?.(key, key === 'the_media_manager' ? rest.replace(/\u20B9\s*/g, 'Rs ') : rest); }   // [fixes-2 BUG-1]
-    let reply = scrubProviderMarkup(final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim());   // [zip54g]
+    let reply = stripSelfPrefix(scrubProviderMarkup(final.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim()));   // [zip54g][Problem 3]
     if (key === 'the_media_manager') reply = reply.replace(/\u20B9\s*/g, 'Rs ');   // [zip54b] the Rs law in rooms
     logUsage({ userId, threadId, personaKey: key, surface: 'group', fn: 'group_turn', model: MODEL, usage: (final as any).usage });
 
