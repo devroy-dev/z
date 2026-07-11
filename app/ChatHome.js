@@ -13,7 +13,7 @@ import { Dimensions } from 'react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image, RefreshControl, Alert, Linking } from 'react-native';   // [zip67]
 import { FONTS } from './theme';
 import DeskPane from './DeskPane';   // [DESK COMES ALIVE] the desk shows the work
-import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, joinPublicRoom, createPublicRoom, deleteRoomThread, getMe, loadSession, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67] [H1c-2] loadSession
+import { getThreads, listRooms, getPersonaStates, getPersonaDiary, API_BASE, getFriends, openDM, setThreadPrefs, getPublicRooms, createPublicRoom, deleteRoomThread, getMe, loadSession, getBulletinFeed, getMmDeskNotes, getWireFeed } from './api';   // [zip12] [zip66] [zip67] [H1c-2] loadSession [R1] joinPublicRoom moved to the doorway
 import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the live list
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
@@ -138,24 +138,10 @@ function PublicRooms({ onOpen }) {
   const [saving, setSaving] = useState(false);
   const reload = () => getPublicRooms().then((r) => setRooms(Array.isArray(r) ? r : []));
   useEffect(() => { reload(); }, []);
-  const [consentFor, setConsentFor] = useState(null);
-  const consented = React.useRef(false);
-  useEffect(() => { AsyncStorage.getItem('z_public_consent').then((v) => { consented.current = (v === '1'); }).catch(() => {}); }, []);
-  const proceedEnter = async (room) => {
-    if (busy) return;
-    setBusy(room.id);
-    try {
-      let threadId = room.threadId;
-      if (!room.joined) {
-        const j = await joinPublicRoom(room.id);
-        if (j && j.threadId) threadId = j.threadId;
-      }
-      if (threadId) onOpen({ kind: 'room', room: { id: threadId, name: room.name, personas: room.personas || [], publicRoomId: room.id, youCreated: !!room.youCreated } });
-    } catch (e) {}
-    setBusy(null);
-  };
-  const enter = (room) => { if (!consented.current) { setConsentFor(room); return; } proceedEnter(room); };
-  const acceptConsent = async () => { consented.current = true; try { await AsyncStorage.setItem('z_public_consent', '1'); } catch (e) {} const r = consentFor; setConsentFor(null); if (r) proceedEnter(r); };
+  // [R1] every public entry passes THE DOORWAY — consent (server-recorded),
+  // the 18+ gate, and the handle live there now. The old AsyncStorage consent
+  // flag and the client-side auto-join are gone: the server is the gate.
+  const enter = (room) => onOpen({ kind: 'publicDoorway', room });
   const doCreate = async () => {
     const name = newName.trim();
     if (name.length < 3 || saving) return;
@@ -164,7 +150,9 @@ function PublicRooms({ onOpen }) {
     setSaving(false);
     if (r && r.threadId) {
       setCreating(false); setNewName(''); setNewTheme('');
-      onOpen({ kind: 'room', room: { id: r.threadId, name: r.name, personas: [] } });
+      // [R1] the creator passes the doorway like everyone else — the handle
+      // and consent are claimed at the threshold, before the first message.
+      onOpen({ kind: 'publicDoorway', room: { id: r.id, threadId: r.threadId, name: r.name, personas: [], youCreated: true } });
     } else {
       alert((r && r.error) || 'could not create the room');
     }
@@ -223,18 +211,8 @@ function PublicRooms({ onOpen }) {
       })}
       {(!rooms || !rooms.length) && <Text style={[st.commSub, { textAlign: 'center', marginTop: 30 }]}>no rooms yet — be the first to create one.</Text>}
     </ScrollView>
-    {consentFor && (
-      <Pressable style={st.consentScrim} onPress={() => setConsentFor(null)}>
-        <Pressable style={st.consentSheet} onPress={(e) => e.stopPropagation?.()}>
-          <Text style={st.consentTitle}>before you step in</Text>
-          <Text style={st.consentBody}>Open rooms are public and 18+ — you'll be talking with strangers. Keep it civil: the doorman removes slurs, harassment, and doxxing. Don't share anything you wouldn't hand a stranger.</Text>
-          <View style={st.consentRow}>
-            <Pressable hitSlop={8} onPress={() => setConsentFor(null)}><Text style={st.consentCancel}>not now</Text></Pressable>
-            <Pressable style={st.consentBtn} onPress={acceptConsent}><Text style={st.consentBtnTxt}>I understand — enter</Text></Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    )}
+    {/* [R1] the consent sheet moved INTO the doorway — house rules read as the
+        room's threshold, not a legal popup over the lobby (v1 §3.2). */}
     </View>
   );
 }

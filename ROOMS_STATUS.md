@@ -82,5 +82,39 @@ UNIFIED across all room-shaped surfaces. `DMScreen` and `CuratedRoomScreen` both
 
 **Proof (CE condition 4):** list on screen, bump curl fired → `inbox:SUBSCRIBED` for the first time in the app's history, `b:` ticks, the row moves without a reload. Owner to screenshot the probe line for this doc — the tombstone of a good bug.
 
-## NEXT SITTING PICKS UP
-H3 (presence + human typing), or spec phase 1 (P0 fixes + gate §3 + doorway §4) if the owner reorders. Phase 1 note: `/public-rooms` directory returns no last-active — the doorway's "last active" line needs a threads join added to that route.
+## R1 — THE FLOOR'S REGISTER (this sitting, ROOMS_SPEC_V2 phase R1)
+
+**Shipped (apply_rooms_r1.py + 6 new files — see APPLY_ROOMS_R1.md):** the
+server-side gate (0061: `public_consent_at` + the count RPC pair + the
+`public_rooms(thread_id)` index; typed join refusals consent_required /
+dob_required / underage), handles (0063 verbatim from v1 §7.1; claimed at the
+join, doorman-checked, unique per room, locked at first message, restored on
+rejoin), THE IDENTITY WALL server-side at every leak point (members endpoint
+→ handles + null DPs; history roster; /chat sender_name both paths; the
+DIRECTOR's nameByUid + owner-line suppression in `groupLoop.ts` via
+`src/publicIdentity.ts`), leave AND kick decrement (counts no longer ratchet),
+directory `lastActive`, and the sealed invite-token bypass (`POST /join/:token`
+→ 409 `public_room` for public threads — the floor has one door). Native: the
+wired PublicDoorway (dob-once, house rules until consented, handle line with
+reroll), PublicRoomScreen as the THIRD thin shell (lean head, flat handle
+feed, no presence row, member sheet), Nav routes public rooms away from
+CuratedRoomScreen forever, ChatHome's AsyncStorage consent flag deleted.
+
+**Declared deviations:** 0061 landed in R1 (it IS the gate migration;
+append-only ladder forces it whole) — R2 keeps 0062 + doorman wiring + mute
+hole + inhabitation law. Memory chip (§7.2) deferred — owner to slot. Lobby
+world-pill placeholder + PublicRoom.js mock untouched (R3 kills them).
+CuratedRoomScreen's dead isPublic branches left for regression safety.
+Pre-0063 members read 'someone' until their next doorway pass.
+
+**Proofs:** curls in APPLY_ROOMS_R1.md §proofs (gate codes on the fresh test
+account; wall on members/history/broadcast; handle lock; count decrement;
+bypass 409). Device verification pending — owner runs the proof pair.
+
+## NEXT SITTING PICKS UP (updated)
+R2 — the doorman actually guards: Layer-1 sync before both persist points
+(DM branch inline; groupLoop.ts persist), the mute hole (send path reads
+room_sanctions), 0062 reduced per audit (room_reports.status,
+thread_reads.muted + whitelist, report-the-room affordance, admin view),
+the inhabitation law (personas[0] required, host-centric creation on
+shareableKeys()).

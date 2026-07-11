@@ -25,6 +25,8 @@ import Chat from './Chat';
 import DMScreen from './DMScreen';   // [zip49] the dismantle: RoomChat died here
 import CuratedRoomScreen from './CuratedRoomScreen';
 import ChatHome, { MOON } from './ChatHome';
+import PublicDoorway from './PublicDoorway';       // [R1] the floor's threshold
+import PublicRoomScreen from './PublicRoomScreen'; // [R1] the floor's register
 import You from './You';
 
 const N = {
@@ -175,6 +177,7 @@ export default function Nav({ screens, onLogout = () => {} }) {
     if (dest.kind === 'desk') return setChatOpen({ kind: 'persona', key: 'the_front_desk' });
     if (dest.kind === 'z') return setOverlay({ tab: 'quiet' });
     if (dest.kind === 'persona') return setChatOpen(dest);
+    if (dest.kind === 'publicDoorway') return setChatOpen(dest);   // [R1] every public entry passes the threshold
     if (dest.kind === 'room') return setChatOpen(dest);
     if (dest.kind === 'dm') return setChatOpen({ kind: 'room', room: { id: dest.threadId, name: dest.name, personas: [] } });
     if (dest.kind === 'roster') return setChatOpen(dest);
@@ -229,10 +232,17 @@ export default function Nav({ screens, onLogout = () => {} }) {
   const chatContent = chatOpen
     ? (chatOpen.kind === 'desk' ? screens.desk({ navigate, target })
       : chatOpen.kind === 'roster' ? screens.gathering({ navigate, target: null })
+      : chatOpen.kind === 'publicDoorway' ? (
+          // [R1] the mandatory threshold — consent, 18+, the handle — then the register
+          <PublicDoorway room={chatOpen.room} onBack={() => setChatOpen(null)}
+            onEnter={(r) => setChatOpen({ kind: 'room', room: r })} />
+        )
       : chatOpen.kind === 'room' ? (
-          (chatOpen.room?.publicRoomId || (chatOpen.room?.personas && chatOpen.room.personas.length) || chatOpen.room?.persona)
-            ? <CuratedRoomScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
-            : <DMScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
+          chatOpen.room?.publicRoomId
+            ? <PublicRoomScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />   // [R1] the third thin shell
+            : ((chatOpen.room?.personas && chatOpen.room.personas.length) || chatOpen.room?.persona)
+              ? <CuratedRoomScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
+              : <DMScreen room={chatOpen.room} onBack={() => setChatOpen(null)} />
         )
       : <Chat key={chatOpen.key} personaKey={chatOpen.key} initialDraft={chatOpen.draft || ''} autoSend={!!chatOpen.autoSend} onBack={() => { if (chatOpen.from) { setChatOpen(null); setOverlay({ tab: chatOpen.from }); } else { setChatOpen(null); } }} onRoute={navigate} diag={diag} onCost={(inr) => setSessCost((c) => c + (inr || 0))} />)
     : <ChatHome onOpen={openFromChat} initialTab={returnTab} diag={diag} />;   // [zip81] [H1c] probe rides the founder flag

@@ -24,6 +24,7 @@ import { seedLibrary, listLibrary, codexPlan, subjectMeta } from './coachLibrary
 import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag, coachReaction } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
 import { deterministicCheck } from './doorman.js';
+import { publicRoomOf, handlesFor, myHandle, claimHandle, isAdult } from './publicIdentity.js';   // [R1] the floor's identity wall
 import { scheduleGroupTurn } from './turnCoalescer.js';   // [coalescer]
 import { seatbeltCheck } from './seatbelt.js';
 import { runFollowups, startFollowupScheduler } from './followups.js';
@@ -373,7 +374,15 @@ app.post('/public-rooms/:id/kick', async (req, res) => {
       room_id: room.id, user_id: targetId, kind: 'kick',
       until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), reason: 'creator-kick',
     });
-    await supabase.from('room_members').delete().eq('thread_id', room.thread_id).eq('user_id', targetId);
+    const { data: gone } = await supabase.from('room_members')
+      .delete().eq('thread_id', room.thread_id).eq('user_id', targetId).select('user_id');
+    if (gone && gone.length) {   // [R1] a kick is a leave for the count
+      const { error: rpcErr } = await supabase.rpc('decrement_public_room_count', { rid: room.id });
+      if (rpcErr) {
+        const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', room.id).maybeSingle();
+        await supabase.from('public_rooms').update({ member_count: Math.max(((r2 as any)?.member_count || 1) - 1, 0) }).eq('id', room.id);
+      }
+    }
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: 'kick failed: ' + (e?.message || String(e)) }); }
 });
@@ -389,16 +398,22 @@ app.get('/public-rooms', async (req, res) => {
     // which of these has the user already joined?
     const threadIds = (rooms ?? []).map((r: any) => r.thread_id);
     const joined = new Set<string>();
+    const lastActive: Record<string, string | null> = {};
     if (threadIds.length) {
       const { data: mems } = await supabase.from('room_members')
         .select('thread_id').eq('user_id', me.id).in('thread_id', threadIds);
       for (const m of (mems ?? [])) joined.add((m as any).thread_id);
+      // [R1] real last-active for the doorway/lobby line — never invented
+      const { data: ths } = await supabase.from('threads')
+        .select('id, last_active').in('id', threadIds);
+      for (const t of (ths ?? []) as any[]) lastActive[t.id] = t.last_active || null;
     }
     res.json((rooms ?? []).map((r: any) => ({
       id: r.id, threadId: r.thread_id, slug: r.slug, name: r.name, theme: r.theme,
       personas: (r.persona_keys || []).filter((k: string) => k !== 'the_moderator'),
       doorman: 'the_moderator',
       memberCount: r.member_count, joined: joined.has(r.thread_id),
+      lastActive: lastActive[r.thread_id] || null,   // [R1]
       isHouse: !!r.is_house, youCreated: r.created_by === me.id,
     })));
   } catch (e: any) { res.status(500).json({ error: 'public rooms failed: ' + (e?.message || String(e)) }); }
@@ -418,6 +433,23 @@ app.post('/public-rooms/:id/join', async (req, res) => {
       .select('id, kind, until').eq('room_id', room.id).eq('user_id', me.id)
       .eq('kind', 'ban').order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (ban) return res.status(403).json({ error: 'the doorman has barred you from this room.' });
+    // [R1] THE GATE — server-side, the client flag is only a cache (v1 §3.2).
+    // Typed codes so the doorway renders each state distinctly.
+    const { data: gate } = await supabase.from('users')
+      .select('public_consent_at, dob').eq('id', me.id).maybeSingle();
+    if (!(gate as any)?.public_consent_at) return res.status(403).json({ error: 'open rooms need your consent first.', code: 'consent_required' });
+    const adult = isAdult((gate as any)?.dob);
+    if (adult === null) return res.status(403).json({ error: 'open rooms are 18+ — we need your date of birth once.', code: 'dob_required' });
+    if (adult === false) return res.status(403).json({ error: 'open rooms are 18+.', code: 'underage' });
+    // [R1] THE HANDLE — mandatory before membership (v1 §7.1): strangers meet
+    // handles, never profiles. Rejoin restores the existing one.
+    let handle = await myHandle(room.thread_id, me.id);
+    if (!handle) {
+      const want = String((req.body ?? {}).handle || '');
+      const claimed = await claimHandle(room.thread_id, me.id, want);
+      if (!claimed.ok) return res.status(claimed.code === 'handle_taken' ? 409 : 400).json({ error: claimed.error, code: claimed.code });
+      handle = claimed.handle;
+    }
     // already a member? idempotent
     const { data: existing } = await supabase.from('room_members')
       .select('thread_id').eq('thread_id', room.thread_id).eq('user_id', me.id).maybeSingle();
@@ -431,8 +463,68 @@ app.post('/public-rooms/:id/join', async (req, res) => {
         await supabase.from('public_rooms').update({ member_count: ((r2 as any)?.member_count || 0) + 1 }).eq('id', room.id);
       }
     }
-    res.json({ id: room.id, threadId: room.thread_id, name: room.name });
+    res.json({ id: room.id, threadId: room.thread_id, name: room.name, handle });
   } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
+});
+
+// [R1] consent, recorded server-side once. Idempotent; the doorway calls it
+// from the house-rules block ("I understand — step in").
+app.post('/public-rooms/consent', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: u } = await supabase.from('users').select('public_consent_at').eq('id', me.id).maybeSingle();
+    if (!(u as any)?.public_consent_at) {
+      await supabase.from('users').update({ public_consent_at: new Date().toISOString() }).eq('id', me.id);
+    }
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: 'consent failed: ' + (e?.message || String(e)) }); }
+});
+
+// [R1] THE DOORWAY's one read — everything the threshold renders, one call:
+// gate state, your handle (if returning), real live stats. No invented numbers.
+app.get('/public-rooms/:id/doorway', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const { data: room } = await supabase.from('public_rooms')
+      .select('id, thread_id, name, theme, persona_keys, member_count, is_house, active')
+      .eq('id', req.params.id).maybeSingle();
+    if (!room || !(room as any).active) return res.status(404).json({ error: 'no such room' });
+    const { data: th } = await supabase.from('threads').select('last_active').eq('id', (room as any).thread_id).maybeSingle();
+    const { data: gate } = await supabase.from('users').select('public_consent_at, dob').eq('id', me.id).maybeSingle();
+    const { data: mem } = await supabase.from('room_members')
+      .select('thread_id').eq('thread_id', (room as any).thread_id).eq('user_id', me.id).maybeSingle();
+    const adult = isAdult((gate as any)?.dob);
+    res.json({
+      id: (room as any).id, threadId: (room as any).thread_id,
+      name: (room as any).name, theme: (room as any).theme,
+      host: ((room as any).persona_keys || []).filter((k: string) => k !== 'the_moderator')[0] || null,
+      doorman: 'the_moderator',
+      memberCount: (room as any).member_count, lastActive: (th as any)?.last_active || null,
+      isHouse: !!(room as any).is_house, joined: !!mem,
+      consented: !!(gate as any)?.public_consent_at,
+      dobSet: adult !== null, adult: adult === true,
+      handle: await myHandle((room as any).thread_id, me.id),
+    });
+  } catch (e: any) { res.status(500).json({ error: 'doorway failed: ' + (e?.message || String(e)) }); }
+});
+
+// [R1] claim / edit a handle in a public room. Immutable after your first
+// message in that room — claimHandle enforces the lock.
+app.post('/rooms/:id/handle', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const me = await resolveUser(authId);
+    const pub = await publicRoomOf(req.params.id);
+    if (!pub) return res.status(400).json({ error: 'handles live in public rooms only' });
+    const r = await claimHandle(req.params.id, me.id, String((req.body ?? {}).handle || ''));
+    if (!r.ok) return res.status(r.code === 'handle_taken' ? 409 : 400).json({ error: r.error, code: r.code });
+    res.json({ ok: true, handle: r.handle });
+  } catch (e: any) { res.status(500).json({ error: 'handle failed: ' + (e?.message || String(e)) }); }
 });
 
 // creator-only: delete a public room — drops it from the directory (active=false,
@@ -3153,7 +3245,11 @@ app.get('/threads/:id/messages', async (req, res) => {
     if (thread.is_shared) {
       const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', threadId);
       const ids = (mem ?? []).map((m: any) => m.user_id);
-      if (ids.length) {
+      if (ids.length && await publicRoomOf(threadId)) {
+        // [R1] the identity wall: history reads handles, never display names
+        const hs = await handlesFor(threadId, ids);
+        ids.forEach((id: string) => { roster[id] = hs[id] || 'someone'; });
+      } else if (ids.length) {
         const { data: us } = await supabase.from('users').select('id, display_name').in('id', ids);
         (us ?? []).forEach((u: any) => { roster[u.id] = u.display_name || 'someone'; });
       }
@@ -3243,6 +3339,10 @@ app.post('/join/:token', async (req, res) => {
     if (!inv || inv.revoked) return res.status(404).json({ error: 'this invite is no longer active' });
     if (inv.expires_at && new Date(inv.expires_at) < new Date()) return res.status(410).json({ error: 'this invite expired' });
     if (inv.max_uses != null && inv.uses >= inv.max_uses) return res.status(410).json({ error: 'this invite is used up' });
+    // [R1] a public room has ONE door — the doorway (consent, 18+, handle).
+    // Invite tokens must not walk past the gate; send the client to the front.
+    const pubTarget = await publicRoomOf(inv.thread_id);
+    if (pubTarget) return res.status(409).json({ error: 'this room is public — enter through its doorway.', code: 'public_room', publicRoomId: pubTarget.id });
     // add membership (idempotent) + bump uses
     await supabase.from('room_members').insert({ thread_id: inv.thread_id, user_id: user.id, role: 'member' })
       .select().maybeSingle();
@@ -3262,7 +3362,12 @@ app.get('/rooms/:id/members', async (req, res) => {
     const ids = (mems ?? []).map((m: any) => m.user_id);
     const map: Record<string,string> = {};
     const avatars: Record<string,string|null> = {};
-    if (ids.length) {
+    // [R1] THE IDENTITY WALL: in a public room, strangers meet handles —
+    // real names and DPs never leave this branch (v1 §7.1, guardrails).
+    if (ids.length && await publicRoomOf(req.params.id)) {
+      const hs = await handlesFor(req.params.id, ids);
+      ids.forEach((id: string) => { map[id] = hs[id] || 'someone'; avatars[id] = null; });
+    } else if (ids.length) {
       const { data: us } = await supabase.from('users').select('id, display_name, avatar_url').in('id', ids);
       (us ?? []).forEach((u: any) => { map[u.id] = u.display_name || 'someone'; avatars[u.id] = u.avatar_url || null; });
     }
@@ -3711,7 +3816,21 @@ app.post('/rooms/:id/leave', async (req, res) => {
     const authId = await authUser(req);
     if (!authId) return res.status(401).json({ error: 'unauthorized' });
     const user = await resolveUser(authId);
-    await supabase.from('room_members').delete().eq('thread_id', req.params.id).eq('user_id', user.id);
+    const { data: gone } = await supabase.from('room_members')
+      .delete().eq('thread_id', req.params.id).eq('user_id', user.id).select('user_id');
+    // [R1] public rooms decrement on a REAL removal only — counts ratcheted
+    // up on every leave/rejoin before this (audit). Handle row persists for
+    // rejoin identity (v1 §7.2).
+    if (gone && gone.length) {
+      const pub = await publicRoomOf(req.params.id);
+      if (pub) {
+        const { error: rpcErr } = await supabase.rpc('decrement_public_room_count', { rid: pub.id });
+        if (rpcErr) {
+          const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', pub.id).maybeSingle();
+          await supabase.from('public_rooms').update({ member_count: Math.max(((r2 as any)?.member_count || 1) - 1, 0) }).eq('id', pub.id);
+        }
+      }
+    }
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: 'leave failed: ' + (e?.message || String(e)) }); }
 });
@@ -3833,12 +3952,20 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       if (!isOwner && !(await isRoomMember(threadId, user.id))) {
         res.write(`data: ${JSON.stringify({ error: 'you are not in this room' })}\n\n`); return res.end();
       }
+      // [R1] THE IDENTITY WALL at the send: in a public room the speaker is
+      // their handle — on the wire, in history stamps, and in the DIRECTOR's
+      // transcript. display_name never enters a public thread.
+      const isPublicThread = !!(await publicRoomOf(threadId));
+      const speakerName = isPublicThread
+        ? ((await myHandle(threadId, user.id)) || 'someone')
+        : (user.display_name || 'someone');
       // [coalescer] games & roleplay keep the synchronous one-turn-per-move path —
       // their turn structure (judge goes last, scene beats) expects it.
       const coalesce = !th.game_mode && !(th as any).scenario_key;
       if (!coalesce) {
         await runGroupTurn({
-          userId: user.id, threadId, message, image: image ?? null, senderName: user.display_name || 'someone',
+          userId: user.id, threadId, message, image: image ?? null, senderName: speakerName,
+          isPublic: isPublicThread,   // [R1]
           clientId,   // [H1]
           addressed: Array.isArray(addressed) ? addressed : undefined,
           onPersonaStart: (key, name) => res.write(`data: ${JSON.stringify({ speaker: key, name })}\n\n`),
@@ -3859,14 +3986,15 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       await supabase.from('threads').update({ last_active: new Date().toISOString() }).eq('id', threadId);
       void broadcastRoomMessage(threadId, {
         role: 'user', content: stored2, sender_user_id: user.id,
-        sender_name: user.display_name || 'someone', client_id: clientId, id: (savedRoom as any)?.id ?? null,   // [H1][H1b]
+        sender_name: speakerName, client_id: clientId, id: (savedRoom as any)?.id ?? null,   // [H1][H1b][R1]
       });
       res.write(`data: ${JSON.stringify({ done: true, saved: (savedRoom as any)?.id || null, client_id: clientId })}\n\n`);
       res.end();
-      const senderName = user.display_name || 'someone';
+      const senderName = speakerName;   // [R1]
       const uid = user.id;
       scheduleGroupTurn(threadId, () => runGroupTurn({
         userId: uid, threadId, message: stored2, image: image ?? null, senderName,
+        isPublic: isPublicThread,   // [R1]
         clientId, alreadyPersisted: true,   // [H1b/coalescer]
         addressed: Array.isArray(addressed) ? addressed : undefined,
       }));

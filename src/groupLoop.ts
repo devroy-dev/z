@@ -14,6 +14,7 @@ import { buildStaticPrefix, readContentFile } from './content.js';
 import { pinnedProvider, scrubProviderMarkup, makeStreamGate, makeTagGate } from './llm.js';   // [zip54g] [zip54m] [fixes-2 BUG-1]
 import { readMemoryBlock } from './memory.js';
 import { readRoomMemoryBlock } from './roomMemory.js';
+import { publicRoomOf, handlesFor } from './publicIdentity.js';   // [R1] the floor's identity wall
 import { personaByKey, type CodexKey } from './personas.js';
 import { broadcastRoomMessage } from './broadcast.js';
 import { stateBlockFor } from './personaStates.js';
@@ -125,6 +126,7 @@ export interface GroupTurnInput {
   threadId: string;
   message: string;
   senderName?: string;   // in a shared room: the human who just spoke
+  isPublic?: boolean;    // [R1] public room — humans are handles; real identity never enters the prompt
   clientId?: string | null;  // [H1] the sender's optimistic-line id, echoed in the broadcast
   alreadyPersisted?: boolean; // [H1b/coalescer] /chat persisted+broadcast the user message upstream;
                               // skip the insert/broadcast here AND the transcript append (history has it)
@@ -181,11 +183,19 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
     members.push('the_moderator');
   }
 
+  // [R1] THE IDENTITY WALL: is this the public floor? Trust the caller's flag;
+  // derive it for shared threads when the caller predates the flag. In a public
+  // room, real identity (display_name, region) never enters any prompt — the
+  // humans are their handles, full stop.
+  const isPublicRoom = t.is_shared
+    ? (typeof input.isPublic === 'boolean' ? input.isPublic : !!(await publicRoomOf(threadId)))
+    : false;
+
   // owner identity (shared across all members this turn)
   const { data: owner } = await supabase
     .from('users').select('display_name, region').eq('id', userId).maybeSingle();
   let ownerLine = '';
-  if (owner && (owner.display_name || owner.region)) {
+  if (!isPublicRoom && owner && (owner.display_name || owner.region)) {   // [R1] wall
     const who = owner.display_name || 'this person';
     const where = owner.region ? `, from ${owner.region}` : '';
     ownerLine = `\n\n[WHO YOU'RE TALKING TO: ${who}${where}.]`;
@@ -217,7 +227,11 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   let nameByUid: Record<string, string> = {};
   if (t.is_shared) {
     const uids = [...new Set((history ?? []).map((m: any) => m.sender_user_id).filter(Boolean))];
-    if (uids.length) {
+    if (uids.length && isPublicRoom) {
+      // [R1] the identity wall: the transcript reads handles, never real names
+      const hs = await handlesFor(threadId, uids as string[]);
+      for (const uid of uids as string[]) nameByUid[uid] = hs[uid] || 'someone';
+    } else if (uids.length) {
       const { data: us } = await supabase.from('users').select('id, display_name').in('id', uids);
       for (const u of (us ?? [])) nameByUid[(u as any).id] = (u as any).display_name || 'someone';
     }

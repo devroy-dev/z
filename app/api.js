@@ -919,8 +919,28 @@ export async function markThreadRead(threadId) {
 export async function getPublicRooms() {
   try { return await authedJSON('GET', '/public-rooms'); } catch (e) { return []; }
 }
-export async function joinPublicRoom(roomId) {
-  try { return await authedJSON('POST', `/public-rooms/${roomId}/join`); }
+export async function joinPublicRoom(roomId, handle) {
+  try { return await authedJSON('POST', `/public-rooms/${roomId}/join`, handle ? { handle } : {}); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+// [R1] the doorway's one read: gate state + your handle + real live stats
+export async function getPublicDoorway(roomId) {
+  try { return await authedJSON('GET', `/public-rooms/${roomId}/doorway`); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+// [R1] consent, recorded server-side once (idempotent)
+export async function consentPublicRooms() {
+  try { return await authedJSON('POST', '/public-rooms/consent', {}); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+// [R1] claim / edit a public-room handle (locks with your first message)
+export async function setRoomHandle(threadId, handle) {
+  try { return await authedJSON('POST', `/rooms/${threadId}/handle`, { handle }); }
+  catch (e) { return { error: String(e?.message || e) }; }
+}
+// [R1] dob, once, for the 18+ gate — rides the existing /me profile route
+export async function setDob(dob) {
+  try { return await authedJSON('POST', '/me', { dob }); }
   catch (e) { return { error: String(e?.message || e) }; }
 }
 
