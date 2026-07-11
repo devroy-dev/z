@@ -13,6 +13,8 @@
 import { supabase } from './db.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { llm } from './llm.js';
+import { broadcastRoomMessage } from './broadcast.js';   // [R2] the doorman's lines go live, not just to disk
+import { logUsage } from './usage.js';                   // [R2] the judge is a generator — house law
 
 const anthropic = llm();   // [zip34] the second generator — provider-routable
 const JUDGE_MODEL = process.env.MODERATION_MODEL || 'claude-haiku-4-5-20251001';
@@ -116,7 +118,7 @@ export async function recordStrikeAndEscalate(
 
   if (severity === 'severe') {
     await supabase.from('room_sanctions').insert({ room_id: roomId, user_id: userId, kind: 'ban', until: null, reason });
-    await removeFromThread(threadId, userId);
+    await removeFromThread(threadId, userId, roomId);
     return { doormanLine: "that's a hard line. you're out — this isn't the room for it.", sanctioned: 'ban' };
   }
 
@@ -141,12 +143,24 @@ export async function recordStrikeAndEscalate(
     room_id: roomId, user_id: userId, kind: 'kick',
     until: new Date(Date.now() + KICK_MS).toISOString(), reason,
   });
-  await removeFromThread(threadId, userId);
+  await removeFromThread(threadId, userId, roomId);
   return { doormanLine: "you've had your chances. out for the day — come back tomorrow ready to behave.", sanctioned: 'kick' };
 }
 
-async function removeFromThread(threadId: string, userId: string): Promise<void> {
-  try { await supabase.from('room_members').delete().eq('thread_id', threadId).eq('user_id', userId); } catch (e) { /* best effort */ }
+async function removeFromThread(threadId: string, userId: string, roomId?: string): Promise<void> {
+  try {
+    const { data: gone } = await supabase.from('room_members')
+      .delete().eq('thread_id', threadId).eq('user_id', userId).select('user_id');
+    // [R2] a ban/kick is a leave for the count — same ratchet class R1 fixed
+    // on the leave/kick routes. Decrement only on a REAL removal.
+    if (roomId && gone && gone.length) {
+      const { error: rpcErr } = await supabase.rpc('decrement_public_room_count', { rid: roomId });
+      if (rpcErr) {
+        const { data: r2 } = await supabase.from('public_rooms').select('member_count').eq('id', roomId).maybeSingle();
+        await supabase.from('public_rooms').update({ member_count: Math.max(((r2 as any)?.member_count || 1) - 1, 0) }).eq('id', roomId);
+      }
+    }
+  } catch (e) { /* best effort */ }
 }
 
 // post the doorman's action as a real in-room message (moderation with a face).
@@ -154,9 +168,14 @@ async function removeFromThread(threadId: string, userId: string): Promise<void>
 // the user whose action triggered it — the content/persona_key mark it as the doorman.
 export async function doormanSpeak(threadId: string, userId: string, line: string): Promise<void> {
   try {
-    await supabase.from('messages').insert({
+    const { data: saved } = await supabase.from('messages').insert({
       thread_id: threadId, user_id: userId, role: 'assistant',
       content: line, persona_key: 'the_moderator',
+    }).select('id').maybeSingle();
+    // [R2] the line reaches live devices too — a warning nobody sees isn't one.
+    await broadcastRoomMessage(threadId, {
+      role: 'assistant', content: line, persona_key: 'the_moderator',
+      id: (saved as any)?.id ?? null,
     });
   } catch (e) { /* best effort */ }
 }
@@ -177,6 +196,7 @@ export async function judge(roomId: string, threadId: string, userId: string, te
         'Return ONLY compact JSON: {"class":"...","severity":"..."}. No prose.',
       messages: [{ role: 'user', content: `MESSAGE: ${String(text).slice(0, 1000)}` }],
     });
+    logUsage({ userId, threadId, personaKey: 'the_moderator', surface: 'other', fn: 'doorman-judge', model: JUDGE_MODEL, usage: (resp as any).usage });   // [R2] house law: every generator logs
     const raw = resp.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
     const clean = raw.replace(/```json|```/g, '').trim();
     const v = JSON.parse(clean) as { class: string; severity: string };

@@ -15,6 +15,7 @@ import { pinnedProvider, scrubProviderMarkup, makeStreamGate, makeTagGate } from
 import { readMemoryBlock } from './memory.js';
 import { readRoomMemoryBlock } from './roomMemory.js';
 import { publicRoomOf, handlesFor } from './publicIdentity.js';   // [R1] the floor's identity wall
+import { deterministicCheck } from './doorman.js';   // [R2] Layer 1 at the persist point
 import { personaByKey, type CodexKey } from './personas.js';
 import { broadcastRoomMessage } from './broadcast.js';
 import { stateBlockFor } from './personaStates.js';
@@ -241,6 +242,10 @@ export async function runGroupTurn(input: GroupTurnInput): Promise<void> {
   const imgOk = !!input.image && /^image\/(jpeg|png|gif|webp)$/.test(input.image.media_type);
   const storedContent = imgOk ? (message ? message + '\n[shared a photo]' : '[shared a photo]') : message;
   if (!input.alreadyPersisted) {   // [H1b/coalescer] shared rooms persist upstream in /chat now
+    // [R2] LAYER 1 AT THE PERSIST POINT ITSELF (the spec's named guard): /chat's
+    // wall is the primary check, but this point serves other callers too — a hit
+    // here never persists, never broadcasts, and the turn does not run.
+    if (deterministicCheck(storedContent).action === 'block') return;
     const { data: savedUser } = await supabase.from('messages').insert({ thread_id: threadId, user_id: userId, role: 'user', content: storedContent, sender_user_id: userId }).select('id').maybeSingle();
     if (t.is_shared) {
       await broadcastRoomMessage(threadId, { role: 'user', content: storedContent, sender_user_id: userId, sender_name: input.senderName ?? null, client_id: input.clientId ?? null, id: (savedUser as any)?.id ?? null });   // [H1][H1b]

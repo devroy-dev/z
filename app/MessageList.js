@@ -31,6 +31,9 @@ function FlatLine({ line, onRetry }) {
           <Text style={styles.failText}>didn't send — tap to retry</Text>
         </Pressable>
       ) : null}
+      {line.state === 'blocked' ? (
+        <Text style={styles.failText}>{line.blockNote || "that message wasn't sent — house rules."}</Text>
+      ) : null}
     </View>
   );
 }
@@ -93,6 +96,9 @@ export function RoomLine({ line, hideSpeaker, mentionables, flatMode, onRetry })
             <Pressable onPress={() => onRetry && onRetry(line.id)} hitSlop={6}>
               <Text style={styles.failText}>didn't send — tap to retry</Text>
             </Pressable>
+          ) : null}
+          {line.state === 'blocked' ? (
+            <Text style={styles.failText}>{line.blockNote || "that message wasn't sent — house rules."}</Text>
           ) : null}
         </View>
       </View>

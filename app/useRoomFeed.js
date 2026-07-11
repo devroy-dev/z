@@ -218,8 +218,18 @@ export default function useRoomFeed(roomId, { personas = [], isDM = false } = {}
           }
         }, 2500);
       },
-      onError: () => {
-        settle('failed');   // [H1] failure visible, never silent (X2 law)
+      onError: (msg, code) => {
+        // [R2] a DOORMAN rejection is not a network failure: the line renders
+        // blocked with the house's word, and there is no retry (it would just
+        // block again). Anything else keeps the failed-with-retry path (X2 law).
+        if (code === 'house_rules' || code === 'muted' || code === 'barred') {
+          inflightRef.current.delete(cid);
+          if (!inflightRef.current.size) setSending(false);
+          const note = String(msg || '').replace(/^\(|\)$/g, '');
+          setLines((cur) => cur.map((l) => (l.id === cid ? { ...l, state: 'blocked', blockNote: note } : l)));
+        } else {
+          settle('failed');   // [H1] failure visible, never silent (X2 law)
+        }
         if (pendingRef.current === pid) { pendingRef.current = null; setLines((cur) => cur.filter((l) => l.id !== pid)); }
       },
     });

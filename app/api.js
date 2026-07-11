@@ -327,7 +327,7 @@ export async function streamChat({ threadId, message, image, persona, addressed,
             if (typeof ev.token === 'string') { acc += ev.token; onToken && onToken(acc); }
             else if (ev.routes) { onRoutes && onRoutes(ev.routes); }
             else if (ev.done) { costMeta = ev.cost || costMeta; onDone && onDone(acc, ev.cost); }
-            else if (ev.error) { onError && onError('(' + ev.error + ')'); }
+            else if (ev.error) { onError && onError('(' + ev.error + ')', ev.code); }   // [R2] typed doorman codes ride along
           });
         }
       };
@@ -517,6 +517,10 @@ export async function retireCustomPersona(key) {
 // ── thread prefs: pin / favourite / archive (per user) ──
 export async function setThreadPrefs(threadId, prefs) {
   try { return await authedJSON('POST', '/thread/prefs', { threadId, ...prefs }); } catch (e) { return null; }
+}
+// [R2] one thread's prefs — the room screen's mute toggle reads its state here
+export async function getThreadPrefs(threadId) {
+  try { return await authedJSON('GET', `/thread/prefs?threadId=${encodeURIComponent(threadId)}`); } catch (e) { return null; }
 }
 
 // ── fantasy football (house league — EPL + UCL, real data) ──

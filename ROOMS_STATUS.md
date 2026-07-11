@@ -111,10 +111,38 @@ Pre-0063 members read 'someone' until their next doorway pass.
 account; wall on members/history/broadcast; handle lock; count decrement;
 bypass 409). Device verification pending — owner runs the proof pair.
 
+## R2 — THE DOORMAN ACTUALLY GUARDS (this sitting, ROOMS_SPEC_V2 phase R2)
+
+**Shipped (apply_rooms_r2.py + 0062 — see APPLY_ROOMS_R2.md):** Layer 1 sync
+before insert at all THREE persist points (spec named two; the coalescer
+added a third — DM inline, coalesced shared, groupLoop's own), with the
+ladder feeding in public rooms (all Layer-1 classes are severe → instant ban
++ removal + doorman line). The mute hole closed (send path reads
+room_sanctions; typed muted/barred rejections). Layer 2 judge wired after
+every clean public persist, with logUsage (fn doorman-judge) added per house
+law; doormanSpeak now broadcasts (lines only persisted before); ban/kick
+removals decrement member_count (the R1 ratchet class). 0062 reduced as
+audited: room_reports.status, thread_reads.muted (+ whitelist + a prefs GET),
+the z.open_room_reports view; report-the-room accepted ({room:true}). THE
+INHABITATION LAW: hostless public-room creation is 400 host_required
+(/rooms already enforced it; DMs + duel floors exempt by the taxonomy
+ruling). Native: blocked-state rendering (typed doorman codes ride
+streamChat; no retry on a block), the required host picker on shareableKeys()
+with keyword preselect, report-room + mute-room in the register's sheet.
+
+**Deferred, owner to slot:** host behaviors (greeting · @host · the pulse —
+v1 §5.2, was v1 phase 3); legacy hostless-room backfill (v1 phase 6);
+thread_reads.muted enforcement lands with room notifications (v1 §10).
+
+**Proofs:** curls in APPLY_ROOMS_R2.md — host_required, Layer-1 instant ban
+observable end to end (block, removal, decrement, doorman line, barred
+rejoin), injected-mute rejection, judge strike + warning line, report-room +
+view, prefs pair. Offender is always the disposable account in a disposable
+room. Device verification pending.
+
 ## NEXT SITTING PICKS UP (updated)
-R2 — the doorman actually guards: Layer-1 sync before both persist points
-(DM branch inline; groupLoop.ts persist), the mute hole (send path reads
-room_sanctions), 0062 reduced per audit (room_reports.status,
-thread_reads.muted + whitelist, report-the-room affordance, admin view),
-the inhabitation law (personas[0] required, host-centric creation on
-shareableKeys()).
+R3 — the nav fold (V2 §1): the chat·play world pill dies, one bottom nav
+(the Desk · chats · rooms · play), the Gathering's tonight-row moves home,
+the Lobby placeholder chain + PublicRoom.js mock deleted, DM-creation
+affordances die (existing DM threads stay readable), the H1c-2 inbox bump
+verified across both tabs — the fold's only transport risk.

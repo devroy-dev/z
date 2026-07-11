@@ -22,7 +22,7 @@ import PokerLive from './games/poker/Live';
 import PusoyLive from './games/pusoy/Live';
 import LudoLive from './games/ludo/Live';
 import DebateDuelLive from './games/debate/DuelLive';
-import { startGameSession, getLiveGame, kickFromRoom, reportInRoom, blockUser, getMyBlocks, deletePublicRoom, leaveRoom } from './api';
+import { startGameSession, getLiveGame, kickFromRoom, reportInRoom, blockUser, getMyBlocks, deletePublicRoom, leaveRoom, getThreadPrefs, setThreadPrefs } from './api';   // [R2] prefs pair
 import useRoomFeed from './useRoomFeed';
 import MessageList from './MessageList';
 import Composer from './Composer';
@@ -85,9 +85,16 @@ export default function PublicRoomScreen({ room, onBack = () => {} }) {
     AsyncStorage.getItem('z_room_mute_' + roomId).then((v) => { try { setMuted(new Set(JSON.parse(v || '[]'))); } catch (e) {} }).catch(() => {});
   }, [roomId]);
   const doReport = async (t) => {
-    if (acting) return; setActing(t.id || t.key);
-    await reportInRoom(roomId, t.isPersona ? { targetPersona: t.key } : { targetUserId: t.id });
-    setActing(null); alert('reported to the doorman. thanks for keeping it civil.');
+    if (acting) return; setActing(t.id || t.key || '__room');
+    await reportInRoom(roomId, t.room ? { room: true } : (t.isPersona ? { targetPersona: t.key } : { targetUserId: t.id }));
+    setActing(null); alert(t.room ? 'the room is reported. the house will look at it.' : 'reported to the doorman. thanks for keeping it civil.');
+  };
+  // [R2] mute room = a thread pref (kills its notifications only). Real state
+  // from the server; toggle posts through the whitelisted prefs route.
+  const [roomMuted, setRoomMuted] = useState(false);
+  React.useEffect(() => { getThreadPrefs(roomId).then((p) => { if (p) setRoomMuted(!!p.muted); }).catch(() => {}); }, [roomId]);
+  const toggleRoomMute = () => {
+    setRoomMuted((m) => { setThreadPrefs(roomId, { muted: !m }); return !m; });
   };
   const doBlock = (uid, name) => {
     Alert.alert('block ' + (name || 'them') + '?', "you won't see each other's messages in any room.", [
@@ -186,6 +193,10 @@ export default function PublicRoomScreen({ room, onBack = () => {} }) {
               </ScrollView>
               <View style={styles.sheetFooter}>
                 <Pressable style={styles.rulesBtn} onPress={showRules}><Text style={styles.rulesTxt}>house rules</Text></Pressable>
+                <Pressable style={styles.rulesBtn} onPress={toggleRoomMute}><Text style={styles.rulesTxt}>{roomMuted ? 'unmute room' : 'mute room'}</Text></Pressable>
+                <Pressable style={styles.rulesBtn} onPress={() => doReport({ room: true })}><Text style={styles.rulesTxt}>{acting === '__room' ? '…' : 'report room'}</Text></Pressable>
+              </View>
+              <View style={styles.sheetFooter}>
                 <Pressable style={styles.leaveBtn} onPress={doLeave}><Text style={styles.leaveTxt}>{acting === '__leave' ? '…' : 'leave room'}</Text></Pressable>
                 {canModerate ? <Pressable style={styles.delBtn} onPress={doDeleteRoom}><Text style={styles.delTxt}>{acting === '__del' ? '…' : 'delete room'}</Text></Pressable> : null}
               </View>

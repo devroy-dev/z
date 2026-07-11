@@ -23,7 +23,7 @@ import { distillMaterial } from './coachDistill.js';
 import { seedLibrary, listLibrary, codexPlan, subjectMeta } from './coachLibrary.js';
 import { retrieveForCourse, materialFromSections, answerFromMaterial, generateMock, breakdownByTag, coachReaction } from './coach.js';
 import { harvestRoomMemory, readRoomMemoryBlock } from './roomMemory.js';
-import { deterministicCheck } from './doorman.js';
+import { deterministicCheck, activeSanction, recordStrikeAndEscalate, doormanSpeak, judge } from './doorman.js';   // [R2] both layers wired
 import { publicRoomOf, handlesFor, myHandle, claimHandle, isAdult } from './publicIdentity.js';   // [R1] the floor's identity wall
 import { scheduleGroupTurn } from './turnCoalescer.js';   // [coalescer]
 import { seatbeltCheck } from './seatbelt.js';
@@ -335,6 +335,10 @@ app.post('/public-rooms', async (req, res) => {
     // residents: up to 2 user-picked personas + the doorman
     let picks: string[] = Array.isArray((req.body ?? {}).personas) ? (req.body as any).personas : [];
     picks = [...new Set(picks.filter((k: any) => typeof k === 'string' && SHAREABLE_PERSONAS.has(k) && k !== 'the_moderator'))].slice(0, 2);
+    // [R2] THE INHABITATION LAW: every space in this house is inhabited. A
+    // public room is a HOSTED room — personas[0] is required, server-enforced.
+    // The doorman is the doorman, not the host.
+    if (!picks.length) return res.status(400).json({ error: 'every room needs a host — pick who runs it.', code: 'host_required' });
     const residents = [...picks, 'the_moderator'];
     // slug from the name (unique-ish; append a short random if taken)
     let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'room';
@@ -2766,11 +2770,11 @@ app.get('/threads', async (req, res) => {
     const prefs: Record<string, any> = {};
     if (ids.length) {
       const { data: rr } = await supabase.from('thread_reads')
-        .select('thread_id, last_read_at, pinned, favourite, archived')
+        .select('thread_id, last_read_at, pinned, favourite, archived, muted')
         .eq('user_id', user.id).in('thread_id', ids);
       for (const r of (rr ?? []) as any[]) {
         reads[r.thread_id] = r.last_read_at;
-        prefs[r.thread_id] = { pinned: !!r.pinned, favourite: !!r.favourite, archived: !!r.archived };
+        prefs[r.thread_id] = { pinned: !!r.pinned, favourite: !!r.favourite, archived: !!r.archived, muted: !!r.muted };   // [R2]
       }
     }
     const withUnread = await Promise.all(threads.map(async (t: any) => {
@@ -3076,8 +3080,10 @@ app.post('/rooms/:id/report', async (req, res) => {
       const { data: th } = await supabase.from('threads').select('user_id').eq('id', threadId).maybeSingle();
       if (!th || th.user_id !== user.id) return res.status(403).json({ error: 'not a member' });
     }
-    const { targetUserId, targetPersona, messageId, reason } = req.body ?? {};
-    if (!targetUserId && !targetPersona) return res.status(400).json({ error: 'need targetUserId or targetPersona' });
+    const { targetUserId, targetPersona, messageId, reason, room } = req.body ?? {};
+    // [R2] report THE ROOM itself: both targets null (a room can be clean
+    // message-by-message and still be a cesspool by theme — v1 §6.2).
+    if (!targetUserId && !targetPersona && !room) return res.status(400).json({ error: 'need targetUserId, targetPersona, or room:true' });
     const { error } = await supabase.from('room_reports').insert({
       thread_id: threadId, reporter_id: user.id,
       target_user_id: targetUserId ?? null, target_persona: targetPersona ?? null,
@@ -3385,7 +3391,7 @@ app.post('/thread/prefs', async (req, res) => {
     const { threadId } = req.body ?? {};
     if (!threadId) return res.status(400).json({ error: 'threadId required' });
     const patch: any = { user_id: user.id, thread_id: threadId };
-    for (const k of ['pinned', 'favourite', 'archived'] as const) {
+    for (const k of ['pinned', 'favourite', 'archived', 'muted'] as const) {   // [R2] muted joins the whitelist
       if (typeof (req.body ?? {})[k] === 'boolean') patch[k] = (req.body as any)[k];
     }
     if (Object.keys(patch).length === 2) return res.status(400).json({ error: 'nothing to set' });
@@ -3394,6 +3400,22 @@ app.post('/thread/prefs', async (req, res) => {
     if (error) return res.status(500).json({ error: 'prefs save: ' + error.message });
     res.json({ ok: true, ...patch });
   } catch (e: any) { res.status(500).json({ error: 'prefs failed: ' + (e?.message || String(e)) }); }
+});
+
+// [R2] read one thread's prefs — the room screen's mute toggle needs its
+// initial state without dragging the whole threads list.
+app.get('/thread/prefs', async (req, res) => {
+  try {
+    const authId = await authUser(req);
+    if (!authId) return res.status(401).json({ error: 'unauthorized' });
+    const user = await resolveUser(authId);
+    const threadId = typeof req.query.threadId === 'string' ? req.query.threadId : '';
+    if (!threadId) return res.status(400).json({ error: 'threadId required' });
+    const { data } = await supabase.from('thread_reads')
+      .select('pinned, favourite, archived, muted')
+      .eq('user_id', user.id).eq('thread_id', threadId).maybeSingle();
+    res.json({ pinned: !!(data as any)?.pinned, favourite: !!(data as any)?.favourite, archived: !!(data as any)?.archived, muted: !!(data as any)?.muted });
+  } catch (e: any) { res.status(500).json({ error: 'prefs read failed: ' + (e?.message || String(e)) }); }
 });
 
 app.get('/rooms', async (req, res) => {
@@ -3929,6 +3951,12 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       if (!message || !String(message).trim()) {
         res.write(`data: ${JSON.stringify({ error: 'empty message' })}\n\n`); return res.end();
       }
+      // [R2] LAYER 1, SYNC, BEFORE INSERT (persist point 1 of 3). A hit never
+      // persists, never broadcasts — the ordering no refactor may disturb.
+      // DMs carry no room ladder (strikes are room-scoped); the block is the whole action.
+      if (deterministicCheck(String(message)).action === 'block') {
+        res.write(`data: ${JSON.stringify({ error: "that message wasn't sent — house rules.", code: 'house_rules' })}\n\n`); return res.end();
+      }
       const { data: saved } = await supabase.from('messages')
         .insert({ thread_id: threadId, user_id: user.id, role: 'user', content: String(message), sender_user_id: user.id })
         .select('id, created_at').maybeSingle();
@@ -3955,10 +3983,37 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       // [R1] THE IDENTITY WALL at the send: in a public room the speaker is
       // their handle — on the wire, in history stamps, and in the DIRECTOR's
       // transcript. display_name never enters a public thread.
-      const isPublicThread = !!(await publicRoomOf(threadId));
+      const pubRoom = await publicRoomOf(threadId);   // [R2] the row, not just the flag — sanctions + ladder need its id
+      const isPublicThread = !!pubRoom;
       const speakerName = isPublicThread
         ? ((await myHandle(threadId, user.id)) || 'someone')
         : (user.display_name || 'someone');
+      // [R2] THE MUTE HOLE, closed: sanctions were written but never read at
+      // the send. An active mute/kick/ban bars the message before anything
+      // persists. (Kick/ban also removed membership, so the gate above already
+      // catches most — this is the enforcement for mutes and the belt for the rest.)
+      if (pubRoom) {
+        const sanction = await activeSanction(pubRoom.id, user.id);
+        if (sanction) {
+          const untilLine = sanction.until ? ` until ${new Date(sanction.until).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}` : '';
+          res.write(`data: ${JSON.stringify({ error: sanction.kind === 'mute' ? `you're muted in this room${untilLine}.` : 'the doorman has barred you from this room.', code: sanction.kind === 'mute' ? 'muted' : 'barred' })}\n\n`);
+          return res.end();
+        }
+      }
+      // [R2] LAYER 1, SYNC, BEFORE INSERT — guards BOTH shared persist points
+      // (the coalesced insert below and groupLoop's, which this branch feeds).
+      // A hit never persists, never broadcasts; in a public room it also feeds
+      // the ladder (severe → instant ban, per the doorman's own doctrine).
+      const l1 = deterministicCheck(String(message || ''));
+      if (l1.action === 'block') {
+        res.write(`data: ${JSON.stringify({ error: "that message wasn't sent — house rules.", code: 'house_rules' })}\n\n`);
+        res.end();
+        if (pubRoom) {
+          const { doormanLine } = await recordStrikeAndEscalate(pubRoom.id, threadId, user.id, l1.severity, l1.reason);
+          if (doormanLine) await doormanSpeak(threadId, user.id, doormanLine);
+        }
+        return;
+      }
       // [coalescer] games & roleplay keep the synchronous one-turn-per-move path —
       // their turn structure (judge goes last, scene beats) expects it.
       const coalesce = !th.game_mode && !(th as any).scenario_key;
@@ -3973,7 +4028,11 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
           onPersonaEnd: (key, full) => res.write(`data: ${JSON.stringify({ speaker: key, end: true })}\n\n`),
         });
         res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-        return res.end();
+        res.end();
+        // [R2] LAYER 2 — the judge, async, after a clean message LANDED
+        // (groupLoop persisted it). Public rooms only; best-effort by design.
+        if (pubRoom) void judge(pubRoom.id, threadId, user.id, String(message || ''));
+        return;
       }
       // [coalescer] the conversation path: the human's message lands INSTANTLY —
       // persist + broadcast + done — and the AI turn is gated per-thread. The
@@ -3990,6 +4049,8 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       });
       res.write(`data: ${JSON.stringify({ done: true, saved: (savedRoom as any)?.id || null, client_id: clientId })}\n\n`);
       res.end();
+      // [R2] LAYER 2 — the judge, async, right after the clean persist above.
+      if (pubRoom) void judge(pubRoom.id, threadId, user.id, stored2);
       const senderName = speakerName;   // [R1]
       const uid = user.id;
       scheduleGroupTurn(threadId, () => runGroupTurn({

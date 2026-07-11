@@ -18,7 +18,7 @@ import { subscribeInbox, unsubscribeInbox } from './realtime';   // [zip53] the 
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Rooms from './Rooms';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { nameOf, rgbOf } from './roster';   // [§3 rider] the games table keeps its cast; the inbox reads the one roster
+import { nameOf, rgbOf, shareableKeys } from './roster';   // [§3 rider] the games table keeps its cast; the inbox reads the one roster [R2] host picker
 
 // ── MOONLIGHT: the cold register ──
 export const MOON = {
@@ -142,17 +142,44 @@ function PublicRooms({ onOpen }) {
   // the 18+ gate, and the handle live there now. The old AsyncStorage consent
   // flag and the client-side auto-join are gone: the server is the gate.
   const enter = (room) => onOpen({ kind: 'publicDoorway', room });
+  // [R2] THE INHABITATION LAW at the sheet: who runs your room — a horizontal
+  // cast picker of shareable personas, REQUIRED (v1 §5.1). Preselect: a dumb
+  // client-side keyword map when the name/theme names a domain, else the comic.
+  const HOST_HINTS = [
+    [/\bmoney|market|stock|invest|finance|business|startup\b/i, 'the_economist'],
+    [/\bmovie|film|series|show|cinema|netflix|bollywood\b/i, 'the_screen_junkie'],
+    [/\bdebate|politic|argu|hot take\b/i, 'the_brainiac'],
+    [/\bhistory|past|empire|war\b/i, 'the_historian'],
+    [/\bspace|cosmos|universe|science|physics\b/i, 'the_cosmologist'],
+    [/\blove|dating|relationship|heart|breakup\b/i, 'the_healer'],
+    [/\bfashion|style|outfit|dress\b/i, 'the_diva'],
+    [/\bwork|office|career|job|corporate\b/i, 'the_colleague'],
+    [/\bphilosoph|meaning|life|deep\b/i, 'the_philosopher'],
+    [/\bstudy|exam|learn|college|school\b/i, 'the_teacher'],
+    [/\bconspiracy|alien|mystery|ufo\b/i, 'the_conspiracy_theorist'],
+    [/\bspeech|speak|voice|toast\b/i, 'the_orator'],
+  ];
+  const hostChoices = shareableKeys().filter((k) => k !== 'the_moderator');
+  const [hostKey, setHostKey] = useState(null);
+  const [hostTouched, setHostTouched] = useState(false);
+  useEffect(() => {
+    if (hostTouched) return;   // a hand-picked host is never overridden
+    const text = (newName + ' ' + newTheme);
+    const hit = HOST_HINTS.find(([re]) => re.test(text));
+    setHostKey(hit ? hit[1] : (newName.trim() ? 'the_comic' : null));
+  }, [newName, newTheme, hostTouched]);
   const doCreate = async () => {
     const name = newName.trim();
     if (name.length < 3 || saving) return;
+    if (!hostKey) { alert('every room needs a host — pick who runs it.'); return; }
     setSaving(true);
-    const r = await createPublicRoom({ name, theme: newTheme.trim(), personas: [] });
+    const r = await createPublicRoom({ name, theme: newTheme.trim(), personas: [hostKey] });
     setSaving(false);
     if (r && r.threadId) {
-      setCreating(false); setNewName(''); setNewTheme('');
+      setCreating(false); setNewName(''); setNewTheme(''); setHostKey(null); setHostTouched(false);
       // [R1] the creator passes the doorway like everyone else — the handle
       // and consent are claimed at the threshold, before the first message.
-      onOpen({ kind: 'publicDoorway', room: { id: r.id, threadId: r.threadId, name: r.name, personas: [], youCreated: true } });
+      onOpen({ kind: 'publicDoorway', room: { id: r.id, threadId: r.threadId, name: r.name, personas: [hostKey], youCreated: true } });
     } else {
       alert((r && r.error) || 'could not create the room');
     }
@@ -170,9 +197,23 @@ function PublicRooms({ onOpen }) {
         <View style={st.createCard}>
           <TextInput value={newName} onChangeText={setNewName} placeholder="room name — e.g. delhi foodies" placeholderTextColor={MOON.faint} style={st.createInput} maxLength={60} />
           <TextInput value={newTheme} onChangeText={setNewTheme} placeholder="what's it about? (optional)" placeholderTextColor={MOON.faint} style={[st.createInput, { marginTop: 8 }]} maxLength={200} />
+          {/* [R2] who runs your room — required. The host is the room's centerpiece. */}
+          <Text style={st.hostLabel}>who runs your room</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+            {hostChoices.map((k) => {
+              const on = hostKey === k;
+              return (
+                <Pressable key={k} onPress={() => { setHostKey(k); setHostTouched(true); }} style={{ alignItems: 'center', width: 64 }}>
+                  <Image source={{ uri: `https://callmez.app/faces/${k}.jpg?v=6` }}
+                    style={{ width: 44, height: 44, borderRadius: 22, borderWidth: on ? 2 : 1, borderColor: on ? `rgb(${rgbOf(k)})` : 'rgba(255,255,255,0.14)', opacity: on ? 1 : 0.72 }} />
+                  <Text numberOfLines={1} style={[st.hostName, on && { color: `rgb(${rgbOf(k)})` }]}>{nameOf(k).replace(/^the /, '')}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10, gap: 10 }}>
-            <Pressable onPress={() => { setCreating(false); setNewName(''); setNewTheme(''); }}><Text style={st.createCancel}>cancel</Text></Pressable>
-            <Pressable onPress={doCreate} style={st.createBtn}><Text style={st.createBtnTxt}>{saving ? '…' : 'create'}</Text></Pressable>
+            <Pressable onPress={() => { setCreating(false); setNewName(''); setNewTheme(''); setHostKey(null); setHostTouched(false); }}><Text style={st.createCancel}>cancel</Text></Pressable>
+            <Pressable onPress={doCreate} style={[st.createBtn, !hostKey && { opacity: 0.5 }]}><Text style={st.createBtnTxt}>{saving ? '…' : 'create'}</Text></Pressable>
           </View>
         </View>
       ) : (
@@ -764,4 +805,6 @@ const st = StyleSheet.create({
   createCancel: { fontFamily: FONTS.body, color: MOON.faint, fontSize: 14, paddingVertical: 8, paddingHorizontal: 6 },
   createBtn: { backgroundColor: 'rgba(159,194,232,0.16)', borderWidth: 1, borderColor: 'rgba(159,194,232,0.4)', borderRadius: 100, paddingHorizontal: 18, paddingVertical: 8 },
   createBtnTxt: { fontFamily: FONTS.semibold, color: MOON.moon, fontSize: 13 },
+  hostLabel: { color: 'rgba(233,232,240,0.55)', fontSize: 11.5, marginTop: 12, marginBottom: 8, fontFamily: FONTS.medium },   // [R2]
+  hostName: { color: 'rgba(233,232,240,0.6)', fontSize: 10, marginTop: 5, fontFamily: FONTS.body },   // [R2]
 });
