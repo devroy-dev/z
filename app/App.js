@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import React from 'react';
 import { useBackLayer } from './backbus';
-import { Share, Alert, Text } from 'react-native';
+import { Share, Alert, Text, Linking } from 'react-native';
 import { createRoom, inviteToRoom, startGameSession, startBattlefieldPractice } from './api';
 import LiarsDiceLive from './games/liarsdice/Live';
 import CallbreakLive from './games/callbreak/Live';
@@ -36,6 +36,10 @@ import Arena from './Arena';
 import Battlefield from './Battlefield';
 import DuelRoom from './DuelRoom';
 import BattlefieldDuelLive from './games/battlefield/DuelLive';
+import BattlefieldDuelWatch from './games/battlefield/DuelWatch';
+import ChallengeComposer from './games/battlefield/ChallengeComposer';
+import FightClaim from './games/battlefield/FightClaim';
+import VerdictScreen from './games/battlefield/VerdictScreen';
 import Gallery from './Gallery';
 import Uno from './games/uno/Table';
 import GameBoundary from './games/Boundary';
@@ -74,6 +78,21 @@ function PlayWorld({ navigate, target }) {
   const [opening, setOpening] = React.useState(false);   // the invited flow, visibly working
   const [duelSession, setDuelSession] = React.useState(null); // { sessionId } for a live practice duel
   const [duelStarting, setDuelStarting] = React.useState(false);
+  // ── [phase 4] the arena's face: battlefield sub-targets ──
+  const [bfTarget, setBfTarget] = React.useState(null);   // { kind: 'watch'|'verdict'|'fight', id }
+  // the /fight/<id> link's runtime intake: cold start + foreground URL events.
+  // (OS-level https intent filters need a NATIVE BUILD — this handler is the code
+  // path they will feed; until then the paste-intake on the Battlefield home and
+  // the fight.html PWA landing carry the link.)
+  React.useEffect(() => {
+    const handle = (url) => {
+      const m = String(url || '').match(/fight\/([0-9a-f-]{8,})/i);
+      if (m) { setBfTarget({ kind: 'fight', id: m[1] }); setMode('battlefield'); }
+    };
+    Linking.getInitialURL().then(handle).catch(() => {});
+    const sub = Linking.addEventListener('url', (e) => handle(e?.url));
+    return () => { try { sub.remove(); } catch (e2) {} };
+  }, []);
   useBackLayer(!!live, React.useCallback(() => { setLive(null); setMode('arena'); return true; }, []));
   const startLiveWithFriend = React.useCallback(async (game, roster) => {
     setOpening(true);
@@ -149,6 +168,22 @@ function PlayWorld({ navigate, target }) {
     setMode('arena'); return null; // other games not built yet
   }
   if (mode === 'battlefield') {
+    // [phase 4] sub-screens ride bfTarget so the home stays one mode
+    if (bfTarget?.kind === 'fight') {
+      return <FightClaim challengeId={bfTarget.id}
+        onBack={() => setBfTarget(null)}
+        onClaimed={(r) => { setBfTarget(null); setDuelSession({ sessionId: r.sessionId }); setMode('duel'); }}
+        onWatch={(sid) => setBfTarget({ kind: 'watch', id: sid })} />;
+    }
+    if (bfTarget?.kind === 'watch') {
+      return <BattlefieldDuelWatch sessionId={bfTarget.id} onBack={() => setBfTarget(null)} />;
+    }
+    if (bfTarget?.kind === 'verdict') {
+      return <VerdictScreen sessionId={bfTarget.id} onBack={() => setBfTarget(null)} />;
+    }
+    if (bfTarget?.kind === 'challenge') {
+      return <ChallengeComposer onBack={() => setBfTarget(null)} onMinted={() => {}} />;
+    }
     return <Battlefield onBack={() => setMode('choose')} onEnterDuel={async (motion, domain, difficulty) => {
       setMode('duel'); setDuelStarting(true); setDuelSession(null);
       try {
@@ -156,7 +191,12 @@ function PlayWorld({ navigate, target }) {
         if (r?.sessionId) setDuelSession(r); else setMode('battlefield');
       } catch (e) { setMode('battlefield'); }
       setDuelStarting(false);
-    }} onWatch={() => setMode('gallery')} />;
+    }}
+      onWatch={() => setMode('gallery')}
+      onChallenge={() => setBfTarget({ kind: 'challenge' })}
+      onWatchLive={(sid) => setBfTarget({ kind: 'watch', id: sid })}
+      onReadVerdict={(sid) => setBfTarget({ kind: 'verdict', id: sid })}
+      onOpenFight={(cid) => setBfTarget({ kind: 'fight', id: cid })} />;
   }
   if (mode === 'duel') {
     const leaveDuel = () => { setDuelSession(null); setMode('battlefield'); };

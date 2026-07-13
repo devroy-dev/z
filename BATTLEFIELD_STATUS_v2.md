@@ -420,3 +420,56 @@ on every touched file · both tracks.
 **Corrected ladder:** phase 3 (format engine, server) → phase 4 (this) → 2b
 (card visual, owner's eyes) → watch/green-room polish → §7 voice audit →
 ladder (0067).
+
+**PHASE 4 BUILT (2026-07-13, gates pending — on-glass, owner-run):**
+
+All five CE items shipped, native-first with ONE declared server touch:
+`GET /battlefield/formats` (public, serves the boot-loaded modules) — the duel
+screen is module-driven per the CE item and fork #1's single-source law forbids
+a bundled client copy; this is the phase-3 contract the CE parenthetical
+anticipated ("all live or landing in phase 3").
+
+1. **Home rebuilt** (`Battlefield.js`): LIVE NOW rail off `directory.live`
+   (30s breathe, tap → real DuelWatch — the mocked Gallery is no longer the
+   live path), three doors (practice picker kept / challenge composer / watch),
+   RECENT VERDICTS off `directory.recent` (tap → VerdictScreen), and a
+   paste-a-link intake for /fight/<id>. Explainer content kept below the doors.
+2. **Challenge composer** (`ChallengeComposer.js`): motion input; the 422
+   assessment rendered as a TEACHER — issue chips in plain words, the clerk's
+   note verbatim, the restructured motion with one-tap "use this instead" that
+   adopts AND mints; side pick; timed toggle (with the forfeit-on-record
+   warning); minted state carries the share sheet + selectable link + 7-day
+   note. `createBattlefieldChallenge` reads the raw status (authedJSON throws
+   away 422 bodies).
+3. **/fight/<id> in-app** (`FightClaim.js`): challenge read → stance display →
+   one ACCEPT → straight into DuelLive; refusals in register (expired /
+   own-challenge / accepted-with-watch-path). Runtime `Linking` intake wired in
+   App.js (cold start + foreground URL). **DECLARED LIMIT:** OS-level https
+   intent filters need a NATIVE BUILD (manifest changes cannot ride OTA) — the
+   handler is the code path a future build feeds; until then the home's
+   paste-intake and the fight.html PWA landing carry the link. EAS build
+   credits are the owner's call.
+4. **Duel screen** (`DuelLive.js`): SlotClock (500ms tick, mm:ss tabular,
+   urgent under 15s, "the bell" at zero — client renders, server owns truth);
+   lapsed turns render as the on-record time note (a rule line, never a speech
+   bubble); format-aware throughout — rail from the module's role sequence,
+   speaker tags (PRO 2 · Rebuttal), team-aware assign row and intro, one
+   surface for duel/PF/AP. Client format layer (`formats.js`) fetches
+   /battlefield/formats once, duel-only fallback for a dead network; helper
+   parity vs the engine proven exact on all three real modules
+   (rails + tags byte-identical).
+5. **Verdict on glass**: DuelLive's verdict view gains the verdict LINE
+   (adjVerdict — previously never rendered), THE TAB (per-speaker scores, ★ on
+   best speaker, "you" marked), and the crowd tally (watch endpoint, fetched at
+   verdict). Standalone `VerdictScreen.js` reads the record's substance for
+   RECENT VERDICTS taps + share. The typeset share-PNG remains phase 2b,
+   owner-gated.
+
+**Gates run by Claude:** esbuild (jsx) + eslint no-undef on all 8 touched
+files, exit-code verified · server build exit-0 · client/engine parity harness.
+**Gates owned by the owner (on glass, the sitting is NOT closed without
+them):** every door reachable from the rebuilt home · a challenge minted,
+shared, claimed, fought, and its verdict read entirely on glass across two
+devices · the vet's refusal flow (refuse → adopt restructured → mint) · a timed
+duel's clock and lapse markers correct against server truth · both tracks
+(git push + eas update).

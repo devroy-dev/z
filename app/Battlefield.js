@@ -12,7 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { FONTS } from './theme';
-import { getBattlefieldMotions } from './api';
+import { getBattlefieldMotions, getBattlefieldDirectory } from './api';
+import { TextInput } from 'react-native';
 
 const CRIMSON = '#E0576F';
 const INK = '#08060A';
@@ -39,7 +40,23 @@ function Phase({ n, name, who, note }) {
   );
 }
 
-export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {}, onWatch = () => {} }) {
+export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {}, onWatch = () => {}, onChallenge = () => {}, onWatchLive = () => {}, onReadVerdict = () => {}, onOpenFight = () => {} }) {
+  // ── [phase 4] the directory: LIVE NOW + recent verdicts (public read; best-effort) ──
+  const [dir, setDir] = React.useState(null);
+  React.useEffect(() => {
+    let on = true;
+    const load = async () => { try { const d = await getBattlefieldDirectory(); if (on) setDir(d); } catch (e) {} };
+    load();
+    const t = setInterval(load, 30000);   // the arena breathes — a light 30s refresh
+    return () => { on = false; clearInterval(t); };
+  }, []);
+  // paste-a-challenge-link intake (the /fight/<id> link's in-app door)
+  const [pasteOpen, setPasteOpen] = React.useState(false);
+  const [pasteVal, setPasteVal] = React.useState('');
+  const tryOpenFight = () => {
+    const m = pasteVal.match(/fight\/([0-9a-f-]{8,})/i);
+    if (m) { setPasteOpen(false); setPasteVal(''); onOpenFight(m[1]); }
+  };
   // ── the topic picker: choose the ground before the duel opens ──
   const [pickerOpen, setPickerOpen] = React.useState(false);
   // [zip02] tier-aware topic picker: Normal browses the LIGHT bank, Pro the HEAVY.
@@ -150,15 +167,60 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
             <Text style={styles.twoGap}>When they disagree — that's the whole point. Eloquence can mask a weak argument. It can't survive a factual audit.</Text>
           </View>
 
-          {/* enter a practice duel, or watch one live */}
+          {/* ── [phase 4] LIVE NOW — the directory's live public floors ── */}
+          {dir?.live?.length ? (
+            <>
+              <Text style={styles.sectionLabel}>LIVE NOW</Text>
+              {dir.live.slice(0, 5).map((d) => (
+                <Pressable key={d.sessionId} style={styles.liveRow} onPress={() => onWatchLive(d.sessionId)}>
+                  <View style={styles.liveDot} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.liveMotion} numberOfLines={2}>"{d.motion}"</Text>
+                    <Text style={styles.liveMeta}>{d.formatKey !== 'duel' ? d.formatKey.toUpperCase() + ' · ' : ''}{d.votes ? `${d.votes} watching votes · ` : ''}tap to watch</Text>
+                  </View>
+                  <Text style={styles.liveChev}>›</Text>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
+
+          {/* ── the three doors ── */}
           <Pressable style={styles.enterBtn} onPress={openPicker}>
             <Swords size={20} color={INK} />
-            <Text style={styles.enterTxt}>Try a practice duel</Text>
+            <Text style={styles.enterTxt}>Practice against the house</Text>
           </Pressable>
-          <Pressable style={styles.watchBtn} onPress={onWatch}>
+          <Pressable style={styles.challengeBtn} onPress={onChallenge}>
+            <Text style={styles.challengeTxt}>Challenge a friend — settle it</Text>
+          </Pressable>
+          <Pressable style={styles.watchBtn} onPress={() => (dir?.live?.length ? onWatchLive(dir.live[0].sessionId) : onWatch())}>
             <Text style={styles.watchTxt}>Watch a live duel</Text>
           </Pressable>
-          <Text style={styles.enterSub}>Take an assigned side against the house, or watch two debaters go head to head and vote on the winner. 1v1 duels, live spectators, and college tournaments are on their way.</Text>
+          <Pressable onPress={() => setPasteOpen((v) => !v)}>
+            <Text style={styles.pasteLink}>have a challenge link? open it here</Text>
+          </Pressable>
+          {pasteOpen ? (
+            <View style={styles.pasteRow}>
+              <TextInput style={styles.pasteInput} value={pasteVal} onChangeText={setPasteVal} placeholder="callmez.app/fight/…" placeholderTextColor="rgba(245,236,225,0.3)" autoCapitalize="none" autoCorrect={false} />
+              <Pressable style={styles.pasteBtn} onPress={tryOpenFight}><Text style={styles.pasteBtnTxt}>open</Text></Pressable>
+            </View>
+          ) : null}
+
+          {/* ── RECENT VERDICTS — the record's public tail ── */}
+          {dir?.recent?.length ? (
+            <>
+              <Text style={styles.sectionLabel}>RECENT VERDICTS</Text>
+              {dir.recent.slice(0, 5).map((d) => (
+                <Pressable key={d.sessionId} style={styles.verdictRow} onPress={() => onReadVerdict(d.sessionId)}>
+                  <Text style={[styles.verdictWinner, { color: d.winner === 'PRO' ? '#78C8FF' : CRIMSON }]}>{d.winner}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.liveMotion} numberOfLines={1}>"{d.motion}"</Text>
+                    {!!d.verdictLine && <Text style={styles.verdictLineTxt} numberOfLines={2}>{d.verdictLine}</Text>}
+                  </View>
+                  <Text style={styles.liveChev}>›</Text>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
 
@@ -229,6 +291,22 @@ export default function Battlefield({ onBack = () => {}, onEnterDuel = () => {},
 }
 
 const styles = StyleSheet.create({
+  // ── [phase 4] the rebuilt home's sections ──
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(224,87,111,0.25)', borderRadius: 12, padding: 12, marginBottom: 8, backgroundColor: 'rgba(224,87,111,0.04)' },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E0576F' },
+  liveMotion: { color: '#F5ECE1', fontSize: 13.5, lineHeight: 18, fontFamily: FONTS.displayItalic },
+  liveMeta: { color: 'rgba(245,236,225,0.45)', fontSize: 11, fontFamily: FONTS.body, marginTop: 3 },
+  liveChev: { color: 'rgba(245,236,225,0.4)', fontSize: 18, fontFamily: FONTS.light },
+  challengeBtn: { marginTop: 10, borderWidth: 1.5, borderColor: '#E0576F', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  challengeTxt: { color: '#E0576F', fontSize: 15, fontFamily: FONTS.semibold },
+  pasteLink: { color: 'rgba(120,200,255,0.7)', fontSize: 12.5, fontFamily: FONTS.medium, textAlign: 'center', marginTop: 14 },
+  pasteRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  pasteInput: { flex: 1, borderWidth: 1, borderColor: 'rgba(120,200,255,0.3)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: '#F5ECE1', fontSize: 13, fontFamily: FONTS.body },
+  pasteBtn: { borderRadius: 10, backgroundColor: 'rgba(120,200,255,0.85)', paddingHorizontal: 16, justifyContent: 'center' },
+  pasteBtnTxt: { color: '#08060A', fontSize: 13.5, fontFamily: FONTS.semibold },
+  verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(245,236,225,0.1)', borderRadius: 12, padding: 12, marginBottom: 8 },
+  verdictWinner: { fontSize: 13, letterSpacing: 1.5, fontFamily: FONTS.semibold, width: 42 },
+  verdictLineTxt: { color: 'rgba(245,236,225,0.5)', fontSize: 11.5, lineHeight: 16, fontFamily: FONTS.body, marginTop: 3 },
   root: { flex: 1, backgroundColor: INK },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, height: 44 },
   chev: { fontFamily: FONTS.display, color: 'rgba(245,236,225,0.7)', fontSize: 34, marginTop: -4 },

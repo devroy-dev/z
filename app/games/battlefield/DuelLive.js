@@ -18,12 +18,13 @@ import { FONTS } from '../../theme';
 import { useLiveSession } from '../liveCommon';
 import { buzz } from '../common';
 import { openDuelSender, broadcastDuelKeys, closeDuelSender } from '../../realtime';
+import { loadFormats, formatFor, seatSide, speakerTag, roleRail, currentSlot } from './formats';
+import { watchBattlefieldDuel } from '../../api';
 
 const CRIMSON = '#E0576F';
 const BLUE = '#78C8FF';
 const INK = '#08060A';
 const CREAM = '#F5ECE1';
-const PHASES = ['Opening', 'Rebuttal', 'Closing'];
 
 function Swords({ size = 22, color = CRIMSON }) {
   return (
@@ -34,10 +35,11 @@ function Swords({ size = 22, color = CRIMSON }) {
   );
 }
 
-function PhaseRail({ current }) {
+function PhaseRail({ current, rail }) {
+  const PHASES = rail && rail.length ? rail : ['Opening', 'Rebuttal', 'Closing'];
   const idx = PHASES.indexOf(current);
   return (
-    <View style={styles.rail}>
+    <View style={[styles.rail, PHASES.length > 4 && { flexWrap: 'wrap', rowGap: 6 }]}>
       {PHASES.map((p, i) => (
         <React.Fragment key={p}>
           <View style={styles.railItem}>
@@ -52,20 +54,55 @@ function PhaseRail({ current }) {
 }
 
 // a delivered turn in the transcript. seat 0 = PRO (you), seat 1 = CON (the house).
-function TurnBubble({ turn, mySeat }) {
-  const isPro = turn.seat === 0;
+function TurnBubble({ turn, mySeat, fmt }) {
+  const side = fmt ? seatSide(fmt, turn.seat) : (turn.seat === 0 ? 'PRO' : 'CON');
+  const isPro = side === 'PRO';
   const isYou = turn.seat === mySeat;
+  const tag = fmt ? speakerTag(fmt, turn.seat) : side;
+  // a LAPSED slot renders as the on-record time note — never as a speech bubble
+  if (turn.lapsed) {
+    return (
+      <View style={styles.lapsedRow}>
+        <View style={styles.lapsedLine} />
+        <Text style={styles.lapsedTxt}>time — {tag}'s {turn.role} lapsed unspoken</Text>
+        <View style={styles.lapsedLine} />
+      </View>
+    );
+  }
   return (
     <View style={[styles.bubbleWrap, isPro ? styles.bubbleLeft : styles.bubbleRight]}>
       <View style={styles.bubbleHead}>
         <View style={[styles.sideTag, { borderColor: isPro ? 'rgba(120,200,255,0.5)' : 'rgba(224,87,111,0.55)' }]}>
-          <Text style={[styles.sideTagTxt, { color: isPro ? BLUE : CRIMSON }]}>{isPro ? 'PRO' : 'CON'}</Text>
+          <Text style={[styles.sideTagTxt, { color: isPro ? BLUE : CRIMSON }]}>{tag}</Text>
         </View>
         <Text style={styles.bubbleWho}>{isYou ? 'you' : 'the house'} · {turn.role}</Text>
       </View>
       <View style={[styles.bubble, { borderColor: isPro ? 'rgba(120,200,255,0.18)' : 'rgba(224,87,111,0.2)' }]}>
         <Text style={styles.bubbleTxt}>{turn.text}</Text>
       </View>
+    </View>
+  );
+}
+
+// ── THE SLOT CLOCK (§5): the client RENDERS; the server owns truth (a late
+// submission is rejected at the bell + grace; the sweeper forfeits dead slots).
+// Countdown = slotSeconds − elapsed since slotStartedAt, clamped at 0. ──
+function SlotClock({ startedAt, seconds }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, []);
+  if (!startedAt || !seconds) return null;
+  const left = Math.max(0, Math.round(seconds - (now - Date.parse(startedAt)) / 1000));
+  const mm = Math.floor(left / 60); const ss = String(left % 60).padStart(2, '0');
+  const urgent = left <= 15 && left > 0;
+  const gone = left === 0;
+  return (
+    <View style={[styles.clock, urgent && styles.clockUrgent, gone && styles.clockGone]}>
+      <Text style={[styles.clockTxt, urgent && { color: CRIMSON }, gone && { color: 'rgba(245,236,225,0.4)' }]}>
+        {gone ? 'the bell' : `${mm}:${ss}`}
+      </Text>
     </View>
   );
 }
@@ -86,6 +123,24 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
   const turns = g?.turns || [];
   const notes = g?.notes || [];
   const threadId = view?.roomId;
+
+  // ── [phase 4] the format module drives the surface (duel/PF/AP, one screen) ──
+  const [fmtReady, setFmtReady] = useState(false);
+  useEffect(() => { let on = true; loadFormats().then(() => { if (on) setFmtReady(true); }); return () => { on = false; }; }, []);
+  const fmt = fmtReady ? formatFor(g?.formatKey) : null;
+  const myTag = fmt ? speakerTag(fmt, me) : (me === 0 ? 'PRO' : 'CON');
+  const mySide = fmt ? seatSide(fmt, me) : (me === 0 ? 'PRO' : 'CON');
+  const isTeam = fmt ? (fmt.perSide || 1) > 1 : false;
+  const slot = fmt && g ? currentSlot(fmt, g) : null;
+
+  // the crowd tally, fetched once when the verdict lands (public watch endpoint)
+  const [tally, setTally] = useState(null);
+  useEffect(() => {
+    if (!isVerdict) return;
+    let on = true;
+    watchBattlefieldDuel(sessionId).then((w) => { if (on && w?.tally) setTally(w.tally); }).catch(() => {});
+    return () => { on = false; };
+  }, [isVerdict, sessionId]);
 
   useEffect(() => { scrollRef.current?.scrollToEnd?.({ animated: true }); }, [turns.length, phase, sending]);
 
@@ -139,7 +194,7 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
           <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
             {/* the full duel, replayed above the verdict — so the closing statements are
                 never skipped (the house's final turn lands before the ruling). */}
-            {turns.map((t, i) => <TurnBubble key={i} turn={t} mySeat={me} />)}
+            {turns.map((t, i) => <TurnBubble key={i} turn={t} mySeat={me} fmt={fmt} />)}
             {notes.map((n, i) => (
               <View key={`vn-${i}`} style={styles.noteCard}>
                 <Text style={styles.noteLabel}>THE ADJUDICATOR · after {n.phase}</Text>
@@ -161,9 +216,10 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
                     <Text style={{ color: winner === 'PRO' ? BLUE : CRIMSON }}>{winner}</Text> takes the floor
                   </Text>
                   <Text style={styles.vYou}>
-                    {winner === (me === 0 ? 'PRO' : 'CON') ? 'You won.' : `You argued ${me === 0 ? 'PRO' : 'CON'}. The house took it.`}
+                    {winner === mySide ? (isTeam ? 'Your team won.' : 'You won.') : `You argued ${mySide}. The floor went the other way.`}
                   </Text>
                 </View>
+                {!!v.adjVerdict && <Text style={styles.vLine}>{v.adjVerdict}</Text>}
                 <Text style={styles.vSummary}>{v.summary}</Text>
 
                 {!!v.matter && (
@@ -183,6 +239,32 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
                     <Text style={styles.vFactTxt}>{v.closing}</Text>
                   </View>
                 )}
+                {/* [phase 4] the tab: per-speaker scores + best speaker (§3.3) */}
+                {Array.isArray(v.speakers) && v.speakers.length ? (
+                  <View style={styles.tabCard}>
+                    <Text style={styles.vMetricLabel}>THE TAB — speaker scores</Text>
+                    {v.speakers.map((sp) => (
+                      <View key={sp.seat} style={styles.tabRow}>
+                        <Text style={[styles.tabTag, { color: (fmt ? seatSide(fmt, sp.seat) : (sp.seat === 0 ? 'PRO' : 'CON')) === 'PRO' ? BLUE : CRIMSON }]}>
+                          {sp.role}{sp.seat === me ? ' · you' : ''}{v.bestSpeaker === sp.seat ? ' ★' : ''}
+                        </Text>
+                        <Text style={styles.tabScore}>{sp.score}</Text>
+                        <Text style={styles.tabLine} numberOfLines={3}>{sp.line}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                {/* the crowd tally — the room's own verdict */}
+                {tally && tally.total > 0 ? (
+                  <View style={styles.tabCard}>
+                    <Text style={styles.vMetricLabel}>THE ROOM VOTED</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
+                      <Text style={{ color: BLUE, fontSize: 20, fontFamily: FONTS.display }}>{tally.pro}</Text>
+                      <Text style={{ color: 'rgba(245,236,225,0.4)', fontSize: 11, letterSpacing: 1.5, fontFamily: FONTS.medium }}>PRO · CON</Text>
+                      <Text style={{ color: CRIMSON, fontSize: 20, fontFamily: FONTS.display }}>{tally.con}</Text>
+                    </View>
+                  </View>
+                ) : null}
                 <Pressable style={styles.againBtn} onPress={onBack}><Text style={styles.againTxt}>leave the floor</Text></Pressable>
               </>
             )}
@@ -212,17 +294,16 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
             <Text style={styles.motionBarTxt}>{g?.motion ? `"${g.motion}"` : 'setting the motion…'}</Text>
           </View>
 
-          <PhaseRail current={phase} />
+          <PhaseRail current={phase} rail={fmt ? roleRail(fmt) : null} />
 
           <View style={styles.assignRow}>
             <Text style={styles.assignTxt}>you are </Text>
-            <View style={[styles.sideTag, { borderColor: me === 0 ? 'rgba(120,200,255,0.5)' : 'rgba(224,87,111,0.55)' }]}>
-              <Text style={[styles.sideTagTxt, { color: me === 0 ? BLUE : CRIMSON }]}>{me === 0 ? 'PRO' : 'CON'}</Text>
+            <View style={[styles.sideTag, { borderColor: mySide === 'PRO' ? 'rgba(120,200,255,0.5)' : 'rgba(224,87,111,0.55)' }]}>
+              <Text style={[styles.sideTagTxt, { color: mySide === 'PRO' ? BLUE : CRIMSON }]}>{myTag}</Text>
             </View>
-            <Text style={styles.assignTxt}>  ·  the house is </Text>
-            <View style={[styles.sideTag, { borderColor: me === 0 ? 'rgba(224,87,111,0.55)' : 'rgba(120,200,255,0.5)' }]}>
-              <Text style={[styles.sideTagTxt, { color: me === 0 ? CRIMSON : BLUE }]}>{me === 0 ? 'CON' : 'PRO'}</Text>
-            </View>
+            <Text style={styles.assignTxt}>{isTeam ? '  ·  the house fills the other seats' : '  ·  the house is ' + (mySide === 'PRO' ? 'CON' : 'PRO')}</Text>
+            <View style={{ flex: 1 }} />
+            {g?.timed ? <SlotClock startedAt={g.slotStartedAt} seconds={g.slotSeconds} /> : null}
           </View>
 
           {/* the transcript */}
@@ -231,12 +312,12 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
               <View style={styles.introCard}>
                 <Text style={styles.introTitle}>The floor is yours.</Text>
                 <Text style={styles.introBody}>
-                  You've been assigned {me === 0 ? 'PRO' : 'CON'} — you {me === 0 ? 'argue for the motion' : 'argue against the motion'}, whether or not you agree. That's the craft. Open your case below. The house answers, you rebut, you close — then the adjudicator rules on Matter and Manner.
+                  You've been assigned {myTag} — you {mySide === 'PRO' ? 'argue for the motion' : 'argue against the motion'}, whether or not you agree. That's the craft. Open your case below. The house plays every other seat — then the adjudicator rules on Matter and Manner, with a score for every speaker.
                 </Text>
               </View>
             ) : null}
 
-            {turns.map((t, i) => <TurnBubble key={i} turn={t} mySeat={me} />)}
+            {turns.map((t, i) => <TurnBubble key={i} turn={t} mySeat={me} fmt={fmt} />)}
 
             {/* the commentary track — the adjudicator's running read after each phase */}
             {notes.map((n, i) => (
@@ -286,6 +367,20 @@ export default function BattlefieldDuelLive({ sessionId, onBack = () => {} }) {
 }
 
 const styles = StyleSheet.create({
+  // ── [phase 4] the clock · the lapse · the tab ──
+  clock: { borderWidth: 1, borderColor: 'rgba(245,236,225,0.25)', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 4 },
+  clockUrgent: { borderColor: 'rgba(224,87,111,0.7)', backgroundColor: 'rgba(224,87,111,0.08)' },
+  clockGone: { borderColor: 'rgba(245,236,225,0.15)' },
+  clockTxt: { color: CREAM, fontSize: 14, fontFamily: FONTS.semibold, fontVariant: ['tabular-nums'] },
+  lapsedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 10, paddingHorizontal: 4 },
+  lapsedLine: { flex: 1, height: 1, backgroundColor: 'rgba(245,236,225,0.12)' },
+  lapsedTxt: { color: 'rgba(245,236,225,0.45)', fontSize: 12, fontFamily: FONTS.displayItalic },
+  vLine: { color: 'rgba(245,236,225,0.85)', fontSize: 15.5, lineHeight: 23, fontFamily: FONTS.displayItalic, marginBottom: 12 },
+  tabCard: { borderWidth: 1, borderColor: 'rgba(245,236,225,0.12)', borderRadius: 12, padding: 13, marginTop: 14 },
+  tabRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 9 },
+  tabTag: { fontSize: 12, letterSpacing: 1, fontFamily: FONTS.semibold, width: 86 },
+  tabScore: { color: '#C9A86A', fontSize: 15, fontFamily: FONTS.display, width: 28, textAlign: 'right' },
+  tabLine: { flex: 1, color: 'rgba(245,236,225,0.6)', fontSize: 11.5, lineHeight: 16, fontFamily: FONTS.body },
   root: { flex: 1, backgroundColor: INK },
   topRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, height: 44 },
   chev: { fontFamily: FONTS.display, color: 'rgba(245,236,225,0.7)', fontSize: 34, marginTop: -4 },

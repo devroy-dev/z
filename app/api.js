@@ -428,6 +428,39 @@ export async function startBattlefieldPractice(motion, domain, difficulty) {
 export async function getBattlefieldMotions(tier) {
   return authedJSON('GET', '/battlefield/motions' + (tier ? ('?tier=' + tier) : ''));
 }
+// ── [phase 4] the arena's face — server contracts from phases 2+3 ──
+// the directory: LIVE NOW + recent verdicts (public read)
+export async function getBattlefieldDirectory() {
+  return authedJSON('GET', '/battlefield/directory');
+}
+// the format modules (fork #1 single source — the duel screen is driven by these)
+export async function getBattlefieldFormats() {
+  return authedJSON('GET', '/battlefield/formats');
+}
+// mint a settle-it challenge → { challengeId, fightPath, … } | 422 { error, assessment }
+// the 422 rides the thrown error: authedJSON throws with the server's message; the
+// composer needs the BODY, so this one reads raw.
+export async function createBattlefieldChallenge(motion, side, timed) {
+  await loadSession();
+  const call = () => fetch(API_BASE + '/battlefield/challenge/create', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ motion, side, timed: !!timed }),
+  });
+  let r = await call();
+  if (r.status === 401 && (await refreshSession())) r = await call();
+  const j = await r.json().catch(() => ({}));
+  return { status: r.status, ...j };
+}
+export async function getBattlefieldChallenge(challengeId) {
+  return authedJSON('GET', `/battlefield/challenge/${challengeId}`);
+}
+export async function claimBattlefieldChallenge(challengeId) {
+  return authedJSON('POST', `/battlefield/challenge/${challengeId}/claim`);
+}
+// the verdict card's substance (public; 409 live / 410 abandoned ride the error)
+export async function getBattlefieldVerdict(sessionId) {
+  return authedJSON('GET', `/battlefield/verdict/${sessionId}`);
+}
 // [zip54d] the client brief — the Media Manager's file on you
 export async function getMmBrief() { return authedJSON('GET', '/mm/brief'); }
 export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief', brief); }

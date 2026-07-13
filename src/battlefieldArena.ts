@@ -30,7 +30,7 @@ import { supabase } from './db.js';
 import { resolveUser } from './zAccess.js';
 import { evaluateMotion, type MotionAssessment } from './battlefieldMotions.js';
 import { DOMAIN_LABELS, type DebateDomain } from './battlefieldAdjudicator.js';
-import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLapse, battleFormat, type BFState } from './games/battlefieldDuel.js';
+import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLapse, battleFormat, battleFormatKeys, type BFState } from './games/battlefieldDuel.js';
 
 const CHALLENGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // spec: challenges expire in 7 days (lazy)
 const ABANDON_AFTER_MS = 48 * 60 * 60 * 1000;        // declared default: dead past 48h → abandoned
@@ -133,6 +133,15 @@ async function namesForSides(sides: any[]): Promise<any[]> {
 // ── ROUTES ────────────────────────────────────────────────────────────────
 
 export function installBattlefieldArenaRoutes(app: express.Express, authUser: AuthFn) {
+  // [phase 4 contract] the FORMAT MODULES, served to the client — the duel screen is
+  // driven by the module (§3.1) and fork #1's single-source law forbids a bundled
+  // client copy. Public, static, cacheable; the server's loaded modules ARE the truth.
+  app.get('/battlefield/formats', (_req, res) => {
+    const out: Record<string, any> = {};
+    for (const k of battleFormatKeys()) out[k] = battleFormat(k);
+    res.json({ formats: out });
+  });
+
   const guard = async (req: express.Request, res: express.Response): Promise<{ id: string } | null> => {
     const authId = await authUser(req);
     if (!authId) { res.status(401).json({ error: 'unauthorized' }); return null; }
