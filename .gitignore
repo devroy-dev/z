@@ -24,3 +24,8 @@ patch.py
 APPLY_*.md
 zip*_*.patch
 zip*.zip
+
+# zip delivery artifacts (patcher inputs — never repo content)
+*_edits.json
+apply_*.py
+APPLY_FIELD_FIXES.md
