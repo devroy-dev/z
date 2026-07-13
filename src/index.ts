@@ -3386,7 +3386,11 @@ app.get('/threads/:id/messages', async (req, res) => {
     let roster: Record<string,string> = {};
     if (thread.is_shared) {
       const { data: mem } = await supabase.from('room_members').select('user_id').eq('thread_id', threadId);
-      const ids = (mem ?? []).map((m: any) => m.user_id);
+      // [roster-ghost fix, field 2026-07-13] ids = transcript SENDERS ∪ current
+      // members: a banned or departed member's locked handle stays on their own
+      // history lines — accountability outlives membership (handle rows persist).
+      const senderIds = [...new Set(msgs.map((m: any) => m.sender_user_id).filter(Boolean))];
+      const ids = [...new Set([...(mem ?? []).map((m: any) => m.user_id), ...senderIds])];
       if (ids.length && await publicRoomOf(threadId)) {
         // [R1] the identity wall: history reads handles, never display names
         const hs = await handlesFor(threadId, ids);
@@ -4149,7 +4153,7 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
       if (pubRoom) {
         const sanction = await activeSanction(pubRoom.id, user.id);
         if (sanction) {
-          const untilLine = sanction.until ? ` until ${new Date(sanction.until).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}` : '';
+          const untilLine = sanction.until ? ` until ${new Date(sanction.until).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST` : '';   // [field fix] container zone lied (5:54am for 11:24am)
           res.write(`data: ${JSON.stringify({ error: sanction.kind === 'mute' ? `you're muted in this room${untilLine}.` : 'the doorman has barred you from this room.', code: sanction.kind === 'mute' ? 'muted' : 'barred' })}\n\n`);
           return res.end();
         }

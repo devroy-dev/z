@@ -66,13 +66,24 @@ export function tonightOnTheSlate(): SlateEvent[] {
 // ── house rooms, ensured idempotently (migration-free per v1 §8) ─────────
 const roomIdBySlug: Record<string, { id: string; thread_id: string }> = {};
 export async function ensureHouseRooms(): Promise<void> {
+  // threads.user_id is NOT NULL (0001 spine): house threads take a NOMINAL
+  // owner — the first user, exactly 0030's seed convention. Access is
+  // governed by room_members, never this field. (Field bug 2026-07-13: the
+  // insert omitted user_id, every ensure failed silently at boot.)
+  let owner: string | null = null;
+  {
+    const { data: u } = await supabase.from('users')
+      .select('id').is('deleted_at', null).order('created_at', { ascending: true }).limit(1).maybeSingle();
+    owner = (u as any)?.id || null;
+  }
+  if (!owner) { console.error('[slate] no users yet — house rooms wait for the first account'); return; }
   for (const e of SLATE) {
     try {
       const { data: ex } = await supabase.from('public_rooms')
         .select('id, thread_id').eq('slug', e.slug).maybeSingle();
       if (ex) { roomIdBySlug[e.slug] = ex as any; continue; }
       const { data: thread, error: te } = await supabase.from('threads').insert({
-        is_group: true, is_shared: true, member_keys: [e.host, 'the_moderator'],
+        user_id: owner, is_group: true, is_shared: true, member_keys: [e.host, 'the_moderator'],
         companion_name: e.roomName,
       }).select('id').single();
       if (te || !thread) { console.error('[slate] thread for', e.slug, te?.message); continue; }
