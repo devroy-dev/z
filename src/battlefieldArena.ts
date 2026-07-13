@@ -31,6 +31,7 @@ import { resolveUser } from './zAccess.js';
 import { evaluateMotion, type MotionAssessment } from './battlefieldMotions.js';
 import { DOMAIN_LABELS, type DebateDomain } from './battlefieldAdjudicator.js';
 import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLapse, battleFormat, battleFormatKeys, type BFState } from './games/battlefieldDuel.js';
+import { renderCardPNG, type CardData } from './battlefieldCard.js';   // [2b] the share object
 
 const CHALLENGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // spec: challenges expire in 7 days (lazy)
 const ABANDON_AFTER_MS = 48 * 60 * 60 * 1000;        // declared default: dead past 48h → abandoned
@@ -101,6 +102,9 @@ export async function finalizeBattlefieldRecord(sessionId: string, live?: { stat
           matter: st.verdict.matter,
           manner: st.verdict.manner,
           closing: st.verdict.closing,
+          // [2b] the tab rides the record — the card's ★ and the share page's scores
+          speakers: (st.verdict as any).speakers || [],
+          best_speaker: (st.verdict as any).bestSpeaker ?? -1,
         }
       : (st.error ? { failed: st.error } : null);
     await supabase.from('battlefield_record').update({
@@ -310,11 +314,118 @@ export function installBattlefieldArenaRoutes(app: express.Express, authUser: Au
         verdictLine: r.verdict.verdict_line,
         matter: r.verdict.matter, manner: r.verdict.manner,
         summary: r.verdict.summary, closing: r.verdict.closing,
+        speakers: r.verdict.speakers || [], bestSpeaker: r.verdict.best_speaker ?? -1,
         crowd: r.crowd || null,
         date: r.ended_at,
         watchPath: `/watch/${r.session_id}`,
       });
     } catch (e: any) { res.status(500).json({ error: 'verdict read failed: ' + (e?.message || String(e)) }); }
+  });
+
+  // ── [2b] THE VERDICT CARD — the battlefield's share object ────────────────
+  // A 1200×630 PNG (the og:image standard): the WhatsApp unfurl IS the card.
+  // Rendered deterministically (same verdict → same bytes), cached in memory.
+  // public|link only; private practice never serves — same law as the JSON route.
+  // OWNER-GATED aesthetics: this ships behind the 2b review.
+  const cardCache = new Map<string, Buffer>();
+  const cardDataFor = async (r: any): Promise<CardData> => {
+    const sides = await namesForSides(r.sides);
+    const fmt = battleFormat(r.format_key || 'duel');
+    let bestSpeakerName: string | null = null;
+    const best = r.verdict?.best_speaker;
+    if (Number.isInteger(best) && best >= 0) {
+      const sp = (r.verdict?.speakers || []).find((x: any) => x.seat === best);
+      if (sp?.role) bestSpeakerName = sp.role;
+    }
+    return {
+      motion: r.motion,
+      winner: r.verdict.winner,
+      verdictLine: r.verdict.verdict_line || r.verdict.summary || '',
+      domain: r.domain,
+      formatLabel: fmt?.label || null,
+      sides,
+      crowd: r.crowd || null,
+      date: r.ended_at,
+      bestSpeakerName,
+    };
+  };
+  const readableRecord = async (sessionId: string): Promise<{ r?: any; code?: number; error?: string }> => {
+    const { data: r } = await supabase.from('battlefield_record').select('*').eq('session_id', sessionId).maybeSingle();
+    if (!r || r.visibility === 'private') return { code: 404, error: 'no such verdict' };
+    if (r.status === 'live') return { code: 409, error: 'the duel is still live' };
+    if (r.status === 'abandoned' || !r.verdict || r.verdict.failed) return { code: 410, error: 'this duel ended without a verdict' };
+    return { r };
+  };
+
+  app.get('/battlefield/card/:sessionId.png', async (req, res) => {
+    try {
+      const sid = req.params.sessionId;
+      if (cardCache.has(sid)) { res.type('png').send(cardCache.get(sid)); return; }
+      const { r, code, error } = await readableRecord(sid);
+      if (!r) return res.status(code!).json({ error });
+      const png = renderCardPNG(await cardDataFor(r));
+      if (cardCache.size > 100) cardCache.delete(cardCache.keys().next().value as string);   // a light lid
+      cardCache.set(sid, png);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.type('png').send(png);
+    } catch (e: any) { res.status(500).json({ error: 'card render failed: ' + (e?.message || String(e)) }); }
+  });
+
+  // the unfurling page: /v/<id> — og tags point at the card; the body is the
+  // verdict typeset for a browser + the pull into the app. THIS is the link the
+  // app shares (the JSON route stays the data contract).
+  app.get('/v/:sessionId', async (req, res) => {
+    try {
+      const sid = req.params.sessionId;
+      const { r, code, error } = await readableRecord(sid);
+      if (!r) return res.status(code!).send(`<!doctype html><html><body style="background:#120A0E;color:#F5ECE1;font-family:Georgia,serif;display:flex;align-items:center;justify-content:center;height:100vh"><p>${error}</p></body></html>`);
+      const base = `https://${req.get('host')}`;
+      const d = await cardDataFor(r);
+      const esc = (x: string) => String(x || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      const winColor = d.winner === 'PRO' ? '#78C8FF' : '#E0576F';
+      const sideLine = (side: string) => esc((d.sides.find((x) => x.side === side)?.names || []).join(' · '));
+      const speakers = (r.verdict.speakers || []) as any[];
+      res.type('html').send(`<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(d.winner)} takes the floor — callmeZ Battlefield</title>
+<meta property="og:title" content="${esc(d.winner)} takes the floor — “${esc(d.motion)}”">
+<meta property="og:description" content="${esc(d.verdictLine)}">
+<meta property="og:image" content="${base}/battlefield/card/${sid}.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:type" content="article"><meta property="og:url" content="${base}/v/${sid}">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  body{margin:0;background:#120A0E;color:#F5ECE1;font:16px/1.6 Georgia,'Times New Roman',serif;display:flex;justify-content:center;padding:28px 18px}
+  .card{max-width:640px;width:100%}
+  .kick{color:#E0576F;font-family:system-ui,sans-serif;font-size:12px;letter-spacing:.22em}
+  .motion{font-style:italic;font-size:24px;line-height:1.35;margin:16px 0 22px;border-left:3px solid #E0576F;padding-left:16px}
+  .win{font-size:30px;margin:0 0 8px}
+  .line{font-style:italic;color:rgba(245,236,225,.85);margin:0 0 20px}
+  .metric{border-left:2px solid rgba(224,87,111,.4);padding-left:14px;margin:0 0 16px}
+  .metric b{display:block;color:rgba(245,236,225,.5);font-family:system-ui,sans-serif;font-size:11px;letter-spacing:.18em;margin-bottom:4px}
+  .metric p{margin:0;color:rgba(245,236,225,.78);font-size:15px}
+  .tab{border:1px solid rgba(245,236,225,.14);border-radius:12px;padding:14px;margin:18px 0}
+  .tab .row{display:flex;gap:12px;align-items:baseline;margin-top:8px;font-family:system-ui,sans-serif;font-size:14px}
+  .tab .score{color:#C9A86A;font-family:Georgia,serif;font-size:17px;min-width:28px;text-align:right}
+  .closing{border:1px solid rgba(201,168,106,.35);border-radius:12px;padding:14px;color:#C9A86A;font-style:italic;margin:0 0 20px}
+  .foot{color:rgba(245,236,225,.45);font-size:13px;font-family:system-ui,sans-serif}
+  .cta{display:block;text-align:center;background:#E0576F;color:#120A0E;text-decoration:none;font-family:system-ui,sans-serif;font-weight:600;border-radius:12px;padding:14px;margin:24px 0 8px}
+  .watch{display:block;text-align:center;color:rgba(245,236,225,.6);font-family:system-ui,sans-serif;font-size:14px;text-decoration:none;border:1px solid rgba(245,236,225,.18);border-radius:12px;padding:12px}
+</style></head><body><div class="card">
+<div class="kick">THE ADJUDICATOR RULED</div>
+<div class="motion">“${esc(d.motion)}”</div>
+<h1 class="win"><span style="color:${winColor}">${esc(d.winner)}</span> takes the floor</h1>
+<p class="line">${esc(d.verdictLine)}</p>
+${r.verdict.matter ? `<div class="metric"><b>MATTER — LOGIC · EVIDENCE · FACT</b><p>${esc(r.verdict.matter)}</p></div>` : ''}
+${r.verdict.manner ? `<div class="metric"><b>MANNER — DELIVERY · STRUCTURE · CONTROL</b><p>${esc(r.verdict.manner)}</p></div>` : ''}
+${speakers.length ? `<div class="tab"><b style="color:rgba(245,236,225,.5);font-family:system-ui,sans-serif;font-size:11px;letter-spacing:.18em">THE TAB — SPEAKER SCORES</b>${speakers.map((sp: any) => `<div class="row"><span style="min-width:86px;letter-spacing:.06em;color:${String(sp.role || '').startsWith('PRO') ? '#78C8FF' : '#E0576F'}">${esc(sp.role || '')}${sp.seat === r.verdict.best_speaker ? ' ★' : ''}</span><span class="score">${sp.score | 0}</span><span style="color:rgba(245,236,225,.6)">${esc(sp.line || '')}</span></div>`).join('')}</div>` : ''}
+${r.verdict.closing ? `<div class="closing">${esc(r.verdict.closing)}</div>` : ''}
+<div class="foot"><span style="color:#78C8FF">PRO</span> ${sideLine('PRO')} · <span style="color:#E0576F">CON</span> ${sideLine('CON')}${d.crowd && d.crowd.total ? ` · the room: ${d.crowd.pro}–${d.crowd.con}` : ''}${d.date ? ' · ' + new Date(d.date).toDateString() : ''}</div>
+<a class="cta" href="https://callmez.app">settle your own argument on callmeZ</a>
+<a class="watch" href="/watch/${sid}">replay the full duel</a>
+</div></body></html>`);
+    } catch (e: any) { res.status(500).send('verdict page failed'); }
   });
 }
 

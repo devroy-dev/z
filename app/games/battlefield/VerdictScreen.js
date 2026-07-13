@@ -34,7 +34,7 @@ export default function VerdictScreen({ sessionId, onBack = () => {} }) {
   }, [sessionId]);
 
   const share = async () => {
-    const link = 'https://callmez.app/battlefield/verdict/' + sessionId;
+    const link = 'https://callmez.app/v/' + sessionId;   // [2b] the unfurling page — WhatsApp shows the CARD
     try { await Share.share({ message: `the adjudicator ruled: ${v?.winner} — "${v?.motion}" ${link}`, url: link }); } catch (e) {}
   };
 

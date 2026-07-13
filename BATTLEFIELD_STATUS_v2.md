@@ -473,3 +473,48 @@ shared, claimed, fought, and its verdict read entirely on glass across two
 devices · the vet's refusal flow (refuse → adopt restructured → mint) · a timed
 duel's clock and lapse markers correct against server truth · both tracks
 (git push + eas update).
+
+---
+
+## 9 · PHASE 2b — THE VERDICT CARD (built 2026-07-13; OWNER'S EYES PENDING)
+
+The battlefield's share object, per the split ruling: phase 2 shipped the
+substance; this ships the TYPESET VISUAL + share-PNG. **Nothing here is final
+until the owner's design review — the aesthetic bar is his.** Review rides the
+consolidated end-of-build verification pass per the owner's testing ruling.
+
+**The mechanic:** a deterministic server-rendered **1200×630 PNG** (the
+og:image standard) + an unfurling page at **/v/<sessionId>** carrying og/twitter
+tags — a verdict link dropped into WhatsApp UNFURLS AS THE CARD. Same bytes for
+the same verdict, forever: hand-built SVG (manual line-wrapping, no browser, no
+layout engine) → @resvg/resvg-js → PNG, brand fonts bundled (Fraunces +
+Figtree, both OFL, committed under content/battlefield/fonts/).
+
+**Shipped:**
+- `src/battlefieldCard.ts` — the renderer: crimson ground with a breath
+  gradient, hairline frame, swords mark, THE ADJUDICATOR RULED kicker, the
+  motion in Fraunces italic (3-line budget), "<WINNER> takes the floor", the
+  verdict line, footer strip (PRO/CON names · ★ best speaker · the room's
+  tally · date · callmeZ wordmark · SETTLE IT ON THE BATTLEFIELD).
+- `GET /battlefield/card/:sessionId.png` — public|link only, private 404s,
+  live 409, abandoned/failed 410 (the JSON route's exact law); in-memory
+  cache (lid 100) + 24h Cache-Control.
+- `GET /v/:sessionId` — the unfurling page: og:image → the card; the body is
+  the verdict typeset for a browser (motion, winner, verdict line,
+  matter/manner, THE TAB with ★, closing, sides, crowd) + "settle your own
+  argument" CTA + replay link. The app's VerdictScreen share now points at
+  /v/ (the JSON route stays the data contract).
+- **The record now carries THE TAB:** finalize stores `speakers` +
+  `best_speaker` (phase 3 added them to the Verdict; the record subset had
+  dropped them); the share JSON exposes both. Pre-2b records lack scores —
+  cards render without the ★ line; harmless.
+
+**Sample cards rendered from REAL gate data** (the phase-2 settle-it duel and
+the phase-3 PF duel) staged for the owner's review: card_duel.png ·
+card_pf.png. Known aesthetic judgment calls awaiting his eyes: vertical
+rhythm on 1-line motions runs airy; repeated house names render literally
+("the House · the House"); footer name budget truncates long display names
+at ~26 chars.
+
+**Not in scope:** in-app PNG export via view-shot (the server PNG is the share
+asset; a native "save card" button can ride a later polish sitting).
