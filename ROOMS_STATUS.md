@@ -218,3 +218,30 @@ pile: memory chip (§7.2) · host behaviors (greeting/@host/pulse, §5.2) ·
 hostless-room backfill · thread_reads.muted enforcement (with room
 notifications, §10) · the healer's session overlay blessing · single-scroll
 fold re-rule · session-state broadcast (replacing the 9s poll).
+
+## CLOSING RULINGS & FIELD NOTES (2026-07-13, the proof-ladder sitting)
+- **Session identity ruling (deliberate, on record):** the consent card and
+  the sitting show REAL display names both ways (`otherName: "Dev"`). You sit
+  down with someone you know — handle-anonymity is the FLOOR's law, never the
+  sitting's. Consent to the sitting is consent to be known in it.
+- **Layer-2 calibration (field 2026-07-13):** the judge's `severe` was
+  undefined in the prompt, so plain targeted harassment drew an instant ban
+  (severe) instead of the ladder's warn. NOT a ladder jump — the rungs and
+  their registers are distinct; the classifier's hand was uncalibrated.
+  Fixed: severe is reserved for credible threats / doxxing / minors / slurs
+  (instant removal); everything else violating is low and the ladder teaches
+  (warn → mute 15m → kick 24h). When unsure, low.
+- **`GET /rooms` needs `-L` in bare curl:** `public/rooms/` exists as a
+  static asset directory, so express.static 301s `/rooms` → `/rooms/` before
+  the router; the route then matches the trailing slash. The app's fetch
+  follows redirects — harmless, named here so nobody chases it again.
+- **The wall's harvester ledger (grep at HEAD, per §4.5):** loop.ts
+  harvesters (harvestMemory / harvestTrip / harvestThreads) are structurally
+  unreachable for sessions — every is_shared thread returns from /chat before
+  runZTurn; the gardener reads z.memory only; the threads-janitor reads
+  z.running_threads only (fed solely by loop.ts) — both transitively walled;
+  roomMemory refuses is_session inside harvestRoomMemory; the overseer's
+  window sweep drops is_session threads; /threads + /rooms filtered; inbox
+  previews overridden. Zero-capture SQL receipts owed per session thread:
+  z.memory, z.room_memory, z.running_threads by thread_id → all zero.
+

@@ -193,6 +193,13 @@ export async function judge(roomId: string, threadId: string, userId: string, te
         'You are a strict but fair chat moderator for a public room. Classify the MESSAGE into exactly one: ' +
         'harassment, hate, sexual, spam, incitement, or none. Also give severity: none, low, or severe. ' +
         'Flirtation, profanity, strong opinions, and heated debate are NOT violations — return none unless it targets or harms someone. ' +
+        // [calibration, field 2026-07-13] severe = instant ban, so it is RESERVED for
+        // the hard lines: credible threats of violence, doxxing/exposing personal
+        // information, sexual content involving minors, or slurs. Ugly-but-human
+        // behaviour (insults, targeted harassment, pile-ons, spam, heated incitement
+        // short of a credible threat) is LOW — the ladder teaches: warn, mute, kick.
+        'SEVERITY CALIBRATION: severe is reserved for credible threats of violence, doxxing or exposing personal information, sexual content involving minors, or slurs — severe means instant removal. ' +
+        'Everything else that violates (insults, targeted harassment, spam, heated incitement short of a credible threat) is low — low feeds an escalating ladder. When unsure between low and severe, choose low. ' +
         'Return ONLY compact JSON: {"class":"...","severity":"..."}. No prose.',
       messages: [{ role: 'user', content: `MESSAGE: ${String(text).slice(0, 1000)}` }],
     });
