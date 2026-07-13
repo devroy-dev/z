@@ -1,0 +1,24 @@
+{
+  "key": "ap",
+  "label": "Asian Parliamentary (3v3)",
+  "perSide": 3,
+  "order": [
+    { "side": "pro", "seat": 0, "role": "PM", "label": "Prime Minister", "seconds": 180,
+      "job": "As PRIME MINISTER: define the motion fairly, set the government's framework, and establish your team's case with your first substantive arguments. The definition you set is the ground the whole debate stands on." },
+    { "side": "con", "seat": 3, "role": "LO", "label": "Leader of Opposition", "seconds": 180, "noteAfter": true,
+      "job": "As LEADER OF OPPOSITION: accept or (only if truly unfair) challenge the definition, refute the PM's case at its foundations, and establish the opposition's own constructive case." },
+    { "side": "pro", "seat": 1, "role": "DPM", "label": "Deputy Prime Minister", "seconds": 180,
+      "job": "As DEPUTY PM: rebuild the government case where the LO struck it, answer the opposition's constructive case, and EXTEND with new substantive matter of your own." },
+    { "side": "con", "seat": 4, "role": "DLO", "label": "Deputy Leader of Opposition", "seconds": 180, "noteAfter": true,
+      "job": "As DEPUTY LO: answer the DPM's extensions specifically — they are the government's freshest matter — rebuild your team's case, and EXTEND with new opposition matter of your own." },
+    { "side": "pro", "seat": 2, "role": "GW", "label": "Government Whip", "seconds": 180,
+      "job": "As GOVERNMENT WHIP: crystallise the debate into the two or three clashes that decide it and show your side winning each. NO NEW MATTER — a whip who introduces new arguments is punished for it. Weigh what exists." },
+    { "side": "con", "seat": 5, "role": "OW", "label": "Opposition Whip", "seconds": 180, "noteAfter": true,
+      "job": "As OPPOSITION WHIP: crystallise the debate into the clashes that decide it and show your side winning each. NO NEW MATTER — a whip who introduces new arguments is punished for it. Weigh what exists." },
+    { "side": "con", "seat": 3, "role": "Opp Reply", "label": "Opposition Reply", "seconds": 90,
+      "job": "Deliver the OPPOSITION REPLY: a biased adjudication of the whole debate from your side's chair — why a fair judge, weighing the clashes as they actually fell, gives opposition the round. NO new matter at all; the reply is a summing-up, never a speech." },
+    { "side": "pro", "seat": 0, "role": "Gov Reply", "label": "Government Reply", "seconds": 90, "noteAfter": true,
+      "job": "Deliver the GOVERNMENT REPLY: a biased adjudication of the whole debate from your side's chair — why a fair judge gives government the round. NO new matter at all. Government closes the debate." }
+  ],
+  "adjModule": "debate-format-ap.md"
+}

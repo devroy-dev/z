@@ -30,7 +30,7 @@ import { supabase } from './db.js';
 import { resolveUser } from './zAccess.js';
 import { evaluateMotion, type MotionAssessment } from './battlefieldMotions.js';
 import { DOMAIN_LABELS, type DebateDomain } from './battlefieldAdjudicator.js';
-import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLapse, type BFState } from './games/battlefieldDuel.js';
+import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLapse, battleFormat, type BFState } from './games/battlefieldDuel.js';
 
 const CHALLENGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // spec: challenges expire in 7 days (lazy)
 const ABANDON_AFTER_MS = 48 * 60 * 60 * 1000;        // declared default: dead past 48h → abandoned
@@ -39,11 +39,16 @@ type AuthFn = (req: express.Request) => Promise<string | null>;
 
 // ── THE RECORD ────────────────────────────────────────────────────────────
 
-function sidesOf(seats: any[]): any[] {
+// [phase 3] sides grouped by the FORMAT MODULE — a pf row carries 2 seats per side,
+// an ap row 3; the legacy two-seat shape is the duel module's natural output.
+function sidesOf(state: BFState, seats: any[]): any[] {
+  const fmt = battleFormat((state as any)?.formatKey || 'duel') || battleFormat('duel')!;
   const ent = (x: any) => x?.kind === 'user' ? { user_id: x.id } : x?.kind === 'persona' ? { persona: x.id || x.key || 'the_house' } : { open: true };
+  const bySide = (side: 'PRO' | 'CON') =>
+    [...new Set(fmt.order.filter((o) => (o.side === 'con' ? 'CON' : 'PRO') === side).map((o) => o.seat))].sort((a, b) => a - b);
   return [
-    { side: 'PRO', seats: [ent(seats?.[0])] },
-    { side: 'CON', seats: [ent(seats?.[1])] },
+    { side: 'PRO', seats: bySide('PRO').map((i) => ent(seats?.[i])) },
+    { side: 'CON', seats: bySide('CON').map((i) => ent(seats?.[i])) },
   ];
 }
 
@@ -51,10 +56,10 @@ export async function insertBattlefieldRecord(sessionId: string, state: BFState,
   try {
     await supabase.from('battlefield_record').insert({
       session_id: sessionId,
-      format_key: 'duel',
+      format_key: (state as any).formatKey || 'duel',
       motion: state.motion,
       domain: state.domain,
-      sides: sidesOf(seats),
+      sides: sidesOf(state, seats),
       status: 'live',
       visibility,
     });
@@ -102,7 +107,7 @@ export async function finalizeBattlefieldRecord(sessionId: string, live?: { stat
       status: 'done',
       verdict,
       crowd: await crowdTally(sessionId),
-      sides: sidesOf(seatsArr),   // refresh — a claimed seat postdates the insert
+      sides: sidesOf(st, seatsArr),   // refresh — a claimed seat postdates the insert
       ended_at: new Date().toISOString(),
     }).eq('session_id', sessionId);
   } catch (e: any) { console.error('[bf-record] finalize failed:', e?.message || e); }

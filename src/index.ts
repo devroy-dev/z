@@ -52,7 +52,7 @@ import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.j
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
-import { stampSlot as bfStampSlot, battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
+import { stampSlot as bfStampSlot, battleFormat as bfFormat, seatSide as bfSeatSide, battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
 import { evaluateMotion, generateMotions } from './battlefieldMotions.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
@@ -2697,14 +2697,21 @@ app.post('/battlefield/practice/start', async (req, res) => {
       user_id: user.id, is_group: false, is_shared: false, member_keys: [], companion_name: 'the Battlefield · practice',
     }).select('id').single();
     if (tErr || !thread) return res.status(500).json({ error: 'could not open the practice floor: ' + (tErr?.message || '') });
-    const seats = [{ kind: 'user', id: user.id }, { kind: 'persona', id: 'the_house' }];
+    // [phase 3] format-aware seating: user takes seat 0, the house fills EVERY other
+    // seat (§3.1 — mixed human/AI teams for free; a 3v3 with the house as teammates
+    // and opponents IS team practice). Unknown format keys 400 in register.
+    const fmtKey = typeof req.body?.format === 'string' ? req.body.format : 'duel';
+    const bfFmt = bfFormat(fmtKey);
+    if (!bfFmt) return res.status(400).json({ error: `unknown format '${fmtKey}'` });
+    const seatCount = (bfFmt.perSide || 1) * 2;
+    const seats: any[] = Array.from({ length: seatCount }, (_, i2) => i2 === 0 ? { kind: 'user', id: user.id } : { kind: 'persona', id: 'the_house' });
     const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
     const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
     // commentary tier (LITE lever 3): OFF for private practice — the commentary is the
     // spectator product; practice doesn't need it. Opt back in with {commentary: true}.
     // §5: timers are opt-in for practice (untimed default per ruling); the house is
     // always seated, so a timed practice floor is live from creation — stamp at once.
-    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: req.body?.commentary === true, timed: req.body?.timed === true, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1 });
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: req.body?.commentary === true, timed: req.body?.timed === true, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1, format: bfFmt.key });
     bfStampSlot(state);
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
@@ -2734,16 +2741,22 @@ app.post('/battlefield/duel/start', async (req, res) => {
     }).select('id').single();
     if (tErr || !thread) return res.status(500).json({ error: 'could not open the duel floor: ' + (tErr?.message || '') });
     await supabase.from('room_members').insert({ thread_id: thread.id, user_id: user.id, role: 'owner' });
-    // assigned sides: coin-flip which seat the creator holds (seat 0 = PRO, seat 1 = CON).
-    const creatorSeat: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
-    const seats: any[] = [{ kind: 'open' }, { kind: 'open' }];
+    // [phase 3] format-aware seating: coin-flip the creator's SIDE, seat them at that
+    // side's first seat; every other seat opens for claims (teams fill via join/claim).
+    const fmtKey = typeof req.body?.format === 'string' ? req.body.format : 'duel';
+    const bfFmt = bfFormat(fmtKey);
+    if (!bfFmt) return res.status(400).json({ error: `unknown format '${fmtKey}'` });
+    const seatCount = (bfFmt.perSide || 1) * 2;
+    const creatorSide = Math.random() < 0.5 ? 'PRO' : 'CON';
+    const creatorSeat = Math.min(...[...new Set(bfFmt.order.filter((o: any) => (o.side === 'con' ? 'CON' : 'PRO') === creatorSide).map((o: any) => o.seat))]);
+    const seats: any[] = Array.from({ length: seatCount }, () => ({ kind: 'open' }));
     seats[creatorSeat] = { kind: 'user', id: user.id };
     const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
     const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
     // spectated/shared duel: the commentary tier stays ON — it is the spectator product.
     // §5: timed opt-in; the clock does NOT start here — a floor with an open seat is
-    // not live. The join/claim routes stamp the first slot when the second seat fills.
-    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: true, timed: req.body?.timed === true, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1 });
+    // not live. The join/claim routes stamp the first slot when the LAST seat fills.
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: true, timed: req.body?.timed === true, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1, format: bfFmt.key });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
@@ -2751,7 +2764,7 @@ app.post('/battlefield/duel/start', async (req, res) => {
     await insertBattlefieldRecord(sess.id, state, seats, 'public');   // [0066] LIVE NOW reads this row
     res.json({
       sessionId: sess.id, version: sess.version, roomId: thread.id,
-      mySeat: creatorSeat, mySide: creatorSeat === 0 ? 'PRO' : 'CON',
+      mySeat: creatorSeat, mySide: creatorSide,
       motion: state.motion, domain: state.domain,
       joinPath: `/duel/join/${sess.id}`,   // share with your OPPONENT (claims the debater seat)
       watchPath: `/watch/${sess.id}`,      // share with the AUDIENCE (ungated spectator)
@@ -2771,7 +2784,7 @@ app.post('/battlefield/duel/:id/join', async (req, res) => {
     if (s.game !== 'battlefield_duel') return res.status(400).json({ error: 'not a battlefield duel' });
     const seats = s.seats as any[];
     const mine = seats.findIndex((x) => x.kind === 'user' && x.id === user.id);
-    if (mine >= 0) return res.json({ ok: true, seat: mine, side: mine === 0 ? 'PRO' : 'CON', already: true });
+    if (mine >= 0) return res.json({ ok: true, seat: mine, side: bfSeatSide(bfFormat((s.state as any)?.formatKey || 'duel')!, mine), already: true });
     const open = seats.findIndex((x) => x.kind === 'open');
     if (open < 0) return res.status(409).json({ error: 'both seats are taken' });
     if (!(await isRoomMember(s.thread_id, user.id))) {
@@ -2786,7 +2799,7 @@ app.post('/battlefield/duel/:id/join', async (req, res) => {
       .update({ seats, state: joinedState, version: s.version + 1, updated_at: new Date().toISOString() })
       .eq('id', s.id).eq('version', s.version).select('version').maybeSingle();
     if (!upd) return res.status(409).json({ error: 'someone just took the seat' });
-    res.json({ ok: true, seat: open, side: open === 0 ? 'PRO' : 'CON', version: upd.version });
+    res.json({ ok: true, seat: open, side: bfSeatSide(bfFormat((s.state as any)?.formatKey || 'duel')!, open), version: upd.version });
   } catch (e: any) { res.status(500).json({ error: 'join failed: ' + (e?.message || String(e)) }); }
 });
 
@@ -2858,20 +2871,25 @@ app.get('/diagnostics/costs', async (req, res) => {
 
 app.post('/battlefield/test-duel', async (req, res) => {
   try {
+    // [phase 3] format-general: you are SEAT 0; mySpeeches feed your slots in floor
+    // order (duel: 3, pf: 2, ap: 2 for seat 0 = PM + Gov Reply); the house plays
+    // every other seat. The mixed-team proof is this diagnostic itself.
+    const fmtKey = typeof req.body?.format === 'string' ? req.body.format : 'duel';
+    const testFmt = bfFormat(fmtKey);
+    if (!testFmt) return res.status(400).json({ error: `unknown format '${fmtKey}'` });
+    const mySlotCount = testFmt.order.filter((o: any) => o.seat === 0).length;
     const mySpeeches: string[] = Array.isArray(req.body?.mySpeeches) ? req.body.mySpeeches : [];
-    if (mySpeeches.length !== 3) return res.status(400).json({ error: 'mySpeeches must be exactly 3 strings: [Opening, Rebuttal, Closing]' });
+    if (mySpeeches.length !== mySlotCount) return res.status(400).json({ error: `mySpeeches must be exactly ${mySlotCount} strings for seat 0's slots in '${fmtKey}': [${testFmt.order.filter((o: any) => o.seat === 0).map((o: any) => o.label).join(', ')}]` });
     // optional: pin the motion+domain so your speeches match the topic (a fair fight)
     const pinMotion = typeof req.body?.motion === 'string' ? req.body.motion : undefined;
     const pinDomain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
-    // seats: seat 0 = you (user), seat 1 = the house (persona)
-    const seats = [{ kind: 'user', id: 'tester' }, { kind: 'persona', key: 'the_house' }];
-    let state: any = (pinMotion && pinDomain)
-      ? battlefieldDuelAdapter.create({ motion: pinMotion, domain: pinDomain })
-      : battlefieldDuelAdapter.create();
+    const seatCount = (testFmt.perSide || 1) * 2;
+    const seats: any[] = Array.from({ length: seatCount }, (_, i2) => i2 === 0 ? { kind: 'user', id: 'tester' } : { kind: 'persona', key: 'the_house' });
+    let state: any = battlefieldDuelAdapter.create(seats, { motion: (pinMotion && pinDomain) ? pinMotion : undefined, domain: pinDomain, format: testFmt.key });
     const steps: any[] = [];
     const costStart = costSnapshot();
     let myIdx = 0; let guard = 0;
-    while (!battlefieldDuelAdapter.isOver(state) && guard++ < 12) {
+    while (!battlefieldDuelAdapter.isOver(state) && guard++ < 16) {
       const toAct = battlefieldDuelAdapter.toActSeat(state);
       if (toAct !== 0) { // shouldn't happen — move() drives the house internally — but guard anyway
         steps.push({ note: 'floor waiting on house but not advanced', toAct }); break;
@@ -2879,16 +2897,15 @@ app.post('/battlefield/test-duel', async (req, res) => {
       const speech = mySpeeches[myIdx++] ?? 'I rest on the case already made.';
       state = await battlefieldDuelAdapter.move(state, 0, { type: 'speech', text: speech }, seats);
       steps.push({ afterMyTurn: myIdx, phase: state.phase, turns: state.turns.length, toAct: battlefieldDuelAdapter.toActSeat(state) });
-      if (myIdx >= 3 && battlefieldDuelAdapter.toActSeat(state) === 0 && state.phase !== 'verdict') {
-        // safety: if it's still my turn after 3 speeches, something stalled
-        steps.push({ note: 'stalled: still my turn after 3 speeches' }); break;
+      if (myIdx >= mySlotCount && battlefieldDuelAdapter.toActSeat(state) === 0 && state.phase !== 'verdict') {
+        steps.push({ note: `stalled: still my turn after ${mySlotCount} speeches` }); break;
       }
     }
     res.json({
       motion: state.motion, domain: state.domain, phase: state.phase,
       turns: state.turns, notes: state.notes,
       winner: state.winner, error: state.error,
-      verdict: state.verdict ? { winner: state.verdict.winner, summary: state.verdict.summary, matter: state.verdict.matter, manner: state.verdict.manner } : null,
+      verdict: state.verdict ? { winner: state.verdict.winner, summary: state.verdict.summary, matter: state.verdict.matter, manner: state.verdict.manner, speakers: state.verdict.speakers, bestSpeaker: state.verdict.bestSpeaker } : null,
       steps,
       cost: costSince(costStart),
     });

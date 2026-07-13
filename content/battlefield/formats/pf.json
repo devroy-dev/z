@@ -1,0 +1,24 @@
+{
+  "key": "pf",
+  "label": "Public Forum (2v2)",
+  "perSide": 2,
+  "order": [
+    { "side": "pro", "seat": 0, "role": "Constructive", "label": "PRO 1 Constructive", "seconds": 180,
+      "job": "Deliver your CONSTRUCTIVE: build your team's full case for the motion — your framework and your strongest contentions with warrants. Do not rebut; there is nothing to rebut yet." },
+    { "side": "con", "seat": 2, "role": "Constructive", "label": "CON 1 Constructive", "seconds": 180, "noteAfter": true,
+      "job": "Deliver your CONSTRUCTIVE: build your team's full case against the motion — your framework and your strongest contentions with warrants. Case-building first; direct refutation belongs to your partner's rebuttal." },
+    { "side": "pro", "seat": 1, "role": "Rebuttal", "label": "PRO 2 Rebuttal", "seconds": 150,
+      "job": "Deliver your REBUTTAL: attack the other team's constructive line by line — name their contentions and dismantle the warrants. Defend your partner's case where it was pre-empted." },
+    { "side": "con", "seat": 3, "role": "Rebuttal", "label": "CON 2 Rebuttal", "seconds": 150, "noteAfter": true,
+      "job": "Deliver your REBUTTAL: attack the other team's constructive line by line AND answer the attacks just made on your team's case — frontline your partner's contentions, then strike." },
+    { "side": "pro", "seat": 0, "role": "Summary", "label": "PRO 1 Summary", "seconds": 120,
+      "job": "Deliver your SUMMARY: collapse the debate to the clash your team is winning. Weigh — explain WHY your winning ground outweighs theirs. No brand-new contentions; extension and weighing only." },
+    { "side": "con", "seat": 2, "role": "Summary", "label": "CON 1 Summary", "seconds": 120, "noteAfter": true,
+      "job": "Deliver your SUMMARY: collapse the debate to the clash your team is winning. Weigh against their summary's framing. No brand-new contentions; extension and weighing only." },
+    { "side": "pro", "seat": 1, "role": "Final Focus", "label": "PRO 2 Final Focus", "seconds": 90,
+      "job": "Deliver your FINAL FOCUS: the single reason your team wins, crystallised. Nothing new — a foul here costs the round. Write the judge's ballot for them." },
+    { "side": "con", "seat": 3, "role": "Final Focus", "label": "CON 2 Final Focus", "seconds": 90, "noteAfter": true,
+      "job": "Deliver your FINAL FOCUS: the single reason your team wins, crystallised. Nothing new — a foul here costs the round. Write the judge's ballot for them." }
+  ],
+  "adjModule": "debate-format-pf.md"
+}

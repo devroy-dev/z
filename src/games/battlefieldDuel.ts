@@ -31,26 +31,48 @@ const MODEL = 'claude-haiku-4-5-20251001';
 // phase 3 flips the floor itself to read the order array. The deterministic hard
 // floor stays HERE, in this adapter — a debate advances by law, never by a model's
 // judgment (the two floors are opposite by product nature; sessionLoop untouched).
-export interface BattleSlot { side: 'pro' | 'con'; seat: number; role: string; label: string; seconds: number | null; }
+export interface BattleSlot {
+  side: 'pro' | 'con'; seat: number; role: string; label: string; seconds: number | null;
+  job?: string;         // the ROLE's instruction (what a PM must establish; a whip's no-new-matter law) — format knowledge is DATA
+  noteAfter?: boolean;  // the commentary drops after this slot (an exchange completed)
+}
 export interface BattleFormat { key: string; label: string; perSide: number; order: BattleSlot[]; adjModule?: string; }
 const __bfDir = path.dirname(fileURLToPath(import.meta.url));
-const BF_FORMAT_IDS = ['duel'] as const;
 const bfFormats: Record<string, BattleFormat> = {};
-for (const id of BF_FORMAT_IDS) {
-  try {
-    const p = path.join(__bfDir, '..', 'content', 'battlefield', 'formats', `${id}.json`);
-    bfFormats[id] = JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch (e) { console.error('[battlefield] format load failed:', id, e); }
-}
+try {
+  const dir = path.join(__bfDir, '..', 'content', 'battlefield', 'formats');
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+    try {
+      const fmt: BattleFormat = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'));
+      if (fmt?.key && Array.isArray(fmt.order) && fmt.order.length) bfFormats[fmt.key] = fmt;
+    } catch (e) { console.error('[battlefield] format load failed:', f, e); }
+  }
+} catch (e) { console.error('[battlefield] formats dir missing:', e); }
+console.log('[battlefield] formats loaded:', Object.keys(bfFormats).join(', ') || '(none)');
 export const battleFormat = (key: string): BattleFormat | null => bfFormats[key] || null;
+export const battleFormatKeys = (): string[] => Object.keys(bfFormats);
 
-// the current slot, deterministically: two slots per phase, in-phase position = turns
-// already taken in this phase. Phase 2's ONLY consumer is the seconds field.
+// ── THE FLOOR LAW (phase 3): the floor IS the order array. slotIndex = turns.length —
+// deterministic, migration-free (the legacy duel's turn sequence matches duel.json's
+// order exactly, so live sessions inherit the new law without a shim). All floor
+// facts derive from the format module; the advance is arithmetic, never a model.
+export function stateFormat(state: BFState): BattleFormat {
+  return battleFormat(state.formatKey || 'duel') || battleFormat('duel')!;
+}
 function currentSlot(state: BFState): BattleSlot | null {
-  const fmt = battleFormat('duel');
-  if (!fmt) return null;
-  const inPhase = state.turns.filter((t) => t.role === (state.phase as string)).length;
-  return fmt.order[state.phaseIndex * 2 + inPhase] || null;
+  if ((state.phase as string) === 'verdict') return null;
+  return stateFormat(state).order[state.turns.length] || null;
+}
+// a seat's side + public tag ("PRO 2" in teams, "PRO" in a 1v1), from the module alone
+export function seatSide(fmt: BattleFormat, seat: number): 'PRO' | 'CON' {
+  const slot = fmt.order.find((o) => o.seat === seat);
+  return slot?.side === 'con' ? 'CON' : 'PRO';
+}
+export function speakerTag(fmt: BattleFormat, seat: number): string {
+  const side = seatSide(fmt, seat);
+  if ((fmt.perSide || 1) <= 1) return side;
+  const sameSide = [...new Set(fmt.order.filter((o) => (o.side === 'con' ? 'CON' : 'PRO') === side).map((o) => o.seat))].sort((a, b) => a - b);
+  return `${side} ${sameSide.indexOf(seat) + 1}`;
 }
 
 // stamp the clock for the slot that just opened. The server owns the truth:
@@ -134,20 +156,18 @@ export const MOTIONS: { motion: string; domain: DebateDomain }[] = [
   { motion: 'This house believes individual action is largely irrelevant to solving climate change compared with systemic change.', domain: 'environment' },
 ];
 
-const PHASES = ['Opening', 'Rebuttal', 'Closing'] as const;
-type Phase = (typeof PHASES)[number];
+type Phase = string;   // the role label of the current slot — 'Opening' … 'PM' … 'Final Focus'
 
-export type BFTurn = { seat: 0 | 1; role: Phase; text: string; audio?: string | null; lapsed?: boolean };
+export type BFTurn = { seat: number; role: string; text: string; audio?: string | null; lapsed?: boolean };
 export type BFState = {
   kind: 'battlefield_duel';
+  formatKey?: string;          // 'duel' | 'pf' | 'ap' | any authored module; absent = duel (legacy)
   motion: string;
   domain: DebateDomain;
-  phase: Phase | 'verdict';
-  phaseIndex: number;          // 0..2 across PHASES
+  phase: Phase | 'verdict';    // display: the current slot's role
+  phaseIndex: number;          // the current SLOT index (phase 3: the floor's true counter)
   turns: BFTurn[];             // the full transcript
-  toAct: 0 | 1;                // seat 0 = PRO, seat 1 = CON
-  // per-phase order: PRO speaks first in Opening & Closing; CON first in Rebuttal
-  // (real debate: the side under attack answers, so Rebuttal opens with CON on PRO).
+  toAct: number;               // the current slot's seat (-1 at verdict)
   notes: { phase: Phase; note: string }[];   // the commentary track (optional running read)
   notesOn: boolean;            // the commentary TIER (LITE lever 3): ON for spectated/shared
                                // duels — the commentary is the spectator product — OFF for
@@ -165,10 +185,7 @@ export type BFState = {
   difficulty: 'normal' | 'pro';
 };
 
-// PRO=0 leads Opening & Closing; CON=1 leads Rebuttal (answers the attack first).
-function leadSeat(phaseIndex: number): 0 | 1 { return phaseIndex === 1 ? 1 : 0; }
-
-export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; difficulty?: 'normal' | 'pro'; notesOn?: boolean; timed?: boolean; timeScale?: 1 | 0.5 }): BFState {
+export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; difficulty?: 'normal' | 'pro'; notesOn?: boolean; timed?: boolean; timeScale?: 1 | 0.5; format?: string }): BFState {
   const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
   // pin exactly if both given; else a random motion within the requested domain;
   // else a fully random motion. (domain-only used to fall through to fully random.)
@@ -179,14 +196,16 @@ export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; 
           ? rand(MOTIONS.filter((m) => m.domain === opts.domain))   // motion within the requested domain
           : rand(MOTIONS))
       : rand(MOTIONS);
+  const fmt = battleFormat(opts?.format || 'duel') || battleFormat('duel')!;
   return {
     kind: 'battlefield_duel',
+    formatKey: fmt.key,
     motion: pick.motion,
     domain: pick.domain,
-    phase: 'Opening',
+    phase: fmt.order[0].role,
     phaseIndex: 0,
     turns: [],
-    toAct: leadSeat(0),
+    toAct: fmt.order[0].seat,
     notes: [],
     notesOn: opts?.notesOn === false ? false : true,
     timed: opts?.timed === true,
@@ -201,30 +220,35 @@ export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; 
   };
 }
 
-// how many turns each seat has taken in the current phase (each phase = one per side)
-function turnsInPhase(state: BFState, phaseIndex: number): BFTurn[] {
-  const role = PHASES[phaseIndex];
-  return state.turns.filter((t) => t.role === role);
+// advance the floor after a turn is recorded: the next slot in the order array, or
+// the verdict when the array is spent. Pure arithmetic — a debate advances by law.
+// noteComplete = the slot just spoken carried the module's noteAfter flag (an
+// exchange completed; the commentary drops). Legacy duel states (no noteAfter era)
+// still note correctly: duel.json carries the flags.
+function advanceFloor(state: BFState): { noteComplete: boolean; spokenSlot: BattleSlot | null } {
+  const fmt = stateFormat(state);
+  const spoken = fmt.order[state.turns.length - 1] || null;   // the slot just recorded
+  if (state.turns.length >= fmt.order.length) {
+    state.phase = 'verdict';
+    state.toAct = -1;
+    state.phaseIndex = fmt.order.length;
+    return { noteComplete: !!spoken?.noteAfter, spokenSlot: spoken };
+  }
+  const next = fmt.order[state.turns.length];
+  state.phaseIndex = state.turns.length;
+  state.phase = next.role;
+  state.toAct = next.seat;
+  return { noteComplete: !!spoken?.noteAfter, spokenSlot: spoken };
 }
 
-// advance the floor after a turn is recorded: swap speaker, or roll to next phase /
-// to the verdict. Returns whether the phase just completed (for the running note).
-function advanceFloor(state: BFState): { phaseComplete: boolean } {
-  const done = turnsInPhase(state, state.phaseIndex);
-  if (done.length >= 2) {
-    // phase complete → next phase or verdict
-    if (state.phaseIndex >= PHASES.length - 1) {
-      state.phase = 'verdict';
-      return { phaseComplete: true };
-    }
-    state.phaseIndex += 1;
-    state.phase = PHASES[state.phaseIndex];
-    state.toAct = leadSeat(state.phaseIndex);
-    return { phaseComplete: true };
-  }
-  // still in phase → the other side answers
-  state.toAct = (1 - state.toAct) as 0 | 1;
-  return { phaseComplete: false };
+// the turns of the exchange that just completed: everything since the PREVIOUS
+// noteAfter slot (or the floor's start) — deterministic from the module alone.
+function exchangeTurns(state: BFState): BFTurn[] {
+  const fmt = stateFormat(state);
+  const end = state.turns.length;   // exclusive
+  let start = 0;
+  for (let i = end - 2; i >= 0; i--) { if (fmt.order[i]?.noteAfter) { start = i + 1; break; } }
+  return state.turns.slice(start, end);
 }
 
 // ── the house opponent: generate a real argument for its assigned side ──
@@ -234,25 +258,29 @@ const HOUSE_SOUL = `You are THE HOUSE — callmeZ's in-house debate opponent on 
 
 const HOUSE_NORMAL = `\n\n[NORMAL MODE \u2014 you are sparring with an AMATEUR, not a champion. Argue your side clearly and FAIRLY in plain language, at a level a beginner can answer. Make a real but BEATABLE case: one or two clean points, no piling on, no burying them in erudition, no exploiting every gap. You are a friendly sparring partner helping them find their footing \u2014 not a wall. Keep it short and accessible.]`;
 
-function phaseJob(phase: Phase, side: 'PRO' | 'CON'): string {
-  if (phase === 'Opening') return `Deliver your OPENING as ${side}: state your strongest case for your side of the motion. Build the frame. Do not rebut yet — there is nothing to rebut.`;
-  if (phase === 'Rebuttal') return `Deliver your REBUTTAL as ${side}: attack the specific weak points in your opponent's opening. Name what they claimed and dismantle it. This is where the debate sharpens.`;
-  return `Deliver your CLOSING as ${side}: crystallise why your side won the clash. NO new arguments — that is a debate foul. Land the case you already built.`;
-}
-
 async function houseTurn(state: BFState): Promise<string> {
+  const fmt = stateFormat(state);
+  const slot = currentSlot(state);
+  if (!slot) return '(the house holds its tongue)';
   const seat = state.toAct;
-  const side: 'PRO' | 'CON' = seat === 0 ? 'PRO' : 'CON';
+  const side = seatSide(fmt, seat);
   const phase = state.phase as Phase;
+  const me = speakerTag(fmt, seat);
+  // the ROLE's job comes from the MODULE (format knowledge is data); a module
+  // without job text gets the generic slot instruction.
+  const job = slot.job || `Deliver your ${slot.role} as ${me}: argue ${side}'s case in this slot's register.`;
+  const team = (fmt.perSide || 1) > 1
+    ? `\nYOUR TEAM: you are ${me} of ${fmt.perSide} ${side} speakers — build ON your teammates' speeches (extend, never repeat, never contradict them).`
+    : '';
   const transcript = state.turns.length
-    ? state.turns.map((t) => `${t.seat === 0 ? 'PRO' : 'CON'} (${t.role}): ${adjText(t)}`).join('\n\n')
+    ? state.turns.map((t) => `${speakerTag(fmt, t.seat)} (${t.role}): ${adjText(t)}`).join('\n\n')
     : '(no speeches yet — you open the floor)';
   // [gate-3 fix] SIDE DISCIPLINE, hard-bound: a degenerate opposing case (empty,
   // forfeited, meta, off-topic) once made the house rebut its OWN opening and argue
   // the other side — a side-flip the closing and the judge then inherited. The side
   // is law, restated as its own block; an empty opposing case is named on the record
   // and the slot spent advancing the house's OWN case, never the opponent's.
-  const system = `${HOUSE_SOUL}\n\nTHE MOTION: "${state.motion}"\nYOU ARE: ${side}. ${side === 'PRO' ? 'You argue FOR the motion.' : 'You argue AGAINST the motion.'}\nCURRENT PHASE: ${phase}. ${phaseJob(phase, side)}\n\nSIDE DISCIPLINE (law): every sentence you speak argues ${side} and only ${side}. You NEVER argue the other side's case, NEVER rebut or undercut your own earlier speeches, and NEVER switch sides — even when the opponent's speeches are empty, forfeited ([SLOT FORFEITED]), meta-commentary, or off-topic. If there is genuinely nothing from the opponent to engage, say so in ONE line on the record and spend the rest of the slot building ${side}'s own case.\n\nWrite ONLY your speech — no stage directions, no "as ${side} I would say", just the argument itself. Keep it tight: 3-6 sentences, the register of a serious debate floor.${state.difficulty !== 'pro' ? HOUSE_NORMAL : ''}`;
+  const system = `${HOUSE_SOUL}\n\nTHE MOTION: "${state.motion}"\nYOU ARE: ${me} (${slot.label}). ${side === 'PRO' ? 'You argue FOR the motion.' : 'You argue AGAINST the motion.'}${team}\nCURRENT SLOT: ${phase}. ${job}\n\nSIDE DISCIPLINE (law): every sentence you speak argues ${side} and only ${side}. You NEVER argue the other side's case, NEVER rebut or undercut your own earlier speeches, and NEVER switch sides — even when the opponent's speeches are empty, forfeited ([SLOT FORFEITED]), meta-commentary, or off-topic. If there is genuinely nothing from the opponent to engage, say so in ONE line on the record and spend the rest of the slot building ${side}'s own case.\n\nWrite ONLY your speech — no stage directions, no "as ${side} I would say", just the argument itself. Keep it tight: 3-6 sentences, the register of a serious debate floor.${state.difficulty !== 'pro' ? HOUSE_NORMAL : ''}`;
   try {
     const msg: any = await anthropic.messages.create({
       model: MODEL, max_tokens: 500, temperature: 0.6, system,
@@ -274,19 +302,19 @@ function adjText(t: BFTurn): string { return t.lapsed ? FORFEIT_MARK : t.text; }
 
 // record a speech into the transcript, then advance the floor + (optionally) take a
 // running note. Shared by human moves, the house turn, and the lapse sweeper.
-async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string, audio?: string | null, lapsed?: boolean): Promise<void> {
+async function recordAndAdvance(state: BFState, seat: number, text: string, audio?: string | null, lapsed?: boolean): Promise<void> {
   const role = state.phase as Phase;
   state.turns.push({ seat, role, text, audio: audio ?? null, ...(lapsed ? { lapsed: true } : {}) });
-  const { phaseComplete } = advanceFloor(state);
+  const { noteComplete } = advanceFloor(state);
   stampSlot(state);   // the clock restarts for whichever slot just opened (no-op untimed / at verdict)
-  // the commentary track: after a completed phase (both sides spoke), one running read.
-  if (phaseComplete && state.phase !== 'verdict' && state.notesOn !== false) {
+  // the commentary track: the MODULE declares where an exchange completes (noteAfter).
+  if (noteComplete && state.phase !== 'verdict' && state.notesOn !== false) {
     try {
-      const phaseTurns = state.turns.filter((t) => t.role === role);
+      const fmt = stateFormat(state);
       const note = await runningNote({
         domain: state.domain, motion: state.motion,
         seatA_role: 'PRO', seatB_role: 'CON',
-        lastExchange: phaseTurns.map((t) => ({ seat: t.seat, role: t.role, text: adjText(t) })),
+        lastExchange: exchangeTurns(state).map((t) => ({ seat: t.seat, role: `${speakerTag(fmt, t.seat)} · ${t.role}`, text: adjText(t) })),
         momentumA: 50,
         difficulty: state.difficulty,
       });
@@ -301,11 +329,15 @@ async function adjudicate(state: BFState): Promise<void> {
   if (state.judging || state.verdict) return;
   state.judging = true;
   try {
+    const fmt = stateFormat(state);
     const v = await finalVerdict({
       domain: state.domain,
       motion: state.motion,
       difficulty: state.difficulty,
-      fullTranscript: state.turns.map((t) => ({ seat: t.seat, role: t.role, text: adjText(t) })),
+      formatLabel: fmt.label,
+      fullTranscript: state.turns.map((t) => ({ seat: t.seat, role: t.role, tag: speakerTag(fmt, t.seat), text: adjText(t) })),
+      // the speaker roster for §3.3 per-speaker scores — every seat that HELD a slot
+      speakers: [...new Set(fmt.order.map((o) => o.seat))].map((seat) => ({ seat, tag: speakerTag(fmt, seat), roles: fmt.order.filter((o) => o.seat === seat).map((o) => o.label).join(', ') })),
       hasForfeits: state.turns.some((t) => t.lapsed),
     });
     state.verdict = v;
@@ -340,12 +372,12 @@ export async function forceLapse(state: BFState, seats: any[]): Promise<BFState>
 }
 
 export const battlefieldDuelAdapter = {
-  minSeats: 2, maxSeats: 2, humanOnly: false,
+  minSeats: 2, maxSeats: 6, humanOnly: false,   // phase 3: pf 2v2 (4 seats), ap 3v3 (6)
   // the route calls create(seats, options); the diagnostic calls create({motion,domain}).
   // motion/domain arrive either as the first arg (diagnostic) or in options (route).
   create(a?: any, b?: any) {
     const opts = (a && (a.motion || a.domain)) ? a : (b || {});
-    return newBattlefield({ motion: opts.motion, domain: opts.domain, difficulty: opts.difficulty, notesOn: opts.notesOn, timed: opts.timed, timeScale: opts.timeScale });
+    return newBattlefield({ motion: opts.motion, domain: opts.domain, difficulty: opts.difficulty, notesOn: opts.notesOn, timed: opts.timed, timeScale: opts.timeScale, format: opts.format });
   },
 
   async move(state: BFState, seat: number, mv: any, seats?: any[]): Promise<BFState> {
@@ -358,7 +390,7 @@ export const battlefieldDuelAdapter = {
     const text = String(mv.text || '').trim().slice(0, 1400);
     if (text.length < 10) throw new Error('a speech must carry some weight');
 
-    await recordAndAdvance(state, seat as 0 | 1, text, mv.audio);
+    await recordAndAdvance(state, seat, text, mv.audio);
 
     // if the floor now points at a PERSONA (house) seat, take its turn(s) here — inside
     // async move(), because advanceAI is synchronous and cannot await the model.

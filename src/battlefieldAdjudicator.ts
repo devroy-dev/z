@@ -156,8 +156,23 @@ const SUBMIT_VERDICT_TOOL = {
       manner: { type: 'string', description: '2-3 sentences: the delivery audit for both sides.' },
       verdict_line: { type: 'string', description: 'One line: who wins on Matter and why.' },
       closing: { type: 'string', description: 'One sharp closing line, in your voice.' },
+      speakers: {
+        type: 'array',
+        description: 'Per-speaker tab scores, ONE entry per seat listed in THE SPEAKERS. score: integer 65-85 (tab standard: 70 = solid amateur, 75 = strong, 80+ = exceptional). line: one razor sentence on that speaker alone. A speaker whose every slot was forfeited scores at the floor (65) with the forfeit named. Empty array only when winner is ADJUDICATION_FAILED.',
+        items: {
+          type: 'object',
+          properties: {
+            seat: { type: 'integer', description: 'The seat number, exactly as listed in THE SPEAKERS.' },
+            role: { type: 'string', description: 'The speaker tag as listed (e.g. "PRO 2").' },
+            score: { type: 'integer', description: '65-85, tab standard.' },
+            line: { type: 'string', description: 'One sentence on this speaker.' },
+          },
+          required: ['seat', 'role', 'score', 'line'],
+        },
+      },
+      best_speaker: { type: 'integer', description: 'The seat of the round\'s best individual speaker (may be on the losing side). -1 when winner is ADJUDICATION_FAILED.' },
     },
-    required: ['winner', 'summary', 'matter', 'manner', 'verdict_line', 'closing'],
+    required: ['winner', 'summary', 'matter', 'manner', 'verdict_line', 'closing', 'speakers', 'best_speaker'],
   },
 };
 
@@ -208,6 +223,14 @@ async function runVerdictOneHop(system: any, userContent: string, userId: string
       messages.push({ role: 'user', content: `Your submit_verdict was cut off before the audits were complete. Call submit_verdict again with the SAME winner (${winner}) and summary, but keep matter and manner to 2 tight sentences each so nothing is lost.` });
       continue;
     }
+    const speakers: SpeakerScore[] = (Array.isArray(v.speakers) ? v.speakers : [])
+      .filter((sp: any) => Number.isInteger(sp?.seat))
+      .map((sp: any) => ({
+        seat: sp.seat | 0,
+        role: String(sp.role || '').slice(0, 40),
+        score: Math.max(65, Math.min(85, sp.score | 0)),   // the tab range is LAW, not a suggestion
+        line: String(sp.line || '').slice(0, 300),
+      }));
     return {
       winner,
       summary: String(v.summary || '').slice(0, 1200),
@@ -215,6 +238,8 @@ async function runVerdictOneHop(system: any, userContent: string, userId: string
       manner: String(v.manner || '').slice(0, 1200),
       adjVerdict: String(v.verdict_line || '').slice(0, 600),
       closing: String(v.closing || '').slice(0, 400),
+      speakers,
+      bestSpeaker: Number.isInteger(v.best_speaker) ? v.best_speaker : (speakers.length ? speakers.slice().sort((a: SpeakerScore, b: SpeakerScore) => b.score - a.score)[0].seat : -1),
       raw: JSON.stringify(v).slice(0, 4000),
     };
   }
@@ -227,7 +252,7 @@ async function runVerdictOneHop(system: any, userContent: string, userId: string
 export async function runningNote(args: {
   domain: DebateDomain; motion: string;
   seatA_role: string; seatB_role: string;
-  lastExchange: { seat: 0 | 1; role: string; text: string }[];
+  lastExchange: { seat: number; role: string; text: string }[];   // seat is any team seat (phase 3)
   momentumA: number; difficulty?: 'normal' | 'pro';
 }): Promise<{ swing: number; note: string }> {
   const transcript = args.lastExchange
@@ -254,6 +279,7 @@ export async function runningNote(args: {
 }
 
 // ── the final verdict: the full Matter/Manner adjudication report ──
+export type SpeakerScore = { seat: number; role: string; score: number; line: string };
 export type Verdict = {
   winner: 'PRO' | 'CON';
   summary: string;
@@ -261,16 +287,26 @@ export type Verdict = {
   manner: string;
   adjVerdict: string;   // who wins on Matter, one line
   closing: string;
+  speakers: SpeakerScore[];   // §3.3: per-speaker tab scores (65–85), one razor line each
+  bestSpeaker: number;        // seat of the round's best speaker (-1 if none scorable)
   raw: string;          // full text, for display fallback
 };
 
 export async function finalVerdict(args: {
   domain: DebateDomain; motion: string; difficulty?: 'normal' | 'pro';
-  fullTranscript: { seat: 0 | 1; role: string; text: string }[];
+  fullTranscript: { seat: number; role: string; text: string; tag?: string }[];
+  speakers?: { seat: number; tag: string; roles: string }[];   // §3.3 roster — one score per entry
+  formatLabel?: string;
   hasForfeits?: boolean;   // any [SLOT FORFEITED] turns — appends the forfeit discipline
 }): Promise<Verdict> {
   const transcript = args.fullTranscript
-    .map((s) => `${s.seat === 0 ? 'PRO' : 'CON'} (${s.role}): ${s.text}`).join('\n\n');
+    .map((s) => `${s.tag || (s.seat === 0 ? 'PRO' : 'CON')} (${s.role}): ${s.text}`).join('\n\n');
+  // §3.3: the speaker roster — the judge scores exactly these, by seat. A 1v1 caller
+  // that passes no roster gets the classic two-seat one.
+  const roster = (args.speakers && args.speakers.length)
+    ? args.speakers
+    : [{ seat: 0, tag: 'PRO', roles: 'the PRO case' }, { seat: 1, tag: 'CON', roles: 'the CON case' }];
+  const rosterLine = roster.map((r) => `seat ${r.seat} = ${r.tag} (${r.roles})`).join(' · ');
   // deterministic pre-selection (no model call — CE condition 2): section 8 always,
   // plus the top motion-keyword matches from the index. Rides the DYNAMIC block so the
   // static prefix stays byte-identical with the running notes' — the cache carries
@@ -284,7 +320,11 @@ Call submit_verdict exactly once with your structured adjudication. The winner f
 
 THE REFUSAL: if the transcript gave you nothing to judge — empty or near-empty speeches, gibberish, no genuine argument attempted on either side — set winner to ADJUDICATION_FAILED with a one-line failure_reason. This is for transcripts where honest adjudication is IMPOSSIBLE, never for amateur quality: a weak but genuine attempt still gets a real verdict. Fabricating a winner from nothing is the one sin this bench does not commit.
 
-SEAT LABELS ARE AUTHORITATIVE: attribute every argument to the side LABELED as its speaker, even where the content might sound like the other side's case — a speech that argues against its own side is that speaker's error to weigh, never grounds to reassign the argument. Nothing is ever credited to a [SLOT FORFEITED] turn: a forfeited slot contributed no argument, no evidence, no rebuttal.]` +
+SEAT LABELS ARE AUTHORITATIVE: attribute every argument to the side LABELED as its speaker, even where the content might sound like the other side's case — a speech that argues against its own side is that speaker's error to weigh, never grounds to reassign the argument. Nothing is ever credited to a [SLOT FORFEITED] turn: a forfeited slot contributed no argument, no evidence, no rebuttal.
+
+THE FORMAT: ${args.formatLabel || 'The Duel (1v1)'}. THE SPEAKERS: ${rosterLine}. In team formats the WINNER is the TEAM (PRO or CON) whose case won the clash — role fulfilment weighs in the team audit (a whip or reply speech that smuggles new matter is punished in Matter).
+
+PER-SPEAKER SCORES (§3.3): fill the speakers array with EXACTLY one entry per seat in THE SPEAKERS — tab standard 65-85 (70 solid amateur, 75 strong, 80+ exceptional), one razor line each, judged on that speaker's own slots alone. A speaker whose every slot was forfeited scores 65 with the forfeit named. Set best_speaker to the seat of the round's best individual — best speaker may sit on the losing side.]` +
     (args.hasForfeits ? `\n\n[FORFEITED SLOTS: a turn reading "[SLOT FORFEITED — time expired, no speech was delivered]" is a slot the speaker let lapse at the bell. Weigh the forfeit honestly — an unanswered rebuttal stands unanswered, a skipped closing leaves the case where it lay — but NEVER invent, paraphrase, or imagine content for an unspoken speech; the refusal discipline extends to the unspoken. If EVERY slot was forfeited, that is an ADJUDICATION_FAILED, not a verdict.]` : '') +
     (args.difficulty === 'normal' ? VERDICT_NORMAL : '');
   // cache split (LITE lever 2): identical static prefix to the running notes'.

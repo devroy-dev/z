@@ -308,3 +308,62 @@ the proof standard.
   (link) · public duel in LIVE NOW at once · 49h-aged duel → sweeper marked abandoned →
   410 "ended without a verdict", verdict null forever.
 
+---
+
+## 7 · PHASE 3 — THE FORMAT ENGINE (built 2026-07-13, gates pending)
+
+**Fork #1 executed in full:** formats are authored, versioned JSON — phases as data,
+boot-loaded by DIRECTORY SCAN (a new format is a new file, zero code, no manifest);
+the deterministic HARD floor stays in the duel adapter; `sessionLoop.ts` untouched.
+
+**THE FLOOR LAW:** `slotIndex = turns.length` reading the module's order array —
+`toAct = order[turns.length].seat`, over = array spent, the advance pure arithmetic.
+**Migration-free by proof:** the legacy duel's turn sequence matches `duel.json`'s
+order exactly, so live sessions inherit the new law without a shim; a state without
+`formatKey` resolves to duel. `phaseIndex` is redefined as the slot index (the
+floor's true counter); `phase` stays the current slot's role for display.
+
+**Format knowledge moved into the modules:** per-slot `job` text (what a PM must
+establish; a whip's no-new-matter law; a reply as biased adjudication) and
+`noteAfter` flags (where the commentary drops — module-declared exchange points, so
+AP's 8 distinct roles don't fire 8 notes). The house reads side/label/job/team
+context from the slot; `phaseJob()` deleted. **Modules authored:** duel (6 slots,
+jobs + note points added), **pf 2v2** (Constructive A1→B1, Rebuttal A2→B2, Summary
+A1→B1, Final Focus A2→B2; 180/150/120/90s), **ap 3v3** (PM→LO→DPM→DLO→GW→OW→Opp
+Reply→Gov Reply; 180s substantive, 90s replies; government closes). Declared
+deviations: spec §3.1's optional `replies` array is FOLDED into `order` (one floor
+law, one array; reply-ness lives in job + seconds); AP replies authored to the 1st
+speaker (spec allows 1st/2nd).
+
+**Per-speaker scores (§3.3):** `submit_verdict` schema gains `speakers` (one entry
+per rostered seat: 65–85 tab standard, clamped in code — the range is law — one
+razor line each) + `best_speaker` (may sit on the losing side; -1 on
+ADJUDICATION_FAILED, empty array allowed only there). The verdict task carries THE
+FORMAT + THE SPEAKERS roster + team-verdict law (winner is the TEAM; role fouls
+punished in Matter). Transcript rendered with speaker tags (PRO 2 (Rebuttal): …).
+NORMAL bedside manner applies per speaker. Cached prefix untouched — everything
+rides the dynamic block.
+
+**Routes:** `practice/start` + `duel/start` + `test-duel` accept `format` (unknown
+keys 400 in register). Practice: the house fills EVERY non-creator seat (§3.1 —
+mixed human/AI teams for free; 3v3-with-house IS team practice). Duel: coin-flip the
+creator's SIDE, seat them first on it, the rest open for join/claim. Join responses
+derive side from the module. The record's `sides` and `format_key` are
+module-grouped. Adapter bounds 2–6 seats.
+
+**Local deterministic proofs (dummy env, zero model):** all three formats walked
+their full order arrays with the correct seat at every slot; out-of-turn refused at
+all 22 slots; verdict reached with `toActSeat=-1` and the loud-failure path intact
+(no fabricated winner); PF slot 180s / AP 0.5× → 90s off the modules; legacy
+formatKey-less state resolves duel.
+
+**Explicitly NOT in this ruling's scope (spec items awaiting their own sittings):**
+§3.2 adjudicator format content modules (`debate-format-*.md` — the `adjModule`
+field is authored but unread), §3.4 prep rooms + GM summon, watch-page team
+rendering (shows seats 0/1 only — native sitting), challenges stay 1v1 by product.
+
+**Gates (owner-run, live):** PF end-to-end on module definition alone with a mixed
+team · out-of-turn refuses on the live route post-generalization · thin-transcript
+refusal re-runs on the new schema · per-speaker scores + best speaker land · the
+duel format re-runs its full loop (regression).
+
