@@ -168,3 +168,14 @@ The phone→browser keystroke proof has not succeeded yet. Two watch.html bugs b
 - **The cost gate:** pinned `test-duel` before/after; projected 8-speech AP adjudication ≤ today's 1v1 (₹9.97 recorded baseline); numbers into the APPLY.
 
 **Not touched:** `sessionLoop.ts`, migrations, native, `debateDuel.ts` (the arena's light duel keeps its own judge).
+
+**GATES RUN & PASSED (owner, 2026-07-13, live server — phase 1 CLOSED):**
+- P1 refusal: same garbage transcript that the OLD code adjudicated into a fabricated
+  CON-by-forfeit (baseline captured live, pre-patch) now returns `adjudication_failed
+  (adjudicator refusal)` with a plain reason, no winner. The before/after pair is on record.
+- P2 regression: real verdict, audits intact, `bf_verdict.calls` 3 → 1.
+- P3 cost (same-transcript before → after): verdict ₹1.2809 → ₹0.6686 (−48%); notes
+  ₹0.8808 → ₹0.3862 (−56%); adjudicator ₹2.1617 → ₹1.0548 (−51%); duel ₹2.5381 → ₹1.3861.
+  **AP projection ₹1.58** (0.6686×1.6 + 0.3862×4/3) — under the strict ₹9.41 bar ~6×,
+  and under the like-for-like old 1v1 adjudication. Team-format prerequisite MET.
+- P4 tier: practice creates `notesOn: false`; duel/start stays on.
