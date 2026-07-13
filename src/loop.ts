@@ -54,7 +54,7 @@ export async function runZTurn(input: ZTurnInput): Promise<ZTurnResult> {
   // load the thread (the persona instance)
   const { data: thread } = await supabase
     .from('threads')
-    .select('id, user_id, persona_key, codex_key, companion_name, companion_gender, game_mode')
+    .select('id, user_id, persona_key, codex_key, companion_name, companion_gender, game_mode, is_session')
     .eq('id', threadId).eq('user_id', userId).is('deleted_at', null)
     .maybeSingle();
   if (!thread) throw new Error('thread not found');
@@ -700,9 +700,13 @@ YOUR HANDS — tags, each on its OWN line; the app makes them real and the guest
   // anchor, moderator) are practice spaces — drill answers, spar stances, and
   // intake details must never become biography. They read no memory (zip04)
   // and now write none.
-  if (!institutional) void harvestMemory(userId, threadId, message, reply);
-  if (!institutional) void harvestThreads(userId, threadId, String(t.persona_key || ''), message, reply);   // [§7 · CE ruling] the engine records the saga, tag or no tag
-  if (t.persona_key === 'the_wanderer') void harvestTrip(userId, threadId, message);   // [zip74] the engine records the trip, tag or no tag
+  // [R4 wall belt] Sessions are structurally unreachable here (is_shared returns
+  // from /chat before runZTurn) — this guard makes the exclusion UNCONDITIONAL,
+  // surviving any future routing refactor. The wall does not rely on distance.
+  const inSession = !!(t as any).is_session;
+  if (!institutional && !inSession) void harvestMemory(userId, threadId, message, reply);
+  if (!institutional && !inSession) void harvestThreads(userId, threadId, String(t.persona_key || ''), message, reply);   // [§7 · CE ruling] the engine records the saga, tag or no tag
+  if (t.persona_key === 'the_wanderer' && !inSession) void harvestTrip(userId, threadId, message);   // [zip74] the engine records the trip, tag or no tag
 
   return { reply, usage, model: turnModel, sources, routes };
 }
