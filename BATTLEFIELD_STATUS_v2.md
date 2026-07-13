@@ -367,6 +367,23 @@ team · out-of-turn refuses on the live route post-generalization · thin-transc
 refusal re-runs on the new schema · per-speaker scores + best speaker land · the
 duel format re-runs its full loop (regression).
 
+**GATES RUN & PASSED (owner, 2026-07-13, live server — phase 3 CLOSED):**
+- G1+G4: PF 2v2 end-to-end on MODULE DEFINITION ALONE — 8 turns in the order
+  array's exact sequence (Constructive 0→2, Rebuttal 1→3, Summary 0→2, Final
+  Focus 1→3), mixed team (house as PRO 2 defended the user's constructive), 3
+  notes at the module's points, real winner, FOUR §3.3 scores all in 65–85 with
+  lines, and bestSpeaker = seat 3 (CON 2) — on the LOSING side, the law's edge
+  proven on the first live run. Full 2v2 cost ₹2.9414 (6 house turns + 3 notes
+  + 1 verdict) — under the ₹9.41 team bar ~3×.
+- G2: out-of-turn refused 409 on the live route post-generalization (two-account
+  duel; the CON holder attempted PRO's Opening).
+- G3: thin-transcript refusal intact on the extended schema — reasoned
+  adjudication_failed, no winner, no fabricated speaker scores.
+- G5: duel regression — 6 turns, 2 notes, real winner, 2 speaker scores +
+  bestSpeaker now present, bf_verdict 1 hop, ₹1.3739 vs phase 1's ₹1.3861:
+  per-speaker scoring landed at ZERO net cost (the cached prefix absorbed the
+  roster + instructions; verdict line item ₹0.6154 vs ₹0.6686).
+
 ---
 
 ## 8 · PHASE 4 — THE ARENA'S FACE (CE-defined 2026-07-13; dedicated UI sitting)
