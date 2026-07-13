@@ -2762,7 +2762,12 @@ app.post('/battlefield/duel/start', async (req, res) => {
     // spectated/shared duel: the commentary tier stays ON — it is the spectator product.
     // §5: timed opt-in; the clock does NOT start here — a floor with an open seat is
     // not live. The join/claim routes stamp the first slot when the LAST seat fills.
-    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: true, timed: req.body?.timed === true, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1, format: bfFmt.key });
+    // [0067] ranked opt-in at create (spec §9): forces the clock; this route's
+    // floors are already public + commentary-on. Seats are open for HUMANS by
+    // construction here — the house never sits a duel/start floor.
+    const bfRanked = req.body?.ranked === true;
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: true, timed: req.body?.timed === true || bfRanked, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1, format: bfFmt.key });
+    if (bfRanked) (state as any).ranked = true;
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();

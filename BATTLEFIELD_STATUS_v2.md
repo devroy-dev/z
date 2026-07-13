@@ -606,3 +606,49 @@ the watch payload's audio URL plays and EXPIRES after the hour · the private
 bucket refuses unsigned access · an aged record's audio vanishes from both
 buckets on a sweep tick with the stamp set · legacy public URLs still play
 until their sessions age out.
+
+---
+
+## 12 · §9 THE LADDER — 0067 (built 2026-07-13; gates ride the end pass)
+
+The last rung before the end pass. The spec ruled the whole design — no owner
+fork was needed: **ranked = public + timed + commentary-on, OPT-IN at create;
+practice-vs-house and friendly settle-it duels unranked by default; K=32;
+per-format Elo from 1200; team deltas vs the opposing team's average.**
+
+**Shipped:**
+- **Migration `0067_battlefield_ratings.sql`** — the spec's §9 block VERBATIM
+  (ratings table + RLS) plus two declared additions that are the ladder's own
+  plumbing: the leaderboard index (format_key, elo desc) and
+  `battlefield_challenges.ranked` (0064 predates the ladder; opt-in at create
+  must ride the row to the claim). The reserved number is spent as reserved.
+- **The Elo engine** (`settleElo`, arena): K=32, per-format, 1200 start; every
+  member's delta vs the opposing team's average; wins/losses tallied.
+  **Ranked requires every seat human** — the house has no rating; a ranked
+  floor that somehow seated the house settles nothing and logs why.
+  Arithmetic proven on known cases: equal 1v1 ±16 · favorite +8/−8 · upset
+  ±24 · team-vs-average per-member deltas correct.
+- **Settle exactly once:** the record finalize became a live→done
+  COMPARE-AND-FLIP (`.eq('status','live')` fence) — only the call that
+  performs the flip settles Elo. The reconciler healing a missed flip still
+  settles; a re-run on a done record never does. (The fence also hardens the
+  record itself against double-finalize.)
+- **Ranked plumbing:** `duel/start` takes `ranked:true` (forces the clock;
+  those floors are already public + commentary-on; seats are human by
+  construction). `challenge/create` takes `ranked:true` (forces timed, rides
+  the row, response + fight-page GET expose it); at claim the state carries
+  `ranked` and the record goes **public** (spec law) instead of link.
+  `practice/start` untouched — the house is unranked by law.
+- **Read routes:** `GET /battlefield/ladder/:formatKey` (top 50, names only —
+  never ids; watch parity) · `GET /battlefield/rating/me` (auth'd, own rows).
+
+**Not in scope (declared):** the native leaderboard surface (one screen off
+the ladder route — rides a UI follow-on after the end pass); seasons;
+tournaments (spec: a bracket over the record + a public room, tier-gated,
+token prizes never cash — its own sitting when the law-college GTM lands).
+
+**End-pass gates:** a ranked settle-it duel end-to-end settles both players
+±16 from 1200 (first duel, equal ratings) and the ladder route ranks them ·
+an unranked duel settles nothing · re-finalize (reconciler pass on a done
+record) does not double-settle · a ranked challenge renders public in the
+directory · ratings/me returns the row.

@@ -30,7 +30,7 @@ import { supabase } from './db.js';
 import { resolveUser } from './zAccess.js';
 import { evaluateMotion, type MotionAssessment } from './battlefieldMotions.js';
 import { DOMAIN_LABELS, type DebateDomain } from './battlefieldAdjudicator.js';
-import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLapse, battleFormat, battleFormatKeys, type BFState } from './games/battlefieldDuel.js';
+import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLapse, battleFormat, battleFormatKeys, seatSide as bfSeatSideOf, type BFState } from './games/battlefieldDuel.js';
 import { renderCardPNG, type CardData } from './battlefieldCard.js';   // [2b] the share object
 
 const CHALLENGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // spec: challenges expire in 7 days (lazy)
@@ -115,6 +115,52 @@ async function crowdTally(sessionId: string): Promise<{ pro: number; con: number
 // sweeper. A completed duel finalizes even a previously-abandoned row (the record
 // never blocks a real verdict); adjudication_failed is done-without-a-winner —
 // stored as {failed}, never laundered into a verdict shape.
+// ── §9 THE LADDER: Elo settlement ─────────────────────────────────────────
+// K=32, per-format, from 1200. Team duels: each member's delta is computed vs
+// the OPPOSING TEAM'S AVERAGE (spec law). Ranked requires every seat human —
+// the house has no rating; a ranked floor that somehow seated the house
+// settles nothing and says so in the log. Settlement is called ONLY from the
+// finalize path's live→done compare-and-flip, so a duel settles exactly once
+// (the reconciler healing a missed flip still settles; a re-run never does).
+const ELO_K = 32;
+async function settleElo(st: any, seatsArr: any[]): Promise<void> {
+  try {
+    if (!st?.ranked || !st?.verdict?.winner) return;
+    const fmt = battleFormat(st.formatKey || 'duel'); if (!fmt) return;
+    if ((seatsArr || []).some((x: any) => x?.kind !== 'user')) {
+      console.error('[bf-elo] ranked duel carried a non-human seat — no settlement'); return;
+    }
+    const fkey = fmt.key;
+    const players = (seatsArr as any[]).map((x: any, i: number) => ({ id: x.id, seat: i, side: bfSeatSideOf(fmt, i) }));
+    const ids = players.map((p) => p.id);
+    const { data: rows } = await supabase.from('battlefield_ratings').select('*').eq('format_key', fkey).in('user_id', ids);
+    const rowOf: Record<string, any> = {};
+    for (const r of (rows || []) as any[]) rowOf[r.user_id] = r;
+    const cur = (id: string) => rowOf[id]?.elo ?? 1200;
+    const teamAvg = (side: string) => {
+      const t = players.filter((p) => p.side === side);
+      return t.reduce((a, p) => a + cur(p.id), 0) / Math.max(1, t.length);
+    };
+    const proAvg = teamAvg('PRO'), conAvg = teamAvg('CON');
+    const winner = st.verdict.winner;
+    const now = new Date().toISOString();
+    const updates = players.map((p) => {
+      const oppAvg = p.side === 'PRO' ? conAvg : proAvg;
+      const expected = 1 / (1 + Math.pow(10, (oppAvg - cur(p.id)) / 400));
+      const won = p.side === winner;
+      const delta = Math.round(ELO_K * ((won ? 1 : 0) - expected));
+      return {
+        user_id: p.id, format_key: fkey,
+        elo: cur(p.id) + delta,
+        wins: (rowOf[p.id]?.wins ?? 0) + (won ? 1 : 0),
+        losses: (rowOf[p.id]?.losses ?? 0) + (won ? 0 : 1),
+        updated_at: now,
+      };
+    });
+    await supabase.from('battlefield_ratings').upsert(updates, { onConflict: 'user_id,format_key' });
+  } catch (e: any) { console.error('[bf-elo] settlement failed:', e?.message || e); }
+}
+
 export async function finalizeBattlefieldRecord(sessionId: string, live?: { state: BFState; seats: any[] }): Promise<void> {
   try {
     // [gate-1 fix] the move route calls this AFTER the fenced persist, passing the
@@ -141,13 +187,17 @@ export async function finalizeBattlefieldRecord(sessionId: string, live?: { stat
           best_speaker: (st.verdict as any).bestSpeaker ?? -1,
         }
       : (st.error ? { failed: st.error } : null);
-    await supabase.from('battlefield_record').update({
+    // [0067] the live→done COMPARE-AND-FLIP: only the call that performs the flip
+    // settles Elo — re-runs (reconciler on an already-done record, double finalize)
+    // update nothing and settle nothing.
+    const { data: flipped } = await supabase.from('battlefield_record').update({
       status: 'done',
       verdict,
       crowd: await crowdTally(sessionId),
       sides: sidesOf(st, seatsArr),   // refresh — a claimed seat postdates the insert
       ended_at: new Date().toISOString(),
-    }).eq('session_id', sessionId);
+    }).eq('session_id', sessionId).eq('status', 'live').select('session_id').maybeSingle();
+    if (flipped && (st as any).ranked && st.verdict?.winner) await settleElo(st, seatsArr);
   } catch (e: any) { console.error('[bf-record] finalize failed:', e?.message || e); }
 }
 
@@ -206,7 +256,10 @@ export function installBattlefieldArenaRoutes(app: express.Express, authUser: Au
       if (motion.length < 10) return res.status(400).json({ error: 'a motion must carry some weight' });
       const domain = req.body?.domain && DOMAIN_LABELS[req.body.domain as DebateDomain] ? req.body.domain as DebateDomain : undefined;
       const side = String(req.body?.side || 'pro').toLowerCase() === 'con' ? 'con' : 'pro';
-      const timed = req.body?.timed === true;
+      // [0067] ranked is OPT-IN AT CREATE (spec §9): ranked = public + timed +
+      // commentary-on. Opting in forces the clock; the record goes public at claim.
+      const ranked = req.body?.ranked === true;
+      const timed = req.body?.timed === true || ranked;
       const assess: MotionAssessment = await evaluateMotion(motion, domain, me.id, 'normal');
       if (!assess.pass) {
         return res.status(422).json({
@@ -221,13 +274,13 @@ export function installBattlefieldArenaRoutes(app: express.Express, authUser: Au
       const finalDomain = domain || (assess.suggestedDomain !== 'none' ? assess.suggestedDomain as DebateDomain : null);
       const { data: ch, error } = await supabase.from('battlefield_challenges').insert({
         challenger: me.id, motion, domain: finalDomain, format_key: 'duel',
-        challenger_side: side, timed, status: 'open',
+        challenger_side: side, timed, ranked, status: 'open',
       }).select('id').single();
       if (error || !ch) return res.status(500).json({ error: error?.message || 'challenge insert failed' });
       res.json({
         challengeId: ch.id,
         fightPath: `/fight/${ch.id}`,   // rides the claim-link pattern, served like /watch/:id
-        motion, domain: finalDomain, side, timed,
+        motion, domain: finalDomain, side, timed, ranked,
         expiresInDays: 7,
       });
     } catch (e: any) { res.status(500).json({ error: 'challenge create failed: ' + (e?.message || String(e)) }); }
@@ -249,7 +302,7 @@ export function installBattlefieldArenaRoutes(app: express.Express, authUser: Au
         id: ch.id, status: ch.status, motion: ch.motion, domain: ch.domain,
         challengerName, challengerSide: String(ch.challenger_side || 'pro').toUpperCase(),
         yourSide: String(ch.challenger_side || 'pro') === 'pro' ? 'CON' : 'PRO',
-        timed: !!ch.timed, sessionId: ch.session_id || null,
+        timed: !!ch.timed, ranked: !!ch.ranked, sessionId: ch.session_id || null,
         createdAt: ch.created_at,
       });
     } catch (e: any) { res.status(500).json({ error: 'challenge read failed: ' + (e?.message || String(e)) }); }
@@ -282,7 +335,8 @@ export function installBattlefieldArenaRoutes(app: express.Express, authUser: Au
       const conId = ch.challenger_side === 'pro' ? me.id : ch.challenger;
       const seats = [{ kind: 'user', id: proId }, { kind: 'user', id: conId }];
       const domain = ch.domain && DOMAIN_LABELS[ch.domain as DebateDomain] ? ch.domain as DebateDomain : undefined;
-      const state = newBattlefield({ motion: ch.motion, domain, difficulty: 'normal', notesOn: true, timed: !!ch.timed });
+      const state = newBattlefield({ motion: ch.motion, domain, difficulty: 'normal', notesOn: true, timed: !!ch.timed || !!ch.ranked });
+      if (ch.ranked) (state as any).ranked = true;   // [0067] Elo settles at the flip
       stampSlot(state);   // both seats are filled at claim — the floor is LIVE, the clock runs
       const { data: sess, error } = await supabase.from('game_sessions').insert({
         thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: ch.challenger,
@@ -296,7 +350,7 @@ export function installBattlefieldArenaRoutes(app: express.Express, authUser: Au
         .eq('id', ch.id).eq('status', 'open').select('id').maybeSingle();
       if (!flipped) return res.status(409).json({ error: 'someone accepted this challenge first' });
 
-      await insertBattlefieldRecord(sess.id, state, seats, 'link');   // a settled argument is the parties' to share
+      await insertBattlefieldRecord(sess.id, state, seats, ch.ranked ? 'public' : 'link');   // ranked = PUBLIC by law; a friendly settled argument stays the parties' to share
       res.json({
         ok: true, sessionId: sess.id, version: sess.version, roomId: thread.id,
         yourSeat: seats.findIndex((x) => x.id === me.id),
@@ -354,6 +408,41 @@ export function installBattlefieldArenaRoutes(app: express.Express, authUser: Au
         watchPath: `/watch/${r.session_id}`,
       });
     } catch (e: any) { res.status(500).json({ error: 'verdict read failed: ' + (e?.message || String(e)) }); }
+  });
+
+  // ── §9 THE LADDER — the read side ─────────────────────────────────────────
+  // Top 50 by Elo per format. Names only — never user ids or phones (watch parity).
+  app.get('/battlefield/ladder/:formatKey', async (req, res) => {
+    try {
+      const fkey = req.params.formatKey;
+      if (!battleFormatKeys().includes(fkey)) return res.status(400).json({ error: `unknown format '${fkey}'` });
+      const { data: rows } = await supabase.from('battlefield_ratings')
+        .select('user_id, elo, wins, losses, updated_at').eq('format_key', fkey)
+        .order('elo', { ascending: false }).limit(50);
+      const ids = ((rows || []) as any[]).map((r) => r.user_id);
+      const nameById: Record<string, string> = {};
+      if (ids.length) {
+        const { data: us } = await supabase.from('users').select('id, display_name').in('id', ids);
+        for (const u of (us || []) as any[]) nameById[u.id] = u.display_name || 'a debater';
+      }
+      res.json({
+        formatKey: fkey,
+        ladder: ((rows || []) as any[]).map((r, i) => ({
+          rank: i + 1, name: nameById[r.user_id] || 'a debater',
+          elo: r.elo, wins: r.wins, losses: r.losses,
+        })),
+      });
+    } catch (e: any) { res.status(500).json({ error: 'ladder read failed: ' + (e?.message || String(e)) }); }
+  });
+
+  // my own standing, every format I hold a rating in (auth'd — it's YOUR row)
+  app.get('/battlefield/rating/me', async (req, res) => {
+    try {
+      const me = await guard(req, res); if (!me) return;
+      const { data: rows } = await supabase.from('battlefield_ratings')
+        .select('format_key, elo, wins, losses, updated_at').eq('user_id', me.id);
+      res.json({ ratings: rows || [] });
+    } catch (e: any) { res.status(500).json({ error: 'rating read failed: ' + (e?.message || String(e)) }); }
   });
 
   // ── [2b] THE VERDICT CARD — the battlefield's share object ────────────────
