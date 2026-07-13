@@ -262,3 +262,15 @@ auto-advances with the "time" note and the verdict weighs the forfeit without
 invented content · record rows: practice=private, duel=public, challenge=link;
 abandoned never carries a verdict.
 
+**GATE-1 FINDING & FIX (2026-07-13):** the first live run proved the loop end to end
+(422-with-rewrite, own-claim 400, claim-starts-duel, real verdict) but the share
+route answered `still live` — the finalize hook sat BEFORE the session persist and
+re-read pre-verdict state, so the record never flipped. Fixed: finalize runs AFTER
+the fenced persist on both over-paths, carrying the in-memory state (no re-read);
+and the sweeper's job 2 became a RECORD SWEEP that reconciles live records against
+their sessions — a missed finalize heals on the next tick, forever. Also logged:
+settle-it vets at `normal` difficulty (borderline passes by design — a taste motion
+judged 'borderline' minted in gate 1a; the hard 'no' 422 was proven with a cleaner
+specimen). **RULING #4:** should casual settle-it vet at `normal` (borderline
+passes) or `pro` (yes only)?
+

@@ -75,11 +75,18 @@ async function crowdTally(sessionId: string): Promise<{ pro: number; con: number
 // sweeper. A completed duel finalizes even a previously-abandoned row (the record
 // never blocks a real verdict); adjudication_failed is done-without-a-winner —
 // stored as {failed}, never laundered into a verdict shape.
-export async function finalizeBattlefieldRecord(sessionId: string): Promise<void> {
+export async function finalizeBattlefieldRecord(sessionId: string, live?: { state: BFState; seats: any[] }): Promise<void> {
   try {
-    const { data: s } = await supabase.from('game_sessions').select('id, state, seats').eq('id', sessionId).maybeSingle();
-    if (!s) return;
-    const st = (s.state || {}) as BFState;
+    // [gate-1 fix] the move route calls this AFTER the fenced persist, passing the
+    // in-memory state — the old re-read raced the persist and saw pre-verdict state,
+    // so the record never flipped. The reconciler path (no `live`) re-reads.
+    let st: BFState; let seatsArr: any[];
+    if (live) { st = live.state; seatsArr = live.seats; }
+    else {
+      const { data: s } = await supabase.from('game_sessions').select('id, state, seats').eq('id', sessionId).maybeSingle();
+      if (!s) return;
+      st = (s.state || {}) as BFState; seatsArr = s.seats as any[];
+    }
     if ((st.phase as string) !== 'verdict') return;
     const verdict = st.verdict
       ? {
@@ -95,7 +102,7 @@ export async function finalizeBattlefieldRecord(sessionId: string): Promise<void
       status: 'done',
       verdict,
       crowd: await crowdTally(sessionId),
-      sides: sidesOf(s.seats as any[]),   // refresh — a claimed seat postdates the insert
+      sides: sidesOf(seatsArr),   // refresh — a claimed seat postdates the insert
       ended_at: new Date().toISOString(),
     }).eq('session_id', sessionId);
   } catch (e: any) { console.error('[bf-record] finalize failed:', e?.message || e); }
@@ -326,17 +333,31 @@ export function startBattlefieldSweeper(): void {
               .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
               .eq('id', s.id).eq('version', s.version)   // the same concurrency fence as /move
               .select('version').maybeSingle();
-            if (upd && over) await finalizeBattlefieldRecord(s.id);
+            if (upd && over) await finalizeBattlefieldRecord(s.id, { state: state as any, seats: s.seats as any[] });
           } catch (e: any) { console.error('[bf-sweep] lapse failed for', s.id, e?.message || e); }
           continue;   // one job per session per tick — the next tick reassesses
         }
-        // job 2: abandonment
-        if (Date.now() - Date.parse(s.updated_at) > ABANDON_AFTER_MS) {
+      }
+      // job 2: THE RECORD SWEEP — live records reconciled against their sessions.
+      // A session already over with a verdict → finalize (heals any missed flip,
+      // forever); a session unfinished past 48h → abandoned, verdict stays null.
+      const { data: recs } = await supabase.from('battlefield_record')
+        .select('session_id').eq('status', 'live').limit(50);
+      const ids = (recs || []).map((r: any) => r.session_id);
+      if (ids.length) {
+        const { data: sess } = await supabase.from('game_sessions')
+          .select('id, status, state, seats, updated_at').in('id', ids);
+        for (const s2 of (sess || []) as any[]) {
+          const st2 = (s2.state || {}) as BFState;
           try {
-            await supabase.from('battlefield_record')
-              .update({ status: 'abandoned', ended_at: new Date().toISOString() })
-              .eq('session_id', s.id).eq('status', 'live');
-          } catch (e: any) { console.error('[bf-sweep] abandon mark failed for', s.id, e?.message || e); }
+            if (s2.status === 'over' && (st2.phase as string) === 'verdict') {
+              await finalizeBattlefieldRecord(s2.id, { state: st2, seats: s2.seats as any[] });
+            } else if (Date.now() - Date.parse(s2.updated_at) > ABANDON_AFTER_MS) {
+              await supabase.from('battlefield_record')
+                .update({ status: 'abandoned', ended_at: new Date().toISOString() })
+                .eq('session_id', s2.id).eq('status', 'live');
+            }
+          } catch (e: any) { console.error('[bf-sweep] record sweep failed for', s2.id, e?.message || e); }
         }
       }
     } catch (e: any) { console.error('[bf-sweep] tick failed:', e?.message || e); }

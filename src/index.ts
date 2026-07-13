@@ -3826,13 +3826,17 @@ app.post('/games/session/:id/move', async (req, res) => {
           await supabase.from('arena_matches').insert({ user_id: hs.id, game: 'battlefield duel', winner: w, notes });
         }
       } catch (e) { console.error('[battlefield] ledger write failed', e); }
-      try { await finalizeBattlefieldRecord(s.id); } catch (e) { console.error('[battlefield] record finalize failed', e); }   // [0066]
     }
     const { data: upd, error } = await supabase.from('game_sessions')
       .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
       .eq('id', s.id).eq('version', s.version)      // concurrency fence
       .select('version').maybeSingle();
     if (error || !upd) return res.status(409).json({ error: 'lost the race', version: s.version });
+    // [0066][gate-1 fix] finalize AFTER the persist won the fence, with the in-memory
+    // state — the pre-persist hook re-read the DB and saw pre-verdict state.
+    if (over && s.game === 'battlefield_duel') {
+      try { await finalizeBattlefieldRecord(s.id, { state, seats: s.seats }); } catch (e) { console.error('[battlefield] record finalize failed', e); }
+    }
     res.json({ ok: true, version: upd.version, over });
   } catch (e: any) { res.status(500).json({ error: e?.message || String(e) }); }
 });
@@ -3892,12 +3896,15 @@ app.post('/battlefield/duel/:sessionId/voice-turn', express2.raw({ type: 'audio/
           await supabase.from('arena_matches').insert({ user_id: hs.id, game: 'battlefield duel', winner: w, notes });
         }
       } catch (e) { console.error('[voice-turn] ledger write failed', e); }
-      try { await finalizeBattlefieldRecord(s.id); } catch (e) { console.error('[battlefield] record finalize failed', e); }   // [0066]
     }
     const { data: upd, error } = await supabase.from('game_sessions')
       .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
       .eq('id', s.id).eq('version', s.version).select('version').maybeSingle();
     if (error || !upd) return res.status(409).json({ error: 'lost the race', version: s.version });
+    // [0066][gate-1 fix] finalize post-persist with the in-memory state (voice path)
+    if (over && s.game === 'battlefield_duel') {
+      try { await finalizeBattlefieldRecord(s.id, { state, seats: s.seats }); } catch (e) { console.error('[battlefield] record finalize failed', e); }
+    }
     res.json({ ok: true, transcript, audioUrl, version: upd.version, over });
   } catch (e: any) { res.status(500).json({ error: 'voice turn failed: ' + (e?.message || String(e)) }); }
 });
