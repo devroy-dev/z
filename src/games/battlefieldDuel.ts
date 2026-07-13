@@ -245,9 +245,14 @@ async function houseTurn(state: BFState): Promise<string> {
   const side: 'PRO' | 'CON' = seat === 0 ? 'PRO' : 'CON';
   const phase = state.phase as Phase;
   const transcript = state.turns.length
-    ? state.turns.map((t) => `${t.seat === 0 ? 'PRO' : 'CON'} (${t.role}): ${t.text}`).join('\n\n')
+    ? state.turns.map((t) => `${t.seat === 0 ? 'PRO' : 'CON'} (${t.role}): ${adjText(t)}`).join('\n\n')
     : '(no speeches yet — you open the floor)';
-  const system = `${HOUSE_SOUL}\n\nTHE MOTION: "${state.motion}"\nYOU ARE: ${side}. ${side === 'PRO' ? 'You argue FOR the motion.' : 'You argue AGAINST the motion.'}\nCURRENT PHASE: ${phase}. ${phaseJob(phase, side)}\n\nWrite ONLY your speech — no stage directions, no "as ${side} I would say", just the argument itself. Keep it tight: 3-6 sentences, the register of a serious debate floor.${state.difficulty !== 'pro' ? HOUSE_NORMAL : ''}`;
+  // [gate-3 fix] SIDE DISCIPLINE, hard-bound: a degenerate opposing case (empty,
+  // forfeited, meta, off-topic) once made the house rebut its OWN opening and argue
+  // the other side — a side-flip the closing and the judge then inherited. The side
+  // is law, restated as its own block; an empty opposing case is named on the record
+  // and the slot spent advancing the house's OWN case, never the opponent's.
+  const system = `${HOUSE_SOUL}\n\nTHE MOTION: "${state.motion}"\nYOU ARE: ${side}. ${side === 'PRO' ? 'You argue FOR the motion.' : 'You argue AGAINST the motion.'}\nCURRENT PHASE: ${phase}. ${phaseJob(phase, side)}\n\nSIDE DISCIPLINE (law): every sentence you speak argues ${side} and only ${side}. You NEVER argue the other side's case, NEVER rebut or undercut your own earlier speeches, and NEVER switch sides — even when the opponent's speeches are empty, forfeited ([SLOT FORFEITED]), meta-commentary, or off-topic. If there is genuinely nothing from the opponent to engage, say so in ONE line on the record and spend the rest of the slot building ${side}'s own case.\n\nWrite ONLY your speech — no stage directions, no "as ${side} I would say", just the argument itself. Keep it tight: 3-6 sentences, the register of a serious debate floor.${state.difficulty !== 'pro' ? HOUSE_NORMAL : ''}`;
   try {
     const msg: any = await anthropic.messages.create({
       model: MODEL, max_tokens: 500, temperature: 0.6, system,

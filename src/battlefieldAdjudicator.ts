@@ -238,7 +238,7 @@ export async function runningNote(args: {
   // SDK's TextBlockParam type; the cast keeps the field in the payload.
   const system: any[] = [
     { type: 'text', text: staticPrefix(args.domain), cache_control: { type: 'ephemeral' } },
-    { type: 'text', text: `[TASK: You have just heard ONE completed exchange. Drop your single-sentence live adjudicator note in your own forensic voice — name what landed and what was dropped. Then give the momentum swing.\nOutput EXACTLY two lines, nothing else:\nSWING: <integer -15..15, positive favours PRO, negative favours CON — on MERIT, never on the side>\nNOTE: <one razor line, under 22 words, your live read of this exchange>]` + (args.difficulty === 'normal' ? NOTE_NORMAL : '') },
+    { type: 'text', text: `[TASK: You have just heard ONE completed exchange. Drop your single-sentence live adjudicator note in your own forensic voice — name what landed and what was dropped. Then give the momentum swing.\nOutput EXACTLY two lines, nothing else:\nSWING: <integer -15..15, positive favours PRO, negative favours CON — on MERIT, never on the side>\nNOTE: <one razor line, under 22 words, your live read of this exchange>\nSeat labels are authoritative — attribute arguments to the LABELED speaker only; a [SLOT FORFEITED] turn contributed nothing.]` + (args.difficulty === 'normal' ? NOTE_NORMAL : '') },
   ];
   try {
     const msg = await anthropic.messages.create({
@@ -282,7 +282,9 @@ export async function finalVerdict(args: {
 
 Call submit_verdict exactly once with your structured adjudication. The winner field MUST be the side your matter and manner audits favour — it cannot contradict your own reasoning. Write the prose fields (summary, matter, manner, verdict_line, closing) in your own forensic voice.
 
-THE REFUSAL: if the transcript gave you nothing to judge — empty or near-empty speeches, gibberish, no genuine argument attempted on either side — set winner to ADJUDICATION_FAILED with a one-line failure_reason. This is for transcripts where honest adjudication is IMPOSSIBLE, never for amateur quality: a weak but genuine attempt still gets a real verdict. Fabricating a winner from nothing is the one sin this bench does not commit.]` +
+THE REFUSAL: if the transcript gave you nothing to judge — empty or near-empty speeches, gibberish, no genuine argument attempted on either side — set winner to ADJUDICATION_FAILED with a one-line failure_reason. This is for transcripts where honest adjudication is IMPOSSIBLE, never for amateur quality: a weak but genuine attempt still gets a real verdict. Fabricating a winner from nothing is the one sin this bench does not commit.
+
+SEAT LABELS ARE AUTHORITATIVE: attribute every argument to the side LABELED as its speaker, even where the content might sound like the other side's case — a speech that argues against its own side is that speaker's error to weigh, never grounds to reassign the argument. Nothing is ever credited to a [SLOT FORFEITED] turn: a forfeited slot contributed no argument, no evidence, no rebuttal.]` +
     (args.hasForfeits ? `\n\n[FORFEITED SLOTS: a turn reading "[SLOT FORFEITED — time expired, no speech was delivered]" is a slot the speaker let lapse at the bell. Weigh the forfeit honestly — an unanswered rebuttal stands unanswered, a skipped closing leaves the case where it lay — but NEVER invent, paraphrase, or imagine content for an unspoken speech; the refusal discipline extends to the unspoken. If EVERY slot was forfeited, that is an ADJUDICATION_FAILED, not a verdict.]` : '') +
     (args.difficulty === 'normal' ? VERDICT_NORMAL : '');
   // cache split (LITE lever 2): identical static prefix to the running notes'.

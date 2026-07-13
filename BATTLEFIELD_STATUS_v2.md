@@ -274,3 +274,20 @@ judged 'borderline' minted in gate 1a; the hard 'no' 422 was proven with a clean
 specimen). **RULING #4:** should casual settle-it vet at `normal` (borderline
 passes) or `pro` (yes only)?
 
+**GATE-3 FINDING & FIX (2026-07-13):** the bell machinery proved clean on the first
+live run (lapse at bell+grace+tick, both forfeits on record, house closed, sweeper
+adjudicated, walkover verdict) — but the transcript exposed a SIDE-FLIP: against a
+degenerate (meta, contentless) PRO opening, the house's CON rebuttal argued PRO's
+case (Card-Krueger), the CON closing then called that speech "my opponent's," and
+the adjudicator made the same content-over-label inference — crediting a real
+CON-labeled speech to PRO while PRO's slot read [SLOT FORFEITED]. Not an invention
+of forfeited content; a misattribution cascade seeded by the house. Fixed on three
+surfaces: (1) houseTurn carries a SIDE DISCIPLINE law block — never argue the other
+side, never rebut your own speeches, an empty opposing case is named in one line and
+the slot spent on the house's OWN case; the house also now sees forfeits as explicit
+[SLOT FORFEITED] marks; (2) the verdict task rules SEAT LABELS AUTHORITATIVE — a
+side-contradicting speech is the labeled speaker's error to weigh, never grounds to
+reassign, and nothing is ever credited to a forfeited turn; (3) the running note
+carries the same label line. Gate 3 re-run against the same degenerate opening is
+the proof standard.
+
