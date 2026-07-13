@@ -34,9 +34,43 @@ import { battlefieldDuelAdapter, newBattlefield, stampSlot, slotLapsed, forceLap
 import { renderCardPNG, type CardData } from './battlefieldCard.js';   // [2b] the share object
 
 const CHALLENGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // spec: challenges expire in 7 days (lazy)
+const AUDIO_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;   // §7: the voice lives 30 days; the transcript forever
+const AUDIO_BUCKET = 'battlefield-audio';                // private — signed URLs only (0068)
 const ABANDON_AFTER_MS = 48 * 60 * 60 * 1000;        // declared default: dead past 48h → abandoned
 
 type AuthFn = (req: express.Request) => Promise<string | null>;
+
+// ── §7 VOICE AUDIT: the signer + the retention sweep ─────────────────────
+// A turn's `audio` field is a PATH inside the private bucket (new turns) or a
+// legacy full public URL (pre-audit turns — passed through until retention
+// ages their sessions out). Signing happens AT READ: the watch payload and the
+// voice-turn response carry hour-lived URLs; nothing permanent ever leaves.
+export async function signTurnAudio(turns: any[]): Promise<any[]> {
+  const out: any[] = [];
+  for (const t of (turns || [])) {
+    if (!t?.audio || typeof t.audio !== 'string' || t.audio.startsWith('http')) { out.push(t); continue; }
+    try {
+      const { data } = await supabase.storage.from(AUDIO_BUCKET).createSignedUrl(t.audio, 3600);
+      out.push({ ...t, audio: data?.signedUrl || null, audioExpired: !data?.signedUrl });
+    } catch { out.push({ ...t, audio: null, audioExpired: true }); }
+  }
+  return out;
+}
+
+// purge a finished session's audio from BOTH buckets (the private one and the
+// legacy public 'duel-audio'); stamp the record so the sweep runs exactly once.
+async function purgeSessionAudio(sessionId: string): Promise<void> {
+  for (const bucket of [AUDIO_BUCKET, 'duel-audio']) {
+    try {
+      const { data: files } = await supabase.storage.from(bucket).list(sessionId, { limit: 100 });
+      const paths = (files || []).map((f: any) => `${sessionId}/${f.name}`);
+      if (paths.length) await supabase.storage.from(bucket).remove(paths);
+    } catch { /* a missing bucket or empty prefix is a clean no-op */ }
+  }
+  await supabase.from('battlefield_record')
+    .update({ audio_purged_at: new Date().toISOString() })
+    .eq('session_id', sessionId).is('audio_purged_at', null);
+}
 
 // ── THE RECORD ────────────────────────────────────────────────────────────
 
@@ -485,6 +519,18 @@ export function startBattlefieldSweeper(): void {
           } catch (e: any) { console.error('[bf-sweep] record sweep failed for', s2.id, e?.message || e); }
         }
       }
+      // job 3: §7 AUDIO RETENTION — finished duels older than 30 days lose their
+      // voice (both buckets), keep their transcript. Stamped once per record.
+      try {
+        const cutoff = new Date(Date.now() - AUDIO_RETENTION_MS).toISOString();
+        const { data: aged } = await supabase.from('battlefield_record')
+          .select('session_id').lt('ended_at', cutoff).is('audio_purged_at', null)
+          .not('ended_at', 'is', null).limit(10);
+        for (const r of (aged || []) as any[]) {
+          try { await purgeSessionAudio(r.session_id); }
+          catch (e: any) { console.error('[bf-sweep] audio purge failed for', r.session_id, e?.message || e); }
+        }
+      } catch (e: any) { console.error('[bf-sweep] retention scan failed:', e?.message || e); }
     } catch (e: any) { console.error('[bf-sweep] tick failed:', e?.message || e); }
     finally { sweeping = false; }
   };

@@ -566,3 +566,43 @@ browser green room + browser tab/clock land there).
 second device · green room messages cross devices live · spectator clock
 matches the debater's · lapsed slots render as rule lines in the watch · a PF
 watch shows 4 tagged debaters + the module rail.
+
+---
+
+## 11 · §7 VOICE AUDIT (built 2026-07-13; gates ride the end pass)
+
+Drift flag #3 resolved as its own sitting. **The defect:** duel audio rode a
+PUBLIC `duel-audio` bucket via `getPublicUrl` — permanent URLs to a debater's
+voice, replayable by anyone forever. **The law (spec §7):** private bucket,
+signed URLs, 30-day audio retention; the transcript is forever, the voice is
+not.
+
+**Shipped:**
+- **Migration `0068_battlefield_audio_retention.sql`** — creates the PRIVATE
+  `battlefield-audio` bucket (idempotent, no public policy; service role
+  signs) + `audio_purged_at` on the record (the sweep-once stamp).
+  Reserved-block law held: 0067 stays reserved for ratings.
+- **voice-turn route:** uploads to the private bucket; the TURN carries the
+  PATH (`<sessionId>/<turnIdx>.<ext>`), never a URL; the response mints an
+  hour-lived signed URL for the speaker's own playback. Transcription
+  unchanged (Sarvam; the adjudicator never knows it was spoken).
+- **Signing at read:** `signTurnAudio` (arena export) — the watch payload maps
+  path-borne turns to hour-lived signed URLs; expired/missing audio marks
+  `audioExpired` honestly. Legacy full-URL turns pass through untouched until
+  retention ages their sessions out.
+- **Retention (sweeper job 3):** finished records older than 30 days, not yet
+  stamped → purge the session's audio from BOTH buckets (private + legacy
+  `duel-audio`), stamp `audio_purged_at`. 10 per tick.
+
+**Scope held:** this is the AUDIT (privacy + retention). The voice TIER's
+device work — hold-to-record on the slot, hard-stop at the bell, the play bar
+in DuelWatch/DuelLive, the 🎙 "speaking…" frame on the keystroke channel,
+Sarvam's language flag — is F2/phase 5's own sitting; no native voice UI
+exists yet (grep-confirmed), so nothing client-side needed changing for the
+audit itself.
+
+**End-pass gates:** a voice turn stores a PATH on the turn (state inspect) ·
+the watch payload's audio URL plays and EXPIRES after the hour · the private
+bucket refuses unsigned access · an aged record's audio vanishes from both
+buckets on a sweep tick with the stamp set · legacy public URLs still play
+until their sessions age out.

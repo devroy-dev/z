@@ -46,7 +46,7 @@ import { listFollows, addFollow, removeFollow, yourDesk, factCheck, listFactChec
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
   mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted, manualAnalytics, rateCard, refreshDeskNote } from './mmDesk.js';   // [zip54k] [0056] [§5.4 no-migration] [fixes-B]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
-import { installBattlefieldArenaRoutes, startBattlefieldSweeper, insertBattlefieldRecord, finalizeBattlefieldRecord } from './battlefieldArena.js';   // [BF phase 2] settle-it + record + directory + share + sweeper
+import { installBattlefieldArenaRoutes, startBattlefieldSweeper, insertBattlefieldRecord, finalizeBattlefieldRecord, signTurnAudio as bfSignTurnAudio } from './battlefieldArena.js';   // [BF phase 2] settle-it + record + directory + share + sweeper · [§7] signed audio
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
 import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.js';
 import * as LD from './games/liarsdice.js';
@@ -2659,7 +2659,8 @@ app.get('/battlefield/watch/:sessionId', async (req, res) => {
       motion: st.motion, domain: st.domain, phase: st.phase,
       formatKey: (st as any).formatKey || 'duel',
       timed: !!(st as any).timed, slotStartedAt: (st as any).slotStartedAt || null, slotSeconds: (st as any).slotSeconds || null,
-      turns: st.turns || [], notes: st.notes || [],
+      turns: await bfSignTurnAudio(st.turns || []),   // [§7] paths → signed URLs at read time
+      notes: st.notes || [],
       verdict: st.verdict || null, winner: st.winner || null, error: st.error || null,
     });
   } catch (e: any) { res.status(500).json({ error: 'watch failed: ' + (e?.message || String(e)) }); }
@@ -3891,18 +3892,29 @@ app.post('/battlefield/duel/:sessionId/voice-turn', express2.raw({ type: 'audio/
     catch (e: any) { return res.status(502).json({ error: 'could not transcribe: ' + (e?.message || String(e)) }); }
     if (transcript.length < 10) return res.status(400).json({ error: 'a speech must carry some weight — we could not hear enough' });
 
-    // 2) store the audio so spectators can hear it (public bucket 'duel-audio')
+    // 2) store the audio so spectators can hear it — [§7 AUDIT] the bucket is
+    // PRIVATE ('battlefield-audio'); the turn carries the PATH, never a URL.
+    // Readers (the watch payload, this response) mint SIGNED URLs at read time;
+    // the voice is replayable for 30 days (the retention sweep), the transcript
+    // forever. Legacy turns holding full public URLs pass through untouched
+    // until their sessions age out of retention.
     const turnIdx = ((s.state?.turns as any[]) || []).length;
     const ext = mime.includes('mp4') || mime.includes('m4a') ? 'm4a' : mime.includes('wav') ? 'wav' : 'webm';
-    let audioUrl: string | null = null;
+    const audioPath = `${s.id}/${turnIdx}.${ext}`;
+    let audioStored = false;
     try {
-      await supabase.storage.from('duel-audio').upload(`${s.id}/${turnIdx}.${ext}`, audio, { contentType: mime.split(';')[0], upsert: true });
-      audioUrl = supabase.storage.from('duel-audio').getPublicUrl(`${s.id}/${turnIdx}.${ext}`).data?.publicUrl || null;
+      await supabase.storage.from('battlefield-audio').upload(audioPath, audio, { contentType: mime.split(';')[0], upsert: true });
+      audioStored = true;
     } catch (e) { console.error('[voice-turn] audio store failed', e); }
+    let audioUrl: string | null = null;   // the speaker's own immediate playback — signed, short-lived
+    if (audioStored) {
+      try { audioUrl = (await supabase.storage.from('battlefield-audio').createSignedUrl(audioPath, 3600)).data?.signedUrl || null; }
+      catch (e) { /* signing is best-effort — the path is on the turn regardless */ }
+    }
 
-    // 3) submit the turn (transcript = speech; audio attached to the turn)
+    // 3) submit the turn (transcript = speech; the audio PATH rides the turn)
     let state = s.state;
-    try { state = await engine.move(state, mySeat, { type: 'speech', text: transcript, audio: audioUrl }, s.seats); }
+    try { state = await engine.move(state, mySeat, { type: 'speech', text: transcript, audio: audioStored ? audioPath : null }, s.seats); }
     catch (err: any) { return res.status(400).json({ error: err?.message || 'illegal move' }); }
     state = advanceAI(engine, state, s.seats);
     const over = engine.isOver(state);
