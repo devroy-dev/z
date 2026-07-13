@@ -291,3 +291,20 @@ reassign, and nothing is ever credited to a forfeited turn; (3) the running note
 carries the same label line. Gate 3 re-run against the same degenerate opening is
 the proof standard.
 
+**GATES RUN & PASSED (owner, 2026-07-13, live server — phase 2 CLOSED):**
+- G1 settle-it: 422-with-rewrite (hard-'no' motion) · own-claim 400 · claim by a second
+  test account (+919888294440) started the duel with both seats filled · full duel, real
+  verdict (PRO on the confound) · share route served the card's whole substance
+  logged-out. Two fixes shipped mid-gate: finalize post-persist w/ in-memory state +
+  sweeper reconciler (which healed the stuck record on its first tick, as designed).
+- G2 expiry: aged row → claim 410 in register, status flipped expired; the second run
+  proved idempotence (expired stays expired, same refusal).
+- G3 the bell (re-run post side-discipline fix): PRO Rebuttal + Closing forfeited on
+  record at bell+grace+tick, house stayed CON through all three speeches (named the
+  degenerate opening in one line, built its own case), closing attributed truly, and
+  the verdict credited PRO nothing while stating the honest limit: "The two forfeited
+  slots mean CON's case was never tested."
+- G4 record rules: practice → 404 (private) · challenge duel absent from the directory
+  (link) · public duel in LIVE NOW at once · 49h-aged duel → sweeper marked abandoned →
+  410 "ended without a verdict", verdict null forever.
+
