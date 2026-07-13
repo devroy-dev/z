@@ -518,3 +518,51 @@ at ~26 chars.
 
 **Not in scope:** in-app PNG export via view-shot (the server PNG is the share
 asset; a native "save card" button can ride a later polish sitting).
+
+---
+
+## 10 · WATCH / GREEN-ROOM POLISH (built 2026-07-13; gates ride the end pass)
+
+The census found DEFECTS, not just polish:
+
+**D1 — the vote never cast (fixed):** the native watch set LOCAL state only —
+`setVote('PRO')` with no server call — so the crowd tally never moved from any
+app spectator. Now wired: `castBattlefieldVote` → POST /battlefield/watch/:id/
+vote (one verified viewer, one vote, changeable until the gavel); the tally
+lands from the response and shows LIVE in the vote dock; a failed cast surfaces
+in register and clears the local mark (the probe law — a vote that didn't land
+never looks landed).
+
+**D2 — format-blind spectator surface (fixed):** hardcoded PRO=seat0, a
+hardcoded 3-phase rail, "the challenger / the house" labels wrong for
+human-vs-human AND teams, and LAPSED turns rendered as speech bubbles. Now: the
+watch ENDPOINT returns every seat with side+tag from the module (+ formatKey,
+timed, slotStartedAt, slotSeconds), and the surface renders the module rail,
+real names + tags on bubbles and the live-typing frame, and lapsed slots as the
+on-record rule line (DuelLive's exact pattern).
+
+**Also shipped:**
+- SpectatorClock — the same truth the debaters see (slotStartedAt/slotSeconds
+  off the watch payload; server owns the bell).
+- The verdict view completed: verdict LINE, THE TAB (scores + ★), the closing,
+  and the final crowd tally with the agree/disagree line ("that gap is the
+  whole point").
+- **THE GREEN ROOM** — spectators reacting live: an EPHEMERAL broadcast channel
+  per session (`bfgreen-<sessionId>`, realtime.js helpers on the duel-channel
+  singleton discipline), registered users post under their display name, last
+  60 render in a collapsible dock above the vote dock. No table, no
+  persistence BY DESIGN — the transcript is the record, the green room is the
+  noise around it (declared default; flip to persisted if ruled).
+- Vote buttons carry the debaters' NAMES by side.
+
+**Left alone deliberately:** the live-keystroke path (channel names verified
+matching app↔browser — `duel-<threadId>` both sides; the old A0 "not visible in
+browser" is unproven against current code and rides the end pass — never re-fix
+the unproven); watch.html (the PWA parity spec owns the browser side —
+browser green room + browser tab/clock land there).
+
+**Claude gates:** esbuild + eslint no-undef on DuelWatch/realtime/api (exit-0)
+· server build exit-0. **End-pass gates:** vote cast moves the tally on a
+second device · green room messages cross devices live · spectator clock
+matches the debater's · lapsed slots render as rule lines in the watch · a PF
+watch shows 4 tagged debaters + the module rail.

@@ -161,6 +161,33 @@ export function unsubscribeInbox() {
 //  Rides a SEPARATE channel from chat (its own singleton) so the two never
 //  collide. Only the active debater sends; opponent + spectators receive.
 // ════════════════════════════════════════════════════════════════════════
+// ── [watch polish] THE GREEN ROOM — spectators reacting live. Ephemeral by design:
+// a broadcast channel per SESSION (bfgreen-<sessionId>), no persistence, no table —
+// the reaction lives with the performance. Registered users only (the caller sends
+// a display name it fetched auth'd); the transcript is the record, the green room
+// is the noise around it. Same singleton discipline as the duel channels.
+let _greenChannel = null;
+let _greenSessionId = null;
+export async function openGreenRoom(sessionId, onMsg) {
+  const sb = await getClient();
+  if (!sb) return () => {};
+  if (_greenChannel && _greenSessionId === sessionId) return () => {};
+  try { if (_greenChannel) sb.removeChannel(_greenChannel); } catch (e) {}
+  _greenSessionId = sessionId;
+  _greenChannel = sb.channel('bfgreen-' + sessionId, { config: { broadcast: { self: true } } })
+    .on('broadcast', { event: 'msg' }, (p) => { if (p && p.payload) onMsg(p.payload); });
+  await new Promise((resolve) => { _greenChannel.subscribe(() => resolve()); setTimeout(resolve, 1200); });
+  return () => { try { sb.removeChannel(_greenChannel); } catch (e) {} _greenChannel = null; _greenSessionId = null; };
+}
+export function sendGreenRoom(sessionId, msg) {
+  if (!_greenChannel || _greenSessionId !== sessionId) return;
+  try { _greenChannel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (e) {}
+}
+export function closeGreenRoom() {
+  _greenSessionId = null;
+  if (_greenChannel) { getClient().then((sb) => { try { sb && sb.removeChannel(_greenChannel); } catch (e) {} _greenChannel = null; }); }
+}
+
 let _duelChannel = null;
 let _duelThreadId = null;
 let _duelSendChannel = null;

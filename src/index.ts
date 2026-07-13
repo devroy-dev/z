@@ -52,7 +52,7 @@ import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.j
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
-import { stampSlot as bfStampSlot, battleFormat as bfFormat, seatSide as bfSeatSide, battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
+import { stampSlot as bfStampSlot, battleFormat as bfFormat, seatSide as bfSeatSide, speakerTag as bfSpeakerTag, battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
 import { evaluateMotion, generateMotions } from './battlefieldMotions.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
@@ -2641,7 +2641,10 @@ app.get('/battlefield/watch/:sessionId', async (req, res) => {
       for (const u of (us || [])) nameById[u.id] = u.display_name || 'a debater';
     }
     const bfName = (x: any) => x?.kind === 'user' ? (nameById[x.id] || 'a debater') : x?.kind === 'persona' ? 'the House' : '(open)';
-    const debaters = [0, 1].map((i) => ({ seat: i, side: i === 0 ? 'PRO' : 'CON', name: bfName(bfSeats[i]) }));
+    // [watch polish] format-aware: EVERY seat, side+tag from the module (teams render true)
+    const wFmt = bfFormat((st as any).formatKey || 'duel')!;
+    const wSeatIds = [...new Set(wFmt.order.map((o: any) => o.seat))].sort((a: number, b: number) => a - b);
+    const debaters = wSeatIds.map((i: number) => ({ seat: i, side: bfSeatSide(wFmt, i), tag: bfSpeakerTag(wFmt, i), name: bfName(bfSeats[i]) }));
     // the crowd vote tally (counts only — never who voted). PRO vs CON = the two-result design.
     const tally = { pro: 0, con: 0, total: 0 };
     try {
@@ -2654,6 +2657,8 @@ app.get('/battlefield/watch/:sessionId', async (req, res) => {
       id: s.id, version: s.version, status: s.status, threadId: s.thread_id,
       debaters, tally,
       motion: st.motion, domain: st.domain, phase: st.phase,
+      formatKey: (st as any).formatKey || 'duel',
+      timed: !!(st as any).timed, slotStartedAt: (st as any).slotStartedAt || null, slotSeconds: (st as any).slotSeconds || null,
       turns: st.turns || [], notes: st.notes || [],
       verdict: st.verdict || null, winner: st.winner || null, error: st.error || null,
     });

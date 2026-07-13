@@ -461,6 +461,11 @@ export async function claimBattlefieldChallenge(challengeId) {
 export async function getBattlefieldVerdict(sessionId) {
   return authedJSON('GET', `/battlefield/verdict/${sessionId}`);
 }
+// cast (or change) the crowd vote — one verified viewer, one vote, changeable
+// until the gavel. Returns { ok, yourVote, tally }.
+export async function castBattlefieldVote(sessionId, side) {
+  return authedJSON('POST', `/battlefield/watch/${sessionId}/vote`, { side });
+}
 // [zip54d] the client brief — the Media Manager's file on you
 export async function getMmBrief() { return authedJSON('GET', '/mm/brief'); }
 export async function saveMmBrief(brief) { return authedJSON('POST', '/mm/brief', brief); }
