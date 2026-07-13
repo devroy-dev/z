@@ -367,3 +367,39 @@ team · out-of-turn refuses on the live route post-generalization · thin-transc
 refusal re-runs on the new schema · per-speaker scores + best speaker land · the
 duel format re-runs its full loop (regression).
 
+---
+
+## 8 · PHASE 4 — THE ARENA'S FACE (CE-defined 2026-07-13; dedicated UI sitting)
+
+*(appended verbatim per CE ruling)*
+
+PHASE 4 — THE ARENA'S FACE (dedicated UI sitting; lands after phase 3 so the
+surface is built once for all three formats). Server contracts all live or
+landing in phase 3; this sitting is native-only.
+
+1. Battlefield home rebuilt: LIVE NOW (directory `live`) · recent verdicts
+   (`recent`) · three doors — practice / challenge a friend / watch — replacing
+   the two-option stub.
+2. The challenge composer: motion input; on vet refusal render the `assessment`
+   as a teacher not a bouncer — the issues, the note in register, and the
+   restructured motion as a one-tap "use this instead"; side pick; timed toggle;
+   share sheet carrying `fightPath`.
+3. The `/fight/<id>` landing — in-app claim flow (the PWA parity spec's P1 owns
+   the browser side of this same link).
+4. Duel screen: slot clock when `timed` (client renders, server owns truth) ·
+   lapsed markers in the transcript ("time — the slot lapsed unspoken") ·
+   format-aware seat/phase display driven by the format module (duel/PF/AP from
+   one surface).
+5. The verdict screen: full substance in-app (verdict line, matter, manner,
+   closing, crowd tally). The typeset share-PNG is explicitly NOT this sitting —
+   it is phase 2b, the design sitting, owner-gated.
+
+Gates: every door reachable from the rebuilt home · a challenge minted, shared,
+claimed, fought, and its verdict read entirely on glass across two devices · the
+vet's refusal flow usable (refuse → adopt restructured → mint) · a timed duel's
+clock and lapse markers correct against server truth · eslint no-undef + esbuild
+on every touched file · both tracks.
+
+**Corrected ladder:** phase 3 (format engine, server) → phase 4 (this) → 2b
+(card visual, owner's eyes) → watch/green-room polish → §7 voice audit →
+ladder (0067).
