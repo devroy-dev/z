@@ -267,6 +267,7 @@ export type Verdict = {
 export async function finalVerdict(args: {
   domain: DebateDomain; motion: string; difficulty?: 'normal' | 'pro';
   fullTranscript: { seat: 0 | 1; role: string; text: string }[];
+  hasForfeits?: boolean;   // any [SLOT FORFEITED] turns — appends the forfeit discipline
 }): Promise<Verdict> {
   const transcript = args.fullTranscript
     .map((s) => `${s.seat === 0 ? 'PRO' : 'CON'} (${s.role}): ${s.text}`).join('\n\n');
@@ -282,6 +283,7 @@ export async function finalVerdict(args: {
 Call submit_verdict exactly once with your structured adjudication. The winner field MUST be the side your matter and manner audits favour — it cannot contradict your own reasoning. Write the prose fields (summary, matter, manner, verdict_line, closing) in your own forensic voice.
 
 THE REFUSAL: if the transcript gave you nothing to judge — empty or near-empty speeches, gibberish, no genuine argument attempted on either side — set winner to ADJUDICATION_FAILED with a one-line failure_reason. This is for transcripts where honest adjudication is IMPOSSIBLE, never for amateur quality: a weak but genuine attempt still gets a real verdict. Fabricating a winner from nothing is the one sin this bench does not commit.]` +
+    (args.hasForfeits ? `\n\n[FORFEITED SLOTS: a turn reading "[SLOT FORFEITED — time expired, no speech was delivered]" is a slot the speaker let lapse at the bell. Weigh the forfeit honestly — an unanswered rebuttal stands unanswered, a skipped closing leaves the case where it lay — but NEVER invent, paraphrase, or imagine content for an unspoken speech; the refusal discipline extends to the unspoken. If EVERY slot was forfeited, that is an ADJUDICATION_FAILED, not a verdict.]` : '') +
     (args.difficulty === 'normal' ? VERDICT_NORMAL : '');
   // cache split (LITE lever 2): identical static prefix to the running notes'.
   const system: any[] = [

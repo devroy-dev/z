@@ -179,3 +179,86 @@ The phone→browser keystroke proof has not succeeded yet. Two watch.html bugs b
   **AP projection ₹1.58** (0.6686×1.6 + 0.3862×4/3) — under the strict ₹9.41 bar ~6×,
   and under the like-for-like old 1v1 adjudication. Team-format prerequisite MET.
 - P4 tier: practice creates `notesOn: false`; duel/start stays on.
+
+---
+
+## 6 · PHASE 2 — SETTLE IT · THE CLOCK · THE RECORD (built 2026-07-13, gates pending)
+
+**Ruling executed:** the verdict card SPLIT — phase 2 ships the card's SUBSTANCE
+(record + permanent share route + the data shape); **phase 2b is the design sitting**
+(typeset visual, share-PNG, owner's eyes — no card visual ships without it).
+
+**Shipped (server + migrations + one PWA page — no native this sitting; the clock's
+native render + challenge UI ride a later native sitting):**
+
+1. **SETTLE IT — migration `0064_battlefield_challenges.sql`** (+ `timed` column
+   beyond the spec's shape). `POST /battlefield/challenge/create` — `evaluateMotion`
+   fronts every user-authored motion (spec guardrail); a failing motion returns 422
+   WITH the assessment + nearest judgeable rewrite (the consent step — the client
+   re-submits the rewrite, never a silent rewrite, never a bypass). `GET
+   /battlefield/challenge/:id` public read, LAZY 7-day expiry. `POST …/:id/claim` —
+   the accept IS the duel start: both seats fill at claim (the challenge carried the
+   stance; no open-seat wait), same thread/room/session shape as `duel/start`, zero
+   parallel machinery; refusals in register (410 expired, 400 own-challenge, 409
+   already-accepted, races fenced open→accepted). `GET /fight/:id` serves
+   `public/fight.html` (lean crimson landing: motion, stance on offer, OTP, one
+   ACCEPT — script `node --check`'d).
+2. **THE CLOCK (§5) — timers are FORMAT-MODULE DATA** (ruling): `content/battlefield/
+   formats/duel.json` in the spec §3.1 `BattleFormat` shape (6 slots; Opening/Rebuttal
+   120s, Closing 90s; `adjModule` field authored, unread until phase 3), boot-loaded
+   on sessionLoop's exact discipline. Phase 2 reads ONLY per-slot `seconds`
+   (slot = phaseIndex×2 + in-phase turn count); phase 3 flips the floor itself to the
+   order array. State: `timed` (opt-in at create — practice + casual untimed per
+   ruling; ranked-per-module arrives with the ladder), `timeScale` (1|0.5),
+   `slotStartedAt`/`slotSeconds` (camelCase per state conventions; the ruling's
+   snake_case read as conceptual). The clock stamps only on a LIVE floor: practice at
+   create (house always seated), duel/start at JOIN — both join paths stamp inside
+   the same version-fenced update (the generic claim route's stamp is
+   battlefield-guarded; every other game byte-untouched). `move()` rejects past
+   bell+grace(10s) in register; the SWEEPER (60s tick, pings pattern, non-overlapping)
+   force-advances dead slots with the on-record turn `(time — the slot lapsed
+   unspoken)` → `lapsed: true`, house turns follow, a ripe floor adjudicates — never
+   a hang, never a model deciding leniency. **The refusal discipline extends to the
+   unspoken:** lapsed turns render to the adjudicator ONLY as `[SLOT FORFEITED — time
+   expired, no speech was delivered]`; the verdict task (dynamic block — the cached
+   prefix untouched) orders the forfeit weighed honestly, content never invented, and
+   an all-forfeit floor ruled `ADJUDICATION_FAILED`.
+3. **THE RECORD — migration `0066_battlefield_record.sql`** (spec shape). Row at
+   CREATION (LIVE NOW needs live rows): practice `private` (feeds the GM's record
+   line, never the directory), duel/start `public`, challenges `link` (a settled
+   argument is the parties' to share — flip if wrong). Verdict finalizes on BOTH
+   over-paths (move route + voice-turn route — the over-block is duplicated there,
+   found and hooked in both); `adjudication_failed` stores `{failed}`, never
+   laundered into a verdict shape. Abandonment: sweeper marks records whose session
+   sits unfinished past **48h** (declared default) — sessions untouched; a late real
+   completion still finalizes done. `GET /battlefield/directory` — LIVE NOW + RECENT
+   VERDICTS, public rows only, engagement = the real vote tally (**no headcount is
+   invented** — house law). `GET /battlefield/verdict/:sessionId` — the card's
+   substance: public/link rows, read-only, logged-out; private NEVER serves; live →
+   409 with the watch pointer; abandoned/failed → 410 honest.
+
+**Module:** `src/battlefieldArena.ts` (installer + sweeper, the simFloor pattern);
+`index.ts` carries only the wiring + seven anchored hooks. `sessionLoop.ts`
+untouched. Reserved-block law held: 0064 · 0065 HOLE · 0066 · 0067 (ratings awaits
+the ladder).
+
+**DRIFT FLAGS (found this sitting — rulings needed, nothing silently changed):**
+- **Identity:** the live watch endpoint (owner-led) resolves REAL display names;
+  spec guardrail says public-duel identity = handle by default, real-name opt-in.
+  Record/share/challenge read routes mirror the watch's resolution for consistency.
+  **RULING NEEDED** before launch: handles or names on public floors.
+- **Motion vetting:** `duel/start` and `practice/start` accept user-authored motions
+  UNVETTED (owner-led); the guardrail says `evaluateMotion` fronts every
+  user-authored motion. The challenge path vets per spec. **RULING NEEDED:** extend
+  the vet to both start routes, or scope the guardrail to challenges.
+- **Voice audio:** rides a PUBLIC `duel-audio` bucket via `getPublicUrl`; spec §7
+  says private bucket + signed URLs + 30-day retention. Phase 5's audit item.
+
+**Gates (owner-run, in APPLY_BATTLEFIELD_PHASE2.md — the sitting is NOT closed
+until pasted back):** challenge minted → claimed by a second account → duel runs →
+verdict lands on the record → share route serves logged-out · expired challenge
+refuses in register (410) · own-challenge refuses (400) · a lapsed timed slot
+auto-advances with the "time" note and the verdict weighs the forfeit without
+invented content · record rows: practice=private, duel=public, challenge=link;
+abandoned never carries a verdict.
+

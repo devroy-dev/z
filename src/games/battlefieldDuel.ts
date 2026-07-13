@@ -14,12 +14,61 @@
 //  This keeps all async confined to this adapter; ai() stays a no-op.
 // ════════════════════════════════════════════════════════════════════════
 import Anthropic from '@anthropic-ai/sdk';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { llm } from '../llm.js';
 import { logUsage } from '../usage.js';
 import { finalVerdict, runningNote, type DebateDomain, type Verdict } from '../battlefieldAdjudicator.js';
 
 const anthropic = llm();   // [zip35] the second generator — sweep completion
 const MODEL = 'claude-haiku-4-5-20251001';
+
+// ── FORMAT MODULES (fork #1 ruling): formats are AUTHORED, VERSIONED JSON, phases
+// as data, boot-loaded on sessionLoop's exact discipline — zero model cost to load.
+// Phase 2 reads ONLY per-slot seconds off the order array (the timing ruling:
+// timers are format-module data, never engine constants; null = untimed slot);
+// phase 3 flips the floor itself to read the order array. The deterministic hard
+// floor stays HERE, in this adapter — a debate advances by law, never by a model's
+// judgment (the two floors are opposite by product nature; sessionLoop untouched).
+export interface BattleSlot { side: 'pro' | 'con'; seat: number; role: string; label: string; seconds: number | null; }
+export interface BattleFormat { key: string; label: string; perSide: number; order: BattleSlot[]; adjModule?: string; }
+const __bfDir = path.dirname(fileURLToPath(import.meta.url));
+const BF_FORMAT_IDS = ['duel'] as const;
+const bfFormats: Record<string, BattleFormat> = {};
+for (const id of BF_FORMAT_IDS) {
+  try {
+    const p = path.join(__bfDir, '..', 'content', 'battlefield', 'formats', `${id}.json`);
+    bfFormats[id] = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch (e) { console.error('[battlefield] format load failed:', id, e); }
+}
+export const battleFormat = (key: string): BattleFormat | null => bfFormats[key] || null;
+
+// the current slot, deterministically: two slots per phase, in-phase position = turns
+// already taken in this phase. Phase 2's ONLY consumer is the seconds field.
+function currentSlot(state: BFState): BattleSlot | null {
+  const fmt = battleFormat('duel');
+  if (!fmt) return null;
+  const inPhase = state.turns.filter((t) => t.role === (state.phase as string)).length;
+  return fmt.order[state.phaseIndex * 2 + inPhase] || null;
+}
+
+// stamp the clock for the slot that just opened. The server owns the truth:
+// slotStartedAt + slotSeconds live in state; the client renders the countdown.
+// No-op for untimed duels and null-second slots.
+export function stampSlot(state: BFState): void {
+  if (!state.timed || state.phase === 'verdict') { state.slotStartedAt = null; state.slotSeconds = null; return; }
+  const slot = currentSlot(state);
+  const secs = slot?.seconds ?? null;
+  state.slotStartedAt = secs ? new Date().toISOString() : null;
+  state.slotSeconds = secs ? Math.round(secs * (state.timeScale === 0.5 ? 0.5 : 1)) : null;
+}
+
+const GRACE_MS = 10_000;   // the spec's grace(10s) past the bell
+export function slotLapsed(state: BFState): boolean {
+  if (!state.timed || !state.slotStartedAt || !state.slotSeconds || state.phase === 'verdict') return false;
+  return Date.now() > Date.parse(state.slotStartedAt) + state.slotSeconds * 1000 + GRACE_MS;
+}
 
 // ── fact-based motions, each tagged with the adjudicator's domain corpus ──
 export const MOTIONS: { motion: string; domain: DebateDomain }[] = [
@@ -88,7 +137,7 @@ export const MOTIONS: { motion: string; domain: DebateDomain }[] = [
 const PHASES = ['Opening', 'Rebuttal', 'Closing'] as const;
 type Phase = (typeof PHASES)[number];
 
-export type BFTurn = { seat: 0 | 1; role: Phase; text: string; audio?: string | null };
+export type BFTurn = { seat: 0 | 1; role: Phase; text: string; audio?: string | null; lapsed?: boolean };
 export type BFState = {
   kind: 'battlefield_duel';
   motion: string;
@@ -103,6 +152,12 @@ export type BFState = {
   notesOn: boolean;            // the commentary TIER (LITE lever 3): ON for spectated/shared
                                // duels — the commentary is the spectator product — OFF for
                                // private practice. Old sessions lack the field → treated ON.
+  // THE CLOCK (§5, phase 2): per-slot seconds come from the FORMAT MODULE, never
+  // engine constants. Old sessions lack these fields → untimed (regression-safe).
+  timed: boolean;              // opt-in at create; ranked-per-module comes with the ladder
+  timeScale: 1 | 0.5;          // creator scale (spec: 0.5×/1×)
+  slotStartedAt: string | null;   // ISO — stamped when a slot opens on a LIVE floor
+  slotSeconds: number | null;     // this slot's budget after scale (client renders; server owns truth)
   verdict: Verdict | null;
   winner: 'PRO' | 'CON' | null;
   judging: boolean;
@@ -113,7 +168,7 @@ export type BFState = {
 // PRO=0 leads Opening & Closing; CON=1 leads Rebuttal (answers the attack first).
 function leadSeat(phaseIndex: number): 0 | 1 { return phaseIndex === 1 ? 1 : 0; }
 
-export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; difficulty?: 'normal' | 'pro'; notesOn?: boolean }): BFState {
+export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; difficulty?: 'normal' | 'pro'; notesOn?: boolean; timed?: boolean; timeScale?: 1 | 0.5 }): BFState {
   const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
   // pin exactly if both given; else a random motion within the requested domain;
   // else a fully random motion. (domain-only used to fall through to fully random.)
@@ -134,6 +189,10 @@ export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; 
     toAct: leadSeat(0),
     notes: [],
     notesOn: opts?.notesOn === false ? false : true,
+    timed: opts?.timed === true,
+    timeScale: opts?.timeScale === 0.5 ? 0.5 : 1,
+    slotStartedAt: null,   // stamped by the route once the floor is LIVE (both seats filled)
+    slotSeconds: null,
     verdict: null,
     winner: null,
     judging: false,
@@ -202,12 +261,19 @@ async function houseTurn(state: BFState): Promise<string> {
   }
 }
 
+// the adjudicator's view of a turn: a lapsed slot renders as an explicit forfeit —
+// NEVER as text a model could mistake for a delivered speech. The refusal discipline
+// extends to the unspoken: the judge weighs the silence, never imagines its content.
+const FORFEIT_MARK = '[SLOT FORFEITED — time expired, no speech was delivered]';
+function adjText(t: BFTurn): string { return t.lapsed ? FORFEIT_MARK : t.text; }
+
 // record a speech into the transcript, then advance the floor + (optionally) take a
-// running note. Shared by human moves and the house turn.
-async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string, audio?: string | null): Promise<void> {
+// running note. Shared by human moves, the house turn, and the lapse sweeper.
+async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string, audio?: string | null, lapsed?: boolean): Promise<void> {
   const role = state.phase as Phase;
-  state.turns.push({ seat, role, text, audio: audio ?? null });
+  state.turns.push({ seat, role, text, audio: audio ?? null, ...(lapsed ? { lapsed: true } : {}) });
   const { phaseComplete } = advanceFloor(state);
+  stampSlot(state);   // the clock restarts for whichever slot just opened (no-op untimed / at verdict)
   // the commentary track: after a completed phase (both sides spoke), one running read.
   if (phaseComplete && state.phase !== 'verdict' && state.notesOn !== false) {
     try {
@@ -215,7 +281,7 @@ async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string, audio
       const note = await runningNote({
         domain: state.domain, motion: state.motion,
         seatA_role: 'PRO', seatB_role: 'CON',
-        lastExchange: phaseTurns.map((t) => ({ seat: t.seat, role: t.role, text: t.text })),
+        lastExchange: phaseTurns.map((t) => ({ seat: t.seat, role: t.role, text: adjText(t) })),
         momentumA: 50,
         difficulty: state.difficulty,
       });
@@ -234,7 +300,8 @@ async function adjudicate(state: BFState): Promise<void> {
       domain: state.domain,
       motion: state.motion,
       difficulty: state.difficulty,
-      fullTranscript: state.turns.map((t) => ({ seat: t.seat, role: t.role, text: t.text })),
+      fullTranscript: state.turns.map((t) => ({ seat: t.seat, role: t.role, text: adjText(t) })),
+      hasForfeits: state.turns.some((t) => t.lapsed),
     });
     state.verdict = v;
     state.winner = v.winner;
@@ -247,13 +314,33 @@ async function adjudicate(state: BFState): Promise<void> {
   }
 }
 
+// THE LAPSE (§5): the sweeper's deterministic move when a timed slot dies — the
+// forfeit is recorded ON the transcript (an on-record "time" note, never a hang,
+// never a model deciding leniency), the floor advances by the same law as a spoken
+// turn, the house takes any turns now due, and a ripe floor goes to the verdict.
+export async function forceLapse(state: BFState, seats: any[]): Promise<BFState> {
+  if ((state.phase as string) === 'verdict') return state;
+  if (!slotLapsed(state)) return state;   // deterministic guard — never forfeit a live slot
+  await recordAndAdvance(state, state.toAct, '(time — the slot lapsed unspoken)', null, true);
+  const roster: any[] = seats || [];
+  let guard = 0;
+  while ((state.phase as string) !== 'verdict' && guard++ < 8) {
+    const nextSeat = roster[state.toAct];
+    if (!nextSeat || nextSeat.kind !== 'persona') break;
+    const houseText = await houseTurn(state);
+    await recordAndAdvance(state, state.toAct, houseText);
+  }
+  if ((state.phase as string) === 'verdict') await adjudicate(state);
+  return state;
+}
+
 export const battlefieldDuelAdapter = {
   minSeats: 2, maxSeats: 2, humanOnly: false,
   // the route calls create(seats, options); the diagnostic calls create({motion,domain}).
   // motion/domain arrive either as the first arg (diagnostic) or in options (route).
   create(a?: any, b?: any) {
     const opts = (a && (a.motion || a.domain)) ? a : (b || {});
-    return newBattlefield({ motion: opts.motion, domain: opts.domain, difficulty: opts.difficulty, notesOn: opts.notesOn });
+    return newBattlefield({ motion: opts.motion, domain: opts.domain, difficulty: opts.difficulty, notesOn: opts.notesOn, timed: opts.timed, timeScale: opts.timeScale });
   },
 
   async move(state: BFState, seat: number, mv: any, seats?: any[]): Promise<BFState> {
@@ -262,6 +349,7 @@ export const battlefieldDuelAdapter = {
     if ((seats || []).some((x: any) => x?.kind === 'open')) throw new Error('waiting for the opponent to take their seat');
     if (state.phase === 'verdict') throw new Error('the duel is over');
     if (seat !== state.toAct) throw new Error('not your turn');
+    if (slotLapsed(state)) throw new Error('the bell has gone — this slot lapsed; the floor is moving on');
     const text = String(mv.text || '').trim().slice(0, 1400);
     if (text.length < 10) throw new Error('a speech must carry some weight');
 

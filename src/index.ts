@@ -46,12 +46,13 @@ import { listFollows, addFollow, removeFollow, yourDesk, factCheck, listFactChec
 import { ingestAnalytics, analyticsTimeline, deskNotes, startDeskNoteScheduler, writeDeskNote,
   mmTasks, toggleMmTask, mmIdeas, draftIdea, markIdeaPosted, manualAnalytics, rateCard, refreshDeskNote } from './mmDesk.js';   // [zip54k] [0056] [§5.4 no-migration] [fixes-B]
 import { installSimRoutes, startSimScheduler } from './simFloor.js';
+import { installBattlefieldArenaRoutes, startBattlefieldSweeper, insertBattlefieldRecord, finalizeBattlefieldRecord } from './battlefieldArena.js';   // [BF phase 2] settle-it + record + directory + share + sweeper
 import { installFfRoutes, startFfScheduler } from './fantasyLeague.js';
 import { installCustomPersonaRoutes, getCustomPersona } from './customPersonas.js';
 import * as LD from './games/liarsdice.js';
 import { callbreakAdapter, pusoyAdapter, pokerAdapter, ludoAdapter } from './games/adapters.js';
 import { debateDuelAdapter } from './games/debateDuel.js';
-import { battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
+import { stampSlot as bfStampSlot, battlefieldDuelAdapter, MOTIONS } from './games/battlefieldDuel.js';
 import { evaluateMotion, generateMotions } from './battlefieldMotions.js';
 import { triviaDuelAdapter } from './games/triviaDuel.js';
 import { logUsage, costSnapshot, costSince, diagEcho, DIAG_USER_ID } from './usage.js';
@@ -103,6 +104,12 @@ app.use(express.static(join(__dirname2, 'public')));
 // reads the id from the path and streams that specific live duel.
 app.get('/watch/:sessionId', (_req, res) => {
   res.sendFile(join(__dirname2, 'public', 'watch.html'));
+});
+
+// [BF phase 2] the challenge link: /fight/<challengeId> serves the settle-it landing —
+// the motion, the stance on offer, OTP sign-in, one ACCEPT. Served like /watch/:id.
+app.get('/fight/:challengeId', (_req, res) => {
+  res.sendFile(join(__dirname2, 'public', 'fight.html'));
 });
 
 // public config for the browser realtime client (anon key is public by design; RLS protects rows)
@@ -2695,11 +2702,15 @@ app.post('/battlefield/practice/start', async (req, res) => {
     const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
     // commentary tier (LITE lever 3): OFF for private practice — the commentary is the
     // spectator product; practice doesn't need it. Opt back in with {commentary: true}.
-    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: req.body?.commentary === true });
+    // §5: timers are opt-in for practice (untimed default per ruling); the house is
+    // always seated, so a timed practice floor is live from creation — stamp at once.
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: req.body?.commentary === true, timed: req.body?.timed === true, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1 });
+    bfStampSlot(state);
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
     if (error || !sess) return res.status(500).json({ error: error?.message || 'session insert failed' });
+    await insertBattlefieldRecord(sess.id, state, seats, 'private');   // [0066] feeds the GM's record line; never the directory
     res.json({ sessionId: sess.id, version: sess.version });
   } catch (e: any) { res.status(500).json({ error: 'practice start failed: ' + (e?.message || String(e)) }); }
 });
@@ -2730,11 +2741,14 @@ app.post('/battlefield/duel/start', async (req, res) => {
     const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
     const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
     // spectated/shared duel: the commentary tier stays ON — it is the spectator product.
-    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: true });
+    // §5: timed opt-in; the clock does NOT start here — a floor with an open seat is
+    // not live. The join/claim routes stamp the first slot when the second seat fills.
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: true, timed: req.body?.timed === true, timeScale: req.body?.timeScale === 0.5 ? 0.5 : 1 });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
     if (error || !sess) return res.status(500).json({ error: error?.message || 'session insert failed' });
+    await insertBattlefieldRecord(sess.id, state, seats, 'public');   // [0066] LIVE NOW reads this row
     res.json({
       sessionId: sess.id, version: sess.version, roomId: thread.id,
       mySeat: creatorSeat, mySide: creatorSeat === 0 ? 'PRO' : 'CON',
@@ -2764,8 +2778,12 @@ app.post('/battlefield/duel/:id/join', async (req, res) => {
       await supabase.from('room_members').insert({ thread_id: s.thread_id, user_id: user.id, role: 'member' });
     }
     seats[open] = { kind: 'user', id: user.id };
+    // §5: the floor is live the moment the last seat fills — stamp the first slot's
+    // clock in the SAME fenced update (no-op for untimed duels).
+    const joinedState = s.state;
+    if (!seats.some((x: any) => x?.kind === 'open')) bfStampSlot(joinedState);
     const { data: upd } = await supabase.from('game_sessions')
-      .update({ seats, version: s.version + 1, updated_at: new Date().toISOString() })
+      .update({ seats, state: joinedState, version: s.version + 1, updated_at: new Date().toISOString() })
       .eq('id', s.id).eq('version', s.version).select('version').maybeSingle();
     if (!upd) return res.status(409).json({ error: 'someone just took the seat' });
     res.json({ ok: true, seat: open, side: open === 0 ? 'PRO' : 'CON', version: upd.version });
@@ -3744,8 +3762,12 @@ app.post('/games/session/:id/claim', async (req, res) => {
     const open = seats.findIndex((x) => x.kind === 'open');
     if (open < 0) return res.status(409).json({ error: 'table is full' });
     seats[open] = { kind: 'user', id: user.id };
+    // [BF §5] a battlefield duel claimed through the generic route still starts its
+    // clock when the last seat fills — guarded so every other game is byte-untouched.
+    const claimState = s.state;
+    if (s.game === 'battlefield_duel' && !seats.some((x: any) => x?.kind === 'open')) bfStampSlot(claimState);
     const { data: upd } = await supabase.from('game_sessions')
-      .update({ seats, version: s.version + 1, updated_at: new Date().toISOString() })
+      .update({ seats, state: claimState, version: s.version + 1, updated_at: new Date().toISOString() })
       .eq('id', s.id).eq('version', s.version).select('version').maybeSingle();
     if (!upd) return res.status(409).json({ error: 'lost the race' });
     res.json({ ok: true, seat: open });
@@ -3804,6 +3826,7 @@ app.post('/games/session/:id/move', async (req, res) => {
           await supabase.from('arena_matches').insert({ user_id: hs.id, game: 'battlefield duel', winner: w, notes });
         }
       } catch (e) { console.error('[battlefield] ledger write failed', e); }
+      try { await finalizeBattlefieldRecord(s.id); } catch (e) { console.error('[battlefield] record finalize failed', e); }   // [0066]
     }
     const { data: upd, error } = await supabase.from('game_sessions')
       .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
@@ -3869,6 +3892,7 @@ app.post('/battlefield/duel/:sessionId/voice-turn', express2.raw({ type: 'audio/
           await supabase.from('arena_matches').insert({ user_id: hs.id, game: 'battlefield duel', winner: w, notes });
         }
       } catch (e) { console.error('[voice-turn] ledger write failed', e); }
+      try { await finalizeBattlefieldRecord(s.id); } catch (e) { console.error('[battlefield] record finalize failed', e); }   // [0066]
     }
     const { data: upd, error } = await supabase.from('game_sessions')
       .update({ state, version: s.version + 1, status: over ? 'over' : 'live', updated_at: new Date().toISOString() })
@@ -4377,6 +4401,8 @@ app.post('/chat', express.json({ limit: '8mb' }), async (req, res) => {
 
 const port = Number(process.env.PORT) || 3000;
 installSimRoutes(app, authUser);
+installBattlefieldArenaRoutes(app, authUser);   // [BF phase 2]
+startBattlefieldSweeper();                       // [BF phase 2] lapse + abandonment, 60s
 installFfRoutes(app, authUser);
 installCustomPersonaRoutes(app, authUser);
 

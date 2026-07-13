@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the Battlefield — settle it</title>
+<style>
+  :root { --bg:#120a0c; --panel:#1d1114; --ink:#f3e9e4; --dim:#a08a86; --crimson:#c02637; --line:#3a2328; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:16px/1.55 Georgia, 'Times New Roman', serif; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; max-width:520px; width:100%; padding:28px; }
+  .kicker { color:var(--crimson); font-size:12px; letter-spacing:.18em; text-transform:uppercase; font-family:system-ui, sans-serif; }
+  h1 { font-size:22px; margin:10px 0 4px; font-weight:normal; }
+  .motion { font-size:19px; font-style:italic; margin:16px 0; border-left:3px solid var(--crimson); padding-left:14px; }
+  .meta { color:var(--dim); font-size:14px; margin-bottom:18px; }
+  .stance { color:var(--ink); }
+  input, button { font:inherit; width:100%; border-radius:9px; padding:12px 14px; margin-top:10px; }
+  input { background:#0e0709; color:var(--ink); border:1px solid var(--line); }
+  button { background:var(--crimson); color:#fff; border:0; cursor:pointer; font-family:system-ui, sans-serif; letter-spacing:.04em; }
+  button:disabled { opacity:.5; cursor:default; }
+  .quiet { background:transparent; border:1px solid var(--line); color:var(--dim); }
+  .note { color:var(--dim); font-size:13px; margin-top:14px; }
+  .err { color:#ff8896; font-size:14px; margin-top:10px; min-height:20px; }
+  .hide { display:none; }
+  a { color:var(--crimson); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="kicker">the battlefield &middot; settle it</div>
+  <h1 id="headline">loading the challenge&hellip;</h1>
+  <div class="motion hide" id="motion"></div>
+  <div class="meta hide" id="meta"></div>
+
+  <div id="authPane" class="hide">
+    <input id="phone" type="tel" placeholder="your phone (10 digits or +91…)" autocomplete="tel">
+    <button id="sendOtp">get the code</button>
+    <input id="code" class="hide" type="text" inputmode="numeric" placeholder="the 6-digit code">
+    <button id="verify" class="hide">sign in</button>
+  </div>
+
+  <button id="accept" class="hide">take the floor — argue <span id="acceptSide"></span></button>
+  <div id="donePane" class="hide">
+    <div class="note" id="doneNote"></div>
+    <button class="quiet" id="watchBtn">watch the floor</button>
+  </div>
+
+  <div class="err" id="err"></div>
+  <div class="note">an adjudicated ruling ends this argument. no stakes, no money — just the verdict.</div>
+</div>
+<script>
+  var API = '';
+  var challengeId = (location.pathname.match(/\/fight\/([0-9a-f-]+)/i) || [])[1] || '';
+  var token = null, challenge = null;
+  function el(id){ return document.getElementById(id); }
+  function show(id){ el(id).classList.remove('hide'); }
+  function hide(id){ el(id).classList.add('hide'); }
+  function err(m){ el('err').textContent = m || ''; }
+  function normalizePhone(p){
+    p = (p || '').replace(/[^\d+]/g, '');
+    if (/^\d{10}$/.test(p)) return '+91' + p;
+    return p;
+  }
+  function load(){
+    if (!challengeId) { el('headline').textContent = 'no challenge in this link.'; return; }
+    fetch(API + '/battlefield/challenge/' + challengeId)
+      .then(function(r){ return r.json(); })
+      .then(function(ch){
+        if (ch.error) { el('headline').textContent = ch.error; return; }
+        challenge = ch;
+        el('motion').textContent = ch.motion; show('motion');
+        el('meta').innerHTML = '<span class="stance">' + ch.challengerName + '</span> argues ' + ch.challengerSide +
+          ' &middot; the ' + ch.yourSide + ' seat is yours' + (ch.timed ? ' &middot; timed floor' : '');
+        show('meta');
+        if (ch.status === 'open') {
+          el('headline').textContent = ch.challengerName + ' challenges you.';
+          el('acceptSide').textContent = ch.yourSide;
+          show('authPane');
+        } else if (ch.status === 'accepted') {
+          el('headline').textContent = 'this challenge was accepted.';
+          if (ch.sessionId) { el('doneNote').textContent = 'the duel is on the floor.'; show('donePane'); }
+        } else {
+          el('headline').textContent = 'this challenge has expired — the floor waited seven days.';
+        }
+      })
+      .catch(function(){ el('headline').textContent = 'could not reach the floor.'; });
+  }
+  el('sendOtp').onclick = function(){
+    err('');
+    var phone = normalizePhone(el('phone').value);
+    if (!/^\+\d{11,14}$/.test(phone)) { err('that number does not look right'); return; }
+    el('sendOtp').disabled = true;
+    fetch(API + '/auth/otp', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        el('sendOtp').disabled = false;
+        if (d.error) { err(d.error); return; }
+        show('code'); show('verify'); el('sendOtp').textContent = 'resend the code';
+      })
+      .catch(function(){ el('sendOtp').disabled = false; err('could not send the code'); });
+  };
+  el('verify').onclick = function(){
+    err('');
+    var phone = normalizePhone(el('phone').value);
+    el('verify').disabled = true;
+    fetch(API + '/auth/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone, code: el('code').value.trim() }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        el('verify').disabled = false;
+        if (d.error || !d.token) { err(d.error || 'sign-in failed'); return; }
+        token = d.token;
+        hide('authPane'); show('accept');
+      })
+      .catch(function(){ el('verify').disabled = false; err('sign-in failed'); });
+  };
+  el('accept').onclick = function(){
+    err('');
+    el('accept').disabled = true;
+    fetch(API + '/battlefield/challenge/' + challengeId + '/claim', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token } })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        el('accept').disabled = false;
+        if (d.error) { err(d.error); return; }
+        hide('accept');
+        el('doneNote').textContent = 'the floor is yours — you argue ' + d.yourSide + '. Open callmeZ to deliver your speeches.';
+        el('watchBtn').onclick = function(){ location.href = d.watchPath; };
+        show('donePane');
+      })
+      .catch(function(){ el('accept').disabled = false; err('the claim did not land'); });
+  };
+  load();
+</script>
+</body>
+</html>

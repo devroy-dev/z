@@ -1,0 +1,14 @@
+{
+  "key": "duel",
+  "label": "The Duel (1v1)",
+  "perSide": 1,
+  "order": [
+    { "side": "pro", "seat": 0, "role": "Opening",  "label": "PRO Opening",  "seconds": 120 },
+    { "side": "con", "seat": 1, "role": "Opening",  "label": "CON Opening",  "seconds": 120 },
+    { "side": "con", "seat": 1, "role": "Rebuttal", "label": "CON Rebuttal", "seconds": 120 },
+    { "side": "pro", "seat": 0, "role": "Rebuttal", "label": "PRO Rebuttal", "seconds": 120 },
+    { "side": "pro", "seat": 0, "role": "Closing",  "label": "PRO Closing",  "seconds": 90 },
+    { "side": "con", "seat": 1, "role": "Closing",  "label": "CON Closing",  "seconds": 90 }
+  ],
+  "adjModule": "debate-format-duel.md"
+}
