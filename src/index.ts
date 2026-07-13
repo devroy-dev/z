@@ -2693,7 +2693,9 @@ app.post('/battlefield/practice/start', async (req, res) => {
     const seats = [{ kind: 'user', id: user.id }, { kind: 'persona', id: 'the_house' }];
     const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
     const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
-    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty });
+    // commentary tier (LITE lever 3): OFF for private practice — the commentary is the
+    // spectator product; practice doesn't need it. Opt back in with {commentary: true}.
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: req.body?.commentary === true });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();
@@ -2727,7 +2729,8 @@ app.post('/battlefield/duel/start', async (req, res) => {
     seats[creatorSeat] = { kind: 'user', id: user.id };
     const difficulty = req.body?.difficulty === 'pro' ? 'pro' : 'normal';
     const pickedMotion = motion || (domain ? await pickMotionFromBank(domain, difficulty) : undefined) || undefined;
-    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty });
+    // spectated/shared duel: the commentary tier stays ON — it is the spectator product.
+    const state = battlefieldDuelAdapter.create(seats, { motion: pickedMotion, domain, difficulty, notesOn: true });
     const { data: sess, error } = await supabase.from('game_sessions').insert({
       thread_id: thread.id, game: 'battlefield_duel', state, seats, created_by: user.id,
     }).select('id, version').single();

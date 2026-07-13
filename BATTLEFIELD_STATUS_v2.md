@@ -3,9 +3,9 @@
 
 *Supersedes `BATTLEFIELD_STATUS.md`. Reference the original for the pre-backend history (the two minds + the shells). This doc = the CURRENT state after the backend + live-streaming build.*
 
-**Last updated:** session 2026-07-05 (post zip69).
-**Origin HEAD at write:** `9135963` (zip69).
-**One-line:** the practice-vs-house duel works end-to-end (real args + real adjudicated verdict, curl-proven twice). Keystroke streaming + the spectator watch page are BUILT and deployed; the live phone→browser watch is NOT yet confirmed working on device (last blocked by two watch.html bugs now fixed in zip69 — needs a re-test).
+**Last updated:** session 2026-07-13 (BATTLEFIELD_SPEC phase 1 — the LITE adjudicator).
+**Origin HEAD at write:** `c8eb834`.
+**One-line:** practice-vs-house proven; human-vs-human start/join, crowd votes (0043), voice-turn + LiveKit, and the motion bank (0046) shipped owner-led since v2 was first cut. THIS sitting shipped the LITE adjudicator (spec §2.2): one-hop forced verdict with the refusal moved INTO the schema, ephemeral-cached corpus prefix, commentary as a tier (OFF for practice). The phone→browser live-watch re-test (§2A below) REMAINS the standing device task — phase 0 of the spec, owner-run.
 
 **Strategic frame (locked this session, per Bhaskar):** LAUNCH happens AFTER the moat (the Battlefield) is real, not before. The Battlefield is the viral content generator + flagship. So Battlefield layers 5–7 are the PRE-launch build. The "moat works" bar: *a stranger taps a shared link, watches a real live duel, votes, feels the pull to sign up* = layers 5+6 proven. Layer 7 (human-v-human + tournaments) is the accelerant.
 
@@ -106,7 +106,7 @@ The phone→browser keystroke proof has not succeeded yet. Two watch.html bugs b
 - **Morality motions** — once the adjudicator is trusted (v1 is fact-based motions only, which have a knowable evidentiary direction).
 - **Cross-fire phase** — rapid short back-and-forth, added once the base format is proven.
 - **Institutional corpus-feeding** — a law college feeds its own moot problem + authorities; the adjudicator judges against THAT. The institutional product.
-- **LITE adjudicator variant** (cost lever) — from the cost-diag finding: the adjudicator is ~94% of a duel's cost (notes + verdict ≈ ₹9.41 of ₹9.97). Options: force the verdict into 1 tool-hop instead of 3 (each hop resends the full transcript+corpus), cache the running-note corpus prefix, make the commentary track optional.
+- **LITE adjudicator variant** — **SHIPPED 2026-07-13** (spec §2.2, phase 1; see the dated section below). All three levers landed.
 
 ### Then: LAUNCH (after the moat is real)
 - Policy pages live (Dev supplies fill-values → 4 HTML pages at /privacy, /terms, /delete-account, /community).
@@ -143,4 +143,28 @@ The phone→browser keystroke proof has not succeeded yet. Two watch.html bugs b
 
 **Infra:** engine on Railway (`https://z-production-c79a.up.railway.app`, :8080), Supabase Mumbai (schema `z`), Expo app in `app/`, Haiku `claude-haiku-4-5-20251001`. Repo `github.com/devroy-dev/z`, Codespace `/workspaces/z`.
 
-**Deploy workflow:** unzip at `/workspaces/z` → `npm run build` (server gate) → `git add -A && commit && push` (Railway auto-builds). Native OTA: `cd app && eas update --branch preview --environment preview -m "..." --non-interactive` (MUST run from `app/`). **Native fixes need BOTH the OTA and the git push** — OTA updates the app, git push updates the repo the next build is based on.
+**Deploy workflow:** unzip at `/workspaces/z` → `npm run build` (server gate) → `git add -A && commit && push` (Railway auto-builds). Native OTA: `cd app && CI=1 npx eas-cli@latest update --branch preview -m "..."` (MUST run from `app/`; `--non-interactive` is REJECTED by current eas-cli and silently falls into the Metro dev bundler — standing correction). **Native fixes need BOTH the OTA and the git push** — OTA updates the app, git push updates the repo the next build is based on.
+
+
+---
+
+## 5 · PHASE 1 — THE LITE ADJUDICATOR (shipped 2026-07-13, spec §2.2)
+
+**Contract:** `BATTLEFIELD_SPEC.md` governs this and following sittings; BUILD_PROTOCOL + the CE amendment (sessionLoop chassis) stand.
+
+**Rulings recorded (owner + CE, this sitting):**
+- **Fork #1 — RIDE the pattern, not the code (i):** the Battlefield inherits sessionLoop's *formats-as-authored-versioned-data* discipline (phases as data, boot-loaded); the **deterministic hard floor stays in the duel adapter** — a debate advances by law, a sitting advances by the moderator's judgment; the two floors are opposite by product nature. `sessionLoop.ts` is never touched in phases 0–2; any future shared-loader extraction re-runs the Session's ROOMS_STATUS proofs as its gate.
+- **The reserved migration block:** **0064 challenges · 0065 HOLE (votes shipped early as `0043_battlefield_votes`, pre-reservation, verified non-collision) · 0066 record · 0067 ratings.** Holes are law.
+
+**Shipped (server-only, no migration, no OTA — `apply_battlefield_lite.py`):**
+1. **One-hop verdict, refusal in the schema (CE condition 1 — the trap defused).** `tool_choice` now FORCES `submit_verdict` on hop 1 — which removes the model's ability to refuse by not calling the tool. So the refusal moved INTO the schema: `winner` enum gains `ADJUDICATION_FAILED` + a `failure_reason` field; the prompt draws the line (impossible-to-judge transcripts refuse; amateur-but-genuine still gets a real verdict, NORMAL bedside manner intact); the loop maps the refusal onto the exact `adjudication_failed` throw loop-exhaustion used to reach — `battlefieldDuel.adjudicate()` and every route untouched. The old up-to-6-hop `read_section` retrieval loop (each hop resending transcript+corpus — the ~94% line item) is gone; hard cap 3 hops, the only extra hop being the pre-existing max_tokens truncation re-submit.
+2. **Deterministic section pre-injection (CE condition 2).** `pickSections(domain, motion)` — pure keyword scoring, NO model call, zero hops: section 8 (fact-check notes) always + the top-2 sections by motion-keyword occurrence in section BODIES (the index titles are structurally uniform across the ten codexes — title matching is blind; body scoring verified discriminating: §4 the-factual-record tops every bank motion tested). ~7–8k chars of prepared material ride the dynamic block. Proven deterministic on compiled dist (3 motions × repeated calls, byte-identical).
+3. **Cached corpus prefix (CE condition 3).** Both `runningNote` and `finalVerdict` split `system` into blocks mirroring `loop.ts:335`: `[{staticPrefix(domain), cache_control: ephemeral}, {task+overlay}]`. The prefix (soul + CORE + domain index, ~56k chars) is byte-identical across a duel's every adjudicator call — notes through verdict — **proven at runtime post-change** (4 domains × 5 calls, identical). Pre-injected sections deliberately ride the dynamic block so the prefix stays shared. `llm.ts` passes `cache_control` through untouched on Anthropic (strips only for other providers) — verified.
+4. **Commentary as a tier (CE condition 4, default approved).** `BFState.notesOn`; `/battlefield/practice/start` creates with notes **OFF** (opt back in via `{commentary: true}`); `/battlefield/duel/start` (spectated/shared) explicitly **ON** — the commentary is the spectator product. Old sessions lack the field → treated ON (regression-safe). `test-duel` keeps notes ON so the cost proof measures the full spectated shape.
+
+**Gates (owner-run curls in `APPLY_BATTLEFIELD_LITE.md` — the phase is NOT closed until pasted back):**
+- **The refusal proof (GATES the phase):** two-line garbage transcript via `/battlefield/test-verdict` → `adjudication_failed` via the schema, never a fabricated winner.
+- **Real-verdict regression:** pinned sanctions transcript → real winner, non-empty matter/manner, `byFn.bf_verdict.calls = 1`.
+- **The cost gate:** pinned `test-duel` before/after; projected 8-speech AP adjudication ≤ today's 1v1 (₹9.97 recorded baseline); numbers into the APPLY.
+
+**Not touched:** `sessionLoop.ts`, migrations, native, `debateDuel.ts` (the arena's light duel keeps its own judge).

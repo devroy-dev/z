@@ -100,6 +100,9 @@ export type BFState = {
   // per-phase order: PRO speaks first in Opening & Closing; CON first in Rebuttal
   // (real debate: the side under attack answers, so Rebuttal opens with CON on PRO).
   notes: { phase: Phase; note: string }[];   // the commentary track (optional running read)
+  notesOn: boolean;            // the commentary TIER (LITE lever 3): ON for spectated/shared
+                               // duels — the commentary is the spectator product — OFF for
+                               // private practice. Old sessions lack the field → treated ON.
   verdict: Verdict | null;
   winner: 'PRO' | 'CON' | null;
   judging: boolean;
@@ -110,7 +113,7 @@ export type BFState = {
 // PRO=0 leads Opening & Closing; CON=1 leads Rebuttal (answers the attack first).
 function leadSeat(phaseIndex: number): 0 | 1 { return phaseIndex === 1 ? 1 : 0; }
 
-export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; difficulty?: 'normal' | 'pro' }): BFState {
+export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; difficulty?: 'normal' | 'pro'; notesOn?: boolean }): BFState {
   const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
   // pin exactly if both given; else a random motion within the requested domain;
   // else a fully random motion. (domain-only used to fall through to fully random.)
@@ -130,6 +133,7 @@ export function newBattlefield(opts?: { motion?: string; domain?: DebateDomain; 
     turns: [],
     toAct: leadSeat(0),
     notes: [],
+    notesOn: opts?.notesOn === false ? false : true,
     verdict: null,
     winner: null,
     judging: false,
@@ -205,7 +209,7 @@ async function recordAndAdvance(state: BFState, seat: 0 | 1, text: string, audio
   state.turns.push({ seat, role, text, audio: audio ?? null });
   const { phaseComplete } = advanceFloor(state);
   // the commentary track: after a completed phase (both sides spoke), one running read.
-  if (phaseComplete && state.phase !== 'verdict') {
+  if (phaseComplete && state.phase !== 'verdict' && state.notesOn !== false) {
     try {
       const phaseTurns = state.turns.filter((t) => t.role === role);
       const note = await runningNote({
@@ -249,7 +253,7 @@ export const battlefieldDuelAdapter = {
   // motion/domain arrive either as the first arg (diagnostic) or in options (route).
   create(a?: any, b?: any) {
     const opts = (a && (a.motion || a.domain)) ? a : (b || {});
-    return newBattlefield({ motion: opts.motion, domain: opts.domain, difficulty: opts.difficulty });
+    return newBattlefield({ motion: opts.motion, domain: opts.domain, difficulty: opts.difficulty, notesOn: opts.notesOn });
   },
 
   async move(state: BFState, seat: number, mv: any, seats?: any[]): Promise<BFState> {
